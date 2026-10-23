@@ -1,11 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, Suspense, type CSSProperties } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense, type CSSProperties } from 'react';
 import { parseISO, isValid } from 'date-fns';
-import { CalendarDays, Check, Download, ExternalLink, Eye, Loader2, Pencil, Plus, RefreshCw, Search, Upload, UserX, X } from 'lucide-react';
+import { CalendarDays, CalendarRange, Check, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, Loader2, Pencil, Plus, RefreshCw, Search, ShieldAlert, Upload, UserX, X } from 'lucide-react';
 import api, { type AttendanceLate } from '../../../lib/api';
 import MonthlySummary from './MonthlySummary';
+import { RangePresetPicker, presetRange } from '../../../components/attendance/RangePresets';
 import DayTravel from '../../../components/attendance/DayTravel';
+import PersonMonthModal from '../../../components/attendance/PersonMonthModal';
+import { SortLabel, type SortState } from '../../../lib/tableSort';
+import { addDaysYmd, eachDay, gapStatus, istMinutesOfDay, istTodayYmd, parseRules, toISTDate, type RulesLite } from '../../../lib/attendanceDay';
+import PlaceText from '../../../components/travel-report/PlaceText';
+import { useSeen } from '../../../lib/placeName';
 import { modeText } from '../../../lib/travelReport';
 import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import Modal from '../../../components/crm/shared/Modal';
@@ -14,7 +20,7 @@ import { useClient } from '../../../context/ClientContext';
 import { useRealtimeAttendance } from '../../../hooks/useRealtimeAttendance';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { usePageTitle } from '../../../lib/pageTitle';
-import { Avatar, Badge, Button, Card, EmptyState, Eyebrow, Field, IconButton, Input, PageHeader, Section, Segmented, Select, T, Textarea, useIsCompact, type Tone } from '../../../components/ui';
+import { Avatar, Badge, Button, Card, EmptyState, Eyebrow, Field, IconButton, Input, PageHeader, Section, Segmented, Select, T, Textarea, cardStyle, useIsCompact, type Tone } from '../../../components/ui';
 
 /* ── DateRangePicker component ── */
 function DateRangePicker({ from, to, onChange }: { from: string; to: string; onChange: (f: string, t: string) => void }) {
@@ -56,8 +62,8 @@ function DateRangePicker({ from, to, onChange }: { from: string; to: string; onC
           </div>
           <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <Field label="From"><Input type="date" value={from} onChange={e => onChange(e.target.value, to)} style={{ fontSize: 12.5, padding: '0 8px' }} /></Field>
-              <Field label="To"><Input type="date" value={to} onChange={e => onChange(from, e.target.value)} style={{ fontSize: 12.5, padding: '0 8px' }} /></Field>
+              <Field label="From"><Input type="date" value={from} max={istTodayYmd()} onChange={e => onChange(e.target.value, to)} style={{ fontSize: 12.5, padding: '0 8px' }} /></Field>
+              <Field label="To"><Input type="date" value={to} min={from || undefined} max={istTodayYmd()} onChange={e => onChange(from, e.target.value)} style={{ fontSize: 12.5, padding: '0 8px' }} /></Field>
             </div>
           </div>
         </div>
@@ -71,7 +77,8 @@ interface AttendanceRecord {
   id: string;
   user_id: string;
   date: string;
-  status: 'checked_in' | 'checked_out' | 'absent' | 'half_day' | 'on_leave';
+  // 'not_yet' / 'week_off' are never stored: they label a day with no record that is not (yet) an absence.
+  status: 'checked_in' | 'checked_out' | 'on_break' | 'absent' | 'half_day' | 'on_leave' | 'not_yet' | 'week_off';
   checkin_at?: string;
   checkin_lat?: number;
   checkin_lng?: number;
@@ -99,6 +106,9 @@ interface AttendanceRecord {
   checkin_face_score?: number;
   checkout_face_verified?: boolean;
   checkout_face_score?: number;
+  // Location trust signals stamped at check-in: a spoofed (mock) GPS fix, and how far the fix was from the site.
+  checkin_is_mock?: boolean;
+  checkin_distance_m?: number | null;
   _virtual?: boolean;
   users?: { name: string; role?: string; employee_id?: string; zones?: { name: string } };
 }
@@ -137,35 +147,23 @@ const Spinner = () => <Loader2 size={15} strokeWidth={1.8} style={{ animation: '
 const statusMeta: Record<string, { label: string; tone: Tone }> = {
   checked_in:  { label: 'Checked in',  tone: 'ok' },
   checked_out: { label: 'Checked out', tone: 'info' },
+  on_break:    { label: 'On break',    tone: 'warn' },
   absent:      { label: 'Absent',      tone: 'red' },
   half_day:    { label: 'Half day',    tone: 'warn' },
   on_leave:    { label: 'On leave',    tone: 'neutral' },
+  not_yet:     { label: 'Not in yet',  tone: 'neutral' },
+  week_off:    { label: 'Week off',    tone: 'neutral' },
 };
+// Colour of the rail on a row's left edge — the status read at a glance down a long list.
+const statusRail: Record<string, string | undefined> = {
+  checked_in: 'var(--ok)', checked_out: 'var(--info)', on_break: 'var(--warn)', absent: 'var(--red)', half_day: 'var(--warn)', on_leave: 'var(--mute)',
+};
+// Order for the Status column sort: what needs attention first.
+const statusOrder: Record<string, number> = { absent: 0, half_day: 1, on_break: 2, checked_in: 3, checked_out: 4, on_leave: 5, not_yet: 6, week_off: 7 };
 
 const fmt = (iso?: string) => {
   if (!iso) return '—';
   return new Date(iso.replace(' ', 'T')).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-};
-
-// IST offset: UTC+05:30 = 19800000 ms
-const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-
-/**
- * Convert any date/timestamp value to a plain YYYY-MM-DD string in IST timezone.
- * Handles: "2026-04-12", "2026-04-12 07:14:05.605+00" (space sep),
- *          "2026-04-12T00:00:00+00:00" (full ISO UTC), null, undefined.
- * Returns empty string if the input cannot be parsed.
- */
-const toISTDate = (val: any): string => {
-  if (!val) return '';
-  const s = String(val).trim();
-  // Already a plain YYYY-MM-DD — the DB `date` column always stores the IST calendar date,
-  // so accept it directly without UTC conversion.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // Full timestamp (with or without T separator) — parse as UTC then shift to IST.
-  const ms = new Date(s.replace(' ', 'T')).getTime();
-  if (isNaN(ms)) return '';
-  return new Date(ms + IST_OFFSET_MS).toISOString().split('T')[0];
 };
 
 const fmtDate = (d: any) => {
@@ -198,22 +196,30 @@ const th: CSSProperties = { padding: '12px 14px', textAlign: 'left', fontFamily:
 const td: CSSProperties = { padding: '12px 14px', fontSize: 13.5, color: T.text, borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle' };
 const tdMono: CSSProperties = { ...td, fontFamily: T.mono, fontSize: 12.5, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 
-/* ── selfie thumbnail with "open" affordance ── */
-const SelfieThumb = ({ src, alt, tone }: { src: string; alt: string; tone: 'ok' | 'info' }) => (
-  <div style={{ position: 'relative', flexShrink: 0 }}>
-    <SignedImage src={src} alt={alt} style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${T.border}`, display: 'block' }} />
-    <a href={src} onClick={(e) => openSignedUrl(e, src)} target="_blank" rel="noreferrer" title={`Open ${alt.toLowerCase()} selfie`}
-       style={{ position: 'absolute', bottom: -4, right: -4, background: T.card, border: `1px solid ${T.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', color: tone === 'ok' ? T.ok : T.info, textDecoration: 'none' }}>
-      <Eye size={10} strokeWidth={2} />
-    </a>
-  </div>
-);
+/* ── selfie thumbnail with "open" affordance ──
+   Signed on demand: a day with hundreds of rows must not sign hundreds of private-bucket URLs up front, so the
+   image (and its /media/sign call) only starts once the thumbnail scrolls into view. */
+const SelfieThumb = ({ src, alt, tone }: { src: string; alt: string; tone: 'ok' | 'info' }) => {
+  const [ref, seen] = useSeen<HTMLDivElement>();
+  return (
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0, width: 40, height: 40 }}>
+      {seen
+        ? <SignedImage src={src} alt={alt} loading="lazy" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${T.border}`, display: 'block' }} />
+        : <div aria-hidden style={{ width: 40, height: 40, borderRadius: 8, background: T.raised, border: `1px solid ${T.border}` }} />}
+      <a href={src} onClick={(e) => openSignedUrl(e, src)} target="_blank" rel="noreferrer" title={`Open ${alt.toLowerCase()} selfie`}
+         style={{ position: 'absolute', bottom: -4, right: -4, background: T.card, border: `1px solid ${T.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', color: tone === 'ok' ? T.ok : T.info, textDecoration: 'none' }}>
+        <Eye size={10} strokeWidth={2} />
+      </a>
+    </div>
+  );
+};
 
 /* ═══════════════════════════════════════════════════ */
 /* ═══════════════════════════════════════════════════ */
 function AttendanceContent() {
   usePageTitle('Attendance');
   const narrow = useIsCompact(1100);
+  const phone = useIsCompact(769);
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -231,12 +237,17 @@ function AttendanceContent() {
   const urlFrom = searchParams.get('from');
   const urlTo = searchParams.get('to');
 
-  const [records,  setRecords]  = useState<AttendanceRecord[]>([]);
-  // True when the date range is too wide to pad absent rows (users × days would
-  // explode) — the table then shows recorded attendance only + a hint to export.
-  const [absentPaddingSkipped, setAbsentPaddingSkipped] = useState(false);
+  // Real rows from the API. The absent / week-off / not-in-yet rows for people with NO record are derived below, so
+  // a change to the shift rules (or the clock passing shift start) re-judges them without another fetch.
+  const [base,     setBase]     = useState<AttendanceRecord[]>([]);
+  const [rules,    setRules]    = useState<RulesLite | null>(null);
   const [users,    setUsers]    = useState<any[]>([]);
   const [loading,  setLoading]  = useState(true);
+  // One person's days (opened from a name in the monthly summary, or from a record's detail).
+  const [personView, setPersonView] = useState<{ userId: string; name: string; from: string; to: string } | null>(null);
+  // The Refresh button re-reads in place (spinner on the button, table stays) instead of swapping to the skeleton.
+  const [refreshing, setRefreshing] = useState(false);
+  const [sort, setSort] = useState<SortState>({ key: null, dir: 'asc' });
   const [err,      setErr]      = useState('');
   const [fromDate,   setFrom]   = useState(urlFrom || _today);
   const [toDate,     setTo]     = useState(urlTo || _today);
@@ -266,8 +277,10 @@ function AttendanceContent() {
   const [delRec,     setDelRec]     = useState<AttendanceRecord | null>(null);
 
   /* export */
-  const [expFrom,    setExpFrom]    = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]; });
-  const [expTo,      setExpTo]      = useState(() => new Date().toISOString().split('T')[0]);
+  // Default to this calendar month-to-date (IST) — the same range the picker's
+  // "This month" preset produces, so the modal opens with that tab active.
+  const [expFrom,    setExpFrom]    = useState(() => presetRange('month').from);
+  const [expTo,      setExpTo]      = useState(() => presetRange('month').to);
   const [expGroupBy, setExpGroupBy] = useState<'city'|'role'|'executive'>('city');
   const [expLoading, setExpLoading] = useState(false);
   const [expErr,     setExpErr]     = useState('');
@@ -315,34 +328,56 @@ function AttendanceContent() {
   /* ── fetch ── */
   const { selectedClientId } = useClient();
 
-  /* ── fetch ── */
-  const load = useCallback(async () => {
+  // The people list is the heavy half of every refresh (up to 500 rows) and changes rarely, so it is fetched once
+  // per client and only again on an explicit Refresh — not on every 15 s poll or realtime event.
+  const usersFor = useRef<string | null>(null);
+  // load() needs the latest users without depending on them (that would refetch on every users change).
+  const usersRef = useRef<any[]>([]);
+  useEffect(() => { usersRef.current = users; }, [users]);
+  // Only the newest request may write state: a slow poll must never overwrite the answer for a range picked after it.
+  const reqId = useRef(0);
+
+  const pick = (r: any) => {
+    if (Array.isArray(r)) return r;
+    if (Array.isArray(r?.data)) return r.data;
+    if (Array.isArray(r?.data?.data)) return r.data.data;
+    return [];
+  };
+
+  const load = useCallback(async (opts: { silent?: boolean; refreshUsers?: boolean } = {}) => {
+    const id = ++reqId.current;
     try {
-      setLoading(true);
+      // A background refresh (poll / realtime) updates in place; only a first load, a new range or a new client
+      // swaps the table for the skeleton — otherwise it would flash every 15 seconds.
+      if (!opts.silent) setLoading(true);
       const f = fromDate.trim();
       const t = toDate.trim();
 
-      // UNIVERSAL PARAMETERS: from and to
       let qs = `from=${f}&to=${t}`;
-
       if (selectedClientId && selectedClientId !== 'all') {
         qs += `&client_id=${selectedClientId}`;
       }
 
+      const clientKey = String(selectedClientId ?? '');
+      const needUsers = opts.refreshUsers || usersFor.current !== clientKey;
+      // A range that includes today is live data, and every background refresh is meant to see changes: skip the
+      // client's 60 s GET cache for those (it silently turned the 15 s poll and the realtime push into a 60 s one).
+      // A fully past range can't change under us, so a plain navigation to it may still be answered from the cache.
+      const live = t >= istTodayYmd();
       const [attRes, usersRes] = await Promise.all([
-        api.get<any>(`/api/v1/attendance/team?${qs}`),
-        api.get<any>(`/api/v1/users?limit=500&scope=field_filter${selectedClientId ? `&client_id=${selectedClientId}` : ''}`),
+        api.get<any>(`/api/v1/attendance/team?${qs}`, (live || opts.silent ? { noCache: true } : {}) as RequestInit),
+        needUsers ? api.get<any>(`/api/v1/users?limit=500&scope=field_filter${selectedClientId ? `&client_id=${selectedClientId}` : ''}`) : Promise.resolve(null),
       ]);
+      if (id !== reqId.current) return;
 
-      const pick = (r: any) => {
-        if (Array.isArray(r)) return r;
-        if (Array.isArray(r?.data)) return r.data;
-        if (Array.isArray(r?.data?.data)) return r.data.data;
-        return [];
-      };
-
-      const usersArr = pick(usersRes);
-      setUsers(usersArr);
+      let usersArr: any[];
+      if (usersRes) {
+        usersArr = pick(usersRes);
+        usersFor.current = clientKey;
+        setUsers(usersArr);
+      } else {
+        usersArr = usersRef.current;
+      }
 
       // Build lookup map: id → user
       const userMap: Record<string, any> = {};
@@ -350,8 +385,7 @@ function AttendanceContent() {
 
       // Enrich attendance records with user info if join didn't come back
       const attArr = pick(attRes).map((r: any) => {
-        // Normalize date to IST YYYY-MM-DD using toISTDate so coveredPairs
-        // keys always match rangeDates regardless of what the backend sends.
+        // Normalize date to IST YYYY-MM-DD so the covered-day keys always match the range's dates.
         const normDate = toISTDate(r.date) || toISTDate(r.checkin_at) || undefined;
         r = { ...r, date: normDate };
         const u = userMap[r.user_id];
@@ -363,98 +397,94 @@ function AttendanceContent() {
         return r;
       });
 
-      // Add implicit absent rows for users with no attendance record (Pave the list)
-      // For date ranges, generate one absent row per missing day per user.
-      const ELIGIBLE_ROLES = ['executive', 'field_executive', 'field-executive', 'field_exec', 'supervisor', 'city_manager'];
-      // Tenants like ByteBack keep field execs on the generic 'sub_admin' preset and
-      // mark them FE via their org-role data_scope ('own'). Treat data_scope 'own' as
-      // eligible too, so those reps still get absent-row padding.
-      const eligibleUsers = usersArr.filter((u: any) => {
-        const rel = Array.isArray(u.org_role) ? u.org_role[0] : u.org_role;
-        const ds = (rel?.data_scope || '').toLowerCase();
-        return (ELIGIBLE_ROLES.includes((u.role || '').toLowerCase()) || ds === 'own') && u.is_active;
-      });
-
-      // Build a set of "user_id|YYYY-MM-DD(IST)" pairs that already have real records.
-      // Use toISTDate so the key always matches the YYYY-MM-DD values in rangeDates.
-      const coveredPairs = new Set(attArr.map((r: any) => `${r.user_id}|${toISTDate(r.date) || toISTDate(r.checkin_at)}`));
-
-      // Enumerate every date in the range [f, t]
-      const rangeDates: string[] = [];
-      const cur = new Date(f + 'T00:00:00Z');
-      const end = new Date(t + 'T00:00:00Z');
-      while (cur <= end) {
-        rangeDates.push(cur.toISOString().split('T')[0]);
-        cur.setUTCDate(cur.getUTCDate() + 1);
-      }
-
-      // Absent padding is a cartesian product (eligible users × days in range),
-      // so a wide range on a big tenant explodes into tens of thousands of rows.
-      // That froze the page: it was rebuilt synchronously on every 15s poll /
-      // realtime event, and the (unvirtualized) table then tried to render all of
-      // them. Cap it — pad only when the product is bounded; otherwise show
-      // recorded attendance only and point the user at Export to Excel (which
-      // fetches per-day independently) for a full per-day absentee breakdown.
-      const ABSENT_PAD_CAP = 8000;
-      const canPadAbsent = eligibleUsers.length * rangeDates.length <= ABSENT_PAD_CAP;
-      const absentRows: AttendanceRecord[] = [];
-      if (canPadAbsent) {
-        for (const u of eligibleUsers) {
-          for (const day of rangeDates) {
-            if (!coveredPairs.has(`${u.id}|${day}`)) {
-              absentRows.push({
-                id: null as any,
-                user_id: u.id,
-                date: day,
-                status: 'absent' as const,
-                checkin_at: undefined, checkout_at: undefined, total_hours: undefined,
-                users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role },
-                _virtual: true,
-              });
-            }
-          }
-        }
-      }
-      setAbsentPaddingSkipped(!canPadAbsent);
-      setRecords([...attArr, ...absentRows]);
+      setBase(attArr);
       setErr('');
     } catch (e: any) {
-      setErr(e.message || 'Failed to load attendance');
-    } finally { setLoading(false); }
+      if (id === reqId.current) setErr(e.message || 'Failed to load attendance');
+    } finally { if (id === reqId.current) setLoading(false); }
   }, [fromDate, toDate, selectedClientId]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Realtime push: when ANY attendance/breaks row changes for this org, the
-  // Supabase channel fires `load()` immediately. Combined with the visible-
-  // tab poll below, this gives instant supervisor updates with a 15s
-  // catch-up safety net (handles dropped websockets, tab-was-hidden, etc.).
-  useRealtimeAttendance(load);
+  // Shift rules decide whether a gap is an absence, a week off, or "not in yet". Read-only for any signed-in user.
+  // A failure (or a client with no saved rules) leaves the old behaviour: every gap is Absent.
+  useEffect(() => {
+    let cancelled = false;
+    api.get<any>('/api/v1/attendance/rules')
+      .then((res) => { if (!cancelled) setRules(parseRules(res)); })
+      .catch(() => { if (!cancelled) setRules(null); });
+    return () => { cancelled = true; };
+  }, [selectedClientId]);
 
-  // Live-ish supervisor view: poll every 15 s while the tab is visible so
-  // newly-marked attendance rows show up without a manual refresh. Pauses
-  // immediately when the tab is hidden so we don't burn the API quota for
-  // a window the supervisor isn't looking at. Backend response is 304-able
-  // via the Cache-Control + ETag headers we set on /attendance/team, so the
-  // real network cost is tiny when nothing has changed.
+  // Realtime push: when ANY attendance/breaks row changes for this org, the Supabase channel refreshes in place.
+  // Combined with the visible-tab poll below, this gives instant supervisor updates with a 15s catch-up safety net
+  // (handles dropped websockets, tab-was-hidden, etc.).
+  useRealtimeAttendance(() => { if (toDate.trim() >= istTodayYmd()) void load({ silent: true }); });
+
+  // Live-ish supervisor view: poll every 15 s while the tab is visible so newly-marked attendance rows show up
+  // without a manual refresh. Pauses when the tab is hidden. Backend response is 304-able via the Cache-Control +
+  // ETag headers we set on /attendance/team, so the real network cost is tiny when nothing has changed.
   useEffect(() => {
     let timer: number | null = null;
+    // Nothing changes under a range that ended before today, so there is nothing to poll for.
+    const watching = () => document.visibilityState === 'visible' && toDate.trim() >= istTodayYmd();
     const tick = () => {
-      if (document.visibilityState === 'visible') load();
+      if (watching()) load({ silent: true });
       timer = window.setTimeout(tick, 15_000);
     };
     timer = window.setTimeout(tick, 15_000);
-    const onVis = () => { if (document.visibilityState === 'visible') load(); };
+    const onVis = () => { if (watching()) load({ silent: true }); };
     document.addEventListener('visibilitychange', onVis);
     return () => {
       if (timer) window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [load]);
+  }, [load, toDate]);
+
+  // People with no record for a day in range: absent, week off, or not in yet — judged with the client's shift rules.
+  // Padding is a cartesian product (eligible users × days), so a wide range on a big tenant is capped: it froze the
+  // page before. Past the cap the table shows recorded attendance only and points at Export for the full breakdown.
+  const { records, absentPaddingSkipped } = useMemo(() => {
+    const ELIGIBLE_ROLES = ['executive', 'field_executive', 'field-executive', 'field_exec', 'supervisor', 'city_manager'];
+    // Tenants like ByteBack keep field execs on the generic 'sub_admin' preset and mark them FE via their org-role
+    // data_scope ('own'). Treat data_scope 'own' as eligible too, so those reps still get absent-row padding.
+    const eligibleUsers = users.filter((u: any) => {
+      const rel = Array.isArray(u.org_role) ? u.org_role[0] : u.org_role;
+      const ds = (rel?.data_scope || '').toLowerCase();
+      return (ELIGIBLE_ROLES.includes((u.role || '').toLowerCase()) || ds === 'own') && u.is_active;
+    });
+    const covered = new Set(base.map((r) => `${r.user_id}|${toISTDate(r.date) || toISTDate(r.checkin_at)}`));
+    const days = eachDay(fromDate.trim(), toDate.trim());
+    const ABSENT_PAD_CAP = 8000;
+    const canPad = eligibleUsers.length * days.length <= ABSENT_PAD_CAP;
+    const single = days.length === 1;
+    const gaps: AttendanceRecord[] = [];
+    if (canPad) {
+      const now = Date.now();
+      for (const u of eligibleUsers) {
+        for (const day of days) {
+          if (covered.has(`${u.id}|${day}`)) continue;
+          const g = gapStatus(day, rules, now);
+          // Future days are not gaps. A rest day is only worth a row when it IS the day being looked at.
+          if (!g || (g === 'week_off' && !single)) continue;
+          gaps.push({
+            id: null as any,
+            user_id: u.id,
+            date: day,
+            status: g,
+            checkin_at: undefined, checkout_at: undefined, total_hours: undefined,
+            users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role },
+            _virtual: true,
+          });
+        }
+      }
+    }
+    return { records: [...base, ...gaps], absentPaddingSkipped: !canPad };
+  }, [base, users, fromDate, toDate, rules]);
 
   /* helper — merge a saved record back into the list, or prepend if new */
   const mergeRecord = (saved: AttendanceRecord) => {
-    setRecords(prev => {
+    setBase(prev => {
       const idx = prev.findIndex(r => r.id === saved.id);
       if (idx >= 0) {
         const next = [...prev];
@@ -560,16 +590,18 @@ function AttendanceContent() {
   };
 
   /* ── DELETE ── */
+  // "Mark absent": the same override endpoint as Edit (PATCH /:id/override). The old call POSTed to
+  // /:id/override, which does not exist, so the button always failed. A day with no record is already absent.
   const handleDelete = async () => {
-    if (!delRec) return;
+    if (!delRec?.id) { setDelRec(null); return; }
     setSaving(true);
     try {
-      await api.post(`/api/v1/attendance/${delRec.id}/override`, {
+      await api.patch(`/api/v1/attendance/${delRec.id}/override`, {
         status: 'absent',
-        override_reason: 'Deleted by admin',
+        override_reason: 'Marked absent by admin',
       });
-      setDelRec(null); setDetail(null); load();
-    } catch (e: any) { alert(e.message); }
+      setDelRec(null); setDetail(null); load({ silent: true });
+    } catch (e: any) { setDelRec(null); setErr(e?.message || 'Could not mark this record absent'); }
     finally { setSaving(false); }
   };
 
@@ -603,9 +635,10 @@ function AttendanceContent() {
     if (rec.status === 'on_leave') return 'On Leave';
     if (rec.status === 'absent') return 'Absent';
     if (rec.status === 'half_day') return 'Half Day';
+    // A shift that is still running has not got its hours yet — 2 h in at 11:30 is not a half day.
+    if (rec.status === 'checked_in' || rec.status === 'on_break') return 'Checked In';
     const h = calcHours(rec);
     if (h != null && h < 4) return 'Half Day';
-    if (rec.status === 'checked_in') return 'Checked In';
     return 'Present';
   };
 
@@ -627,7 +660,13 @@ function AttendanceContent() {
       for (let i = 0; i < dates.length; i += 7) {
         const chunk = dates.slice(i, i + 7);
         const results = await Promise.all(
-          chunk.map(d => api.get<any>(`/api/v1/attendance/team?date=${d}`))
+          // The /attendance/team endpoint filters by a `from`/`to` date RANGE and has
+          // no `date` param — passing `date=` was silently ignored, so every day's
+          // request fell back to today's data (parseAppDate(undefined) → dbToday()).
+          // That made the export repeat today's single record across the whole range
+          // (identical check-in time and hours on every row). Scope each fetch to the
+          // one day with from=to=d, which the backend honors.
+          chunk.map(d => api.get<any>(`/api/v1/attendance/team?from=${d}&to=${d}`))
         );
         chunk.forEach((d, idx) => {
           const pick = (r: any): any[] => {
@@ -655,10 +694,6 @@ function AttendanceContent() {
   };
 
   const generateExcel = (records: (AttendanceRecord & { _date: string })[], dates: string[]) => {
-    // ── helpers ──
-    const esc = (v: any) => String(v ?? '').replace(/"/g, '""');
-    const q   = (v: any) => `"${esc(v)}"`;
-
     // Build user summary map
     interface UserSummary {
       name: string; employee_id: string; role: string;
@@ -698,102 +733,66 @@ function AttendanceContent() {
       u.avgHoursPerDay = u.presentDays > 0 ? u.totalHours / u.presentDays : 0;
     });
 
-    const allUsers = Object.values(userMap);
-    const tabs: { name: string; csvContent: string }[] = [];
+    const allUsers = Object.values(userMap).sort((a, b) => a.name.localeCompare(b.name));
+    // ── Excel 2003 SpreadsheetML (.xls) so the file opens with real worksheet
+    //    tabs — a Summary sheet and a Details sheet — without pulling in a heavy
+    //    xlsx dependency. The Details sheet carries the selfie image links as
+    //    clickable hyperlinks. ──
+    const xesc = (v: any) => String(v ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+    const strCell = (v: any) => `<Cell><Data ss:Type="String">${xesc(v)}</Data></Cell>`;
+    const numCell = (v: number) => `<Cell><Data ss:Type="Number">${Number.isFinite(v) ? v : 0}</Data></Cell>`;
+    const hdrCell = (v: any) => `<Cell ss:StyleID="hdr"><Data ss:Type="String">${xesc(v)}</Data></Cell>`;
+    // A clickable hyperlink cell (the URL both shows and links); "—" when absent.
+    const linkCell = (url?: string) => url
+      ? `<Cell ss:HRef="${xesc(url)}"><Data ss:Type="String">${xesc(url)}</Data></Cell>`
+      : strCell('—');
+    const row = (cells: string[]) => `<Row>${cells.join('')}</Row>`;
+    const sheet = (name: string, header: string[], bodyRows: string[]) =>
+      `<Worksheet ss:Name="${xesc(name)}"><Table>${row(header.map(hdrCell))}${bodyRows.join('')}</Table></Worksheet>`;
 
-    // ══ SHEET 1: Summary by user ══
-    const summaryHeader = ['Name','Employee ID','Role','City','Zone','Supervisor','Working Days','Present','Half Days','On Leave','Absent','Total Hours','Avg Hrs/Day'];
-    const summaryRows = allUsers.map(u => [
-      q(u.name), q(u.employee_id), q(u.role), q(u.city), q(u.zone), q(u.supervisor),
-      u.totalDays, u.presentDays,
-      u.halfDays > 0 ? `⚠ ${u.halfDays}` : '0',
-      u.onLeaveDays, u.absentDays, fmtHrs(u.totalHours), fmtHrs(u.avgHoursPerDay),
-    ]);
-    tabs.push({ name: 'Summary', csvContent: [summaryHeader.map(q).join(','), ...summaryRows.map(r => r.join(','))].join('\n') });
+    const fmtTime = (iso?: string) => iso ? new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
 
-    // ══ SHEET 2: City-wise summary ══
-    const cities = Array.from(new Set(allUsers.map(u => u.city || 'Unknown'))).sort();
-    const cityHeader = ['City','Total Execs','Present','Half Days','Absent','Total Hours','Avg Hrs/Exec'];
-    const cityRows = cities.map(city => {
-      const cu = allUsers.filter(u => (u.city || 'Unknown') === city);
-      const present  = cu.reduce((a,u) => a + u.presentDays, 0);
-      const half     = cu.reduce((a,u) => a + u.halfDays, 0);
-      const absent   = cu.reduce((a,u) => a + u.absentDays, 0);
-      const hours    = cu.reduce((a,u) => a + u.totalHours, 0);
-      return [q(city), cu.length, present, half > 0 ? `⚠ ${half}` : '0', absent, fmtHrs(hours), cu.length ? fmtHrs(hours / cu.length) : '0h 0m'];
-    });
-    tabs.push({ name: 'City Wise', csvContent: [cityHeader.map(q).join(','), ...cityRows.map(r => r.join(','))].join('\n') });
+    // ══ SHEET 1: per-person summary ══
+    const summarySheet = sheet(
+      'Summary',
+      ['Name', 'Present', 'Half Days', 'On Leave', 'Absent', 'Total Hours'],
+      allUsers.map(u => row([
+        strCell(u.name), numCell(u.presentDays), numCell(u.halfDays),
+        numCell(u.onLeaveDays), numCell(u.absentDays), strCell(fmtHrs(u.totalHours)),
+      ])),
+    );
 
-    // ══ SHEET 3: Role-wise summary ══
-    const roles = Array.from(new Set(allUsers.map(u => u.role || 'unknown'))).sort();
-    const roleHeader = ['Role','Count','Present Days','Half Days','Absent Days','Total Hours'];
-    const roleRows = roles.map(role => {
-      const ru = allUsers.filter(u => u.role === role);
-      return [
-        q(role), ru.length,
-        ru.reduce((a,u) => a+u.presentDays, 0),
-        ru.reduce((a,u) => a+u.halfDays,    0),
-        ru.reduce((a,u) => a+u.absentDays,  0),
-        fmtHrs(ru.reduce((a,u) => a+u.totalHours,  0)),
-      ];
-    });
-    tabs.push({ name: 'Role Wise', csvContent: [roleHeader.map(q).join(','), ...roleRows.map(r => r.join(','))].join('\n') });
+    // ══ SHEET 2: one row per person per day, with total hours and selfie links ══
+    const detailSheet = sheet(
+      'Details',
+      ['Date', 'Name', 'Check-in', 'Check-out', 'Total Hours', 'Status', 'Check-in Image', 'Check-out Image'],
+      [...records]
+        .sort((a, b) => a._date.localeCompare(b._date) || (a.users?.name || '').localeCompare(b.users?.name || ''))
+        .map(r => row([
+          strCell(r._date), strCell(r.users?.name || ''),
+          strCell(fmtTime(r.checkin_at)), strCell(fmtTime(r.checkout_at)),
+          strCell(fmtHrs(calcHours(r))), strCell(classifyDay(r)),
+          linkCell(r.checkin_selfie_url), linkCell(r.checkout_selfie_url),
+        ])),
+    );
 
-    // ══ SHEET 4: Day-by-day detail ══
-    const detailHeader = ['Date','Name','Employee ID','Role','City','Zone','Check-in','Check-out','Hours','Break(min)','Status','Midnight Crossover?','Override Reason'];
-    const detailRows = records.map(r => {
-      const ci = r.checkin_at ? new Date(r.checkin_at).getTime() : null;
-      const co = r.checkout_at ? new Date(r.checkout_at).getTime() : null;
-      const isCrossover = ci && co && co < ci;
-      const hrs = calcHours(r);
-      return [
-        q(r._date),
-        q(r.users?.name || ''),
-        q(r.users?.employee_id || ''),
-        q((r.users as any)?.role || ''),
-        q((r.users as any)?.city || r.users?.zones?.name || ''),
-        q(r.users?.zones?.name || ''),
-        q(r.checkin_at  ? new Date(r.checkin_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'),
-        q(r.checkout_at ? new Date(r.checkout_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'),
-        fmtHrs(hrs),
-        r.break_minutes || 0,
-        q(classifyDay(r)),
-        isCrossover ? q('YES — checkout next day, +24h applied') : q('No'),
-        q(r.override_reason || ''),
-      ];
-    });
-    tabs.push({ name: 'Day Detail', csvContent: [detailHeader.map(q).join(','), ...detailRows.map(r => r.join(','))].join('\n') });
+    const workbook =
+      '<?xml version="1.0"?>\n<?mso-application progid="Excel.Sheet"?>\n' +
+      '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">' +
+      '<Styles><Style ss:ID="hdr"><Font ss:Bold="1"/></Style></Styles>' +
+      summarySheet + detailSheet +
+      '</Workbook>';
 
-    // ══ SHEET 5: Midnight crossover explanation ══
-    const crossoverNote = [
-      ['MIDNIGHT CROSSOVER POLICY — How working hours are calculated'],
-      [''],
-      ['Scenario', 'Example', 'Calculation', 'Result'],
-      ['Normal shift',       'Check-in 09:00  Check-out 18:00', '18:00 − 09:00',          '9h 0m'],
-      ['Midnight crossover', 'Check-in 21:00  Check-out 02:00', '02:00 + 24h − 21:00',    '5h 0m'],
-      [''],
-      ['Rule: If checkout_at < checkin_at (same attendance record), the system assumes the shift crossed midnight.'],
-      ['A full 24 hours is added to the checkout timestamp before calculating the difference.'],
-      ['The result is capped at 24 hours to guard against data entry errors.'],
-      [''],
-      ['Half Day Rule: Any shift < 4 hours is automatically classified as a Half Day, regardless of status field.'],
-      [''],
-      ['This report was generated on', new Date().toLocaleString('en-IN')],
-      ['Date range', `${expFrom} to ${expTo}`],
-    ].map(row => row.map(c => q(c ?? '')).join(','));
-    tabs.push({ name: 'Policy Notes', csvContent: crossoverNote.join('\n') });
-
-    // Since we can't generate multi-sheet XLSX without a lib, we produce a ZIP-like multi-file CSV
-    // but for simplicity, concatenate all sheets in one CSV with clear section headers
-    const combined = tabs.map(t =>
-      `"=== ${t.name.toUpperCase()} ==="\n${t.csvContent}\n\n`
-    ).join('');
-
-    const filename = `kinematic_attendance_${expFrom}_to_${expTo}.csv`;
+    const filename = `kinematic_attendance_${expFrom}_to_${expTo}.xls`;
+    const blob = new Blob([workbook], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(combined);
+    a.href = url;
     a.download = filename;
     a.click();
+    URL.revokeObjectURL(url);
     setShowExport(false);
   };
 
@@ -818,31 +817,39 @@ function AttendanceContent() {
   });
 
   /* 2. stats calculation */
+  const count = (st: AttendanceRecord['status']) => currentRoleRecords.filter(r => r.status === st).length;
   const stats = {
     total:    currentRoleRecords.length,
-    in:       currentRoleRecords.filter(r => r.status === 'checked_in').length,
-    out:      currentRoleRecords.filter(r => r.status === 'checked_out').length,
-    absent:   currentRoleRecords.filter(r => r.status === 'absent').length,
-    half:     currentRoleRecords.filter(r => r.status === 'half_day').length,
-    onLeave:  currentRoleRecords.filter(r => r.status === 'on_leave').length,
+    in:       count('checked_in'),
+    out:      count('checked_out'),
+    onBreak:  count('on_break'),
+    absent:   count('absent'),
+    half:     count('half_day'),
+    onLeave:  count('on_leave'),
+    notYet:   count('not_yet'),
+    weekOff:  count('week_off'),
     late:     currentRoleRecords.filter(r => r.late?.is_late).length,
   };
   // The Late tile / filter exist only for clients whose records carry the API's `late` verdict.
   const lateConfigured = currentRoleRecords.some(r => !!r.late);
-  const statTiles: Array<{ l: string; v: number; c: string | undefined }> = [
-    { l: 'Total',       v: stats.total,   c: undefined },
-    { l: 'Checked in',  v: stats.in,      c: T.ok },
-    { l: 'Checked out', v: stats.out,     c: T.info },
-    { l: 'On leave',    v: stats.onLeave, c: T.mute },
-    { l: 'Absent',      v: stats.absent,  c: T.red },
-    { l: 'Half day',    v: stats.half,    c: T.warn },
-    ...(lateConfigured ? [{ l: 'Late', v: stats.late, c: T.warn }] : []),
+  // Each tile is also a filter: `f` is the value it sets on the status filter ('all' for Total).
+  const statTiles: Array<{ l: string; v: number; c: string | undefined; f: string }> = [
+    { l: 'Total',       v: stats.total,   c: undefined, f: 'all' },
+    { l: 'Checked in',  v: stats.in,      c: T.ok,      f: 'checked_in' },
+    ...(stats.onBreak > 0 ? [{ l: 'On break', v: stats.onBreak, c: T.warn, f: 'on_break' }] : []),
+    { l: 'Checked out', v: stats.out,     c: T.info,    f: 'checked_out' },
+    { l: 'On leave',    v: stats.onLeave, c: T.mute,    f: 'on_leave' },
+    ...(stats.notYet > 0 ? [{ l: 'Not in yet', v: stats.notYet, c: T.mute, f: 'not_yet' }] : []),
+    ...(stats.weekOff > 0 ? [{ l: 'Week off', v: stats.weekOff, c: T.mute, f: 'week_off' }] : []),
+    { l: 'Absent',      v: stats.absent,  c: T.red,     f: 'absent' },
+    { l: 'Half day',    v: stats.half,    c: T.warn,    f: 'half_day' },
+    ...(lateConfigured ? [{ l: 'Late', v: stats.late, c: T.warn, f: 'late' }] : []),
   ];
 
   /* 3. final shown list */
   // A 'late' filter only means something while the records carry the API's late verdict.
   const effectiveStatus = statusFilter === 'late' && !lateConfigured ? 'all' : statusFilter;
-  const shown = currentRoleRecords.filter(r => {
+  const filtered = currentRoleRecords.filter(r => {
     const s = search.toLowerCase();
     const matchSearch = !s ||
       (r.users?.name || '').toLowerCase().includes(s) ||
@@ -853,6 +860,34 @@ function AttendanceContent() {
     return matchSearch && matchStatus;
   });
 
+  // Column sort — ascending, then descending, then back to the natural order. Empty values always sort last.
+  const toggleSort = (key: string) =>
+    setSort((s) => (s.key !== key ? { key, dir: 'asc' } : s.dir === 'asc' ? { key, dir: 'desc' } : { key: null, dir: 'asc' }));
+  const shown = (() => {
+    if (!sort.key) return filtered;
+    const key = sort.key;
+    const mul = sort.dir === 'asc' ? 1 : -1;
+    const val = (r: AttendanceRecord): string | number | null => {
+      switch (key) {
+        case 'name': return (r.users?.name || '').toLowerCase() || null;
+        case 'date': return r.date || null;
+        case 'status': return statusOrder[r.status] ?? 99;
+        case 'in': return parseDate(r.checkin_at);
+        case 'hours': return calcHours(r);
+        default: return null;
+      }
+    };
+    return filtered
+      .map((r, i) => [r, i, val(r)] as const)
+      .sort((x, y) => {
+        const p = x[2], q = y[2];
+        if (p == null || q == null) return p == null && q == null ? x[1] - y[1] : p == null ? 1 : -1;
+        const c = typeof p === 'string' ? p.localeCompare(String(q)) : p - (q as number);
+        return c !== 0 ? c * mul : x[1] - y[1];
+      })
+      .map(([r]) => r);
+  })();
+
   // Render cap: the table is unvirtualized, so painting tens of thousands of rows
   // locks the tab. Bound the DOM to a slice; the count line shows the true total
   // and tells the user to refine filters or export for the rest.
@@ -861,6 +896,29 @@ function AttendanceContent() {
 
   const isRange = fromDate.trim() !== toDate.trim();
   const rangeLabel = isRange ? `${fmtDate(fromDate)} – ${fmtDate(toDate)}` : fmtDate(fromDate);
+
+  const today = istTodayYmd();
+  // Step the range back / forward by its own length (a day → the previous day, a week → the previous week), never past today.
+  const shiftRange = (dir: -1 | 1) => {
+    const f = fromDate.trim();
+    const t = toDate.trim();
+    const len = eachDay(f, t).length || 1;
+    let nf = addDaysYmd(f, dir * len);
+    let nt = addDaysYmd(t, dir * len);
+    if (nt > today) { nt = today; nf = addDaysYmd(today, -(len - 1)); }
+    setFrom(nf);
+    setTo(nt);
+  };
+
+  // One person's days for the month of the record (month-to-date for the current month).
+  const openPerson = (r: AttendanceRecord) => {
+    const day = r.date || toISTDate(r.checkin_at) || today;
+    const month = day.slice(0, 7);
+    const [y, m] = month.split('-').map(Number);
+    const monthEnd = `${month}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
+    setDetail(null);
+    setPersonView({ userId: r.user_id, name: r.users?.name || r.user_id.slice(0, 8), from: `${month}-01`, to: monthEnd > today ? today : monthEnd });
+  };
 
   /* ── selfie field (label + url input + upload button + preview) ── */
   const selfieField = (field: 'checkin_selfie_url' | 'checkout_selfie_url', label: string) => {
@@ -983,7 +1041,7 @@ function AttendanceContent() {
             : <>Who&apos;s in, out, on leave or absent for <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>{rangeLabel}</span> — updates live every 15 s.</>}
           actions={
             <>
-              <IconButton label="Refresh" onClick={load}><RefreshCw size={16} strokeWidth={1.6} style={loading ? { animation: 'kspin 1s linear infinite' } : undefined} /></IconButton>
+              <IconButton label="Refresh" onClick={async () => { setRefreshing(true); try { await load({ silent: true, refreshUsers: true }); } finally { setRefreshing(false); } }}><RefreshCw size={16} strokeWidth={1.6} style={loading || refreshing ? { animation: 'kspin 1s linear infinite' } : undefined} /></IconButton>
               <Button onClick={() => { setExpErr(''); setShowExport(true); }} icon={<Download size={16} strokeWidth={1.6} />}>Export</Button>
               <Button variant="primary" onClick={() => { setForm(BLANK); setFErr(''); setShowAdd(true); }} icon={<Plus size={16} strokeWidth={1.8} />}>Add override</Button>
             </>
@@ -1008,38 +1066,58 @@ function AttendanceContent() {
           />
         </div>
 
-        {view === 'monthly' && <MonthlySummary clientId={selectedClientId} />}
+        {view === 'monthly' && <MonthlySummary clientId={selectedClientId} onOpenPerson={setPersonView} />}
 
         {view === 'daily' && (<>
-        {/* ── stat cards ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'repeat(3, minmax(0, 1fr))' : `repeat(${statTiles.length}, minmax(0, 1fr))`, gap: 12 }}>
-          {statTiles.map(s => (
-            <Card key={s.l} padding={16}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {s.c && <span style={{ width: 6, height: 6, borderRadius: 999, background: s.c, flexShrink: 0 }} />}
-                <Eyebrow>{s.l}</Eyebrow>
+        {/* ── stat tiles — each one is also a filter: press it to narrow the list, press again to clear ── */}
+        {/* Flex rather than grid: the app's phone stylesheet collapses any inline `grid-template-columns` to one column. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          {statTiles.map(s => {
+            const on = s.f !== 'all' && effectiveStatus === s.f;
+            const accent = s.c ?? T.text;
+            return (
+              <div
+                key={s.l}
+                role="button"
+                tabIndex={0}
+                aria-pressed={on}
+                title={s.f === 'all' ? undefined : on ? 'Show everyone again' : `Show ${s.l.toLowerCase()} only`}
+                onClick={() => { if (s.f !== 'all') setSF(on ? 'all' : s.f); else setSF('all'); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSF(on || s.f === 'all' ? 'all' : s.f); } }}
+                className="att-tile"
+                style={{ ...cardStyle, padding: 16, flex: `1 1 ${phone ? 'calc(50% - 6px)' : narrow ? 'calc(33.333% - 8px)' : '0'}`, minWidth: phone ? 0 : 96, cursor: 'pointer', borderColor: on ? accent : T.border, boxShadow: on ? `0 0 0 1px ${accent}` : 'none' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {s.c && <span style={{ width: 6, height: 6, borderRadius: 999, background: s.c, flexShrink: 0 }} />}
+                  <Eyebrow>{s.l}</Eyebrow>
+                </div>
+                <div style={{ fontFamily: T.heading, fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.1, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
               </div>
-              <div style={{ fontFamily: T.heading, fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.1, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
-            </Card>
-          ))}
+            );
+          })}
         </div>
 
-        {/* ── Attendance Analysis ── derived from the loaded records ── */}
-        {records.length > 0 && (() => {
+        {/* ── Attendance Analysis ── the same people the tiles count (the active role tab) ── */}
+        {(() => {
+          // A rest day, or someone who is not due in yet, is not part of the rate.
+          const rows = currentRoleRecords.filter(r => r.status !== 'week_off' && r.status !== 'not_yet');
+          if (rows.length === 0) return null;
           // Approved leave is excluded from the attendance-rate denominator.
-          const onLeave = records.filter(r => classifyDay(r) === 'On Leave').length;
-          const total = records.length - onLeave;
-          const present = records.filter(r => { const d = classifyDay(r); return d === 'Present' || d === 'Checked In'; }).length;
-          const hoursArr = records.map(r => calcHours(r)).filter((h): h is number => h != null);
+          const onLeave = rows.filter(r => classifyDay(r) === 'On Leave').length;
+          const total = rows.length - onLeave;
+          const presentRows = rows.filter(r => { const d = classifyDay(r); return d === 'Present' || d === 'Checked In'; });
+          const present = presentRows.length;
+          const hoursArr = rows.map(r => calcHours(r)).filter((h): h is number => h != null);
           const totalHours = hoursArr.reduce((a, b) => a + b, 0);
           const avgHours = hoursArr.length ? totalHours / hoursArr.length : 0;
-          const onTime = records.filter(r => {
+          // On-time is a share of the people who were present, so it can never pass 100%.
+          const onTime = presentRows.filter(r => {
             if (!r.checkin_at) return false;
             // The API's verdict (against this client's shift rules) wins when the record carries one…
             if (r.late) return !r.late.is_late;
-            // …otherwise the legacy fixed 09:30 cut-off, exactly as before.
-            const d = new Date(r.checkin_at);
-            return d.getHours() < 9 || (d.getHours() === 9 && d.getMinutes() <= 30);
+            // …otherwise the legacy fixed 09:30 cut-off, judged on the IST clock (not the viewer's browser zone).
+            const ms = parseDate(r.checkin_at);
+            return ms != null && istMinutesOfDay(ms) <= 9 * 60 + 30;
           }).length;
           const attendanceRate = total ? Math.round((present / total) * 100) : 0;
           const onTimePct = present ? Math.round((onTime / present) * 100) : 0;
@@ -1054,11 +1132,11 @@ function AttendanceContent() {
             <Card padding={16}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
                 <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>Attendance analysis</div>
-                <div style={{ fontSize: 12.5, color: T.dim }}>Derived from every record loaded for {rangeLabel}; approved leave is excluded from the rate.</div>
+                <div style={{ fontSize: 12.5, color: T.dim }}>For the {roleFilter === 'executive' ? 'field executives' : 'supervisors'} on this list, {rangeLabel}; approved leave is excluded from the rate.</div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                 {metrics.map(m => (
-                  <div key={m.l} style={{ background: T.raised, borderRadius: 8, padding: '12px 14px' }}>
+                  <div key={m.l} style={{ background: T.raised, borderRadius: 8, padding: '12px 14px', flex: `1 1 ${narrow ? 'calc(50% - 6px)' : '0'}`, minWidth: 0 }}>
                     <Eyebrow>{m.l}</Eyebrow>
                     <div style={{ fontFamily: T.heading, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.1, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{m.v}</div>
                   </div>
@@ -1075,7 +1153,19 @@ function AttendanceContent() {
             onChange={setRoleFilter}
             options={[{ value: 'executive', label: 'Field executives' }, { value: 'supervisor', label: 'Supervisors' }]}
           />
-          <DateRangePicker from={fromDate} to={toDate} onChange={(f,t) => { setFrom(f); setTo(t); }} />
+          {/* Day navigation: step back / forward by the length of the range on screen (a day, a week…), never into the future. */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <IconButton label={isRange ? 'Previous period' : 'Previous day'} onClick={() => shiftRange(-1)} style={{ border: `1px solid ${T.border}`, background: T.card, height: 36, width: 36 }}>
+              <ChevronLeft size={16} strokeWidth={1.8} />
+            </IconButton>
+            <DateRangePicker from={fromDate} to={toDate} onChange={(f,t) => { setFrom(f); setTo(t); }} />
+            <IconButton label={isRange ? 'Next period' : 'Next day'} onClick={() => shiftRange(1)} disabled={toDate.trim() >= today} style={{ border: `1px solid ${T.border}`, background: T.card, height: 36, width: 36, opacity: toDate.trim() >= today ? 0.4 : 1, cursor: toDate.trim() >= today ? 'not-allowed' : 'pointer' }}>
+              <ChevronRight size={16} strokeWidth={1.8} />
+            </IconButton>
+            {(fromDate.trim() !== today || toDate.trim() !== today) && (
+              <Button size="sm" aria-label="Jump to today" onClick={() => { setFrom(today); setTo(today); }} style={{ height: 36 }}>Today</Button>
+            )}
+          </div>
           <div style={{ flex: 1, position: 'relative', minWidth: narrow ? '100%' : 220 }}>
             <Search size={15} strokeWidth={1.6} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: T.mute, pointerEvents: 'none' }} />
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, ID or zone…" style={{ paddingLeft: 34 }} aria-label="Search attendance" />
@@ -1085,9 +1175,12 @@ function AttendanceContent() {
               <option value="all">All statuses</option>
               <option value="checked_in">Checked in</option>
               <option value="checked_out">Checked out</option>
+              {stats.onBreak > 0 && <option value="on_break">On break</option>}
               <option value="on_leave">On leave</option>
               <option value="absent">Absent</option>
               <option value="half_day">Half day</option>
+              {stats.notYet > 0 && <option value="not_yet">Not in yet</option>}
+              {stats.weekOff > 0 && <option value="week_off">Week off</option>}
               {lateConfigured && <option value="late">Late</option>}
             </Select>
           </div>
@@ -1096,19 +1189,19 @@ function AttendanceContent() {
           </span>
         </div>
 
-        {/* ── table ── */}
+        {/* ── table ── (cards on a phone: see .responsive-cards in globals.css) ── */}
         <Card padding={0} style={{ overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isRange ? 980 : 880 }}>
+            <table className="responsive-cards" style={{ width: '100%', borderCollapse: 'collapse', minWidth: phone ? 0 : isRange ? 980 : 880 }}>
               <thead>
                 <tr>
-                  <th style={th}>Executive</th>
-                  {isRange && <th style={th}>Date</th>}
-                  <th style={th}>Status</th>
+                  <th style={th}><SortLabel label="Executive" sortKey="name" sort={sort} onToggle={toggleSort} /></th>
+                  {isRange && <th style={th}><SortLabel label="Date" sortKey="date" sort={sort} onToggle={toggleSort} /></th>}
+                  <th style={th}><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggleSort} /></th>
                   <th style={th}>Selfie</th>
-                  <th style={th}>Check-in</th>
+                  <th style={th}><SortLabel label="Check-in" sortKey="in" sort={sort} onToggle={toggleSort} /></th>
                   <th style={th}>Check-out</th>
-                  <th style={{ ...th, textAlign: 'right' }}>Hours</th>
+                  <th style={{ ...th, textAlign: 'right' }}><SortLabel label="Hours" sortKey="hours" sort={sort} onToggle={toggleSort} align="right" /></th>
                   <th style={th}>Zone</th>
                   <th style={{ ...th, textAlign: 'right' }} />
                 </tr>
@@ -1140,17 +1233,26 @@ function AttendanceContent() {
                 ) : shownCapped.map((r, i) => {
                   const sm = statusMeta[r.status] || statusMeta.absent;
                   const last = i === shownCapped.length - 1;
+                  const rail = statusRail[r.status];
                   const rowTd = last ? { ...td, borderBottom: 0 } : td;
                   const rowMono = last ? { ...tdMono, borderBottom: 0 } : tdMono;
                   const hrs = calcHours(r);
+                  const quiet = r.status === 'not_yet' || r.status === 'week_off';
                   return (
-                    <tr key={r.id || `${r.user_id}_${r.date || r.checkin_at || i}`} data-clickable="true" onClick={() => setDetail(r)}>
-                      {/* name */}
-                      <td style={rowTd}>
+                    <tr
+                      key={r.id || `${r.user_id}_${r.date || r.checkin_at || i}`}
+                      data-clickable="true"
+                      tabIndex={0}
+                      onClick={() => setDetail(r)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setDetail(r); }}
+                      style={{ opacity: quiet ? 0.78 : 1 }}
+                    >
+                      {/* name — the left edge carries the status colour so a long list reads at a glance */}
+                      <td data-label="" style={{ ...rowTd, boxShadow: rail ? `inset 3px 0 0 ${rail}` : undefined }}>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
                           <Avatar name={r.users?.name || '?'} size={32} />
                           <div style={{ overflow: 'hidden', minWidth: 0 }}>
-                            <div style={{ fontWeight: 500, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{r.users?.name || r.user_id.slice(0, 8)}</div>
+                            <div data-testid="att-name" style={{ fontWeight: 500, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{r.users?.name || r.user_id.slice(0, 8)}</div>
                             <div style={{ fontSize: 12, color: T.mute, marginTop: 1, textTransform: 'capitalize' }}>{(r.users?.role || '').replace(/[_-]/g, ' ')}{r.users?.employee_id ? <> · <span style={{ fontFamily: T.mono }}>{r.users.employee_id}</span></> : null}</div>
                           </div>
                         </div>
@@ -1158,18 +1260,16 @@ function AttendanceContent() {
 
                       {/* date if range */}
                       {isRange && (
-                        <td style={rowMono}>{fmtDate(r.date || toISTDate(r.checkin_at))}</td>
+                        <td data-label="Date" style={rowMono}>{fmtDate(r.date || toISTDate(r.checkin_at))}</td>
                       )}
 
                       {/* status */}
-                      <td style={rowTd}>
-                        <span title={JSON.stringify(r, null, 2)} style={{ cursor: 'help', display: 'inline-flex' }}>
-                          <Badge tone={sm.tone} dot>{sm.label}</Badge>
-                        </span>
+                      <td data-label="Status" style={rowTd}>
+                        <Badge tone={sm.tone} dot>{sm.label}</Badge>
                       </td>
 
                       {/* selfie preview */}
-                      <td style={rowTd}>
+                      <td data-label="Selfie" style={rowTd}>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           {/* Face-recognition verdict (module face_attendance). */}
                           {r.checkin_face_verified != null && (
@@ -1179,7 +1279,7 @@ function AttendanceContent() {
                           )}
                           {r.checkin_selfie_url ? (
                             <SelfieThumb src={r.checkin_selfie_url} alt="Check-in" tone="ok" />
-                          ) : <div style={{ width: 40, height: 40, borderRadius: 8, background: T.raised, border: `1px solid ${T.border}`, flexShrink: 0 }} />}
+                          ) : quiet ? <span style={{ color: T.mute }}>—</span> : <div style={{ width: 40, height: 40, borderRadius: 8, background: T.raised, border: `1px solid ${T.border}`, flexShrink: 0 }} />}
                           {r.checkout_selfie_url ? (
                             <SelfieThumb src={r.checkout_selfie_url} alt="Check-out" tone="info" />
                           ) : null}
@@ -1187,29 +1287,38 @@ function AttendanceContent() {
                       </td>
 
                       {/* check-in */}
-                      <td style={{ ...rowMono, color: r.checkin_at ? T.text : T.mute }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <td data-label="Check-in" style={{ ...rowMono, color: r.checkin_at ? T.text : T.mute }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           {fmt(r.checkin_at)}
                           {r.late?.is_late && <Badge tone="warn">Late {r.late.minutes_late} min</Badge>}
+                          {r.checkin_is_mock && (
+                            <span title="A mock (spoofed) GPS location was detected at check-in" style={{ display: 'inline-flex' }}>
+                              <Badge tone="red"><ShieldAlert size={11} strokeWidth={2} /> Mock GPS</Badge>
+                            </span>
+                          )}
                         </span>
                       </td>
 
                       {/* check-out */}
-                      <td style={{ ...rowMono, color: r.checkout_at ? T.text : T.mute }}>{fmt(r.checkout_at)}</td>
+                      <td data-label="Check-out" style={{ ...rowMono, color: r.checkout_at ? T.text : T.mute }}>{fmt(r.checkout_at)}</td>
 
                       {/* hours */}
-                      <td style={{ ...rowMono, textAlign: 'right', color: (r.total_hours || hrs) ? T.text : T.mute }}>
+                      <td data-label="Hours" style={{ ...rowMono, textAlign: 'right', color: (r.total_hours || hrs) ? T.text : T.mute }}>
                         {fmtHrs(hrs)}
+                        {r.break_minutes ? <div style={{ fontSize: 11, color: T.mute, marginTop: 1 }}>{r.break_minutes}m break</div> : null}
                       </td>
 
                       {/* zone */}
-                      <td style={{ ...rowTd, color: T.dim, fontSize: 13 }}>{r.users?.zones?.name || '—'}</td>
+                      <td data-label="Zone" style={{ ...rowTd, color: T.dim, fontSize: 13 }}>{r.users?.zones?.name || '—'}</td>
 
                       {/* actions */}
-                      <td style={{ ...rowTd, textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                      <td data-label="" style={{ ...rowTd, textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'inline-flex', gap: 2 }}>
                           <IconButton label="Edit" onClick={() => openEdit(r)}><Pencil size={15} strokeWidth={1.6} /></IconButton>
-                          <IconButton label="Mark absent" onClick={() => setDelRec(r)} style={{ color: T.red }}><UserX size={15} strokeWidth={1.6} /></IconButton>
+                          {/* A day with no record, or one already marked absent, has nothing to mark. */}
+                          {r.id && r.status !== 'absent' && (
+                            <IconButton label="Mark absent" onClick={() => setDelRec(r)} style={{ color: T.red }}><UserX size={15} strokeWidth={1.6} /></IconButton>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1292,8 +1401,12 @@ function AttendanceContent() {
         width={480}
         footer={detail ? (
           <>
+            <Button onClick={() => openPerson(detail)} icon={<CalendarRange size={15} strokeWidth={1.6} />} style={{ marginRight: 'auto' }}>View month</Button>
             <Button onClick={() => { openEdit(detail); setDetail(null); }} icon={<Pencil size={15} strokeWidth={1.6} />}>Edit</Button>
-            <Button variant="danger" onClick={() => { setDelRec(detail); setDetail(null); }} icon={<UserX size={15} strokeWidth={1.6} />}>Mark absent</Button>
+            {/* A day with no record, or one already marked absent, has nothing to mark. */}
+            {detail.id && detail.status !== 'absent' && (
+              <Button variant="danger" onClick={() => { setDelRec(detail); setDetail(null); }} icon={<UserX size={15} strokeWidth={1.6} />}>Mark absent</Button>
+            )}
           </>
         ) : undefined}
       >
@@ -1336,22 +1449,36 @@ function AttendanceContent() {
                   <Eyebrow style={{ marginBottom: 8 }}>Location</Eyebrow>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     {detail.checkin_lat ? (
-                      <div>
+                      <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 12, color: T.dim, marginBottom: 2 }}>Check-in</div>
-                        <a href={`https://maps.google.com/?q=${detail.checkin_lat},${detail.checkin_lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, fontFamily: T.mono, color: T.info, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          {detail.checkin_lat.toFixed(5)}, {detail.checkin_lng?.toFixed(5)} <ExternalLink size={11} strokeWidth={1.8} />
-                        </a>
+                        {/* A place name when the geocoder answers; the coordinates until then (it never blocks the modal). */}
+                        <div style={{ fontSize: 12.5, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                          <PlaceText at={{ lat: detail.checkin_lat, lng: detail.checkin_lng ?? 0 }} eager={false} />
+                          <a href={`https://maps.google.com/?q=${detail.checkin_lat},${detail.checkin_lng}`} target="_blank" rel="noreferrer" title="Open in Google Maps" aria-label="Open check-in location in Google Maps" style={{ color: T.info, display: 'inline-flex', marginTop: 2 }}><ExternalLink size={12} strokeWidth={1.8} /></a>
+                        </div>
                       </div>
                     ) : <div />}
                     {detail.checkout_lat ? (
-                      <div>
+                      <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 12, color: T.dim, marginBottom: 2 }}>Check-out</div>
-                        <a href={`https://maps.google.com/?q=${detail.checkout_lat},${detail.checkout_lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, fontFamily: T.mono, color: T.info, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          {detail.checkout_lat.toFixed(5)}, {detail.checkout_lng?.toFixed(5)} <ExternalLink size={11} strokeWidth={1.8} />
-                        </a>
+                        <div style={{ fontSize: 12.5, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                          <PlaceText at={{ lat: detail.checkout_lat, lng: detail.checkout_lng ?? 0 }} eager={false} />
+                          <a href={`https://maps.google.com/?q=${detail.checkout_lat},${detail.checkout_lng}`} target="_blank" rel="noreferrer" title="Open in Google Maps" aria-label="Open check-out location in Google Maps" style={{ color: T.info, display: 'inline-flex', marginTop: 2 }}><ExternalLink size={12} strokeWidth={1.8} /></a>
+                        </div>
                       </div>
                     ) : <div />}
                   </div>
+                </div>
+              )}
+
+              {/* Location trust signals stamped at check-in. */}
+              {(detail.checkin_is_mock || detail.checkin_distance_m != null) && (
+                <div style={{ padding: '10px 12px', background: detail.checkin_is_mock ? T.redWash : T.raised, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 12.5, color: T.dim }}>
+                  <Eyebrow>Check-in location</Eyebrow>
+                  {detail.checkin_is_mock && <Badge tone="red"><ShieldAlert size={11} strokeWidth={2} /> Mock GPS detected</Badge>}
+                  {detail.checkin_distance_m != null && Number.isFinite(Number(detail.checkin_distance_m)) && (
+                    <span>{Math.round(Number(detail.checkin_distance_m)).toLocaleString('en-IN')} m from the site</span>
+                  )}
                 </div>
               )}
 
@@ -1432,6 +1559,19 @@ function AttendanceContent() {
         })()}
       </Modal>
 
+      {/* ══════ ONE PERSON'S MONTH ══════ */}
+      {personView && (
+        <PersonMonthModal
+          key={`${personView.userId}|${personView.from}|${personView.to}`}
+          userId={personView.userId}
+          name={personView.name}
+          from={personView.from}
+          to={personView.to}
+          rules={rules}
+          onClose={() => setPersonView(null)}
+        />
+      )}
+
       {/* ══════ MARK ABSENT CONFIRM ══════ */}
       <Modal
         open={!!delRec}
@@ -1457,34 +1597,28 @@ function AttendanceContent() {
         open={showExport}
         onClose={() => setShowExport(false)}
         title="Export attendance"
-        subtitle="Downloads a CSV with city-wise, role-wise and executive-wise breakdowns."
+        subtitle="Downloads an Excel workbook: a Summary sheet and a Details sheet with times, total hours and selfie links."
         width={520}
         footer={
           <>
             <Button onClick={() => setShowExport(false)}>Cancel</Button>
             <Button variant="primary" onClick={runExport} disabled={expLoading || !expFrom || !expTo} icon={expLoading ? <Spinner /> : <Download size={16} strokeWidth={1.6} />}>
-              {expLoading ? 'Fetching data…' : 'Download CSV'}
+              {expLoading ? 'Fetching data…' : 'Download Excel'}
             </Button>
           </>
         }
       >
         {expErr && errorBox(expErr)}
 
-        <Section eyebrow="Date range" hint="Up to 62 days per export." first>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Field label="From"><Input type="date" value={expFrom} onChange={e => setExpFrom(e.target.value)} /></Field>
-            <Field label="To"><Input type="date" value={expTo} onChange={e => setExpTo(e.target.value)} /></Field>
-          </div>
+        <Section eyebrow="Date range" hint="This week, 14 days, this month, or a custom range — up to 62 days per export." first>
+          <RangePresetPicker from={expFrom} to={expTo} onChange={(f, t) => { setExpFrom(f); setExpTo(t); }} idPrefix="exp" />
         </Section>
 
-        <Section eyebrow="What's included" hint="Five sheets, separated by section headers in the CSV.">
+        <Section eyebrow="What's included" hint="Two worksheet tabs in one Excel file." style={{ paddingBottom: 0 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
-              { title: 'Summary',      desc: 'Per-executive: total days, present, half days, hours worked' },
-              { title: 'City wise',    desc: 'Grouped by city — total execs, attendance rates, total hours' },
-              { title: 'Role wise',    desc: 'Executives vs supervisors vs city managers breakdown' },
-              { title: 'Day detail',   desc: 'Every record with check-in/out times, hours, midnight flag' },
-              { title: 'Policy notes', desc: 'Midnight crossover & half-day calculation rules documented' },
+              { title: 'Summary sheet', desc: 'Per person — present, half days, on leave, absent, total hours' },
+              { title: 'Details sheet', desc: 'Per person per day — check-in, check-out, total hours, status, and check-in/out image links' },
             ].map((s, i) => (
               <div key={s.title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '8px 12px', background: T.raised, borderRadius: 8 }}>
                 <span style={{ fontFamily: T.mono, fontSize: 11, color: T.mute, marginTop: 2, minWidth: 14 }}>{i + 1}</span>
@@ -1494,12 +1628,6 @@ function AttendanceContent() {
                 </div>
               </div>
             ))}
-          </div>
-        </Section>
-
-        <Section eyebrow="Midnight crossover" hint="How working hours are calculated." style={{ paddingBottom: 0 }}>
-          <div style={{ background: T.warnWash, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: T.warn, lineHeight: 1.6 }}>
-            If checkout is earlier than check-in on the same record (in at 9 PM, out at 2 AM), 24 hours are added to the checkout before calculating duration. These records are flagged &quot;YES — checkout next day&quot; in the Day detail sheet and capped at 24h. Any shift under 4 hours is auto-classified as a half day.
           </div>
         </Section>
       </Modal>

@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { QRCodeCanvas } from 'qrcode.react';
 import { crmIntegrations } from '../../../../../lib/crmApi';
 import type { Integration, IntegrationProvider, IntegrationStatus } from '../../../../../types/integrations';
 
@@ -661,9 +662,17 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
       return `${u.protocol}//${u.host}/f/${integrationId}?key=${encodeURIComponent(key)}`;
     } catch { return ''; }
   })();
-  const qrUrl = hostedFormUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=10&data=${encodeURIComponent(hostedFormUrl)}`
-    : '';
+  // Drawn in the browser: the hosted-form link carries the integration's secret key, so it must never be sent to
+  // an outside QR service (that used to put it in their request logs).
+  const qrCanvasRef = useRef<HTMLDivElement | null>(null);
+  const downloadQr = () => {
+    const canvas = qrCanvasRef.current?.querySelector('canvas');
+    if (!canvas) return;
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'kinematic-form-qr.png';
+    a.click();
+  };
 
   // Includes `city` because city-scoped reps (the default for non-admin
   // users) won't see leads with a null city — backend filters them out
@@ -763,7 +772,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
         <div style={{ fontWeight: 700, marginBottom: 8 }}>Send recorded calls here for analysis:</div>
         <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
           <li>In your telephony console (Exotel, Knowlarity, Ozonetel, Twilio, Plivo…), enable <strong>call recording</strong> and point the <strong>recording / call-completed callback</strong> (the one that carries the recording URL) to the <em>Webhook URL</em> below.</li>
-          <li>We match the call to a lead by the caller&rsquo;s number (<code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>CallFrom</code> / <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>From</code>), download the recording (<code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>RecordingUrl</code> / <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>recording_url</code>), and run KINI transcription + analysis on the lead&rsquo;s <strong>Conversation Analysis</strong>.</li>
+          <li>We match the call to a lead by the caller&rsquo;s number (<code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>CallFrom</code> / <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>From</code>), download the recording (<code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>RecordingUrl</code> / <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>recording_url</code>), and run KINI transcription + analysis on the lead&rsquo;s <strong>Call Insights</strong>.</li>
           <li>The analysed call is attributed to the lead&rsquo;s owner. If a lead has no owner, set a fallback <code>default_user_id</code> in the integration config.</li>
         </ol>
         <div style={{ marginTop: 8, color: 'var(--text-dim)' }}>
@@ -955,14 +964,16 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
                   </a>
                 </div>
               </div>
-              {qrUrl && (
+              {hostedFormUrl && (
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>QR code</div>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrUrl} alt="Form QR code" width={140} height={140}
-                       style={{ borderRadius: 8, background: '#fff', padding: 6, border: '1px solid var(--border)' }} />
+                  <div ref={qrCanvasRef} role="img" aria-label="Form QR code"
+                       style={{ display: 'inline-block', borderRadius: 8, background: '#fff', padding: 6, border: '1px solid var(--border)', lineHeight: 0 }}>
+                    <QRCodeCanvas value={hostedFormUrl} size={140} level="M" includeMargin={false} />
+                  </div>
                   <div style={{ marginTop: 4 }}>
-                    <a href={qrUrl} download="kinematic-form-qr.png" style={{ fontSize: 11, color: 'var(--text-dim)' }}>Download PNG</a>
+                    <button type="button" onClick={downloadQr}
+                            style={{ fontSize: 11, color: 'var(--text-dim)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>Download PNG</button>
                   </div>
                 </div>
               )}

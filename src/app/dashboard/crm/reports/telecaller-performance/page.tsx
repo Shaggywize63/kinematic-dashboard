@@ -76,13 +76,14 @@ export default function TelecallerPerformancePage() {
                 <Th align="right"><SortLabel label="Interested" sortKey="interested" sort={sort} onToggle={toggle} align="right" /></Th>
                 <Th align="right"><SortLabel label="Not Interested" sortKey="not_interested" sort={sort} onToggle={toggle} align="right" /></Th>
                 <Th align="right"><SortLabel label="Follow-ups" sortKey="follow_ups" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Conversions" sortKey="conversions" sort={sort} onToggle={toggle} align="right" /></Th>
                 <Th align="right"><SortLabel label="Scheme ₹" sortKey="scheme_amount" sort={sort} onToggle={toggle} align="right" /></Th>
               </tr>
             </thead>
             <tbody>
               {totals && <TotalRow t={totals} />}
-              {loading && rows.length === 0 && <tr><Td colSpan={8} center dim>Loading…</Td></tr>}
-              {!loading && rows.length === 0 && <tr><Td colSpan={8} center dim>No telecaller activity for the selected window.</Td></tr>}
+              {loading && rows.length === 0 && <tr><Td colSpan={9} center dim>Loading…</Td></tr>}
+              {!loading && rows.length === 0 && <tr><Td colSpan={9} center dim>No telecaller activity for the selected window.</Td></tr>}
               {sorted.map((r) => (
                 <tr key={r.user_id} style={{ fontWeight: 600 }}>
                   <Td sticky bold>{r.user_name}</Td>
@@ -92,6 +93,7 @@ export default function TelecallerPerformancePage() {
                   <Td align="right" tone="#3E9EFF">{r.interested}</Td>
                   <Td align="right" tone="#ef4444">{r.not_interested}</Td>
                   <Td align="right" tone="#F59E0B">{r.follow_ups}</Td>
+                  <Td align="right" tone="#A855F7">{r.conversions}</Td>
                   <Td align="right" bold>{fmtInr(r.scheme_amount)}</Td>
                 </tr>
               ))}
@@ -170,6 +172,7 @@ function KpiStrip({ totals, connectRate, loading }: { totals: Totals | null; con
     { label: 'Connect Rate',   value: totals ? `${(connectRate * 100).toFixed(0)}%` : '—', accent: '#06B6D4' },
     { label: 'Interested',     value: totals ? String(totals.interested) : '—',     accent: '#A855F7' },
     { label: 'Follow-ups',     value: totals ? String(totals.follow_ups) : '—',     accent: '#F59E0B' },
+    { label: 'Conversions',    value: totals ? String(totals.conversions) : '—',    accent: '#A855F7' },
     { label: 'Scheme ₹',       value: totals ? fmtInr(totals.scheme_amount) : '—',  accent: '#EC4899' },
   ], [totals, connectRate]);
   return (
@@ -208,6 +211,7 @@ function TotalRow({ t }: { t: Totals }) {
       <Td align="right" tone="#3E9EFF">{t.interested}</Td>
       <Td align="right" tone="#ef4444">{t.not_interested}</Td>
       <Td align="right" tone="#F59E0B">{t.follow_ups}</Td>
+      <Td align="right" tone="#A855F7">{t.conversions}</Td>
       <Td align="right" bold>{fmtInr(t.scheme_amount)}</Td>
     </tr>
   );

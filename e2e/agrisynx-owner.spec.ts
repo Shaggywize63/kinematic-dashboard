@@ -200,6 +200,8 @@ test.describe('Admin-only lead owner — create', () => {
 
 // ── edit modal (opened from the list) ───────────────────────────────────────
 async function openEdit(page: Page) {
+  // The row actions float over the row and only take pointer events while it is hovered / focused — hover first, like a user.
+  await page.locator('tr.lead-row').first().hover();
   await page.getByRole('button', { name: 'Edit lead' }).click();
   await expect(page.getByText('Edit lead', { exact: true })).toBeVisible();
   await expect(page.getByText('Assignment', { exact: true })).toBeVisible();
@@ -325,7 +327,14 @@ test.describe('Admin-only lead owner — leads list', () => {
 // ── list filters ────────────────────────────────────────────────────────────
 // The Owner filter is an owner control like any other: a client that reserves ownership for admins gives
 // everybody else no Owner dropdown on Leads and no assignee filter on Activities.
+// The filters live in the "Filters" side panel on the redesigned Leads list — open it first.
+const openLeadFilters = async (page: Page) => { await page.getByRole('button', { name: /^Filters/ }).click(); await expect(page.getByRole('dialog', { name: 'Filters' })).toBeVisible(); };
 const leadsOwnerFilter = (page: Page) => page.locator('select:has(option:text-is("All Owners"))');
+// "Mine" is an owner filter in one tap, so it follows the same rule as the Owner dropdown.
+const mineViewChip = (page: Page) => page.getByRole('button', { name: /^Mine/ });
+// "Unassigned" is the opposite owner filter (leads with no owner) — same rule as "Mine".
+const unassignedViewChip = (page: Page) => page.getByRole('button', { name: /^Unassigned/ });
+const followupViewChip = (page: Page) => page.getByRole('button', { name: /^Follow-up due/ });
 const activitiesAssigneeFilter = (page: Page) => page.getByPlaceholder('Filter by FE / assignee…');
 
 test.describe('Admin-only lead owner — list filters', () => {
@@ -333,7 +342,9 @@ test.describe('Admin-only lead owner — list filters', () => {
     await setup(page, { user: REP, adminOnly: true });
     await settled(page, () => page.goto('/dashboard/crm/leads'));
     await expect(page.getByText('Ramesh Sharma')).toBeVisible();
-    await expect(page.locator('select:has(option:text-is("All Sources"))')).toBeVisible(); // the rest of the bar is there
+    await expect(mineViewChip(page)).toHaveCount(0);
+    await openLeadFilters(page);
+    await expect(page.locator('select:has(option:text-is("All Sources"))')).toBeVisible(); // the rest of the panel is there
     await expect(leadsOwnerFilter(page)).toHaveCount(0);
   });
 
@@ -342,14 +353,46 @@ test.describe('Admin-only lead owner — list filters', () => {
     const asked: string[] = [];
     page.on('request', (r) => { if (r.url().includes('/api/v1/crm/leads?')) asked.push(r.url()); });
     await settled(page, () => page.goto('/dashboard/crm/leads'));
+    await expect(mineViewChip(page)).toBeVisible();
+    await openLeadFilters(page);
     await expect(leadsOwnerFilter(page)).toBeVisible();
     await leadsOwnerFilter(page).selectOption('u-asha');
     await expect.poll(() => asked.some((u) => u.includes('owner_id=u-asha'))).toBe(true);
   });
 
+  test('an admin gets the Unassigned and Follow-up due views, and each sends its own server filter', async ({ page }) => {
+    await setup(page, { user: ADMIN, adminOnly: true });
+    const asked: string[] = [];
+    page.on('request', (r) => { if (r.url().includes('/api/v1/crm/leads?')) asked.push(r.url()); });
+    await settled(page, () => page.goto('/dashboard/crm/leads'));
+    await expect(unassignedViewChip(page)).toBeVisible();
+    await expect(followupViewChip(page)).toBeVisible();
+
+    await unassignedViewChip(page).click();
+    await expect.poll(() => asked.some((u) => u.includes('unassigned=true'))).toBe(true);
+    // Picking "Mine" swaps it for an owner filter — the two contradict, so only one can be active.
+    await mineViewChip(page).click();
+    await expect.poll(() => asked.some((u) => u.includes('owner_id=') && !u.includes('unassigned=true'))).toBe(true);
+    await expect(unassignedViewChip(page)).toHaveAttribute('aria-pressed', 'false');
+
+    await followupViewChip(page).click();
+    await expect.poll(() => asked.some((u) => u.includes('followup_due=true'))).toBe(true);
+    // The applied filter is also a removable chip.
+    await expect(page.getByRole('button', { name: 'Remove Follow-up filter' })).toBeVisible();
+  });
+
+  test('a rep on a flagged client gets Follow-up due but no Unassigned view (an owner control)', async ({ page }) => {
+    await setup(page, { user: REP, adminOnly: true });
+    await settled(page, () => page.goto('/dashboard/crm/leads'));
+    await expect(page.getByText('Ramesh Sharma')).toBeVisible();
+    await expect(followupViewChip(page)).toBeVisible();
+    await expect(unassignedViewChip(page)).toHaveCount(0);
+  });
+
   test('a rep on a client WITHOUT the flag keeps the Owner filter on Leads', async ({ page }) => {
     await setup(page, { user: REP, adminOnly: false });
     await settled(page, () => page.goto('/dashboard/crm/leads'));
+    await openLeadFilters(page);
     await expect(leadsOwnerFilter(page)).toBeVisible();
   });
 
@@ -357,6 +400,8 @@ test.describe('Admin-only lead owner — list filters', () => {
     await setupCtl(page, { user: REP, adminOnly: false, settingsFault: 'http' });
     await settled(page, () => page.goto('/dashboard/crm/leads'));
     await expect(page.getByText('Ramesh Sharma')).toBeVisible();
+    await expect(mineViewChip(page)).toHaveCount(0);
+    await openLeadFilters(page);
     await expect(leadsOwnerFilter(page)).toHaveCount(0);
   });
 

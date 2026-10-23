@@ -950,3 +950,65 @@ table.responsive-cards tbody tr.km-row td { transition: background-color .12s ea
 @media (hover: hover) and (min-width: 641px) {
   table.responsive-cards:not(.cards-view) tbody tr.km-row:hover td { background: var(--s3); }
 }
+
+/* ── Leads list (redesign) ──────────────────────────────────────────────
+   Row actions float over the row's right edge on hover / keyboard focus, so
+   Call / WhatsApp / Edit don't cost a column. `.always` keeps them up while an
+   approval decision is pending. The open row (quick preview) gets an accent
+   rail. Skeleton rows shimmer unless the user prefers reduced motion. */
+.lead-row .row-actions {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%); z-index: 2;
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 10px;
+  background: var(--s3); box-shadow: 0 0 0 1px var(--border), -14px 0 14px -6px var(--s3);
+  opacity: 0; pointer-events: none; transition: opacity .12s ease;
+}
+.lead-row:hover .row-actions,
+.lead-row:focus-within .row-actions,
+.lead-row .row-actions.always { opacity: 1; pointer-events: auto; }
+table.lead-table tbody tr.lead-row.is-open td { background: var(--s3); }
+table.lead-table tbody tr.lead-row.is-open td:first-child { box-shadow: inset 3px 0 0 var(--info); }
+.lead-row .lead-star:not(.on) { opacity: 0; transition: opacity .12s ease; }
+.lead-row:hover .lead-star,
+.lead-row:focus-within .lead-star { opacity: 1; }
+.km-pipe:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.km-skel {
+  display: block; border-radius: 6px;
+  background: linear-gradient(90deg, var(--s3) 0%, var(--s4) 50%, var(--s3) 100%);
+  background-size: 200% 100%; animation: kmShimmer 1.3s ease-in-out infinite;
+}
+@keyframes kmShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .km-skel { animation: none; } }
+@media (max-width: 640px) { .km-hide-sm { display: none !important; } }
+
+/* The row is focusable for the keyboard preview path; a mouse click shouldn't leave a ring behind. */
+.lead-row:focus { outline: none; }
+.lead-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+/* Lead detail: KPI tiles, tab strip and a small spinner. */
+.ld-tile { transition: background .12s ease; }
+.ld-tile:hover { background: var(--s3) !important; }
+.ld-tile:focus-visible, .ld-tab:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--ring); }
+.ld-tab:hover { color: var(--text) !important; }
+@keyframes kmSpin { to { transform: rotate(360deg); } }
+.km-spin { animation: kmSpin .9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .km-spin { animation: none; } }
+
+/* Attendance: tiles that double as filters, and names that open a person's days. */
+.att-tile { transition: border-color .12s ease, box-shadow .12s ease, background .12s ease; }
+.att-tile:hover { background: var(--s3); }
+.att-tile:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.att-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.att-name:focus-visible { outline: none; text-decoration: underline; box-shadow: 0 0 0 3px var(--ring); border-radius: 3px; }
+
+/* Work Activities: visit cards, filter presets, summary tiles. */
+.wa-visit { transition: border-color .15s ease, box-shadow .2s ease; }
+.wa-visit:hover { border-color: var(--border-l) !important; }
+.wa-visit-head { transition: background .12s ease; }
+.wa-visit-head:hover { background: var(--s3); }
+.wa-visit-head:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--ring); }
+.wa-row { transition: border-color .12s ease; }
+.wa-row:hover { border-color: var(--border-l) !important; }
+.wa-preset { transition: background .12s ease, color .12s ease, border-color .12s ease; }
+.wa-preset:hover:not([aria-pressed="true"]) { background: var(--s3) !important; color: var(--text) !important; }
+.wa-preset:focus-visible, .wa-x:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.wa-x:hover { background: var(--s4) !important; color: var(--text) !important; }

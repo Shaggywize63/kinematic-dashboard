@@ -123,7 +123,8 @@ export function userHasModule(user: AuthUser | null | undefined, moduleId: strin
   const isReadOnlyViewer = !!(user as any).is_read_only && role !== 'super_admin';
   if (isPlatformAdmin && !isReadOnlyViewer) return true;
   const entitled: string[] = Array.isArray((user as any).enabled_modules) ? (user as any).enabled_modules : [];
-  if (entitled.length > 0 && !entitled.includes(moduleId)) return false;
+  // A strict list is the complete set the client was given, so an empty one means nothing (not "show everything").
+  if ((entitled.length > 0 || (user as any).entitlements_strict === true) && !entitled.includes(moduleId)) return false;
   const perms: string[] = Array.isArray((user as any).permissions) ? (user as any).permissions : [];
   if (perms.length > 0) return perms.includes(moduleId);
   return true;

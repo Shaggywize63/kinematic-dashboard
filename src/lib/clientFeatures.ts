@@ -163,6 +163,16 @@ export function canViewTelecallerReport(user: AnyUser): boolean {
 }
 
 /**
+ * Gate for the admin After-Sales Feedback Data Entry page (manual + CSV/Excel
+ * bulk upload, auto-assigned to the telecaller). Client-scoped; today only
+ * Rajkamal runs the after-sales calling programme. Widen this when another
+ * tenant adopts it.
+ */
+export function canManageAfterSales(user: AnyUser): boolean {
+  return isRajkamalActive(user);
+}
+
+/**
  * Client-aware label for the field lead report. The CSV format is shared,
  * but BMW should see it named for their own tenant ("BMW Lead Report")
  * rather than the SRS wording. Every render site (Reports tile + the report

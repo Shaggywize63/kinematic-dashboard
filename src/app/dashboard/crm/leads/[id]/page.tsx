@@ -1,95 +1,92 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmAi, crmSettings } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
-import { conversationsApi, statusMeta, sentimentColor, intentColor, fmtDateTime, type ConversationRow } from '../../../../../lib/conversationsApi';
-import type { Lead, Activity, Deal, LeadScore, NextBestAction } from '../../../../../types/crm';
-import LeadScoreBreakdown from '../../../../../components/crm/LeadScoreBreakdown';
+import { conversationsApi, type ConversationRow } from '../../../../../lib/conversationsApi';
+import type { Deal, LeadScore, NextBestAction } from '../../../../../types/crm';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
-import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
-import LeadUpdatesTimeline from '../../../../../components/crm/LeadUpdatesTimeline';
 import LeadConvertModal from '../../../../../components/crm/LeadConvertModal';
 import ProposalBuilder from '../../../../../components/crm/ProposalBuilder';
 import LeadDisqualifyModal, { type LeadDisqualifyOutcome } from '../../../../../components/crm/LeadDisqualifyModal';
-import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
-import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
-import CallButton from '../../../../../components/crm/shared/CallButton';
-import RecordedCallButton from '../../../../../components/crm/shared/RecordedCallButton';
-import CopyButton from '../../../../../components/crm/shared/CopyButton';
 import LeadEditModal from '../../../../../components/crm/LeadEditModal';
-import InlineEditText from '../../../../../components/crm/InlineEditText';
-import LeadDetailsPanel from '../../../../../components/crm/LeadDetailsPanel';
 import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSuggestions';
-import { formatINR } from '../../../../../lib/formatCurrency';
 import { useAuth } from '../../../../../hooks/useAuth';
+import { getStoredUser } from '../../../../../lib/auth';
 import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
-import { isConsumerChampion, isTataTiscanActive } from '../../../../../lib/clientFeatures';
+import { isConsumerChampion, isTataTiscanActive, isBmwActive } from '../../../../../lib/clientFeatures';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 import { ConsentCard } from '../../../../../components/crm/DataConsent';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/crmLeadStatuses';
 import { DEFAULT_LEAD_FORM, extractLeadForm, segmentName, type LeadFormConfig } from '../../../../../lib/crmLeadForm';
-import { Avatar, Badge, Button, Card, EmptyState, Eyebrow, IconButton, PageHeader, T, cardStyle, useIsCompact } from '../../../../../components/ui';
+import { Button, Card, EmptyState, T, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
-import { ArrowRightLeft, Check, ChevronDown, Copy, FileText, Pencil, RotateCcw, Trash2, UserPlus, XCircle } from 'lucide-react';
+import LeadHero from '../../../../../components/crm/lead-detail/LeadHero';
+import JourneyStepper from '../../../../../components/crm/lead-detail/JourneyStepper';
+import KpiStrip from '../../../../../components/crm/lead-detail/KpiStrip';
+import LeadTabs, { type TabDef } from '../../../../../components/crm/lead-detail/LeadTabs';
+import OverviewTab from '../../../../../components/crm/lead-detail/OverviewTab';
+import TimelineTab from '../../../../../components/crm/lead-detail/TimelineTab';
+import DealsTab from '../../../../../components/crm/lead-detail/DealsTab';
+import InsightsTab from '../../../../../components/crm/lead-detail/InsightsTab';
+import ScoreCard from '../../../../../components/crm/lead-detail/ScoreCard';
+import DisqualifiedBanner from '../../../../../components/crm/lead-detail/DisqualifiedBanner';
+import DetailSkeleton from '../../../../../components/crm/lead-detail/DetailSkeleton';
+import { useLeadUpdates } from '../../../../../components/crm/lead-detail/useLeadUpdates';
+import type { DetailActivity } from '../../../../../components/crm/lead-detail/format';
+import type { LeadTab, LifecycleLead, UserOption } from '../../../../../components/crm/lead-detail/types';
 
-type UserOption = { id: string; name: string };
+// Roles that may delete a teammate's update (mirrors the backend allow-list).
+const UPDATE_ADMIN_ROLES = new Set(['super_admin', 'admin', 'org_admin']);
+const TAB_IDS: LeadTab[] = ['overview', 'timeline', 'deals', 'insights'];
 
-// Local extension — Step 1 added these columns server-side but the shared
-// Lead type doesn't yet carry them. Read defensively without forcing a
-// global type change for two optional fields.
-type LifecycleLead = Lead & {
-  lost_reason?: string | null;
-  disqualified_at?: string | null;
-  /** Stamped server-side on insert. Drives the edit gate. */
-  created_by?: string | null;
+const tabFromHash = (): LeadTab => {
+  if (typeof window === 'undefined') return 'overview';
+  const h = window.location.hash.replace('#', '') as LeadTab;
+  return TAB_IDS.includes(h) ? h : 'overview';
 };
 
 export default function LeadDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  // Reps with data_scope='own' (e.g. Consumer Champion) only see their own
-  // leads — reassigning would hide the record from them. Suppress Assign.
+  // Reps with data_scope='own' (e.g. Consumer Champion) only see their own leads — reassigning would
+  // hide the record from them. Suppress Assign.
   const canReassign = user?.org_role_data_scope !== 'own';
-  // Clients that set lead_form.owner_assignment='admin_only' let only an admin assign a lead: the Assign menu
-  // is for them alone. The current owner below stays on screen as plain text for everyone.
+  // Clients that set lead_form.owner_assignment='admin_only' let only an admin assign a lead: the Assign
+  // menu is for them alone. The current owner stays on screen as plain text for everyone.
   const ownerAccess = useLeadOwnerAccess();
-  // Edit RBAC — only the rep who CREATED this lead may edit it (plus
-  // system-tier CRM admins). Owner / assigned_to grants read but not
-  // edit. Mirrors the backend PATCH /leads/:id gate so reps aren't
-  // promised an affordance the server will then 403. `lead` is set
-  // later by useState; the actual gate is computed inline below.
-  const isAdminTier = ['super_admin', 'admin', 'sub_admin']
-    .includes((user?.role ?? '').toLowerCase());
-  // Tenant + designation gates. Consumer Champion FEs (TATA's frontline
-  // designation) don't see the Lead Score breakdown, the boost-score
-  // suggestions, or the analytics surface — those tools target managers,
-  // not field reps. Tata-Tiscon tenants get the streamlined convert flow
-  // (skip the create-account prompt and jump straight to a new Deal where
-  // line items are managed) since they only sell deals, never run a
-  // separate accounts book.
+  // Edit RBAC — only the rep who CREATED this lead may edit it (plus system-tier CRM admins). Owner /
+  // assigned_to grants read but not edit. Mirrors the backend PATCH /leads/:id gate so reps aren't
+  // promised an affordance the server will then 403.
+  const isAdminTier = ['super_admin', 'admin', 'sub_admin'].includes((user?.role ?? '').toLowerCase());
+  // Tenant + designation gates. Consumer Champion FEs (TATA's frontline designation) don't see the Lead
+  // Score breakdown, the boost-score suggestions, or the analytics surface — those tools target managers,
+  // not field reps. Tata-Tiscon tenants get the streamlined convert flow (skip the create-account prompt
+  // and jump straight to a new Deal where line items are managed) since they only sell deals.
   const isChampion = isConsumerChampion(user as any);
   const isTataActive = isTataTiscanActive(user as any);
-  // Conversation Analysis is removed from the dashboard for the Kaiyo/TATA
-  // org — hide the per-lead Conversations card (and skip its fetch) for them.
-  // Org-inclusive so the org's null-client_id admin / login accounts are
-  // covered too, not just the client-pinned reps.
+  // BMW (a steel-dealer tenant) must use the Convert MODAL — not the Tata/PASA
+  // direct-convert bypass — so the rep books a volume and sees the balance. BMW
+  // also hides the deals-"won" surfaces (no close-as-won).
+  const isBmw = isBmwActive(user as any);
+  // Conversation Analysis is removed from the dashboard for the Kaiyo/TATA org — hide the per-lead
+  // Call Insights (and skip the fetch) for them. Org-inclusive so the org's null-client_id admin / login
+  // accounts are covered too, not just the client-pinned reps.
   const hideConversations = isTataActive || isHorizonOrg((user as any)?.org_id);
   const [tataConverting, setTataConverting] = useState(false);
   const id = params?.id as string;
   const [lead, setLead] = useState<LifecycleLead | null>(null);
   const narrow = useIsCompact(960);
-  // Per-tenant built-in field overrides — the detail view is a render site
-  // like Create and Edit, so hidden fields stay hidden and relabels apply.
+
+  // Per-tenant built-in field overrides — the detail view is a render site like Create and Edit, so
+  // hidden fields stay hidden and relabels apply.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
   // The consent card is admin-gated too (`data_consent`), so it waits for the settings instead of flashing up.
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  // Per-client custom lead-status set. Null = use the built-in list / tones
-  // (no change for existing tenants). Loaded from the same settings fetch.
+  // Per-client custom lead-status set. Null = use the built-in list / tones (no change for existing tenants).
   const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
   // Client's own names for the lead types ("Dealer" / "Farmers"); B2B / B2C otherwise.
   const [leadForm, setLeadForm] = useState<LeadFormConfig>(DEFAULT_LEAD_FORM);
@@ -104,28 +101,24 @@ export default function LeadDetailPage() {
     [fieldOverrides, lead?.is_b2c],
   );
   usePageTitle(lead ? (lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Lead') : null);
-  const canEditLead =
-    isAdminTier ||
-    (!!user?.id && lead?.created_by != null && lead.created_by === user.id);
+  const canEditLead = isAdminTier || (!!user?.id && lead?.created_by != null && lead.created_by === user.id);
+
   const [score, setScore] = useState<LeadScore | null>(null);
-  // NBA is computed lazily — the card's "Suggest" button calls loadNba()
-  // below to POST to /crm/ai/next-best-action/lead/:id. The 6h server-side
-  // cache means repeat clicks within that window are free.
+  // NBA is computed lazily — the card's "Suggest" button calls loadNba() to POST to
+  // /crm/ai/next-best-action/lead/:id. The 6h server-side cache means repeat clicks within that window are free.
   const [nba, setNba] = useState<NextBestAction | null>(null);
   const [nbaLoading, setNbaLoading] = useState(false);
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const [activities, setActivities] = useState<DetailActivity[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
-  // Conversation Analysis — compact history of recorded/consented calls for
-  // this lead. Loaded independently (its own endpoint) so it never blocks the
-  // core lead/activities/deals load; failures are swallowed (module may be off).
+  // Conversation Analysis — compact history of recorded/consented calls for this lead. Loaded independently
+  // (its own endpoint) so it never blocks the core load; failures are swallowed (module may be off).
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [proposalOpen, setProposalOpen] = useState(false);
-  // Auto-open the Convert modal when the page is reached with ?convert=1
-  // (the leads list "→ Deal" action uses this so users don't have to click
-  // through the detail page to find Convert).
+  // Auto-open the Convert modal when the page is reached with ?convert=1 (the leads list "→ Deal" action
+  // uses this so users don't have to click through the detail page to find Convert).
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const sp = new URLSearchParams(window.location.search);
@@ -136,30 +129,41 @@ export default function LeadDetailPage() {
   const [reopening, setReopening] = useState(false);
   const [disqualifyOpen, setDisqualifyOpen] = useState(false);
   const [disqualifyOutcome, setDisqualifyOutcome] = useState<LeadDisqualifyOutcome>('unqualified');
-  const [assignOpen, setAssignOpen] = useState(false);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  const assignRef = useRef<HTMLDivElement>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
 
-  const reload = async () => {
+  // ── Tabs (the active one lives in the URL hash so a reload or a shared link lands on it) ──
+  const [tab, setTab] = useState<LeadTab>('overview');
+  useEffect(() => {
+    setTab(tabFromHash());
+    const onHash = () => setTab(tabFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  const openTab = useCallback((t: LeadTab) => {
+    setTab(t);
+    try { window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${t === 'overview' ? '' : `#${t}`}`); } catch { /* non-browser */ }
+  }, []);
+
+  // `silent` refreshes in place (after a note, status change, …) without swapping the page for the skeleton.
+  const reload = useCallback(async (silent = true) => {
     if (!id) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
-      const [l, a, d] = await Promise.allSettled([
-        crmLeads.get(id),
-        crmLeads.activities(id),
-        crmLeads.deals(id),
-      ]);
+      const [l, a, d] = await Promise.allSettled([crmLeads.get(id), crmLeads.activities(id), crmLeads.deals(id)]);
       if (l.status === 'fulfilled') setLead(l.value.data as LifecycleLead);
-      if (a.status === 'fulfilled') setActivities(a.value.data || []);
+      if (a.status === 'fulfilled') setActivities((a.value.data || []) as DetailActivity[]);
       if (d.status === 'fulfilled') setDeals(d.value.data || []);
     } catch (e: any) { toast.error(e.message || 'Load failed'); } finally { setLoading(false); }
-  };
+  }, [id]);
 
-  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [id]);
+  useEffect(() => {
+    setLead(null); setActivities([]); setDeals([]); setScore(null); setNba(null);
+    void reload(false);
+  }, [id, reload]);
 
-  // Lead-scoped conversations (secondary — module may not be granted, so a
-  // failure just leaves the section hidden).
+  // Lead-scoped conversations (secondary — module may not be granted, so a failure just leaves the tab out).
   useEffect(() => {
     if (!id) return;
     if (hideConversations) { setConversations([]); return; }
@@ -170,14 +174,23 @@ export default function LeadDetailPage() {
     return () => { cancelled = true; };
   }, [id, hideConversations]);
 
-  useEffect(() => {
-    if (!assignOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (assignRef.current && !assignRef.current.contains(e.target as Node)) setAssignOpen(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [assignOpen]);
+  // Each new update server-side invalidates the lead's NBA cache AND denormalises onto crm_leads.latest_update.
+  // Re-loading the lead picks the fresh latest_update; clearing nba forces a fresh recommendation next Suggest.
+  const noteChanged = useCallback(() => { void reload(); setNba(null); }, [reload]);
+  const updates = useLeadUpdates(id, noteChanged);
+
+  /** PATCH one or more fields and fold the returned row into the page. Throws so inline editors stay open to retry. */
+  const patchLead = async (patch: Record<string, unknown>, okText: string) => {
+    if (!lead) return;
+    try {
+      const r = await crmLeads.update(lead.id, patch as any);
+      setLead((prev) => ({ ...(prev as LifecycleLead), ...(r.data as LifecycleLead) }));
+      toast.success(okText);
+    } catch (e: any) {
+      toast.error(e?.message || 'Update failed');
+      throw e;
+    }
+  };
 
   const reScore = async () => {
     if (!id) return;
@@ -190,15 +203,14 @@ export default function LeadDetailPage() {
     } catch (e: any) { toast.error(e.message || 'Scoring failed'); } finally { setScoring(false); }
   };
 
-  // "Boost score" action: mark the lead Qualified, then re-score so the bump
-  // shows immediately.
+  // "Boost score" action: mark the lead Qualified, then re-score so the bump shows immediately.
   const [qualifying, setQualifying] = useState(false);
   const markQualified = async () => {
     if (!id) return;
     setQualifying(true);
     try {
       const r = await crmLeads.update(id, { status: 'qualified' } as any);
-      setLead(r.data as any);
+      setLead((prev) => ({ ...(prev as LifecycleLead), ...(r.data as LifecycleLead) }));
       toast.success('Lead marked Qualified');
       await reScore();
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setQualifying(false); }
@@ -257,10 +269,7 @@ export default function LeadDetailPage() {
     setUsersLoading(true);
     try {
       const r = await api.getUsers({ scope: 'assignable' }) as any;
-      const list: UserOption[] = (r.data || r || []).map((u: any) => ({
-        id: u.id,
-        name: u.name || u.full_name || u.email || 'User',
-      }));
+      const list: UserOption[] = (r.data || r || []).map((u: any) => ({ id: u.id, name: u.name || u.full_name || u.email || 'User' }));
       setUsers(list);
     } catch { setUsers([]); } finally { setUsersLoading(false); }
   };
@@ -269,23 +278,25 @@ export default function LeadDetailPage() {
     if (!lead) return;
     try {
       const updated = await crmLeads.update(lead.id, { owner_id: userId } as any);
-      setLead(updated.data as LifecycleLead);
+      // The name is known here; don't depend on the PATCH response carrying the joined owner_name.
+      setLead((prev) => ({ ...(prev as LifecycleLead), ...(updated.data as LifecycleLead), owner_id: userId, owner_name: (updated.data as LifecycleLead)?.owner_name ?? userName }));
       toast.success(`Assigned to ${userName}`);
-      setAssignOpen(false);
     } catch (e: any) {
       toast.error(e.message || 'Assign failed');
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <div style={{ height: 26, width: 260, borderRadius: 6, background: 'var(--s3)' }} />
-        <div style={{ ...cardStyle, height: 160 }} />
-        <div style={{ ...cardStyle, height: 240 }} />
-      </div>
-    );
-  }
+  const changeStatus = async (next: string) => {
+    const label = leadStatuses?.find((o) => o.value === next)?.label ?? next.replace(/_/g, ' ');
+    try { await patchLead({ status: next }, `Status set to ${label}`); } catch { /* patchLead already toasted */ }
+  };
+
+  const stepStatus = async (next: string) => {
+    setStatusBusy(true);
+    try { await changeStatus(next); } finally { setStatusBusy(false); }
+  };
+
+  if (loading && !lead) return <DetailSkeleton narrow={narrow} />;
   if (!lead) return <EmptyState title="Lead not found" description="It may have been deleted, or you may not have access to it." action={<Button href="/dashboard/crm/leads">Back to leads</Button>} />;
 
   const fullName = lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Unnamed';
@@ -297,18 +308,34 @@ export default function LeadDetailPage() {
   const isLost = lead.status === 'lost';
   const isClosed = isConverted || isUnqualified || isLost;
 
-  // Subtitle under the name — every piece is a built-in field, so each one
-  // honours the admin's hide list.
+  // Subtitle under the name — every piece is a built-in field, so each one honours the admin's hide list.
   const subtitle = isB2C
     ? [!fields.isHidden('city') && lead.city, !fields.isHidden('country') && lead.country].filter(Boolean).join(', ')
     : [!fields.isHidden('title') && lead.title, !fields.isHidden('company') && lead.company].filter(Boolean).join(' · ');
 
+  // Telecaller phase 3 — "Engaged campaigns": every campaign this customer has been worked under = the lead's
+  // campaign tag ∪ each call's campaign (metadata.campaign, falling back to the lead's tag). Flags a customer
+  // touched by more than one campaign. Empty for non-telecaller leads.
+  const leadCampaignRaw = (lead.custom_fields as Record<string, unknown> | null)?.campaign;
+  const leadCampaign = typeof leadCampaignRaw === 'string' && leadCampaignRaw.trim() ? leadCampaignRaw.trim() : null;
+  const campaigns = (() => {
+    const set = new Set<string>();
+    if (leadCampaign) set.add(leadCampaign);
+    for (const a of activities) {
+      if (a.type !== 'call') continue;
+      const m = a.metadata;
+      const c = m && typeof m.campaign === 'string' && m.campaign.trim() ? m.campaign.trim() : (leadCampaign ?? '');
+      if (c) set.add(c);
+    }
+    return Array.from(set);
+  })();
+
   const onConvert = async () => {
-    // Tata Tiscon: bypass the create-account / create-deal popup entirely.
-    // TATA's flow records the deal directly (with line items managed on the
-    // deal page), so we call convert with account=false and route straight
-    // to the new deal.
-    if (isTataActive) {
+    // Tata Tiscon / PASA: bypass the create-account / create-deal popup entirely. Their flow records the deal
+    // directly (with line items managed on the deal page), so we call convert with account=false and route
+    // straight to the new deal. BMW is EXCLUDED — it must open the modal so the rep enters booked volume and
+    // sees the balance.
+    if (isTataActive && !isBmw) {
       setTataConverting(true);
       try {
         const defaultName = fullName || lead.company || 'New deal';
@@ -329,331 +356,134 @@ export default function LeadDetailPage() {
     setConvertOpen(true);
   };
 
-  const actions = (
-    <>
-      {canEditLead && <Button onClick={() => setEditOpen(true)} icon={<Pencil size={15} strokeWidth={1.8} />}>Edit</Button>}
-      <Button onClick={() => setProposalOpen(true)} icon={<FileText size={15} strokeWidth={1.8} />}>Proposal</Button>
-      {canReassign && ownerAccess.canAssign && (
-        <div ref={assignRef} style={{ position: 'relative' }}>
-          <Button onClick={() => { setAssignOpen((o) => !o); loadUsers(); }} icon={<UserPlus size={15} strokeWidth={1.8} />}>
-            Assign <ChevronDown size={14} strokeWidth={1.8} style={{ color: T.mute, marginLeft: -2 }} />
-          </Button>
-          {assignOpen && (
-            <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, boxShadow: 'var(--shadow-pop)', zIndex: 200, minWidth: 220, maxHeight: 260, overflowY: 'auto', padding: 4 }}>
-              {usersLoading && <div style={{ padding: '8px 10px', fontSize: 12.5, color: T.dim }}>Loading users…</div>}
-              {!usersLoading && users.length === 0 && <div style={{ padding: '8px 10px', fontSize: 12.5, color: T.dim }}>No users found</div>}
-              {users.map((u) => (
-                <button key={u.id} type="button" role="menuitem" onClick={() => handleAssign(u.id, u.name)} className="km-navrow"
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, height: 32, padding: '0 8px', borderRadius: 6, background: 'transparent', border: 'none', color: T.text, textAlign: 'left', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
-                  <Avatar name={u.name} size={20} />{u.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      {!isClosed && (
-        <>
-          <Button variant="ghost" onClick={() => openDisqualify('unqualified')} style={{ color: T.warn }} icon={<XCircle size={15} strokeWidth={1.8} />}>Unqualified</Button>
-          <Button variant="danger" onClick={() => openDisqualify('lost')} icon={<XCircle size={15} strokeWidth={1.8} />}>Lost</Button>
-          <Button variant="primary" onClick={onConvert} disabled={tataConverting} icon={<ArrowRightLeft size={15} strokeWidth={1.8} />}>
-            {tataConverting ? 'Converting…' : 'Convert'}
-          </Button>
-        </>
-      )}
-      {isClosed && (
-        <Button variant="primary" onClick={handleReopen} disabled={reopening} icon={<RotateCcw size={15} strokeWidth={1.8} />}>
-          {reopening ? 'Re-opening…' : 'Re-open lead'}
-        </Button>
-      )}
-      <IconButton label={deleting ? 'Deleting…' : 'Delete lead'} onClick={handleDelete} disabled={deleting} style={{ color: T.red }}>
-        <Trash2 size={16} strokeWidth={1.6} />
-      </IconButton>
-    </>
-  );
+  const showScore = !isChampion && !isTataActive && !fields.isHidden('score');
+  const hasInsights = !hideConversations && conversations.length > 0;
+  const tabs: TabDef[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'timeline', label: 'Timeline', count: updates.items.length + activities.length },
+    { id: 'deals', label: 'Deals', count: deals.length },
+    ...(hasInsights ? [{ id: 'insights' as const, label: 'Call insights', count: conversations.length }] : []),
+  ];
+  const activeTab: LeadTab = tabs.some((t) => t.id === tab) ? tab : 'overview';
+
+  const me = getStoredUser();
+  const meCtx = { id: me?.id ?? null, isAdmin: !!me?.role && UPDATE_ADMIN_ROLES.has(me.role) };
+  const outcome = isLost ? 'lost' : isUnqualified ? 'unqualified' : null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <PageHeader
-        eyebrow={leadForm.segmentLabels[isB2C ? 'b2c' : 'b2b'] ? `${segmentName(leadForm, isB2C ? 'b2c' : 'b2b')} lead` : (isB2C ? 'Consumer lead' : 'Business lead')}
-        title={
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {/* Inline per-field edit — change just the name in place. Saves first/last only. */}
-            <InlineEditText
-              value={fullName}
-              ariaLabel="Edit name"
-              displayStyle={{ fontFamily: T.heading, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, wordBreak: 'break-word' }}
-              inputStyle={{ fontSize: 20, fontWeight: 700, minWidth: 220 }}
-              onSave={async (next) => {
-                const parts = next.split(/\s+/).filter(Boolean);
-                const first = parts.shift() || next.trim();
-                const last = parts.join(' ');
-                try {
-                  const r = await crmLeads.update(lead.id, { first_name: first, last_name: last } as any);
-                  setLead({ ...(r.data as any), full_name: `${first} ${last}`.trim() } as LifecycleLead);
-                  toast.success('Name updated');
-                } catch (e: any) {
-                  toast.error(e?.message || 'Update failed');
-                  throw e; // keep the inline editor open so the rep can retry
-                }
-              }}
-            />
-            <Badge tone={isB2C ? 'neutral' : 'info'}>{segmentName(leadForm, isB2C ? 'b2c' : 'b2b')}</Badge>
-            {isConverted && <Badge tone="ok" dot>Converted</Badge>}
-            {isUnqualified && <Badge tone="warn" dot>Unqualified</Badge>}
-            {isLost && <Badge tone="red" dot>Lost</Badge>}
-          </span>
-        }
-        description={subtitle || undefined}
-        actions={actions}
-        compact={narrow}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <LeadHero
+        lead={lead}
+        fullName={fullName}
+        subtitle={subtitle}
+        segment={segmentName(leadForm, isB2C ? 'b2c' : 'b2b')}
+        isB2C={isB2C}
+        fields={fields}
+        leadStatuses={leadStatuses}
+        closed={{ converted: isConverted, unqualified: isUnqualified, lost: isLost }}
+        narrow={narrow}
+        canEdit={canEditLead}
+        canAssign={canReassign && ownerAccess.canAssign}
+        users={users}
+        usersLoading={usersLoading}
+        onLoadUsers={loadUsers}
+        onAssign={handleAssign}
+        onRename={async (next) => {
+          const parts = next.split(/\s+/).filter(Boolean);
+          const first = parts.shift() || next.trim();
+          const last = parts.join(' ');
+          await patchLead({ first_name: first, last_name: last }, 'Name updated');
+          setLead((prev) => (prev ? { ...prev, full_name: `${first} ${last}`.trim() } : prev));
+        }}
+        onStatusChange={changeStatus}
+        onEdit={() => setEditOpen(true)}
+        onProposal={() => setProposalOpen(true)}
+        onConvert={onConvert}
+        converting={tataConverting}
+        onReopen={handleReopen}
+        reopening={reopening}
+        onDisqualify={openDisqualify}
+        onDelete={handleDelete}
+        deleting={deleting}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'minmax(0, 1fr) 320px', gap: 20, alignItems: 'start' }}>
-        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Header facts — the fields a rep reaches for first. Every built-in
-              one is gated through the admin's field overrides. */}
-          <Card padding={20}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
-              <OwnerAvatar name={fullName} size={44} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{fullName}</div>
-                {!fields.isHidden('owner_id') && <div style={{ fontSize: 12.5, color: T.dim }}>Owner: {lead.owner_name || 'Unassigned'}</div>}
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr 1fr' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px 20px' }}>
-              {!isTataActive && !fields.isHidden('email') && (
-                <Fact
-                  label={fields.labelFor('email', 'Email')}
-                  value={lead.email}
-                  type="email"
-                  copyable
-                  onSave={async (next) => {
-                    try {
-                      const r = await crmLeads.update(lead.id, { email: next || null } as any);
-                      setLead(r.data as LifecycleLead);
-                      toast.success('Email updated');
-                    } catch (e: any) {
-                      toast.error(e?.message || 'Update failed');
-                      throw e;
-                    }
-                  }}
-                />
-              )}
-              {!fields.isHidden('phone') && (
-                <PhoneFact
-                  label={fields.labelFor('phone', 'Phone')}
-                  phone={lead.phone}
-                  prefill={waPrefill}
-                  leadId={lead.id}
-                  displayName={fullName}
-                  onSave={async (next) => {
-                    try {
-                      const r = await crmLeads.update(lead.id, { phone: next || null } as any);
-                      setLead(r.data as LifecycleLead);
-                      toast.success('Phone updated');
-                    } catch (e: any) {
-                      toast.error(e?.message || 'Update failed');
-                      throw e;
-                    }
-                  }}
-                />
-              )}
-              {!fields.isHidden('status') && (
-                <Fact
-                  label={fields.labelFor('status', 'Status')}
-                  value={
-                    <StatusSelect
-                      status={lead.status}
-                      custom={leadStatuses}
-                      onChange={async (next) => {
-                        try {
-                          const r = await crmLeads.update(lead.id, { status: next } as any);
-                          setLead(r.data as LifecycleLead);
-                          toast.success(`Status set to ${next.replace(/_/g, ' ')}`);
-                        } catch (e: any) {
-                          toast.error(e?.message || 'Status update failed');
-                        }
-                      }}
-                    />
-                  }
-                />
-              )}
-              {!fields.isHidden('source_id') && <Fact label={fields.labelFor('source_id', 'Source')} value={lead.source_name} />}
-              {!fields.isHidden('owner_id') && <Fact label={fields.labelFor('owner_id', 'Owner')} value={lead.owner_name || 'Unassigned'} />}
-              <Fact label="Created" value={<span style={{ fontFamily: T.mono, fontSize: 12.5 }}>{new Date(lead.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}</span>} />
-            </div>
-          </Card>
+      {/* Lifecycle status banner — lost_reason + disqualified_at so the rep sees the closed-out context above the fold. */}
+      {(isUnqualified || isLost) && (
+        <DisqualifiedBanner
+          outcome={isLost ? 'lost' : 'unqualified'}
+          lostReason={lead.lost_reason || null}
+          disqualifiedAt={lead.disqualified_at || null}
+          onReopen={handleReopen}
+          reopening={reopening}
+        />
+      )}
 
-          {/* Lifecycle status banner — lost_reason + disqualified_at so the rep
-              sees the closed-out context above the fold. */}
-          {(isUnqualified || isLost) && (
-            <DisqualifiedBanner
-              outcome={isLost ? 'lost' : 'unqualified'}
-              lostReason={lead.lost_reason || null}
-              disqualifiedAt={lead.disqualified_at || null}
-              onReopen={handleReopen}
-              reopening={reopening}
-            />
-          )}
+      <Card padding={0} style={{ overflow: 'hidden' }}>
+        {!fields.isHidden('status') && (
+          <div style={{ padding: narrow ? '14px 16px' : '16px 20px', borderBottom: `1px solid ${T.border}` }}>
+            <JourneyStepper status={lead.status} custom={leadStatuses} outcome={outcome} busy={statusBusy} onSelect={stepStatus} onConvert={onConvert} />
+          </div>
+        )}
+        <KpiStrip
+          lead={lead}
+          activities={activities}
+          updates={updates.items}
+          deals={deals}
+          conversations={conversations}
+          showScore={showScore}
+          hideWon={isBmw}
+          narrow={narrow}
+          onOpenTab={openTab}
+        />
+      </Card>
 
-          {/* Comprehensive categorised detail panel — every lead field grouped
-              by Contact / Company / Personal / Address / Custom / Consent, hiding
-              any group with no populated values. Gated through `fields`. */}
-          <LeadDetailsPanel
-            lead={lead}
-            fields={fields}
-            onPatch={async (patch) => {
-              try {
-                const r = await crmLeads.update(lead.id, patch as any);
-                setLead(r.data as LifecycleLead);
-                toast.success('Updated');
-              } catch (e: any) {
-                toast.error(e?.message || 'Update failed');
-                throw e; // keep the inline editor open so the rep can retry
-              }
-            }}
-          />
-
-          {deals.length > 0 && (
-            <Section title="Deals" count={deals.length}>
-              {/* Rollup strip — Total / Won / Balance across this lead's deals.
-                  Won deals carry their won amount (the win flow overwrites
-                  `amount` with the closed figure), and open deals — including
-                  the "(Balance)" deals spawned by partial closes — ARE the
-                  outstanding balance, so summing plain `amount` per status is
-                  exactly the split we want. */}
-              {(() => {
-                const sum = (rows: Deal[]) => rows.reduce((s, d) => s + (Number(d.amount) || 0), 0);
-                const total = sum(deals);
-                const won = sum(deals.filter((d) => d.status === 'won'));
-                const balance = sum(deals.filter((d) => d.status === 'open'));
-                const fmt = (n: number) => `₹${n.toLocaleString('en-IN')}`;
-                const cell = (label: string, value: number, color?: string) => (
-                  <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
-                    <Eyebrow>{label}</Eyebrow>
-                    <span style={{ fontSize: 13, fontWeight: 600, fontFamily: T.mono, color: color || T.text, whiteSpace: 'nowrap' }}>{fmt(value)}</span>
-                  </span>
-                );
-                return (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: 'var(--s3)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
-                    {cell('Total', total)}
-                    {cell('Won', won, T.ok)}
-                    {cell('Balance', balance, T.warn)}
-                  </div>
-                );
-              })()}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {deals.map((d) => (
-                  <Link key={d.id} href={`/dashboard/crm/deals/${d.id}`} style={rowLink} className="km-navrow">
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: T.text, fontWeight: 500, wordBreak: 'break-word' }}>{d.name}</div>
-                      <div style={{ fontSize: 12, color: T.dim }}>{d.stage_name} · {d.status}</div>
-                    </div>
-                    <div style={{ color: T.text, fontWeight: 600, fontFamily: T.mono, whiteSpace: 'nowrap' }}>{formatINR(d.amount || 0)}</div>
-                  </Link>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          {!hideConversations && conversations.length > 0 && (
-            <Section title="Conversations" count={conversations.length}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {conversations.map((c) => {
-                  const sm = statusMeta(c.status);
-                  const sc = sentimentColor(c.sentiment);
-                  const ic = intentColor(c.intent_score);
-                  return (
-                    <Link key={c.id} href="/dashboard/crm/conversations" style={rowLink} className="km-navrow">
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ color: T.text, fontWeight: 500 }}>
-                          {c.champion_name || 'Consumer Champion'}
-                          <span style={{ fontWeight: 400, color: T.mute, fontSize: 11.5, marginLeft: 8, fontFamily: T.mono }}>{fmtDateTime(c.created_at)}</span>
-                        </div>
-                        {c.summary && (
-                          <div style={{ fontSize: 12.5, color: T.dim, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.summary}</div>
-                        )}
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-                          {(c.intent || c.intent_score != null) && (
-                            <span style={{ fontSize: 11, fontWeight: 500, padding: '1px 8px', borderRadius: 999, background: ic.bg, color: ic.fg }}>
-                              {c.intent || 'Intent'}{c.intent_score != null ? ` · ${c.intent_score}` : ''}
-                            </span>
-                          )}
-                          {c.sentiment && (
-                            <span style={{ fontSize: 11, fontWeight: 500, padding: '1px 8px', borderRadius: 999, background: sc.bg, color: sc.fg }}>{c.sentiment}</span>
-                          )}
-                          <span style={{ fontSize: 11, fontWeight: 500, padding: '1px 8px', borderRadius: 999, background: sm.bg, color: sm.fg }}>{sm.label}</span>
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </Section>
-          )}
-
-          <Section title="Updates">
-            <LeadUpdatesTimeline
-              leadId={id}
-              // Each new update server-side invalidates the lead's NBA cache
-              // AND denormalises onto crm_leads.latest_update*. Re-loading the
-              // lead picks the fresh latest_update so the header field updates
-              // without a full page reload; clearing nba forces a fresh
-              // recommendation next time the user clicks Suggest.
-              onAdded={() => { reload(); setNba(null); }}
-            />
-          </Section>
-          <Section title="Activity">
-            {(() => {
-              // Telecaller phase 3 — "Engaged campaigns": every campaign this
-              // customer has been worked under = the lead's campaign tag ∪ each
-              // call's campaign (metadata.campaign, falling back to the lead's
-              // tag). Flags a customer touched by more than one campaign. Renders
-              // nothing when there is no campaign data (non-telecaller leads).
-              const leadCampaign = (lead?.custom_fields as Record<string, unknown> | null)?.campaign;
-              const set = new Set<string>();
-              if (typeof leadCampaign === 'string' && leadCampaign.trim()) set.add(leadCampaign.trim());
-              for (const a of activities) {
-                if ((a as any).type !== 'call') continue;
-                const m = (a as any).metadata as Record<string, unknown> | null | undefined;
-                const c = (m && typeof m.campaign === 'string' && m.campaign.trim())
-                  ? m.campaign.trim()
-                  : (typeof leadCampaign === 'string' ? leadCampaign.trim() : '');
-                if (c) set.add(c);
-              }
-              const camps = Array.from(set);
-              if (camps.length === 0) return null;
-              return (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Engaged campaigns</span>
-                  {camps.map((c) => (
-                    <span key={c} style={{ fontSize: 12, fontWeight: 700, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 999, padding: '3px 10px', color: 'var(--text)' }}>{c}</span>
-                  ))}
-                  {camps.length > 1 && (
-                    <span style={{ fontSize: 11, fontWeight: 800, background: '#F59E0B22', color: '#F59E0B', borderRadius: 999, padding: '3px 10px' }}>Multiple campaigns</span>
-                  )}
-                </div>
-              );
-            })()}
-            <ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?lead_id=${id}`} leadCampaign={(lead?.custom_fields as Record<string, unknown> | null)?.campaign as string | null | undefined} />
-          </Section>
+      <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 320px', gap: 20, alignItems: 'start' }}>
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <LeadTabs tabs={tabs} active={activeTab} onChange={openTab} />
+          <div role="tabpanel" id={`lead-panel-${activeTab}`} aria-labelledby={`lead-tab-${activeTab}`} tabIndex={0} style={{ outline: 'none', minWidth: 0 }}>
+            {activeTab === 'overview' && (
+              <OverviewTab
+                lead={lead}
+                fields={fields}
+                hideEmail={isTataActive}
+                activities={activities}
+                latestUpdate={updates.items[0] ?? null}
+                campaigns={campaigns}
+                leadCampaign={leadCampaign}
+                waPrefill={waPrefill}
+                displayName={fullName}
+                onPatch={async (patch, okText) => patchLead(patch, okText)}
+                onActivitiesChanged={() => { void reload(); }}
+                onOpenTab={openTab}
+              />
+            )}
+            {activeTab === 'timeline' && (
+              <TimelineTab
+                leadId={id}
+                leadCampaign={leadCampaign}
+                activities={activities}
+                updates={updates.items}
+                updatesLoading={updates.loading}
+                conversations={hasInsights ? conversations : []}
+                me={meCtx}
+                onAddNote={updates.add}
+                onEditNote={updates.edit}
+                onDeleteNote={updates.remove}
+                onActivitiesChanged={() => { void reload(); }}
+              />
+            )}
+            {activeTab === 'deals' && <DealsTab leadId={id} deals={deals} canConvert={!isClosed} onConvert={onConvert} hideWon={isBmw} showFulfillBalance={isBmw} />}
+            {activeTab === 'insights' && hasInsights && <InsightsTab conversations={conversations} />}
+          </div>
         </div>
 
-        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* LeadScoreBreakdown + ScoreBoostSuggestions hidden for Consumer
-              Champion reps AND for the Tata Tiscon tenant — their flow
-              doesn't use the AI score-boost loop. NBA card stays visible
-              since it's an action prompt the FE can act on directly. */}
-          {!isChampion && !isTataActive && (
+        <aside aria-label="Lead intelligence" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Score + boost suggestions are hidden for Consumer Champion reps AND for the Tata Tiscon tenant —
+              their flow doesn't use the AI score-boost loop. The NBA card stays visible since it's an action
+              prompt the FE can act on directly. */}
+          {showScore && (
             <>
-              <LeadScoreBreakdown
-                score={score?.score ?? lead.score}
-                grade={(score?.grade ?? lead.score_grade) as any}
-                factors={score?.factors}
-                onRefresh={reScore}
-                loading={scoring}
-              />
+              <ScoreCard lead={lead} score={score} scoring={scoring} onRescore={reScore} />
               <ScoreBoostSuggestions
                 lead={lead as any}
                 onEdit={() => { if (canEditLead) setEditOpen(true); }}
@@ -662,14 +492,13 @@ export default function LeadDetailPage() {
               />
             </>
           )}
-          {/* Next Best Action — AI manager-tier surface; hidden for the
-              Consumer Champion FE flow since they don't act on it. */}
+          {/* Next Best Action — AI manager-tier surface; hidden for the Consumer Champion FE flow since they don't act on it. */}
           {!isChampion && <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />}
           {/* DPDP §6(4)-(6) — consent status + in-app withdrawal for this lead. */}
           {settingsLoaded && !fields.isHidden('data_consent') && (
             <ConsentCard subjectType="lead" subjectId={id} title={fields.labelFor('data_consent', 'Consent (DPDP)')} />
           )}
-        </div>
+        </aside>
       </div>
 
       <LeadConvertModal
@@ -677,7 +506,7 @@ export default function LeadDetailPage() {
         defaultDealName={fullName}
         open={convertOpen}
         onClose={() => setConvertOpen(false)}
-        onConverted={reload}
+        onConverted={() => { void reload(); }}
       />
 
       <LeadDisqualifyModal
@@ -685,243 +514,25 @@ export default function LeadDetailPage() {
         open={disqualifyOpen}
         initialOutcome={disqualifyOutcome}
         onClose={() => setDisqualifyOpen(false)}
-        onDone={reload}
+        onDone={() => { void reload(); }}
       />
 
       <LeadEditModal
         lead={lead}
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        onSaved={(updated) => { setLead(updated as LifecycleLead); reload(); reScore(); }}
+        onSaved={(updated) => { setLead(updated as LifecycleLead); void reload(); void reScore(); }}
       />
 
-      {proposalOpen && lead && (
+      {proposalOpen && (
         <ProposalBuilder
           leadId={id}
           leadName={fullName}
-          leadPhone={(lead as { phone?: string | null }).phone ?? null}
-          leadEmail={(lead as { email?: string | null }).email ?? null}
+          leadPhone={lead.phone ?? null}
+          leadEmail={lead.email ?? null}
           onClose={() => setProposalOpen(false)}
         />
       )}
     </div>
   );
 }
-
-/** Card with a title row — the detail page's section surface. */
-function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
-  return (
-    <Card padding={0}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '12px 18px', borderBottom: `1px solid ${T.border}` }}>
-        <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>{title}</div>
-        {typeof count === 'number' && <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.mute }}>{count}</span>}
-      </div>
-      <div style={{ padding: 18 }}>{children}</div>
-    </Card>
-  );
-}
-
-/** Small copy-to-clipboard button. Shows a transient check on success and
- *  surfaces a toast. `text` is the raw value copied (may differ from display). */
-function FieldCopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      toast.success(`${label} copied`);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      toast.error('Could not copy to clipboard');
-    }
-  };
-  return (
-    <button
-      type="button"
-      onClick={copy}
-      aria-label={`Copy ${label.toLowerCase()}`}
-      title={`Copy ${label.toLowerCase()}`}
-      style={{ background: 'transparent', border: 'none', padding: 2, cursor: 'pointer', color: copied ? 'var(--ok, #16a34a)' : T.dim, lineHeight: 0, flexShrink: 0, display: 'inline-flex', alignItems: 'center' }}
-    >
-      {copied ? <Check size={13} strokeWidth={2.2} /> : <Copy size={13} strokeWidth={2} />}
-    </button>
-  );
-}
-
-function Fact({ label, value, onSave, type, copyable }: { label: string; value?: React.ReactNode; onSave?: (next: string) => Promise<void>; type?: string; copyable?: boolean }) {
-  const copyText = typeof value === 'string' ? value : '';
-  return (
-    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <div style={{ fontSize: 12, fontWeight: 500, color: T.dim }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-        {onSave ? (
-          <InlineEditText
-            value={copyText}
-            type={type}
-            ariaLabel={`Edit ${label}`}
-            onSave={onSave}
-            displayStyle={{ color: T.text, fontSize: 13.5, wordBreak: 'break-word' }}
-          />
-        ) : (
-          <div style={{ color: T.text, fontSize: 13.5, wordBreak: 'break-word', minWidth: 0 }}>{value || '—'}</div>
-        )}
-        {copyable && copyText ? <FieldCopyButton text={copyText} label={label} /> : null}
-      </div>
-    </div>
-  );
-}
-
-function PhoneFact({ label, phone, prefill, leadId, displayName, onSave }: { label: string; phone?: string | null; prefill: string; leadId: string; displayName: string; onSave?: (next: string) => Promise<void> }) {
-  return (
-    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <div style={{ fontSize: 12, fontWeight: 500, color: T.dim }}>{label}</div>
-      <div style={{ color: T.text, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        {onSave ? (
-          <InlineEditText
-            value={phone || ''}
-            type="tel"
-            ariaLabel="Edit phone"
-            onSave={onSave}
-            displayStyle={{ color: T.text, fontSize: 13.5, fontFamily: T.mono, wordBreak: 'break-word' }}
-          />
-        ) : (
-          <span style={{ wordBreak: 'break-word', fontFamily: T.mono, fontSize: 13.5 }}>{phone || '—'}</span>
-        )}
-        <CopyButton value={phone} title="Copy mobile number" size="sm" />
-        <CallButton phone={phone} prefillSubject={`Call with ${displayName}`} leadId={leadId} size="sm" />
-        <RecordedCallButton leadId={leadId} phone={phone} size="sm" />
-        <WhatsAppButton phone={phone} prefillText={prefill} size="sm" />
-      </div>
-    </div>
-  );
-}
-
-function statusTone(s: string): 'info' | 'ok' | 'warn' | 'red' | 'neutral' {
-  return s === 'converted' || s === 'qualified' ? 'ok'
-    : s === 'lost' || s === 'unqualified' ? 'red'
-    : s === 'working' ? 'warn'
-    : s === 'new' ? 'info'
-    : 'neutral';
-}
-
-// Tint a custom status colour into a Badge style (faint wash background +
-// solid foreground). Returns undefined when no colour is configured so the
-// Badge keeps its tone-based styling.
-function customBadgeStyle(color?: string) {
-  if (!color) return undefined;
-  return { background: `color-mix(in srgb, ${color} 15%, transparent)`, color };
-}
-
-function StatusPill({ status, color, label }: { status?: string | null; color?: string; label?: string }) {
-  const s = (status || 'new').toLowerCase();
-  return <Badge tone={statusTone(s)} dot style={customBadgeStyle(color)}>{label ?? s.replace(/_/g, ' ')}</Badge>;
-}
-
-// The statuses the lead PATCH accepts (backend crm.validators →
-// status enum). `converted` / `lost` are terminal outcomes reached via the
-// dedicated Convert / Mark-lost flows (they capture a reason), so they are
-// NOT offered here — when a lead is in one of those we fall back to a plain
-// read-only pill and let the Convert modal / Disqualify banner drive changes.
-const SETTABLE_STATUSES = ['new', 'working', 'nurturing', 'qualified', 'unqualified'] as const;
-
-/** Inline status switcher for the lead detail page: shows the current status
- *  as a pill and, on click, drops a menu of the settable statuses. Selecting
- *  one PATCHes the lead and lifts the returned row up via onChange. */
-function StatusSelect({ status, onChange, custom }: { status?: string | null; onChange: (next: string) => Promise<void>; custom?: LeadStatusOption[] | null }) {
-  const s = (status || 'new').toLowerCase();
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-
-  // Match the current status against the custom set (if configured).
-  const currentCustom = custom?.find((o) => o.value === s) ?? null;
-
-  // Terminal states keep the dedicated flows in charge — render read-only.
-  // For a custom set, terminal = is_lost / is_won; otherwise the built-in
-  // converted / lost rule.
-  const isTerminal = custom
-    ? !!(currentCustom?.is_lost || currentCustom?.is_won)
-    : (s === 'converted' || s === 'lost');
-  if (isTerminal) return <StatusPill status={s} color={currentCustom?.color} label={currentCustom?.label} />;
-
-  // Options offered in the menu: the custom set minus terminal (won/lost)
-  // entries, or the built-in SETTABLE_STATUSES fallback.
-  const options: Array<{ value: string; label: string; color?: string }> = custom
-    ? custom.filter((o) => !(o.is_lost || o.is_won)).map((o) => ({ value: o.value, label: o.label, color: o.color }))
-    : SETTABLE_STATUSES.map((v) => ({ value: v, label: v.replace(/_/g, ' '), color: undefined }));
-
-  const pick = async (next: string) => {
-    setOpen(false);
-    if (next === s) return;
-    setSaving(true);
-    try { await onChange(next); } finally { setSaving(false); }
-  };
-
-  return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        disabled={saving}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        style={{ background: 'transparent', border: 'none', padding: 0, cursor: saving ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-      >
-        <Badge tone={statusTone(s)} dot style={customBadgeStyle(currentCustom?.color)}>{currentCustom?.label ?? s.replace(/_/g, ' ')}</Badge>
-        <ChevronDown size={13} strokeWidth={2} style={{ color: T.dim, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s ease' }} />
-      </button>
-      {open && (
-        <div role="listbox" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 60, minWidth: 172, background: T.card, border: `1px solid ${T.borderStrong}`, borderRadius: 10, padding: 4, boxShadow: 'var(--shadow-pop)' }}>
-          {options.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              role="option"
-              aria-selected={opt.value === s}
-              onClick={() => pick(opt.value)}
-              style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', background: opt.value === s ? T.raised : 'transparent', border: 'none', borderRadius: 7, padding: '8px 10px', cursor: 'pointer', color: T.text, fontSize: 13.5, textTransform: 'capitalize' }}
-              onMouseEnter={(e) => { if (opt.value !== s) e.currentTarget.style.background = T.raised; }}
-              onMouseLeave={(e) => { if (opt.value !== s) e.currentTarget.style.background = 'transparent'; }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: opt.color ?? (statusTone(opt.value) === 'neutral' ? 'var(--mute)' : `var(--${statusTone(opt.value)})`), flexShrink: 0 }} />
-              {opt.label}
-              {opt.value === s && <span style={{ marginLeft: 'auto', color: T.dim, fontSize: 11 }}>current</span>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DisqualifiedBanner({
-  outcome, lostReason, disqualifiedAt, onReopen, reopening,
-}: {
-  outcome: 'unqualified' | 'lost';
-  lostReason: string | null;
-  disqualifiedAt: string | null;
-  onReopen: () => void;
-  reopening: boolean;
-}) {
-  const lost = outcome === 'lost';
-  return (
-    <div style={{ background: lost ? T.redWash : T.warnWash, border: `1px solid ${lost ? T.red : T.warn}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-      <div style={{ flex: 1, minWidth: 220 }}>
-        <Eyebrow style={{ color: lost ? T.red : T.warn }}>{lost ? 'Lead marked as lost' : 'Lead disqualified'}</Eyebrow>
-        {lostReason && <div style={{ color: T.text, marginTop: 4, fontSize: 13.5 }}>Reason: {lostReason}</div>}
-        {disqualifiedAt && <div style={{ color: T.dim, marginTop: 2, fontSize: 12.5, fontFamily: T.mono }}>{new Date(disqualifiedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}</div>}
-      </div>
-      <Button onClick={onReopen} disabled={reopening} icon={<RotateCcw size={15} strokeWidth={1.8} />}>{reopening ? 'Re-opening…' : 'Re-open lead'}</Button>
-    </div>
-  );
-}
-
-const rowLink: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
-  background: 'var(--s3)', borderRadius: 8, textDecoration: 'none', fontSize: 13.5,
-};

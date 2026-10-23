@@ -42,7 +42,7 @@ const humanizeKey = (k: string) => k.replace(/_/g, ' ').replace(/\b\w/g, (c) => 
 
 // Render an activity's custom_fields (the telecaller campaign feedback) as a
 // compact label/value grid. Skips empty values and nested objects.
-function ActivityFields({ cf }: { cf: unknown }) {
+export function ActivityFields({ cf }: { cf: unknown }) {
   if (!cf || typeof cf !== 'object') return null;
   const entries = Object.entries(cf as Record<string, unknown>)
     .filter(([, v]) => v !== null && v !== undefined && v !== '' && typeof v !== 'object');

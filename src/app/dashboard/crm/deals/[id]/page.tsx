@@ -14,11 +14,12 @@ import CallButton from '../../../../../components/crm/shared/CallButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import DealEditModal from '../../../../../components/crm/DealEditModal';
 import CustomFieldsDetailCard from '../../../../../components/crm/CustomFieldsDetailCard';
+import UpsellsSection from '../../../../../components/crm/UpsellsSection';
 import AddToPipelineModal from '../../../../../components/crm/AddToPipelineModal';
 import LogoSpinner from '../../../../../components/shared/LogoSpinner';
 import { formatINR, formatKg, type DashboardUnit } from '../../../../../lib/formatCurrency';
 import { useAuth } from '../../../../../hooks/useAuth';
-import { isConsumerChampion } from '../../../../../lib/clientFeatures';
+import { isConsumerChampion, isBmwActive } from '../../../../../lib/clientFeatures';
 
 const LOST_REASONS = [
   'Price too high',
@@ -125,6 +126,10 @@ export default function DealDetailPage() {
   // cards. They're manager-tier AI surfaces; reps don't act on them.
   const { user: authUser } = useAuth();
   const isChampion = isConsumerChampion(authUser as Parameters<typeof isConsumerChampion>[0]);
+  // BMW has no close-as-won/lost flow: the Close Deal button, the won/lost
+  // terminal stage pills, and moving a deal to a terminal stage are all removed.
+  // Deals stay fully functional for open-stage movement.
+  const isBmw = isBmwActive(authUser as Parameters<typeof isBmwActive>[0]);
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [deal, setDeal] = useState<Deal | null>(null);
@@ -237,6 +242,11 @@ export default function DealDetailPage() {
       if (!deal || !pipeline) return;
       const target = (pipeline.stages || []).find((s) => s?.id === stageId);
       if (!target) { toast.error('Stage not found in this pipeline'); return; }
+      // BMW: no close-as-won/lost — ignore moves onto a terminal stage.
+      if (isBmw && (target.stage_type === 'won' || target.stage_type === 'lost')) {
+        toast.info('Closing deals as won/lost is disabled for this account.');
+        return;
+      }
       if (target.stage_type === 'won') {
         openCloseModal('won');
         return;
@@ -448,9 +458,10 @@ export default function DealDetailPage() {
                 daysToClose={daysToClose}
                 onMove={moveStage}
                 onMarkComplete={markStageComplete}
+                hideTerminalStages={isBmw}
               />
             ) : (
-              <DealStageProgress stages={stages} currentStageId={effectiveStageId} />
+              <DealStageProgress stages={stages} currentStageId={effectiveStageId} hideTerminalStages={isBmw} />
             )}
             {stageMoving && <LogoSpinner overlay size={44} label="Updating stage…" />}
           </div>
@@ -507,7 +518,7 @@ export default function DealDetailPage() {
                   {hasPipeline ? 'Move pipeline' : '+ Add to pipeline'}
                 </button>
                 <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
-                {deal.status === 'open' && (
+                {deal.status === 'open' && !isBmw && (
                   <button onClick={() => openCloseModal('won')} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Close Deal</button>
                 )}
                 {deal.status !== 'open' && (
@@ -705,6 +716,10 @@ export default function DealDetailPage() {
 
           <SafeRender label="activities">
             <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?deal_id=${id}`} /></Card>
+          </SafeRender>
+
+          <SafeRender label="upsells">
+            <UpsellsSection dealId={id} />
           </SafeRender>
 
           <SafeRender label="history">

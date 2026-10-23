@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useClient } from '../../../context/ClientContext';
-import { isConsumerChampion, isTataTiscon, isKinematicActive, canViewFieldVisits } from '../../../lib/clientFeatures';
+import { isConsumerChampion, isTataTiscon, isKinematicActive, canViewFieldVisits, canManageAfterSales } from '../../../lib/clientFeatures';
 
 type CrmLink = {
   href: string;
@@ -19,6 +19,9 @@ type CrmLink = {
   /** Visible ONLY to tenants running the ad-hoc Marketing Visit flow
    *  (canViewFieldVisits — Rajkamal today). */
   fieldVisitsOnly?: boolean;
+  /** Visible ONLY to tenants running the After-Sales calling programme
+   *  (canManageAfterSales — Rajkamal today). */
+  afterSalesOnly?: boolean;
 };
 const LINKS: CrmLink[] = [
   { href: '/dashboard/crm/dashboard', label: 'Dashboard' },
@@ -40,6 +43,9 @@ const LINKS: CrmLink[] = [
   // Ad-hoc Marketing Visits captured from the mobile app (GPS Start→End tied
   // to a lead). Shown only for tenants running that flow (Rajkamal today).
   { href: '/dashboard/crm/field-visits', label: 'Field Visits', fieldVisitsOnly: true },
+  // Admin After-Sales Feedback data entry + bulk upload. Shown only for tenants
+  // running the after-sales calling programme (Rajkamal today).
+  { href: '/dashboard/crm/after-sales', label: 'After-Sales', afterSalesOnly: true },
   { href: '/dashboard/crm/whatsapp', label: 'WhatsApp' },
   // KINI website-chatbot conversations + the leads they capture. This is the
   // Kinematic platform's own website funnel, so it's visible only to the
@@ -74,12 +80,17 @@ export default function CrmSubNav() {
   // admin resolves immediately from user.client_id.
   const [fieldVisits, setFieldVisits] = useState(false);
   useEffect(() => { setFieldVisits(canViewFieldVisits(user as any)); }, [user, selectedClientId]);
+  // After-Sales admin tab — same localStorage-safe, picker-reactive resolution
+  // as fieldVisits (Rajkamal today).
+  const [afterSales, setAfterSales] = useState(false);
+  useEffect(() => { setAfterSales(canManageAfterSales(user as any)); }, [user, selectedClientId]);
   const visibleLinks = LINKS.filter((l) => {
     if (l.superAdminOnly && !superAdmin) return false;
     if (l.championHidden && champion) return false;
     if (l.tataTisconHidden && tataTiscon) return false;
     if (l.kinematicHidden && kinematic) return false;
     if (l.fieldVisitsOnly && !fieldVisits) return false;
+    if (l.afterSalesOnly && !afterSales) return false;
     return true;
   });
 

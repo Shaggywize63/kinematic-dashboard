@@ -685,8 +685,6 @@ const ROUTE_PLANS = (() => {
     zone_name: 'Bangalore North',
     city_name: 'Bengaluru',
     vehicle_type: '2w_petrol',
-    co2_kg_planned: 1.32,
-    co2_kg_actual: 0.59,
     outlets: [
       { id: 'demo-perm-o1', visit_order: 1, target_type: 'order',         target_notes: 'Push festive combo',   target_value: 8500,  status: 'visited', checkin_at: `${_pt}T10:00:00Z`, checkout_at: `${_pt}T10:30:00Z`, order_amount: 6500, actual_duration_min: 28, planned_duration_min: 30, store_id: 'demo-perm-st1', store_name: 'Reliance Fresh - Koramangala',  store_code: 'STR-30001', store_address: '123 Koramangala, Bengaluru',   store_type: 'modern_trade', store_lat: 12.9352, store_lng: 77.6245, store_phone: '+91 98300 10001', store_owner: 'Mr Sharma', zone_name: 'Bangalore North', checkin_distance_m: 12 },
       { id: 'demo-perm-o2', visit_order: 2, target_type: 'merchandising', target_notes: 'Q4 visibility audit',  target_value: 10700, status: 'visited', checkin_at: `${_pt}T11:15:00Z`, checkout_at: `${_pt}T11:50:00Z`, order_amount: 8350, actual_duration_min: 35, planned_duration_min: 30, store_id: 'demo-perm-st2', store_name: 'Big Bazaar - Indiranagar',      store_code: 'STR-30002', store_address: '456 Indiranagar, Bengaluru',    store_type: 'modern_trade', store_lat: 12.9784, store_lng: 77.6408, store_phone: '+91 98300 10002', store_owner: 'Mrs Iyer',  zone_name: 'Bangalore North', checkin_distance_m: 20 },
@@ -705,8 +703,6 @@ const ROUTE_PLANS = (() => {
     const missed = status === 'pending' ? 0 : total - visited;
     const completion = Math.round((visited / total) * 100);
     const planDate = new Date(Date.now() - (i - 2) * 86400000).toISOString().slice(0, 10);
-    const co2Planned = +(total * 4.8 * 0.072 * (i % 3 === 0 ? 2.4 : 1)).toFixed(2);
-    const co2Actual = +(visited * 4.8 * 0.072 * (i % 3 === 0 ? 2.4 : 1)).toFixed(2);
 
     const outlets = Array.from({ length: total }, (_, j) => {
       const outletStatus = j < visited ? 'visited' : j === visited && status === 'in_progress' ? 'in_progress' : 'pending';
@@ -754,8 +750,6 @@ const ROUTE_PLANS = (() => {
       zone_name: fe.zone,
       city_name: fe.city,
       vehicle_type: vehicles[i],
-      co2_kg_planned: co2Planned,
-      co2_kg_actual: co2Actual,
       outlets,
     };
   });
@@ -778,40 +772,6 @@ const ROUTE_PLAN_SUMMARY = (() => {
     completed_plans: completed, partial_plans: partial,
     in_progress_plans: in_progress, pending_plans: pending,
     avg_completion: Math.round(ROUTE_PLANS.reduce((s, p) => s + p.completion_pct, 0) / ROUTE_PLANS.length),
-  };
-})();
-
-const ROUTE_PLAN_ESG = (() => {
-  const totalKm = ROUTE_PLANS.reduce((s, p) => s + p.total_outlets * 4.8, 0);
-  const planned = ROUTE_PLANS.reduce((s, p) => s + (p.co2_kg_planned ?? 0), 0);
-  const actual  = ROUTE_PLANS.reduce((s, p) => s + (p.co2_kg_actual ?? 0), 0);
-  const by_vehicle: Record<string, { km: number; co2_kg: number; plan_count: number }> = {};
-  for (const p of ROUTE_PLANS) {
-    const v = p.vehicle_type ?? '2w_petrol';
-    const e = by_vehicle[v] ?? { km: 0, co2_kg: 0, plan_count: 0 };
-    e.km += p.total_outlets * 4.8;
-    e.co2_kg += p.co2_kg_actual ?? 0;
-    e.plan_count += 1;
-    by_vehicle[v] = e;
-  }
-  const daily_series = Array.from({ length: 14 }, (_, i) => ({
-    day: new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10),
-    co2_kg: +(2.4 + Math.sin(i / 2) + Math.random() * 1.5).toFixed(2),
-  }));
-  return {
-    range: {
-      from: new Date(Date.now() - 13 * 86400000).toISOString().slice(0, 10),
-      to:   new Date().toISOString().slice(0, 10),
-    },
-    total_co2_kg_planned: +planned.toFixed(2),
-    total_co2_kg_actual:  +actual.toFixed(2),
-    total_km:             +totalKm.toFixed(1),
-    delta_vs_planned_pct: planned > 0 ? +(((actual - planned) / planned) * 100).toFixed(1) : 0,
-    by_vehicle, daily_series,
-    equivalents: {
-      trees_year: +(actual / 21).toFixed(1),
-      home_days:  +(actual / 4.5).toFixed(1),
-    },
   };
 })();
 
@@ -1801,7 +1761,6 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
             return {
               day: new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10),
               km_total: km,
-              co2_kg: +(km * 0.072).toFixed(2),
             };
           })) as unknown as T;
         case 'off-route':
@@ -1887,7 +1846,6 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/route-plans/autoplan/field-execs')
       return wrap(listDemoFieldExecs(((mockUsers() as { data?: DemoUser[] })?.data ?? []))) as unknown as T;
     if (path === '/route-plans/summary')     return wrap(ROUTE_PLAN_SUMMARY) as unknown as T;
-    if (path === '/route-plans/esg-summary') return wrap(ROUTE_PLAN_ESG) as unknown as T;
     // Route Deviations (module route_deviation). Previously unmocked, so the
     // path fell into the plan-by-id matcher below and came back as ONE PLAN
     // OBJECT — the page then called .map on it and crashed the whole route
@@ -1920,7 +1878,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       // Only real plan-detail fetches belong here — every known static
       // sub-route must be excluded or it comes back as a single plan object
       // and crashes list pages (.map is not a function → "Application error").
-      const NOT_PLAN_IDS = ['summary', 'esg-summary', 'deviations', 'outlet-frequency', 'imports', 'me', 'my-plan', 'optimize', 'auto-plan', 'auto-generate', 'bulk-import'];
+      const NOT_PLAN_IDS = ['summary', 'deviations', 'outlet-frequency', 'imports', 'me', 'my-plan', 'optimize', 'auto-plan', 'auto-generate', 'bulk-import'];
       if (planById && !NOT_PLAN_IDS.includes(planById[1])) {
         return wrap(ACTIVE_ROUTE_PLANS.find(p => p.id === planById[1]) || ACTIVE_ROUTE_PLANS[0]) as unknown as T;
       }
@@ -2193,7 +2151,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       const draft = {
         user_id: uid, plan_date: planDate,
         vehicle_type: String(bodyObj.vehicle_type || '2w_petrol'),
-        stops, total_km: totalKm, est_co2_kg: +(totalKm * 0.072).toFixed(2),
+        stops, total_km: totalKm,
         start_source: 'live_location', start: { lat: 12.9352, lng: 77.6245 },
         considered: 12, skipped_already_planned: 0, skipped_no_geo: 0,
         existing_plan_ids: [] as string[],
@@ -2213,7 +2171,6 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
         zone_name: String((fe as { zone?: string } | undefined)?.zone ?? 'Bangalore North'),
         city_name: String((fe as { city?: string } | undefined)?.city ?? 'Bengaluru'),
         vehicle_type: draft.vehicle_type,
-        co2_kg_planned: draft.est_co2_kg, co2_kg_actual: 0,
         outlets: stops.map((s) => ({
           id: `demo-auto-stop-${s.visit_order}`, visit_order: s.visit_order,
           target_type: 'general', status: 'pending', planned_duration_min: 25,
@@ -2241,12 +2198,10 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       const outlets = ((bodyObj as { outlets?: Array<{ id: string }> }).outlets) ?? [];
       const original_km  = +(outlets.length * 5.2).toFixed(1);
       const optimized_km = +(outlets.length * 3.4).toFixed(1);
-      const factor = 0.072;
       return wrap({
         ordered: outlets.map(o => o.id),
         original_km, optimized_km,
         saved_km: +(original_km - optimized_km).toFixed(1),
-        saved_co2_kg: +((original_km - optimized_km) * factor).toFixed(2),
         method: 'nearest_neighbour_2opt_haversine',
       }) as unknown as T;
     }

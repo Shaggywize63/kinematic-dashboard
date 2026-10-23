@@ -1,15 +1,16 @@
 'use client';
 /**
  * The day's route on a Google map — the same map approach as Live Trailing (one google.maps.Map, the route as a
- * glow + main Polyline, the dashboard's own light / dark basemap) with the stops of the day on it:
- * visits and halts as NUMBERED markers (the numbers match the timeline), check-in and check-out as plain dots.
+ * glow + main Polyline carrying repeating direction arrows, the dashboard's own light / dark basemap) with the
+ * stops of the day on it: visits and halts as NUMBERED markers (the numbers match the timeline), and the day's
+ * start (green "S", check-in) and end (red "E", check-out / last seen) as distinct labelled markers.
  *
  * The map never blocks the report: with no key, no network or no route it says so in its own box and the timeline
  * below is unaffected.
  */
 import { useEffect, useRef, useState } from 'react';
 import {
-  applyMapTheme, baseMapOptions, circleSymbol, fitToPoints, infoHtml, MAP_COLORS, useDocumentTheme, useGoogleMaps, type GMaps,
+  applyMapTheme, baseMapOptions, fitToPoints, infoHtml, MAP_COLORS, useDocumentTheme, useGoogleMaps, type GMaps,
 } from '../../lib/googleMaps';
 import { formatLatLngShort, peekPlaceName } from '../../lib/placeName';
 import { T } from '../ui';
@@ -111,17 +112,32 @@ export default function RouteMap({ path, markers, start, end, height = 360 }: Ro
     // segments) — identical fallback to Live Trailing.
     const line = snappedPath && snappedPath.length >= 2 ? snappedPath : path;
     if (line.length >= 2) {
+      // Repeating arrowheads make the direction of travel obvious. The line is
+      // already in travel order (check-in → … → check-out), so the arrows point
+      // the way the rep actually moved.
+      const arrow = {
+        icon: { path: maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.8, fillColor: c.red, fillOpacity: 1, strokeColor: '#FFFFFF', strokeWeight: 1 },
+        offset: '0',
+        repeat: '90px',
+      };
       overlays.current.push(
         new maps.Polyline({ map, path: line, strokeColor: c.red, strokeOpacity: 0.18, strokeWeight: 8, zIndex: 5 }),
-        new maps.Polyline({ map, path: line, strokeColor: c.red, strokeOpacity: 0.95, strokeWeight: 4, zIndex: 6 }),
+        new maps.Polyline({ map, path: line, strokeColor: c.red, strokeOpacity: 0.95, strokeWeight: 4, zIndex: 6, icons: [arrow] }),
       );
     }
 
-    const dot = (at: LatLng, title: string, fill: string) => {
-      overlays.current.push(new maps.Marker({ map, position: at, title, icon: circleSymbol(maps, fill, 6, c.stroke), zIndex: 7 }));
+    // Start and end are deliberately distinct: a green "S" where the day began
+    // (check-in) and a red "E" where it ended (check-out / last seen), both with
+    // a white ring and sitting above the line so the trip is readable at a glance.
+    const endpoint = (at: LatLng, label: string, title: string, fill: string, z: number) => {
+      overlays.current.push(new maps.Marker({
+        map, position: at, title, zIndex: z,
+        icon: { path: maps.SymbolPath.CIRCLE, scale: 13, fillColor: fill, fillOpacity: 1, strokeColor: '#FFFFFF', strokeWeight: 3 },
+        label: { text: label, color: '#FFFFFF', fontSize: '11px', fontWeight: '800', fontFamily: 'JetBrains Mono, monospace' },
+      }));
     };
-    if (start) dot(start, 'Check-in', c.ok);
-    if (end) dot(end, 'Check-out', c.mute);
+    if (start) endpoint(start, 'S', 'Start (check-in)', c.ok, 101);
+    if (end) endpoint(end, 'E', 'End (check-out)', c.red, 102);
 
     // Numbered stops: blue = customer visit, amber = halt.
     for (const m of markers) {

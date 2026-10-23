@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'fs';
 import { demoLogin, mockApi, seedSession, SEED_USER } from './utils';
 import { FAKE_MAPS } from './fakeMaps';
-import { buildTimeline, readDailyReport, timelinePlaces } from '../src/lib/travelReport';
+import { buildTimeline, readDailyReport, routeEndpoints, timelinePlaces } from '../src/lib/travelReport';
 
 /**
  * Field Force → "Daily Travel Report" (/dashboard/travel-report), backed by GET /api/v1/attendance/daily-report/team
@@ -305,20 +305,52 @@ test.describe('Daily Travel Report — Employee day', () => {
     expect(items.map((i) => i.marker)).toEqual([null, null, 1, null, 2, 3, null, null]);
   });
 
-  test('the map draws the route and numbered markers for visits and halts, with dots for check-in / check-out', async ({ page }) => {
+  test('routeEndpoints resolves start/end from the check-in leg, the GPS trail, or the leg ends — so S/E always show when the day moved', async () => {
+    // 1. Legs tagged check-in / check-out → use those coordinates.
+    expect(routeEndpoints(readDailyReport(DAY)!)).toEqual({ start: P.home, end: P.home });
+
+    // 2. Legs NOT tagged check-in / check-out (the common real-data case) → fall back to the GPS-trail ends.
+    const untagged = {
+      ...DAY,
+      travel: {
+        ...DAY.travel,
+        legs: DAY.travel.legs.map((l) => ({ ...l, from: { ...l.from, kind: 'gps_trail' }, to: { ...l.to, kind: 'gps_trail' } })),
+      },
+    };
+    expect(routeEndpoints(readDailyReport(untagged)!)).toEqual({
+      start: { lat: ROUTE[0].lat, lng: ROUTE[0].lng },
+      end: { lat: ROUTE[ROUTE.length - 1].lat, lng: ROUTE[ROUTE.length - 1].lng },
+    });
+
+    // 3. No GPS trail and untagged legs → fall back to the first / last leg endpoint.
+    const noTrail = { ...untagged, route: { points: [], thinned: false } };
+    expect(routeEndpoints(readDailyReport(noTrail)!)).toEqual({ start: P.home, end: P.home });
+
+    // 4. No attendance → nothing to place.
+    expect(routeEndpoints(readDailyReport(NO_ATTENDANCE)!)).toEqual({ start: null, end: null });
+  });
+
+  test('the map draws the route and numbered markers for visits and halts, with S / E markers for check-in / check-out', async ({ page }) => {
     await setup(page);
     await openDay(page);
+    // 3 numbered stops + the Start (S) and End (E) endpoint markers.
     await expect.poll(() => gm<number>(page, 'window.__gm.markers.filter(m => !m.removed).length')).toBe(5);
 
-    const labelled = await gm<Array<{ n: string; title: string }>>(page,
-      `window.__gm.markers.filter(m => !m.removed && m.o.label).map(m => ({ n: m.o.label.text, title: m.o.title })).sort((a, b) => a.n - b.n)`);
-    expect(labelled).toEqual([
+    // The numbered stops (labels are the timeline numbers 1, 2, 3).
+    const stops = await gm<Array<{ n: string; title: string }>>(page,
+      `window.__gm.markers.filter(m => !m.removed && m.o.label && /^\\d+$/.test(m.o.label.text)).map(m => ({ n: m.o.label.text, title: m.o.title })).sort((a, b) => a.n - b.n)`);
+    expect(stops).toEqual([
       { n: '1', title: '1. Visit — Customer Visit' },
       { n: '2', title: '2. Halt' },
       { n: '3', title: '3. Visit — Dealer Visit' },
     ]);
-    const dots = await gm<string[]>(page, `window.__gm.markers.filter(m => !m.removed && !m.o.label).map(m => m.o.title).sort()`);
-    expect(dots).toEqual(['Check-in', 'Check-out']);
+    // Start and end are now distinct labelled markers: a green "S" (check-in) and a red "E" (check-out).
+    const endpoints = await gm<Array<{ label: string; title: string }>>(page,
+      `window.__gm.markers.filter(m => !m.removed && m.o.label && !/^\\d+$/.test(m.o.label.text)).map(m => ({ label: m.o.label.text, title: m.o.title })).sort((a, b) => a.label < b.label ? -1 : 1)`);
+    expect(endpoints).toEqual([
+      { label: 'E', title: 'End (check-out)' },
+      { label: 'S', title: 'Start (check-in)' },
+    ]);
 
     // The route: the soft line + the crisp line, both through every GPS point the API sent.
     expect(await gm<number>(page, 'window.__gm.polylines.filter(p => !p.removed).length')).toBe(2);
@@ -518,6 +550,7 @@ test.describe('Daily Travel Report — navigation and demo mode', () => {
     await page.getByTestId('team-row').first().click();
     await expect(page.getByTestId('tile-km-value')).toHaveText('23.6 km', { timeout: 30_000 });
     expect(await kinds(page)).toEqual(EXPECTED_KINDS);
-    await expect.poll(() => gm<number>(page, 'window.__gm.markers.filter(m => !m.removed && m.o.label).length')).toBe(3);
+    // 3 numbered stops on the day (the Start/End endpoint markers carry non-numeric S / E labels).
+    await expect.poll(() => gm<number>(page, 'window.__gm.markers.filter(m => !m.removed && m.o.label && /^\\d+$/.test(m.o.label.text)).length')).toBe(3);
   });
 });

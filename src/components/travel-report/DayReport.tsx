@@ -14,12 +14,13 @@ import { ArrowLeft, Download, Printer, RefreshCw, UserX } from 'lucide-react';
 import api, { type DailyReport } from '../../lib/api';
 import { downloadCsv } from '../../lib/exportCsv';
 import {
-  buildTimeline, fmtDay, fmtHours, fmtKm, isYmd, istToday, modeText, readDailyReport, routePath, slug, timeRange,
+  buildTimeline, fmtDay, fmtHours, fmtKm, isYmd, istToday, modeText, readDailyReport, routeEndpoints, routePath, slug, timeRange,
   timelineCsvRows, timelinePlaces, TIMELINE_CSV_COLUMNS, type TimelineItem, type TimelineKind,
 } from '../../lib/travelReport';
 import { fmtClock, fmtMinutes } from '../../lib/visitTime';
 import { Avatar, Badge, Button, Card, EmptyState, Eyebrow, Field, IconButton, Input, T, useIsCompact, type Tone } from '../ui';
 import PlaceText, { knownPlaceName, resolvePlaces } from './PlaceText';
+import { seedPlaceName } from '../../lib/placeName';
 import { shareInflight } from './shareInflight';
 import RouteMap, { type RouteMarker } from './RouteMap';
 import { alertBox, td, tdNum, tdTime, th } from './styles';
@@ -95,7 +96,17 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
   // Refetch when the person or day changes AND when the global client picker changes.
   useEffect(() => { load(); }, [load]);
 
-  const items = useMemo<TimelineItem[]>(() => (report ? buildTimeline(report) : []), [report]);
+  const items = useMemo<TimelineItem[]>(() => {
+    const built = report ? buildTimeline(report) : [];
+    // The server already named each point (once, consistently, in English/India). Seed those names into the
+    // shared place-name cache so every reader — the rows, the CSV, the print view — uses them and the browser
+    // never reverse-geocodes the point itself. Points the server didn't name fall back to the browser lookup.
+    for (const it of built) {
+      if (it.place && it.at) seedPlaceName(it.at.lat, it.at.lng, it.place);
+      if (it.placeTo && it.to) seedPlaceName(it.to.lat, it.to.lng, it.placeTo);
+    }
+    return built;
+  }, [report]);
   const path = useMemo(() => (report ? routePath(report) : []), [report]);
   const markers = useMemo<RouteMarker[]>(() => items
     .filter((i) => i.marker != null && i.at && (i.kind === 'visit' || i.kind === 'halt'))
@@ -104,8 +115,9 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
       title: i.kind === 'visit' ? `${i.marker}. Visit — ${i.customerName || i.detail}` : `${i.marker}. Halt`,
       lines: [timeRange(i), fmtMinutes(i.minutes)],
     })), [items]);
-  const start = useMemo(() => items.find((i) => i.kind === 'checkin')?.at ?? null, [items]);
-  const end = useMemo(() => items.find((i) => i.kind === 'checkout')?.at ?? null, [items]);
+  // The check-in / check-out map markers. Resolved robustly (leg tag → GPS-trail ends → leg
+  // endpoints) so "S" and "E" show even when the legs aren't kind-tagged check-in/check-out.
+  const { start, end } = useMemo(() => (report ? routeEndpoints(report) : { start: null, end: null }), [report]);
 
   const hasShift = !!report?.shift.attendance_id;
   const dayLabel = fmtDay(report?.date || date);
@@ -221,7 +233,7 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
               <Eyebrow>Route</Eyebrow>
               <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: T.dim }}>
-                {[['Check-in', T.ok], ['Visit', T.info], ['Halt', T.warn], ['Check-out', T.mute]].map(([l, c]) => (
+                {[['Start', T.ok], ['Visit', T.info], ['Halt', T.warn], ['End', '#ef4444']].map(([l, c]) => (
                   <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                     <span aria-hidden style={{ width: 9, height: 9, borderRadius: 999, background: c }} />{l}
                   </span>
@@ -231,7 +243,7 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
             <RouteMap path={path} markers={markers} start={start} end={end} height={narrow ? 260 : 380} />
             <div style={{ fontSize: 12, color: T.mute }}>
               {report.route.points.length >= 2
-                ? `Route drawn from ${report.route.points.length} GPS points${report.route.thinned ? ' (thinned for display)' : ''}. Numbers match the timeline.`
+                ? `Route drawn from ${report.route.points.length} GPS points${report.route.thinned ? ' (thinned for display)' : ''}. Green “S” is the start, red “E” the end; arrows show the direction of travel. Numbers match the timeline.`
                 : path.length >= 2
                   ? 'No GPS trail for this day — the stops are joined by straight lines.'
                   : 'No GPS trail recorded for this day.'}

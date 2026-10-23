@@ -335,6 +335,8 @@ export interface AttendanceTravelPoint {
   lat: number | null;
   lng: number | null;
   label: string;
+  /** Place name the SERVER reverse-geocoded for this point (consistent, English/India); absent on older backends. */
+  place?: string | null;
 }
 export interface AttendanceTravelLeg {
   index: number;
@@ -382,6 +384,8 @@ export interface DailyReportVisit {
   minutes: number;
   lat: number | null;
   lng: number | null;
+  /** Server-resolved place name of the visit point (absent on older backends). */
+  place?: string | null;
 }
 /** A halt: the person stayed within ~100 m for the minimum halt time away from a customer. lat/lng = centroid. */
 export interface DailyReportHalt {
@@ -393,6 +397,8 @@ export interface DailyReportHalt {
   lng: number;
   /** How many GPS pings the halt is made of. */
   points: number;
+  /** Server-resolved place name of the halt centroid (absent on older backends). */
+  place?: string | null;
 }
 export interface DailyReportRoutePoint { lat: number; lng: number; at: string }
 export interface DailyReport {
@@ -519,6 +525,9 @@ export interface OrderCartLineInput { sku_id: string; qty: number; uom?: string 
 export interface OrderCartInput {
   outlet_id: string;
   distributor_id?: string;
+  // Admin/dashboard only: assign the order to a field user. Ignored by the
+  // backend for a field_executive (who always books in their own name).
+  salesman_id?: string;
   items: OrderCartLineInput[];
   notes?: string;
   client_total?: number;
@@ -1346,6 +1355,11 @@ class ApiClient {
 
   // ── Distribution: Orders (admin) ─────────────────────────────────────
   getDistOrders(params?: Record<string, string>) { return this.get(`/api/v1/distribution/orders${this.sanitizeParams(params)}`); }
+  // Orders report download (CSV). Shares the list filters; returns a Blob via the
+  // authenticated download path (so the org/client/project headers are sent).
+  downloadOrdersReport(params?: Record<string, string>) {
+    return this.download(`/api/v1/distribution/orders/report${this.sanitizeParams({ ...(params || {}), format: 'csv' })}`, { timeoutMs: 60000 });
+  }
   getDistOrder(id: string) { return this.get(`/api/v1/distribution/orders/${id}`); }
   approveDistOrder(id: string) { return this.post(`/api/v1/distribution/orders/${id}/approve`, {}); }
   cancelDistOrder(id: string, reason?: string) { return this.post(`/api/v1/distribution/orders/${id}/cancel`, { reason }); }
@@ -1376,6 +1390,7 @@ class ApiClient {
   // ── Distribution: PMC DELTA reports ──────────────────────────────────
   getGodownReport(params?: Record<string, string>) { return this.get(`/api/v1/distribution/reports/godown${this.sanitizeParams(params)}`); }
   getTargetReport(params?: Record<string, string>) { return this.get(`/api/v1/distribution/reports/targets${this.sanitizeParams(params)}`); }
+  getCompanyReport(params?: Record<string, string>) { return this.get(`/api/v1/companies/report${this.sanitizeParams(params)}`); }
   getDsrList() { return this.get('/api/v1/distribution/reports/dsr'); }
   getDsr(salesmanId: string, date: string) { return this.get(`/api/v1/distribution/reports/dsr${this.sanitizeParams({ salesman_id: salesmanId, date })}`); }
 

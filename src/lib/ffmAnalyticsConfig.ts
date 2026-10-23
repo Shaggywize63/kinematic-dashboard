@@ -27,7 +27,7 @@ export interface AovPoint              { week: string; aov_inr: number; orders: 
 export interface NewOutletsRow         { fe_id: string; fe_name: string; new_outlet_count: number }
 export interface VisitDurationBucket   { bucket: string; visit_count: number }
 export interface IdleHeatmapCell       { fe_name: string; hour: number; idle_min: number }
-export interface DistancePoint         { day: string; km_total: number; co2_kg: number }
+export interface DistancePoint         { day: string; km_total: number }
 export interface OffRouteRow           { outlet_name: string; fe_name: string; distance_km: number; planned_beat: string; visited_at: string }
 export interface PunctualityRow        { fe_id: string; fe_name: string; on_time: number; late: number; absent: number }
 export interface StuckFeRow            { fe_id: string; fe_name: string; days_since_last_activity: number; last_visit_at: string | null }
@@ -210,11 +210,10 @@ export const FFM_CUSTOM_DATASETS: FfmCustomDataset[] = [
     ],
     defaultX: 'fe_name', defaultY: 'idle_min' },
   { id: 'distance', label: 'Distance Travelled',
-    description: 'Km per day with CO₂ equivalent.',
+    description: 'Km per day.',
     fields: [
       { key: 'day',      label: 'Day',      type: 'string' },
       { key: 'km_total', label: 'Km total', type: 'number' },
-      { key: 'co2_kg',   label: 'CO₂ kg',   type: 'number' },
     ],
     defaultX: 'day', defaultY: 'km_total' },
   { id: 'off_route', label: 'Off-route Visits',

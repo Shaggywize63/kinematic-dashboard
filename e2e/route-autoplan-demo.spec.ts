@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  DEMO_AUTOPLAN_METHODS, DEMO_VEHICLE_TYPES, DEMO_VEHICLE_FACTORS, normalizePolicy,
+  DEMO_AUTOPLAN_METHODS, DEMO_VEHICLE_TYPES, normalizePolicy,
   getDemoPolicy, setDemoPolicy, resetDemoAutoPlan, listDemoFieldExecs, setDemoFieldExecBase,
   buildDemoTeamPlan, runDemoTeamPlan, haversineKm, type DemoUser,
 } from '../src/lib/demo/routeAutoplanDemo';
@@ -42,9 +42,8 @@ test.describe('catalog', () => {
     expect(usesRadius).toEqual(['nearest_fe', 'balanced_workload']);
   });
 
-  test('offers all eight vehicle types, including walking (zero emissions)', () => {
+  test('offers all eight vehicle types, including walking', () => {
     expect(DEMO_VEHICLE_TYPES).toEqual(['2w_petrol', '2w_ev', '4w_petrol', '4w_diesel', '4w_ev', 'public_bus', 'auto_rickshaw', 'walking']);
-    expect(DEMO_VEHICLE_FACTORS.walking).toBe(0);
   });
 });
 
@@ -171,14 +170,10 @@ test.describe('method behaviour', () => {
     expect(() => runDemoTeamPlan([], USERS, { plan_date: MONDAY, method: 'manual' })).toThrow(/Manual only/);
   });
 
-  test('distance and CO₂ follow the chosen vehicle (walking emits nothing)', () => {
-    const petrol = buildDemoTeamPlan(USERS, { plan_date: MONDAY, method: 'geo_cluster', params: { vehicle_type: '4w_diesel' } });
+  test('distance follows the chosen vehicle (walking still covers ground)', () => {
     const walk = buildDemoTeamPlan(USERS, { plan_date: MONDAY, method: 'geo_cluster', params: { vehicle_type: 'walking' } });
-    expect(petrol.vehicle_type).toBe('4w_diesel');
-    expect(petrol.fes.reduce((n, f) => n + f.est_co2_kg, 0)).toBeGreaterThan(0);
-    expect(walk.fes.every((f) => f.est_co2_kg === 0)).toBe(true);
+    expect(walk.vehicle_type).toBe('walking');
     expect(walk.fes.some((f) => f.total_km > 0)).toBe(true);
-    for (const f of petrol.fes) expect(f.est_co2_kg).toBeCloseTo(f.total_km * DEMO_VEHICLE_FACTORS['4w_diesel'], 1);
   });
 });
 

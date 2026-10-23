@@ -1,15 +1,18 @@
 'use client';
 /**
  * Attendance → "Monthly summary": one row per employee with their Present / Late / Half-day / Leave / Absent
- * counts for a calendar month, from GET /api/v1/attendance/summary?from&to. Late is a subset of Present
- * (a late arrival is still a present day). Sortable (worst offenders first by default) and exportable as CSV.
+ * counts for a chosen date range, from GET /api/v1/attendance/summary?from&to. The range is picked with the
+ * shared presets (This week / 14 days / This month / Custom); it defaults to this calendar month-to-date. Late
+ * is a subset of Present (a late arrival is still a present day). Sortable (worst offenders first by default)
+ * and exportable as CSV.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { CalendarDays, Download, RefreshCw } from 'lucide-react';
+import { CalendarDays, Download, RefreshCw, Search } from 'lucide-react';
 import api, { type AttendanceSummaryRow } from '../../../lib/api';
 import { downloadCsv } from '../../../lib/exportCsv';
 import { SortLabel, type SortState } from '../../../lib/tableSort';
-import { Button, Card, EmptyState, Eyebrow, Field, IconButton, Input, T } from '../../../components/ui';
+import { Button, Card, EmptyState, Eyebrow, IconButton, Input, T } from '../../../components/ui';
+import { RangePresetPicker, presetRange, istToday } from '../../../components/attendance/RangePresets';
 
 const th: CSSProperties = { padding: '12px 14px', textAlign: 'left', fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.mute, fontWeight: 500, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' };
 const td: CSSProperties = { padding: '12px 14px', fontSize: 13.5, color: T.text, borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle' };
@@ -25,21 +28,26 @@ const COLUMNS: Array<{ key: SortKey; label: string; csv: string }> = [
   { key: 'absent', label: 'Absent', csv: 'Absent' },
 ];
 
-const istToday = () => new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+/** Human label for a from..to range, e.g. "1 Oct – 16 Oct 2026". */
+function rangeLabel(from: string, to: string): string {
+  const parse = (s: string) => new Date(s + 'T00:00:00Z');
+  const base: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', timeZone: 'UTC' };
+  const f = parse(from);
+  const t = parse(to);
+  if (from === to) return `${f.toLocaleDateString('en-IN', base)} ${t.getUTCFullYear()}`;
+  return `${f.toLocaleDateString('en-IN', base)} – ${t.toLocaleDateString('en-IN', { ...base, year: 'numeric' })}`;
+}
 
-/** First day of the month, and the last day we ask for: the month's end, but never past today (IST). */
-function monthRange(month: string): { from: string; to: string; label: string; partial: boolean } | null {
-  const m = /^(\d{4})-(\d{2})$/.exec(month);
-  if (!m) return null;
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  if (mo < 1 || mo > 12) return null;
-  const from = `${month}-01`;
-  const today = istToday();
-  if (from > today) return null; // the month has not started
-  const monthEnd = `${month}-${String(new Date(Date.UTC(y, mo, 0)).getUTCDate()).padStart(2, '0')}`;
-  const label = new Date(Date.UTC(y, mo - 1, 1)).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-  return { from, to: monthEnd > today ? today : monthEnd, label, partial: monthEnd > today };
+/** A thin stacked bar of how the person's working days went — present / half / leave / absent. Decorative: the numbers are in the row. */
+function MixBar({ r }: { r: AttendanceSummaryRow }) {
+  const total = r.present + r.half_day + r.on_leave + r.absent;
+  if (total <= 0) return null;
+  const seg = (v: number, color: string) => (v > 0 ? <span style={{ width: `${(v / total) * 100}%`, background: color }} /> : null);
+  return (
+    <span aria-hidden title={`${r.present} present · ${r.half_day} half day · ${r.on_leave} leave · ${r.absent} absent`} style={{ display: 'flex', height: 4, borderRadius: 2, overflow: 'hidden', marginTop: 5, maxWidth: 150, background: 'var(--s4)' }}>
+      {seg(r.present, 'var(--ok)')}{seg(r.half_day, 'var(--warn)')}{seg(r.on_leave, 'var(--info)')}{seg(r.absent, 'var(--red)')}
+    </span>
+  );
 }
 
 const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
@@ -52,20 +60,21 @@ const normalise = (r: any): AttendanceSummaryRow => ({
 /** A name that starts with = + - @ would run as a formula when the CSV is opened in a spreadsheet. */
 const csvText = (v: string) => (/^[=+\-@\t\r]/.test(v) ? `'${v}` : v);
 
-export default function MonthlySummary({ clientId }: { clientId: string }) {
-  const currentMonth = istToday().slice(0, 7);
-  const [month, setMonth] = useState(currentMonth);
+/** Opens one person's day-by-day view (a calendar plus times) for the range on screen. */
+export interface PersonRequest { userId: string; name: string; from: string; to: string }
+
+export default function MonthlySummary({ clientId, onOpenPerson }: { clientId: string; onOpenPerson?: (p: PersonRequest) => void }) {
+  // Default to this calendar month-to-date; the user can switch to any preset or a custom range.
+  const [from, setFrom] = useState(() => presetRange('month').from);
+  const [to, setTo] = useState(() => presetRange('month').to);
   const [rows, setRows] = useState<AttendanceSummaryRow[]>([]);
   const [workingDays, setWorkingDays] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [q, setQ] = useState('');
   // Worst first: the people with the most absences lead the table until the user picks another column.
   const [sort, setSort] = useState<SortState>({ key: 'absent', dir: 'desc' });
   const reqId = useRef(0);
-
-  const range = useMemo(() => monthRange(month), [month]);
-  const from = range?.from;
-  const to = range?.to;
 
   const load = useCallback(async () => {
     const id = ++reqId.current;
@@ -74,7 +83,7 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
     setError('');
     try {
       const res: any = await api.getAttendanceSummary({ from, to });
-      if (id !== reqId.current) return; // a newer month / client has been asked for since
+      if (id !== reqId.current) return; // a newer range / client has been asked for since
       const d = res?.data && typeof res.data === 'object' && 'rows' in res.data ? res.data : res;
       setRows((Array.isArray(d?.rows) ? d.rows : []).map(normalise));
       setWorkingDays(Number.isFinite(Number(d?.working_days)) && d?.working_days != null ? Number(d.working_days) : null);
@@ -82,58 +91,65 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
       if (id !== reqId.current) return;
       setRows([]);
       setWorkingDays(null);
-      setError((e as Error)?.message || 'Failed to load the monthly summary');
+      setError((e as Error)?.message || 'Failed to load the summary');
     } finally {
       if (id === reqId.current) setLoading(false);
     }
   }, [from, to]);
 
-  // Refetch when the month changes AND when the global client picker changes (summary is per client).
+  // Refetch when the range changes AND when the global client picker changes (summary is per client).
   useEffect(() => { load(); }, [load, clientId]);
 
   const sorted = useMemo(() => {
     const mul = sort.dir === 'asc' ? 1 : -1;
     const key = (sort.key || 'absent') as SortKey;
+    const needle = q.trim().toLowerCase();
     return rows
+      .filter((r) => !needle || r.name.toLowerCase().includes(needle))
       .map((r, i) => [r, i] as const)
       .sort(([a, ai], [b, bi]) => {
         const c = key === 'name' ? a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }) : a[key] - b[key];
         return c !== 0 ? c * mul : ai - bi;
       })
       .map(([r]) => r);
-  }, [rows, sort]);
+  }, [rows, sort, q]);
 
-  const totals = useMemo(() => rows.reduce(
+  // The totals row follows what is listed, so a search narrows it too.
+  const totals = useMemo(() => sorted.reduce(
     (t, r) => ({ present: t.present + r.present, late: t.late + r.late, half_day: t.half_day + r.half_day, on_leave: t.on_leave + r.on_leave, absent: t.absent + r.absent }),
     { present: 0, late: 0, half_day: 0, on_leave: 0, absent: 0 },
-  ), [rows]);
+  ), [sorted]);
 
   // First click on a number column = biggest first; on the name column = A to Z. Clicking the active column flips it.
   const toggleSort = (k: string) => setSort((s) => (s.key === k ? { key: k, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { key: k, dir: k === 'name' ? 'asc' : 'desc' }));
 
   const exportCsv = () => {
-    if (!range || sorted.length === 0) return;
+    if (sorted.length === 0) return;
     const cols = ['Employee', ...COLUMNS.map((c) => c.csv)];
     const body: Array<Record<string, unknown>> = sorted.map((r) => ({
       Employee: csvText(r.name), 'Working days': r.working_days, Present: r.present, Late: r.late,
       'Half day': r.half_day, Leave: r.on_leave, Absent: r.absent,
     }));
     body.push({ Employee: 'Total', 'Working days': '', Present: totals.present, Late: totals.late, 'Half day': totals.half_day, Leave: totals.on_leave, Absent: totals.absent });
-    downloadCsv(`attendance-summary-${month}`, body, cols);
+    downloadCsv(`attendance-summary-${from}_to_${to}`, body, cols);
   };
 
-  const inProgress = !!range?.partial;
+  const label = rangeLabel(from, to);
+  const inProgress = to === istToday();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <Field label="Month" htmlFor="att-summary-month" style={{ width: 190 }}>
-          <Input id="att-summary-month" type="month" value={month} max={currentMonth} onChange={(e) => setMonth(e.target.value)} />
-        </Field>
+        <div style={{ flex: 1, minWidth: 280 }}>
+          <RangePresetPicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} idPrefix="msum" />
+        </div>
+        <div style={{ position: 'relative', width: 220, marginBottom: 2 }}>
+          <Search size={15} strokeWidth={1.6} aria-hidden style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: T.mute, pointerEvents: 'none' }} />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search employees…" aria-label="Search employees" style={{ paddingLeft: 34 }} />
+        </div>
         <IconButton label="Refresh monthly summary" onClick={load} style={{ marginBottom: 2 }}>
           <RefreshCw size={16} strokeWidth={1.6} style={loading ? { animation: 'kspin 1s linear infinite' } : undefined} />
         </IconButton>
-        <div style={{ flex: 1 }} />
         <Button onClick={exportCsv} disabled={loading || sorted.length === 0} icon={<Download size={16} strokeWidth={1.6} />}>Export CSV</Button>
       </div>
 
@@ -143,10 +159,10 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
 
       <Card padding={0} style={{ overflow: 'hidden' }}>
         <div style={{ padding: '14px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <Eyebrow>{range ? range.label : 'Monthly summary'}</Eyebrow>
+          <Eyebrow>{label}</Eyebrow>
           <div style={{ fontSize: 12.5, color: T.dim }}>
             {workingDays != null ? <><span style={{ fontFamily: T.mono }}>{workingDays}</span> working days{inProgress ? ' so far' : ''} · </> : null}
-            Late arrivals are counted within Present. Absent = a working day with no check-in and no approved leave.
+            Late arrivals are counted within Present. Absent = a working day with no check-in and no approved leave.{onOpenPerson ? ' Click a name to see their days.' : ''}
           </div>
         </div>
         <div style={{ overflowX: 'auto' }}>
@@ -161,18 +177,23 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={COLUMNS.length + 1} style={{ ...td, borderBottom: 0, textAlign: 'center', color: T.mute, padding: 32 }}>Loading monthly summary…</td></tr>
+                <tr><td colSpan={COLUMNS.length + 1} style={{ ...td, borderBottom: 0, textAlign: 'center', color: T.mute, padding: 32 }}>Loading summary…</td></tr>
               ) : sorted.length === 0 ? (
                 <tr><td colSpan={COLUMNS.length + 1} style={{ ...td, borderBottom: 0, padding: 0 }}>
                   <EmptyState
                     icon={<CalendarDays size={20} strokeWidth={1.6} />}
-                    title={range ? `No attendance data for ${range.label}` : 'Pick a month that has started'}
-                    description={range ? 'Employees appear here once the month has working days to count.' : 'The summary only covers months up to today.'}
+                    title={q.trim() && rows.length > 0 ? 'No employee matches your search' : `No attendance data for ${label}`}
+                    description={q.trim() && rows.length > 0 ? 'Try another name.' : 'Employees appear here once the range has working days to count.'}
                   />
                 </td></tr>
               ) : sorted.map((r) => (
                 <tr key={r.user_id || r.name} data-testid="summary-row">
-                  <td style={{ ...td, fontWeight: 500 }}>{r.name}</td>
+                  <td style={{ ...td, fontWeight: 500 }}>
+                    {onOpenPerson && r.user_id ? (
+                      <button type="button" className="att-name" onClick={() => onOpenPerson({ userId: r.user_id, name: r.name, from, to })} title="See this person's days" style={{ background: 'none', border: 0, padding: 0, font: 'inherit', fontWeight: 500, color: T.text, cursor: 'pointer', textAlign: 'left' }}>{r.name}</button>
+                    ) : r.name}
+                    <MixBar r={r} />
+                  </td>
                   <td style={{ ...num, color: T.dim }}>{r.working_days}</td>
                   <td style={num}>{r.present}</td>
                   <td style={{ ...num, color: r.late > 0 ? T.warn : T.mute }}>{r.late}</td>

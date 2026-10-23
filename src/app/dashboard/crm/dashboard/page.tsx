@@ -9,6 +9,7 @@ import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { useClient } from '../../../../context/ClientContext';
 import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
+import TelecallerOverviewStrip from '../../../../components/crm/analytics/TelecallerOverviewStrip';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 import { DEFAULT_LEAD_FORM, extractLeadForm, segmentPlural, type LeadFormConfig } from '../../../../lib/crmLeadForm';
 import { isItemVisible } from '../../../../lib/appCustomization';
@@ -24,6 +25,8 @@ import { usePageTitle } from '../../../../lib/pageTitle';
 const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 // Parent Kinematic tenant — doesn't use the geo leads-on-map surface.
 const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
+// BMW has no close-as-won flow, so the Won / Win-rate scorecards + Win-rate chart are hidden for them.
+const BMW_CLIENT_ID = '2ee5e03a-3a56-41c9-aaa0-16468920f871';
 
 // Recharts is heavy (~150 KB gzipped). Lazy-load each chart so the dashboard
 // initial bundle stays small and charts only download when their card paints.
@@ -146,6 +149,10 @@ export default function CrmDashboardPage() {
   const kinematicActive =
     userClientId === KINEMATIC_CLIENT_ID ||
     selectedClientId === KINEMATIC_CLIENT_ID;
+  // BMW hides the "deals won" scorecards (Won window + Win Rate) and the Win Rate chart.
+  const bmwActive =
+    userClientId === BMW_CLIENT_ID ||
+    selectedClientId === BMW_CLIENT_ID;
 
   useEffect(() => {
     if (!allowWeightToggle) return; // Non-Tata clients never resurrect 'weight'.
@@ -312,8 +319,8 @@ export default function CrmDashboardPage() {
                   loading={loading}
                 />
           )}
-          {isVisible('stat_won') && <StatTile label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} valueTitle={fmtMoneyFull(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} tone="ok" loading={loading} />}
-          {isVisible('stat_win_rate') && <StatTile label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />}
+          {isVisible('stat_won') && !bmwActive && <StatTile label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} valueTitle={fmtMoneyFull(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} tone="ok" loading={loading} />}
+          {isVisible('stat_win_rate') && !bmwActive && <StatTile label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />}
           {isVisible('stat_avg_deal') && <StatTile label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} valueTitle={fmtMoneyFull(summary?.avg_deal_size)} loading={loading} />}
           {isVisible('stat_sales_cycle') && <StatTile label="Sales Cycle" value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} />}
           {isVisible('stat_new_leads') && <StatTile label="New Leads" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />}
@@ -341,6 +348,9 @@ export default function CrmDashboardPage() {
           are pinned, so the layout collapses cleanly. */}
       <PinnedOverviewSection />
 
+      {/* Telecaller KPI strip — Rajkamal only; renders nothing for other tenants. */}
+      <TelecallerOverviewStrip />
+
       {visibleChartCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 12 }}>
           {isVisible('chart_funnel') && (
@@ -353,7 +363,7 @@ export default function CrmDashboardPage() {
               {pipelineValue.length ? <PipelineValueByStageChart data={pipelineValue} unit={unit} /> : emptyChart}
             </ChartCard>
           )}
-          {isVisible('chart_win_rate') && (
+          {isVisible('chart_win_rate') && !bmwActive && (
             <ChartCard title="Win Rate by Rep">
               {winRate.length ? <WinRateByRepChart data={winRate} /> : emptyChart}
             </ChartCard>

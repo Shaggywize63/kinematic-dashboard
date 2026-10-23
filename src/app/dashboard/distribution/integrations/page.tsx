@@ -2,7 +2,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import api from '../../../../lib/api';
+import api, { API_BASE_URL } from '../../../../lib/api';
+import { Modal, Field, input, primaryBtn, ghostBtn, ghostBtnDanger, miniBtn, codeStyle, th, td } from './ui';
+import { PairingPanel, SetupModal } from './TallySetup';
 
 interface Integration {
   id: string;
@@ -85,6 +87,7 @@ export default function DistributionIntegrationsPage() {
   const [connectFor, setConnectFor]     = useState<Integration['provider'] | null>(null);
   const [success, setSuccess]           = useState<Integration | null>(null);
   const [eventsFor, setEventsFor]       = useState<Integration | null>(null);
+  const [setupFor, setSetupFor]         = useState<Integration | null>(null);
 
   const load = async () => {
     try {
@@ -176,6 +179,7 @@ export default function DistributionIntegrationsPage() {
                 )}
 
                 <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
+                  {i.provider === 'tally' && <button onClick={() => setSetupFor(i)} style={primaryBtn}>Set up &amp; sync</button>}
                   <button onClick={() => setEventsFor(i)} style={ghostBtn}>View events</button>
                   <button onClick={() => disconnect(i)} style={ghostBtnDanger}>Disconnect</button>
                 </div>
@@ -225,7 +229,9 @@ export default function DistributionIntegrationsPage() {
         />
       )}
 
-      {success && <SuccessModal integration={success} onClose={() => setSuccess(null)} />}
+      {success && <SuccessModal integration={success} onClose={() => setSuccess(null)} onSetup={() => { setSetupFor(success); setSuccess(null); }} />}
+
+      {setupFor && <SetupModal integration={setupFor} onClose={() => setSetupFor(null)} onChanged={load} />}
 
       {eventsFor && <EventsModal integration={eventsFor} onClose={() => setEventsFor(null)} />}
     </div>
@@ -244,10 +250,23 @@ function ConnectTallyModal({ onClose, onCreated }: { onClose: () => void; onCrea
   const [igstLedger, setIgstLedger]     = useState('IGST');
   const [creditLedger, setCreditLedger] = useState('Sales Returns');
   const [submitting, setSubmitting]     = useState(false);
+  // Which Kinematic company this Tally company belongs to. Only asked when the org has more than one.
+  const [orgCompanies, setOrgCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [clientId, setClientId]         = useState('');
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const r: any = await api.get('/api/v1/companies/all');
+        const list = (r?.data || r || []) as { id: string; name: string }[];
+        if (live && Array.isArray(list)) setOrgCompanies(list);
+      } catch { /* single-company orgs / older backend: no picker */ }
+    })();
+    return () => { live = false; };
+  }, []);
 
   const submit = async () => {
     if (!label.trim()) { toast.error('Give this connection a name'); return; }
-    if (!companyName.trim()) { toast.error("Tally company name is required — it's the SVCURRENTCOMPANY value in voucher XML"); return; }
 
     setSubmitting(true);
     try {
@@ -255,6 +274,7 @@ function ConnectTallyModal({ onClose, onCreated }: { onClose: () => void; onCrea
         provider: 'tally',
         label: label.trim(),
         config: {
+          ...(clientId ? { client_id: clientId } : {}),
           company_name:            companyName.trim(),
           sales_ledger_name:       salesLedger.trim(),
           cash_ledger_name:        cashLedger.trim(),
@@ -279,12 +299,21 @@ function ConnectTallyModal({ onClose, onCreated }: { onClose: () => void; onCrea
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Mahalakshmi Trading — Mumbai Tally" autoFocus style={input} />
         </Field>
 
-        <Field label="Tally company name" hint="Must match the company name in Tally exactly. The bridge agent uses this in SVCURRENTCOMPANY on every voucher.">
+        {orgCompanies.length > 1 && (
+          <Field label="Kinematic company" hint="Only this company's invoices, payments and returns are sent to this Tally company. Connect each company separately.">
+            <select value={clientId} onChange={(e) => setClientId(e.target.value)} style={input}>
+              <option value="">All companies (no filter)</option>
+              {orgCompanies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+        )}
+
+        <Field label="Tally company name (optional now)" hint="Leave blank to pick it from the companies the connector finds in Tally. Must match Tally exactly.">
           <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="e.g. Mahalakshmi Trading Company Pvt Ltd" style={input} />
         </Field>
 
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 4 }}>
-          Ledger mapping (the names must already exist in Tally)
+          Ledger names (missing ones can be created in Tally for you afterwards)
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <Field label="Sales ledger">
@@ -314,7 +343,7 @@ function ConnectTallyModal({ onClose, onCreated }: { onClose: () => void; onCrea
           background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
           borderRadius: 8, padding: 10, fontSize: 11, color: 'var(--text)',
         }}>
-          💡 We&rsquo;ll generate a bridge-agent setup file on the next screen. Download it and run the Kinematic Tally Connector on the same Windows PC where Tally is open. Within 30 seconds the first invoices will land.
+          💡 Next you get a 6-character pairing code. Enter it in the Kinematic connector on the Windows PC where Tally is open — no files to copy. The dashboard then checks your Tally setup and fixes what it can.
         </div>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -327,7 +356,7 @@ function ConnectTallyModal({ onClose, onCreated }: { onClose: () => void; onCrea
 }
 
 // ── Success ───────────────────────────────────────────────────────────────────
-function SuccessModal({ integration, onClose }: { integration: Integration; onClose: () => void }) {
+function SuccessModal({ integration, onClose, onSetup }: { integration: Integration; onClose: () => void; onSetup: () => void }) {
   const cfg = integration.agent_config;
 
   const copy = (text: string, what: string) =>
@@ -347,48 +376,29 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
   };
 
   return (
-    <Modal onClose={onClose} title="✅ Tally connected" subtitle="Save the bridge-agent config now — the agent secret is only shown once.">
+    <Modal onClose={onClose} title="✅ Tally connection created" subtitle="Now connect the PC where Tally runs, using the pairing code below.">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{
-          background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
-          borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)',
-        }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Next: install the bridge agent on the Tally PC</div>
-          <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
-            <li>Download <code style={codeStyle}>kinematic-tally-config.json</code> below and save it to the same Windows PC where Tally runs.</li>
-            <li>Install <strong>kinematic-tally-connector</strong> (instructions in its README) and place the config file next to it.</li>
-            <li>Open Tally and load the company &ldquo;{(integration.config?.company_name as string) ?? '...'}&rdquo;.</li>
-            <li>Start the connector. Within 30 seconds, any new Kinematic invoice / payment / return appears as a Tally voucher.</li>
-          </ol>
-        </div>
+        <PairingPanel integrationId={integration.id} autoGenerate />
 
-        <Field label="Bridge agent config (download)">
-          <button onClick={downloadConfig} style={primaryBtn}>⬇ Download kinematic-tally-config.json</button>
-        </Field>
-
-        <Field label="Polling endpoint">
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input value={cfg?.polling_endpoint ?? ''} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
-            <button onClick={() => copy(cfg?.polling_endpoint ?? '', 'Polling URL')} style={ghostBtn}>Copy</button>
+        <details>
+          <summary style={{ fontSize: 12, color: 'var(--text-dim)', cursor: 'pointer' }}>Advanced: use a manual config file instead</summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 10 }}>
+            <button onClick={downloadConfig} style={ghostBtn}>⬇ Download kinematic-tally-config.json</button>
+            <Field label="Polling endpoint (contains the agent secret)">
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input value={cfg?.polling_endpoint ?? ''} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
+                <button onClick={() => copy(cfg?.polling_endpoint ?? '', 'Polling URL')} style={ghostBtn}>Copy</button>
+              </div>
+            </Field>
+            <div style={{ fontSize: 11, color: 'var(--text)' }}>
+              ⚠️ Anyone with this URL can submit fake voucher results. Keep it on the Tally PC only. The secret is only shown now.
+            </div>
           </div>
-        </Field>
+        </details>
 
-        <Field label="Agent secret (also embedded in the URL)">
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input value={integration.agent_secret ?? ''} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
-            <button onClick={() => copy(integration.agent_secret ?? '', 'Agent secret')} style={ghostBtn}>Copy</button>
-          </div>
-        </Field>
-
-        <div style={{
-          background: 'rgba(251, 146, 60, 0.08)', border: '1px solid rgba(251, 146, 60, 0.25)',
-          borderRadius: 8, padding: 10, fontSize: 11, color: 'var(--text)',
-        }}>
-          ⚠️ Anyone with this URL can submit fake voucher results to Kinematic. Keep the config file on the Tally PC only — don&rsquo;t share over email.
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={primaryBtn}>I&rsquo;ve saved it</button>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={ghostBtn}>Close</button>
+          <button onClick={onSetup} style={primaryBtn}>Open setup checklist</button>
         </div>
       </div>
     </Modal>
@@ -474,72 +484,3 @@ function EventsModal({ integration, onClose }: { integration: Integration; onClo
     </Modal>
   );
 }
-
-// ── Modal + tokens ────────────────────────────────────────────────────────────
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label style={fieldLabel}>{label}</label>
-      {children}
-      {hint && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>{hint}</div>}
-    </div>
-  );
-}
-
-function Modal({ children, onClose, title, subtitle }: {
-  children: React.ReactNode; onClose: () => void; title: string; subtitle?: string;
-}) {
-  return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 999,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-    }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 14,
-        maxWidth: 720, width: '100%', maxHeight: '90vh', overflow: 'auto',
-        padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-      }}>
-        <div style={{ marginBottom: 18 }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{title}</h2>
-          {subtitle && <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-dim)' }}>{subtitle}</p>}
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-const fieldLabel: React.CSSProperties = {
-  display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)',
-  textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6,
-};
-const input: React.CSSProperties = {
-  width: '100%', background: 'var(--s3)', border: '1px solid var(--border)',
-  color: 'var(--text)', padding: '9px 12px', borderRadius: 8, fontSize: 13, outline: 'none',
-  fontFamily: 'inherit',
-};
-const primaryBtn: React.CSSProperties = {
-  background: 'var(--primary)', border: 'none', color: '#fff',
-  padding: '9px 18px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer',
-};
-const ghostBtn: React.CSSProperties = {
-  background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)',
-  padding: '9px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 600,
-};
-const ghostBtnDanger: React.CSSProperties = {
-  ...ghostBtn, color: 'rgb(239, 68, 68)', borderColor: 'rgba(239, 68, 68, 0.4)',
-};
-const miniBtn: React.CSSProperties = {
-  background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)',
-  padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontWeight: 600,
-};
-const codeStyle: React.CSSProperties = {
-  background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11,
-};
-const th: React.CSSProperties = {
-  textAlign: 'left', padding: '8px 10px', fontSize: 10, color: 'var(--text-dim)',
-  textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700,
-};
-const td: React.CSSProperties = {
-  padding: '8px 10px', color: 'var(--text)',
-};

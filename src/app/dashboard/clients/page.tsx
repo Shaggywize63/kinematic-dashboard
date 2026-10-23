@@ -1,11 +1,13 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Client } from '../../../types';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } from '../../../lib/modules';
 import { type AppCustomization } from '../../../lib/appCustomization';
 import AppCustomizationPanel from '../../../components/clients/AppCustomizationPanel';
+import ClientNotificationsPanel from '../../../components/clients/ClientNotificationsPanel';
+import AppLayoutEditor from '../../../components/clients/AppLayoutEditor';
 import api, { setActingAs } from '../../../lib/api';
 import { getStoredProjectKey, DEFAULT_PROJECT, setStoredProjectKey } from '../../../lib/projects';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
@@ -74,17 +76,25 @@ const MODULES: { id: string; label: string; group: ModuleGroup }[] = ALL_MODULES
 // The customer only gets them switched on when they explicitly ask. These are:
 // Conversation Analysis (crm_conversation_intel), People Directory
 // (crm_people_directory), Market Intelligence (crm_lead_analytics) and Email
-// (crm_email). Existing clients are unaffected — this only seeds the "Add client"
+// (crm_email), plus IVR Call. Existing clients are unaffected — this only seeds the "Add client"
 // form default.
-const NEW_CLIENT_EXCLUDED_MODULES = ['crm_conversation_intel', 'crm_people_directory', 'crm_lead_analytics', 'crm_email'];
+// IVR Call is a deliberate per-client switch (its own card in the form) and is OFF for a new client too.
+const IVR_MODULE = 'ivr_call';
+const NEW_CLIENT_EXCLUDED_MODULES = ['crm_conversation_intel', 'crm_people_directory', 'crm_lead_analytics', 'crm_email', IVR_MODULE];
 // A brand-new client starts with the standard CRM working set pre-selected
 // (every CRM module except the excluded four above) rather than a blank grant.
 // Derived from the module catalog so any CRM module added later is included
 // automatically, and a non-empty grant means the nav never falls open to
 // "show everything" for a freshly-created client.
-const NEW_CLIENT_DEFAULT_MODULES = ALL_MODULES
-  .filter(m => m.group === 'CRM' && !NEW_CLIENT_EXCLUDED_MODULES.includes(m.id))
-  .map(m => m.id);
+// A new client also starts with the basics every workspace needs. No module is always-on any more (a client sees exactly
+// what is ticked), so these are pre-ticked here — visibly, and the admin can untick any of them.
+const NEW_CLIENT_BASELINE_MODULES = ['users', 'settings', 'reports'];
+const NEW_CLIENT_DEFAULT_MODULES = Array.from(new Set([
+  ...ALL_MODULES
+    .filter(m => m.group === 'CRM' && !NEW_CLIENT_EXCLUDED_MODULES.includes(m.id))
+    .map(m => m.id),
+  ...NEW_CLIENT_BASELINE_MODULES,
+]));
 
 const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[], login_org_id: '', data_project_key: '', data_client_id: '', max_active_users: '' as number | '', app_ui: {} as AppCustomization, trial_start_date: '', trial_days: '' as number | '' };
 
@@ -134,6 +144,8 @@ export default function ClientManagement() {
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
+  // Section the Edit modal should scroll to once it is open (the App Layout button on a client card sets it).
+  const jumpRef = useRef<string | null>(null);
   const [editing, setEditing] = useState<Client | null>(null);
   const [form, setForm] = useState({ ...BLANK });
   const [saving, setSaving] = useState(false);
@@ -165,6 +177,15 @@ export default function ClientManagement() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  // Open the Edit modal at a given section (the App layout button on a client card).
+  useEffect(() => {
+    if (!showModal || !jumpRef.current) return;
+    const t = setTimeout(() => {
+      const id = jumpRef.current; jumpRef.current = null;
+      if (id) document.getElementById(id)?.scrollIntoView({ block: 'start' });
+    }, 0);
+    return () => clearTimeout(t);
+  }, [showModal]);
 
   // One-shot: does this deployment support provisioning a dedicated project per
   // client? (super-admin only; a plain 403/400 just leaves the toggle hidden.)
@@ -227,7 +248,8 @@ export default function ClientManagement() {
       alert(e?.response?.data?.error || e?.message || 'Login failed');
     }
   };
-  const openEdit = (c: Client) => { 
+  const openEdit = (c: Client, jumpTo?: string) => { 
+    jumpRef.current = jumpTo ?? null;
     // Filter out any legacy module IDs that might exist in the database (e.g. master_data)
     // but are not part of the new 20-module granular architecture.
     const validIds = (c.modules || []).filter(m => MODULES.some(mod => mod.id === m));
@@ -462,6 +484,11 @@ export default function ClientManagement() {
                     Envs {expanded ? '▴' : '▾'}
                   </button>
                 )}
+                <button onClick={() => openEdit(c, 'client-section-app-layout')} title="App layout" aria-label="App layout" style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
+                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4M9 6h6"/></svg>
+                </button>
                 <button onClick={() => openEdit(c)} title="Edit client" style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
@@ -506,7 +533,7 @@ export default function ClientManagement() {
       {/* Modal */}
       {showModal && (
         <Overlay onClose={() => setShowModal(false)}>
-          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 800, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', position:'relative' }}>
+          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 1240, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', position:'relative' }}>
             {/* Close Button (X) */}
             <button onClick={() => setShowModal(false)} style={{ position:'absolute', top:22, right:22, width:36, height:36, borderRadius:12, border:'none', background:C.s3, color:C.gray, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
               onMouseEnter={e => { e.currentTarget.style.color = C.white; e.currentTarget.style.background = C.border; }}
@@ -629,10 +656,48 @@ export default function ClientManagement() {
             </div>
 
             <div style={{ marginBottom: 28 }}>
+              <Label t="IVR Calling" />
+              <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <button
+                    type="button" id="client-ivr-switch" role="switch" aria-checked={form.modules.includes(IVR_MODULE)}
+                    aria-describedby="client-ivr-note" onClick={() => toggleModule(IVR_MODULE)}
+                    title={form.modules.includes(IVR_MODULE) ? 'On — click to turn off' : 'Off — click to turn on'}
+                    style={{
+                      position: 'relative', width: 38, height: 22, borderRadius: 999, flexShrink: 0, padding: 0, cursor: 'pointer', marginTop: 1,
+                      border: `1px solid ${form.modules.includes(IVR_MODULE) ? 'var(--primary)' : C.border}`,
+                      background: form.modules.includes(IVR_MODULE) ? 'var(--primary)' : C.s2, transition: 'background .15s, border-color .15s',
+                    }}
+                  >
+                    <span style={{ position: 'absolute', top: 2, left: form.modules.includes(IVR_MODULE) ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: form.modules.includes(IVR_MODULE) ? '#fff' : C.grayd, transition: 'left .15s, background .15s' }} />
+                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <label htmlFor="client-ivr-switch" style={{ fontSize: 13, fontWeight: 700, color: C.white, cursor: 'pointer' }}>Show IVR Call to this client</label>
+                    <span id="client-ivr-note" style={{ fontSize: 11, color: C.grayd }}>
+                      Adds the recorded &ldquo;IVR Call&rdquo; button on leads in the dashboard and apps, and allows the server to place the call. Off = hidden for
+                      everyone, including platform admins viewing this client, and calls are refused. The IVR provider itself is configured under CRM → Integrations.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
+              <Label t="Notifications" />
+              {editing && !provisionMode
+                ? <ClientNotificationsPanel key={editing.id} clientId={editing.id} />
+                : (
+                  <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}`, fontSize: 12, color: C.grayd }}>
+                    A new client starts with <b>no notifications</b>. Create the client, then reopen it to choose which notifications it receives.
+                  </div>
+                )}
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
               <Label t="Module Access Control" />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 18, background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
                 {GRANTABLE_GROUPS.map(group => {
-                  const groupModules = MODULES.filter(m => m.group === group);
+                  const groupModules = MODULES.filter(m => m.group === group && m.id !== IVR_MODULE);
                   if (!groupModules.length) return null;
                   const groupIds = groupModules.map(m => m.id);
                   const allOn = groupIds.every(id => form.modules.includes(id));
@@ -661,6 +726,18 @@ export default function ClientManagement() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            <div id="client-section-app-layout" style={{ marginBottom: 28, scrollMarginTop: 12 }}>
+              <Label t="App Layout" />
+              <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
+                <AppLayoutEditor
+                  value={form.app_ui}
+                  onChange={(next) => setForm(p => ({ ...p, app_ui: next }))}
+                  modules={form.modules}
+                  title={form.name || editing?.name}
+                />
               </div>
             </div>
 

@@ -85,12 +85,12 @@ export function readDailyReport(res: unknown): DailyReport | null {
       submission_id: String(v?.submission_id ?? `visit-${i}`), label: str(v?.label) || 'Customer Visit',
       customer_name: str(v?.customer_name),
       arrival_at: String(v?.arrival_at ?? ''), departure_at: String(v?.departure_at ?? ''),
-      minutes: num(v?.minutes), lat: p ? p.lat : null, lng: p ? p.lng : null,
+      minutes: num(v?.minutes), lat: p ? p.lat : null, lng: p ? p.lng : null, place: str(v?.place) || null,
     };
   });
   const halts: DailyReportHalt[] = (Array.isArray(d.halts) ? d.halts : []).map((h: any, i: number) => ({
     index: num(h?.index, i), start_at: String(h?.start_at ?? ''), end_at: String(h?.end_at ?? ''),
-    minutes: num(h?.minutes), lat: num(h?.lat), lng: num(h?.lng), points: num(h?.points),
+    minutes: num(h?.minutes), lat: num(h?.lat), lng: num(h?.lng), points: num(h?.points), place: str(h?.place) || null,
   }));
   const legs: AttendanceTravelLeg[] = Array.isArray(d.travel?.legs) ? d.travel.legs : [];
   const routePoints: DailyReportRoutePoint[] = (Array.isArray(d.route?.points) ? d.route.points : [])
@@ -169,6 +169,10 @@ export interface TimelineItem {
   at: LatLng | null;
   /** Travel legs only: where it ended. */
   to: LatLng | null;
+  /** Server-resolved name of `at` (null when the server didn't send one — the view then reverse-geocodes). */
+  place: string | null;
+  /** Server-resolved name of `to` (travel legs only). */
+  placeTo: string | null;
 }
 
 export const KIND_LABEL: Record<TimelineKind, string> = {
@@ -201,6 +205,7 @@ export function buildTimeline(report: DailyReport): TimelineItem[] {
       key: 'checkin', kind: 'checkin', start: report.shift.checkin_at, end: null, openEnd: false, minutes: null, km: null,
       title: KIND_LABEL.checkin, detail: '', customerName: null,
       at: firstLeg?.from?.kind === 'checkin' ? point(firstLeg.from.lat, firstLeg.from.lng) : null, to: null,
+      place: firstLeg?.from?.kind === 'checkin' ? (firstLeg.from.place ?? null) : null, placeTo: null,
     });
   }
   legs.forEach((l, i) => {
@@ -210,6 +215,7 @@ export function buildTimeline(report: DailyReport): TimelineItem[] {
       key: `leg-${l.index ?? i}`, kind: 'travel', start: str(l.from?.at), end: open ? null : str(l.to?.at), openEnd: open,
       minutes: null, km: num(l.km), title: KIND_LABEL.travel, detail: `${pointLabel(l.from)} → ${pointLabel(l.to)}${suffix}`, customerName: null,
       at: point(l.from?.lat, l.from?.lng), to: point(l.to?.lat, l.to?.lng),
+      place: l.from?.place ?? null, placeTo: l.to?.place ?? null,
     });
   });
   report.visits.forEach((v, i) => {
@@ -217,6 +223,7 @@ export function buildTimeline(report: DailyReport): TimelineItem[] {
       key: `visit-${v.submission_id}-${i}`, kind: 'visit', start: str(v.arrival_at), end: str(v.departure_at), openEnd: false,
       minutes: v.minutes, km: null, title: KIND_LABEL.visit, detail: v.label, customerName: str(v.customer_name),
       at: point(v.lat, v.lng), to: null,
+      place: v.place ?? null, placeTo: null,
     });
   });
   report.halts.forEach((h, i) => {
@@ -224,6 +231,7 @@ export function buildTimeline(report: DailyReport): TimelineItem[] {
       key: `halt-${h.index}-${i}`, kind: 'halt', start: str(h.start_at), end: str(h.end_at), openEnd: false,
       minutes: h.minutes, km: null, title: KIND_LABEL.halt, detail: h.points > 0 ? `${h.points} GPS pings` : '', customerName: null,
       at: point(h.lat, h.lng), to: null,
+      place: h.place ?? null, placeTo: null,
     });
   });
   if (report.shift.checkout_at) {
@@ -231,6 +239,7 @@ export function buildTimeline(report: DailyReport): TimelineItem[] {
       key: 'checkout', kind: 'checkout', start: report.shift.checkout_at, end: null, openEnd: false, minutes: null, km: null,
       title: KIND_LABEL.checkout, detail: '', customerName: null,
       at: lastLeg?.to?.kind === 'checkout' ? point(lastLeg.to.lat, lastLeg.to.lng) : null, to: null,
+      place: lastLeg?.to?.kind === 'checkout' ? (lastLeg.to.place ?? null) : null, placeTo: null,
     });
   }
 
@@ -263,6 +272,34 @@ export function routePath(report: DailyReport): LatLng[] {
   };
   for (const l of report.travel.legs) { push(point(l.from?.lat, l.from?.lng)); push(point(l.to?.lat, l.to?.lng)); }
   return out.length >= 2 ? out : [];
+}
+
+/**
+ * Where the map's start ("S", check-in) and end ("E", check-out / last seen) markers go.
+ *
+ * The check-in / check-out location the legs carry is preferred, but real days often don't
+ * tag the first/last leg as check-in/check-out (or have no legs at all), which used to leave
+ * both markers null so only the numbered stops drew. So fall back, in order, to: the ends of
+ * the GPS trail (route points are time-ordered, check-in first / check-out last), then the
+ * first/last leg endpoint. This way the start and end show whenever the day has any located
+ * movement, not only when a leg is explicitly kind-tagged.
+ */
+export function routeEndpoints(report: DailyReport): { start: LatLng | null; end: LatLng | null } {
+  if (!report.shift.attendance_id) return { start: null, end: null };
+  const legs = report.travel.legs;
+  const firstLeg = legs[0];
+  const lastLeg = legs[legs.length - 1];
+  const pts = report.route.points;
+  const firstPt = pts.length ? point(pts[0].lat, pts[0].lng) : null;
+  const lastPt = pts.length ? point(pts[pts.length - 1].lat, pts[pts.length - 1].lng) : null;
+
+  const checkinAt = firstLeg?.from?.kind === 'checkin' ? point(firstLeg.from.lat, firstLeg.from.lng) : null;
+  const checkoutAt = lastLeg?.to?.kind === 'checkout' ? point(lastLeg.to.lat, lastLeg.to.lng) : null;
+
+  return {
+    start: checkinAt ?? firstPt ?? point(firstLeg?.from?.lat, firstLeg?.from?.lng),
+    end: checkoutAt ?? lastPt ?? point(lastLeg?.to?.lat, lastLeg?.to?.lng),
+  };
 }
 
 /** Every distinct place a name could be looked up for (timeline points), in row order. */

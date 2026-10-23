@@ -14,6 +14,7 @@ import type {
   Product, ProductCategory, DealLineItem,
   WhatsappTemplate, WhatsappLog,
   TargetKind, TargetType, TargetProgress, TargetEntry, TargetEntryInput, TargetEntryQuery, RupeeLeaderboard,
+  AfterSalesTelecaller, AfterSalesConfig, AfterSalesRecordInput, AfterSalesImportResult, AfterSalesRecordRow,
 } from '../types/crm';
 import type { Integration, InboundEvent, IntegrationProvider } from '../types/integrations';
 
@@ -104,6 +105,15 @@ export const crmLeads = {
       `${BASE}/leads/${id}/convert`,
       body
     ),
+  // Steel-dealer (BMW) order balance: the lead's interested volume minus what's
+  // already booked across its deals.
+  balance: (id: string) =>
+    api.get<Wrapped<{ interested_kg: number; booked_kg: number; balance_kg: number; has_interest: boolean }>>(
+      `${BASE}/leads/${id}/balance`),
+  // Spawn an open deal for the remaining (or a smaller requested) balance volume.
+  fulfillBalance: (id: string, body: { volume_kg?: number; deal_name?: string } = {}) =>
+    api.post<Wrapped<{ deal_id: string; volume_kg: number; balance_before_kg: number; balance_remaining_kg: number }>>(
+      `${BASE}/leads/${id}/fulfill-balance`, body),
   bulkAssign: (body: { lead_ids: string[]; owner_id?: string; territory_id?: string }) =>
     api.post<Wrapped<{ updated: number }>>(`${BASE}/leads/bulk-assign`, body),
   // Bulk lat/long backfill for existing leads. Each row matches one lead by
@@ -170,6 +180,47 @@ export interface ClickToCallResult {
 export const crmTelephony = {
   clickToCall: (body: { lead_id: string; to?: string | null; from?: string | null }) =>
     api.post<ClickToCallResult>(`${BASE}/telephony/click-to-call`, body),
+};
+
+// ── Upsells ──────────────────────────────────────────────────────────
+// Additional revenue logged against an existing deal and/or lead. Rendered
+// as the "Upsells" section on both the deal- and lead-detail pages. The
+// backend returns a bare array / object (not the Wrapped envelope).
+export type UpsellStatus = 'proposed' | 'won' | 'lost';
+export interface Upsell {
+  id: string;
+  deal_id: string | null;
+  lead_id: string | null;
+  amount: number;
+  currency: string;
+  quantity: number | null;
+  product_id: string | null;
+  product_name: string | null;
+  status: UpsellStatus;
+  note: string | null;
+  occurred_at: string | null;
+  created_by: string | null;
+  created_by_name: string | null;
+  created_at: string;
+}
+export interface UpsellInput {
+  deal_id?: string | null;
+  lead_id?: string | null;
+  amount: number | string;
+  currency?: string;
+  quantity?: number | string | null;
+  product_name?: string | null;
+  product_id?: string | null;
+  status?: UpsellStatus;
+  note?: string | null;
+  occurred_at?: string | null;
+}
+// Responses pass through the /crm router's envelope override → {success, data}.
+export const crmUpsells = {
+  list: (params: { deal_id?: string; lead_id?: string }) =>
+    api.get<Wrapped<Upsell[]>>(`${BASE}/upsells${qs(params)}`),
+  create: (body: UpsellInput) => api.post<Wrapped<Upsell>>(`${BASE}/upsells`, body),
+  remove: (id: string) => api.delete<Wrapped<{ ok: true }>>(`${BASE}/upsells/${id}`),
 };
 
 export const crmContacts = {
@@ -368,6 +419,13 @@ export const crmTargets = {
   getLeaderboardRole: () => api.get<Wrapped<{ role_id: string | null }>>(`${BASE}/targets/leaderboard-role`),
   setLeaderboardRole: (role_id: string | null) =>
     api.put<Wrapped<{ role_id: string | null }>>(`${BASE}/targets/leaderboard-role`, { role_id }),
+  // Telecaller daily calls-count target — a separate metric from the lead /
+  // rupee targets. Managers read/set a daily "N calls" goal (per user, per role
+  // or org default); a telecaller reads their own progress via `callsMine`.
+  callsGet: () => api.get<Wrapped<TargetsState>>(`${BASE}/targets/calls`),
+  callsSet: (body: { user_id?: string | null; org_role_id?: string | null; hierarchy_level_id?: string | null; target_value: number; all?: boolean }) =>
+    api.put<Wrapped<unknown>>(`${BASE}/targets/calls`, body),
+  callsMine: () => api.get<Wrapped<MyTarget>>(`${BASE}/targets/calls/me`),
 };
 
 export const crmNotes = crud<Note>(`${BASE}/notes`);
@@ -540,6 +598,17 @@ export const crmLookup = {
 // Phase 2: Products + WhatsApp
 export const crmProductCategories = crud<ProductCategory>(`${BASE}/product-categories`);
 export const crmProducts = crud<Product>(`${BASE}/products`);
+
+// Google Places proxy — the backend fronts the Places API so the key stays
+// server-side. `search` returns a WIDER result set (up to 20) than the
+// Google-JS-SDK autocomplete the address picker normally renders (~5), in the
+// same { place_id, description } shape, powering the "Show more suggestions"
+// affordance. lat/lng bias toward the rep's current location when available.
+export interface PlaceSuggestion { place_id: string; description: string }
+export const crmPlaces = {
+  search: (q: string, lat?: number | null, lng?: number | null) =>
+    api.get<Wrapped<PlaceSuggestion[]>>(`${BASE}/places/search${qs({ q, lat: lat ?? undefined, lng: lng ?? undefined })}`),
+};
 export const crmWhatsappTemplates = crud<WhatsappTemplate>(`${BASE}/whatsapp-templates`);
 
 export const crmWhatsapp = {
@@ -1133,9 +1202,35 @@ export const crmMarketingVisits = {
     api.get<Wrapped<MarketingVisit[]>>(`${BASE}/marketing-visits${qs(params)}`),
 };
 
+// After-Sales Feedback module (telecaller Phase 1): admin data entry + bulk
+// import + the auto-assignment target. All endpoints are admin-gated and
+// client-scoped server-side; responses ride the shared {success,data} envelope.
+export const crmAfterSales = {
+  // Telecaller directory for the assignment picker.
+  telecallers: () => api.get<Wrapped<AfterSalesTelecaller[]>>(`${BASE}/after-sales/telecallers`),
+  // Current assignment config + the telecaller directory (one round-trip).
+  getAssignment: () => api.get<Wrapped<AfterSalesConfig>>(`${BASE}/after-sales/assignment`),
+  // Partial update — only the keys you send change.
+  setAssignment: (body: { telecaller_id?: string | null; round_robin_pool?: string[] }) =>
+    api.put<Wrapped<AfterSalesConfig>>(`${BASE}/after-sales/assignment`, body),
+  // Manual single-record create (201, or 409 when the phone already exists).
+  createRecord: (body: AfterSalesRecordInput) =>
+    api.post<Wrapped<{ lead: Lead; owner_id: string | null; assigned: boolean }>>(`${BASE}/after-sales/records`, body),
+  // Bulk CSV / Excel upload — rides api.postForm so it carries the same auth +
+  // tenant + city scope as every other request.
+  importRecords: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.postForm<Wrapped<AfterSalesImportResult>>(`${BASE}/after-sales/import`, fd);
+  },
+  // Admin list of after-sales records (newest first).
+  listRecords: (params?: { limit?: number; search?: string }) =>
+    api.get<Wrapped<AfterSalesRecordRow[]>>(`${BASE}/after-sales/records${qs(params)}`),
+};
+
 const crmApi = {
   leads: crmLeads, contacts: crmContacts, accounts: crmAccounts, deals: crmDeals,
-  consent: crmConsent, marketingVisits: crmMarketingVisits,
+  consent: crmConsent, marketingVisits: crmMarketingVisits, afterSales: crmAfterSales,
   lineItems: crmLineItems, pipelines: crmPipelines, stages: crmStages,
   activities: crmActivities, notes: crmNotes, tasks: crmTasks,
   emailTemplates: crmEmailTemplates, emails: crmEmails,
