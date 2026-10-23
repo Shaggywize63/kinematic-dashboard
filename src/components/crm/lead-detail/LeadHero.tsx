@@ -38,7 +38,8 @@ export interface LeadHeroProps {
   onRename: (next: string) => Promise<void>;
   onStatusChange: (next: string) => Promise<void>;
   onEdit: () => void;
-  onProposal: () => void;
+  /** Opens the Proposal builder. Omitted (undefined) hides the Proposal button — e.g. BMW. */
+  onProposal?: () => void;
   onConvert: () => void;
   converting: boolean;
   onReopen: () => void;
@@ -133,7 +134,7 @@ export default function LeadHero(p: LeadHeroProps) {
               <svg width={15} height={15} viewBox="0 0 24 24" fill="#25D366" aria-hidden><path d={WA_PATH} /></svg>WhatsApp
             </a>
           )}
-          <Button onClick={p.onProposal} icon={<FileText size={15} strokeWidth={1.8} />}>Proposal</Button>
+          {p.onProposal && <Button onClick={p.onProposal} icon={<FileText size={15} strokeWidth={1.8} />}>Proposal</Button>}
           {closedAny ? (
             <Button variant="primary" onClick={p.onReopen} disabled={p.reopening} icon={<RotateCcw size={15} strokeWidth={1.8} />}>
               {p.reopening ? 'Re-opening…' : 'Re-open lead'}

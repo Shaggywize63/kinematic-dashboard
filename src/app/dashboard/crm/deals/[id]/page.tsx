@@ -620,6 +620,9 @@ export default function DealDetailPage() {
               {deal.dealer_name && <Field label="Dealer" value={deal.dealer_name} />}
               <Field label="Stage" value={deal.stage_name} />
               <Field label="Status" value={deal.status} />
+              {/* Win probability is hidden for BMW — their steel-dealer flow
+                  tracks booked volume, not a forecast likelihood. */}
+              {!isBmw && (
               <Field
                 label="Probability"
                 value={`${Math.round((Number(deal.probability) || 0) * 100)}`}
@@ -638,6 +641,7 @@ export default function DealDetailPage() {
                   }
                 }}
               />
+              )}
               <Field
                 label="Close Date"
                 value={fmtIst(deal.expected_close_date).date}
@@ -780,8 +784,9 @@ export default function DealDetailPage() {
 
           {/* Win Probability + Next Best Action are AI manager-tier
               surfaces — hidden for Consumer Champions who own the
-              FE-tier flow and don't act on these recommendations. */}
-          {!isChampion && (
+              FE-tier flow and don't act on these recommendations, and
+              removed entirely for BMW (no forecast / NBA surface). */}
+          {!isChampion && !isBmw && (
           <SafeRender label="win probability">
             <div style={{ position: 'relative' }}>
               <WinProbabilityGauge
@@ -800,12 +805,12 @@ export default function DealDetailPage() {
             </div>
           </SafeRender>
           )}
-          {!isChampion && (
+          {!isChampion && !isBmw && (
           <button onClick={loadWinProb} disabled={winBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
             {winBusy ? 'Predicting…' : 'Re-forecast Win Probability'}
           </button>
           )}
-          {!isChampion && (
+          {!isChampion && !isBmw && (
           <SafeRender label="next best action">
             <div style={{ position: 'relative' }}>
               <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} dealId={id} />

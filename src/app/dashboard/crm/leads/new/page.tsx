@@ -16,7 +16,8 @@ import { InlineLeadVoiceCapture } from '../../../../../components/crm/VoiceCaptu
 import ClientScopeField from '../../../../../components/ClientScopeField';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides, type FieldScope } from '../../../../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/crmLeadStatuses';
-import { STEEL_DEALER_CLIENT_IDS } from '../../../../../lib/clientFeatures';
+import { STEEL_DEALER_CLIENT_IDS, BMW_CLIENT_ID } from '../../../../../lib/clientFeatures';
+import { orderLeadSources } from '../../../../../lib/leadSourceOrder';
 import {
   DEFAULT_LEAD_FORM, extractLeadForm, localDateTimeToIso, offersScheduleVisit, segmentName, segmentToggleLabel, showsAddress,
   type LeadFormConfig,
@@ -206,6 +207,9 @@ export default function NewLeadPage() {
     } catch { return null; }
   }, []);
   const isTata = STEEL_DEALER_CLIENT_IDS.includes((form.client_id || userClientId || selectedClientId) ?? '');
+  // BMW (a steel-dealer tenant) skips the Tata "log as Site Visit" flow: lead
+  // create just saves and lands on the lead, never the activity composer.
+  const isBmw = (form.client_id || userClientId || selectedClientId) === BMW_CLIENT_ID;
   // The master admin (s@) runs the parent Kinematic CRM at org level: no
   // field-force GPS capture, and new leads default to the Kinematic client so
   // there's no per-form tenant picker to deal with.
@@ -655,7 +659,7 @@ export default function NewLeadPage() {
       // Tata Tiscon: backend pops this flag before persisting and atomically
       // spawns a completed `site_visit` activity tied to the new lead. Sent
       // only when the rep is on a Tata tenant + has the toggle on.
-      if (isTata && form.log_as_site_visit) {
+      if (isTata && !isBmw && form.log_as_site_visit) {
         payload._auto_log_site_visit = true;
       }
       // DPDP §6 — capture consent at collection. Always sent (recorded in the
@@ -680,8 +684,9 @@ export default function NewLeadPage() {
       // backend echoing back `auto_log_site_visit_prefill` because
       // the rep wants this redirect for every new lead, not just
       // when they ticked a toggle. Non-Tata tenants keep the
-      // legacy "land on lead detail" flow.
-      if (isTata && r.data?.id) {
+      // legacy "land on lead detail" flow. BMW is excluded — its reps asked
+      // for create to simply finish on the lead, never the activity composer.
+      if (isTata && !isBmw && r.data?.id) {
         const name = [form.first_name, form.last_name].filter(Boolean).join(' ').trim()
           || form.email || form.phone || 'Lead';
         const qs = new URLSearchParams({
@@ -923,7 +928,7 @@ export default function NewLeadPage() {
                 <Field label={fields.labelFor('source_id', 'Source')} htmlFor="lead-field-source_id">
                   <Select id="lead-field-source_id" value={form.source_id} onChange={(e) => setForm({ ...form, source_id: e.target.value })}>
                     <option value="">— Unspecified —</option>
-                    {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    {orderLeadSources(sources).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </Select>
                 </Field>
               )}
@@ -1084,8 +1089,9 @@ export default function NewLeadPage() {
         {/* Tata Tiscon: tick to atomically spawn a completed `site_visit`
             activity tied to the new lead. Default on because most adds
             happen at the dealer / consumer counter; the toggle stays
-            invisible on every other tenant via the isTata gate. */}
-        {isTata && (
+            invisible on every other tenant via the isTata gate. BMW opts out
+            of the auto-log flow entirely, so the toggle is hidden there too. */}
+        {isTata && !isBmw && (
           <Section title="Activity" hint="Log the visit that produced this lead.">
             <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', padding: '10px 12px', background: 'var(--s3)', border: `1px solid ${T.border}`, borderRadius: 8 }}>
               <input
