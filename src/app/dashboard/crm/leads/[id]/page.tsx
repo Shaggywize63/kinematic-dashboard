@@ -15,7 +15,7 @@ import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSugge
 import { useAuth } from '../../../../../hooks/useAuth';
 import { getStoredUser } from '../../../../../lib/auth';
 import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
-import { isConsumerChampion, isTataTiscanActive } from '../../../../../lib/clientFeatures';
+import { isConsumerChampion, isTataTiscanActive, isBmwActive } from '../../../../../lib/clientFeatures';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 import { ConsentCard } from '../../../../../components/crm/DataConsent';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
@@ -68,6 +68,10 @@ export default function LeadDetailPage() {
   // and jump straight to a new Deal where line items are managed) since they only sell deals.
   const isChampion = isConsumerChampion(user as any);
   const isTataActive = isTataTiscanActive(user as any);
+  // BMW (a steel-dealer tenant) must use the Convert MODAL — not the Tata/PASA
+  // direct-convert bypass — so the rep books a volume and sees the balance. BMW
+  // also hides the deals-"won" surfaces (no close-as-won).
+  const isBmw = isBmwActive(user as any);
   // Conversation Analysis is removed from the dashboard for the Kaiyo/TATA org — hide the per-lead
   // Call Insights (and skip the fetch) for them. Org-inclusive so the org's null-client_id admin / login
   // accounts are covered too, not just the client-pinned reps.
@@ -327,10 +331,11 @@ export default function LeadDetailPage() {
   })();
 
   const onConvert = async () => {
-    // Tata Tiscon: bypass the create-account / create-deal popup entirely. TATA's flow records the deal
+    // Tata Tiscon / PASA: bypass the create-account / create-deal popup entirely. Their flow records the deal
     // directly (with line items managed on the deal page), so we call convert with account=false and route
-    // straight to the new deal.
-    if (isTataActive) {
+    // straight to the new deal. BMW is EXCLUDED — it must open the modal so the rep enters booked volume and
+    // sees the balance.
+    if (isTataActive && !isBmw) {
       setTataConverting(true);
       try {
         const defaultName = fullName || lead.company || 'New deal';
@@ -426,6 +431,7 @@ export default function LeadDetailPage() {
           deals={deals}
           conversations={conversations}
           showScore={showScore}
+          hideWon={isBmw}
           narrow={narrow}
           onOpenTab={openTab}
         />
@@ -466,7 +472,7 @@ export default function LeadDetailPage() {
                 onActivitiesChanged={() => { void reload(); }}
               />
             )}
-            {activeTab === 'deals' && <DealsTab leadId={id} deals={deals} canConvert={!isClosed} onConvert={onConvert} />}
+            {activeTab === 'deals' && <DealsTab leadId={id} deals={deals} canConvert={!isClosed} onConvert={onConvert} hideWon={isBmw} showFulfillBalance={isBmw} />}
             {activeTab === 'insights' && hasInsights && <InsightsTab conversations={conversations} />}
           </div>
         </div>

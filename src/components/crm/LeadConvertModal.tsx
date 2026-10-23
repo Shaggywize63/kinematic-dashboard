@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { crmLeads, crmProducts } from '../../lib/crmApi';
 import { useClient } from '../../context/ClientContext';
 import type { Product } from '../../types/crm';
-import { STEEL_DEALER_CLIENT_IDS } from '../../lib/clientFeatures';
+import { STEEL_DEALER_CLIENT_IDS, BMW_CLIENT_ID } from '../../lib/clientFeatures';
 
 interface Props {
   leadId: string;
@@ -95,6 +95,44 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
     } catch { return null; }
   }, []);
   const allowWeight = STEEL_DEALER_CLIENT_IDS.includes(userClientId ?? '') || STEEL_DEALER_CLIENT_IDS.includes(selectedClientId ?? '');
+  // BMW (a steel-dealer tenant) hides ALL rupee/amount UI in the convert flow —
+  // the rep books a VOLUME (kg), never a price — and gets a Balance summary
+  // (interested quantity − booked volume). Mirrors how allowWeight resolves the
+  // active tenant (bound client_id OR super-admin picker). Other steel dealers
+  // (Tata/PASA) keep the amount UI exactly as before.
+  const isBmw = userClientId === BMW_CLIENT_ID || selectedClientId === BMW_CLIENT_ID;
+
+  // The lead's own custom_fields — needed for BMW's Balance line (the rep's
+  // interested quantity was captured on the lead as estimated_tonnage, or
+  // quantity + measuring_unit). Fetched once per open for BMW only.
+  const [leadCustomFields, setLeadCustomFields] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => {
+    if (!open || !isBmw) { setLeadCustomFields(null); return; }
+    let cancelled = false;
+    crmLeads.get(leadId).then((r) => {
+      if (cancelled) return;
+      const cf = (r.data as { custom_fields?: Record<string, unknown> | null } | undefined)?.custom_fields;
+      setLeadCustomFields(cf && typeof cf === 'object' ? cf : {});
+    }).catch(() => { if (!cancelled) setLeadCustomFields({}); });
+    return () => { cancelled = true; };
+  }, [open, isBmw, leadId]);
+
+  // Interested quantity → kg. Prefer estimated_tonnage (TONNE); otherwise
+  // quantity + measuring_unit (Tonne→×1000, Kg→×1, Piece→can't convert without
+  // a product weight, so leave 0 and skip the kg balance line).
+  const interestedKg = useMemo(() => {
+    const cf = leadCustomFields;
+    if (!cf) return 0;
+    const tonnage = Number(cf.estimated_tonnage);
+    if (Number.isFinite(tonnage) && tonnage > 0) return tonnage * 1000;
+    const qty = Number(cf.quantity);
+    const unit = String(cf.measuring_unit ?? '').trim().toLowerCase();
+    if (Number.isFinite(qty) && qty > 0) {
+      if (unit === 'tonne') return qty * 1000;
+      if (unit === 'kg') return qty;
+    }
+    return 0;
+  }, [leadCustomFields]);
 
   // Lazy-load weight-based products only when the modal opens AND the
   // weight UI is in scope (no point fetching for non-Tata clients).
@@ -207,7 +245,10 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
         create_account: createAccount,
         create_deal: createDeal,
         deal_name: dealName || undefined,
-        deal_amount: dealAmount ? Number(dealAmount) : undefined,
+        // BMW never books a rupee amount — omit it so the backend derives the
+        // deal value from the line items (volume_kg × product). Other tenants
+        // keep sending the (possibly auto-summed) amount.
+        deal_amount: isBmw ? undefined : (dealAmount ? Number(dealAmount) : undefined),
         deal_line_items: allowWeight && lineItems.length > 0 ? lineItems : undefined,
       } as any);
       toast.success('Lead converted successfully');
@@ -288,7 +329,7 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
                           style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: lines.length === 1 ? 'not-allowed' : 'pointer', opacity: lines.length === 1 ? 0.4 : 1 }}
                         >✕ Remove</button>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${isBmw ? 2 : 3}, 1fr)`, gap: 8 }}>
                         <Field label="Pieces">
                           <input
                             type="number"
@@ -309,18 +350,21 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
                             style={inputCss}
                           />
                         </Field>
-                        <Field label="Subtotal (₹)">
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={l.subtotal}
-                            onChange={(e) => updateLine(l.rowId, { subtotal: e.target.value, _source: 'subtotal' })}
-                            placeholder="auto"
-                            style={inputCss}
-                          />
-                        </Field>
+                        {/* Subtotal (₹) hidden for BMW — they book volume, never price. */}
+                        {!isBmw && (
+                          <Field label="Subtotal (₹)">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={l.subtotal}
+                              onChange={(e) => updateLine(l.rowId, { subtotal: e.target.value, _source: 'subtotal' })}
+                              placeholder="auto"
+                              style={inputCss}
+                            />
+                          </Field>
+                        )}
                       </div>
-                      {rate > 0 && (
+                      {!isBmw && rate > 0 && (
                         <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
                           Rate: ₹{rate.toFixed(2)}/kg · ₹{Number(p?.price ?? 0).toFixed(0)}/piece · {p?.weight_kg} kg/piece
                         </div>
@@ -339,22 +383,44 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
                   <div style={{ display: 'flex', gap: 14, justifyContent: 'space-between', flexWrap: 'wrap', padding: '8px 10px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, color: 'var(--text)' }}>
                     <span><strong>Lines:</strong> {totals.count}</span>
                     <span><strong>Total kg:</strong> {totals.kg.toLocaleString()}</span>
-                    <span><strong>Total ₹:</strong> {totals.amount.toLocaleString()}</span>
+                    {/* Total ₹ hidden for BMW — the booked "value in KG" is the volume total. */}
+                    {!isBmw && <span><strong>Total ₹:</strong> {totals.amount.toLocaleString()}</span>}
                   </div>
                 )}
+
+                {/* BMW Balance summary — interested quantity (from the lead) vs
+                    the volume being booked now. Rendered only when the lead's
+                    interested quantity is known (> 0 kg). */}
+                {isBmw && interestedKg > 0 && (() => {
+                  const bookedKg = totals.kg;
+                  const balanceKg = Math.max(0, interestedKg - bookedKg);
+                  const t = (kg: number) => (kg / 1000).toLocaleString('en-IN', { maximumFractionDigits: 3 });
+                  const k = (kg: number) => Math.round(kg).toLocaleString('en-IN');
+                  return (
+                    <div style={{ padding: '8px 10px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, color: 'var(--text)', lineHeight: 1.6 }}>
+                      <strong>Interested:</strong> {t(interestedKg)} t ({k(interestedKg)} kg) ·{' '}
+                      <strong>Booking now:</strong> {t(bookedKg)} t ({k(bookedKg)} kg) ·{' '}
+                      <strong>Balance:</strong> {t(balanceKg)} t ({k(balanceKg)} kg)
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
-            <Field label={allowWeight && totals.count > 0 ? 'Amount (auto-summed from line items, editable)' : 'Amount (INR)'}>
-              <input
-                value={dealAmount}
-                onChange={(e) => { setDealAmount(e.target.value); setAmountOverridden(true); }}
-                placeholder="0"
-                type="number"
-                step="0.01"
-                style={inputCss}
-              />
-            </Field>
+            {/* Amount (INR) field — hidden entirely for BMW; the rep never sees
+                or enters an amount (the backend derives it from the volume). */}
+            {!isBmw && (
+              <Field label={allowWeight && totals.count > 0 ? 'Amount (auto-summed from line items, editable)' : 'Amount (INR)'}>
+                <input
+                  value={dealAmount}
+                  onChange={(e) => { setDealAmount(e.target.value); setAmountOverridden(true); }}
+                  placeholder="0"
+                  type="number"
+                  step="0.01"
+                  style={inputCss}
+                />
+              </Field>
+            )}
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14, flexWrap: 'wrap' }}>

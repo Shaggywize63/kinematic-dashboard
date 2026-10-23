@@ -53,7 +53,7 @@ function Tile({ label, onClick, children }: { label: string; onClick?: () => voi
 }
 
 export default function KpiStrip({
-  lead, activities, updates, deals, conversations, showScore, narrow, onOpenTab,
+  lead, activities, updates, deals, conversations, showScore, hideWon = false, narrow, onOpenTab,
 }: {
   lead: LifecycleLead;
   activities: DetailActivity[];
@@ -61,6 +61,8 @@ export default function KpiStrip({
   deals: Deal[];
   conversations: ConversationRow[];
   showScore: boolean;
+  /** BMW has no close-as-won flow — drop the "· ₹X won" suffix on the Deals tile. */
+  hideWon?: boolean;
   narrow: boolean;
   onOpenTab: (t: LeadTab) => void;
 }) {
@@ -120,7 +122,7 @@ export default function KpiStrip({
         {deals.length ? formatINR(dealTotal) : 'No deals yet'}
       </div>
       <div style={{ fontSize: 12, color: T.dim }}>
-        {deals.length ? `${deals.length} deal${deals.length > 1 ? 's' : ''}${dealWon ? ` · ${formatINR(dealWon)} won` : ''}` : 'Convert the lead to open one'}
+        {deals.length ? `${deals.length} deal${deals.length > 1 ? 's' : ''}${!hideWon && dealWon ? ` · ${formatINR(dealWon)} won` : ''}` : 'Convert the lead to open one'}
       </div>
     </Tile>,
   );

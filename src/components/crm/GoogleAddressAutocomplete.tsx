@@ -13,6 +13,7 @@
  * key's HTTP-referrer allowlist. No key → renders nothing.
  */
 import { useEffect, useRef, useState } from 'react';
+import { crmPlaces, type PlaceSuggestion } from '../../lib/crmApi';
 
 const KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -40,6 +41,13 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // "Show more suggestions" — the Google-JS-SDK autocomplete above returns only
+  // ~5 predictions. The backend /places/search returns up to 20 (same
+  // { place_id, description } shape); we append them below the Google list when
+  // the rep taps the button.
+  const [wideResults, setWideResults] = useState<PlaceSuggestion[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [showedMore, setShowedMore] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const placesRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,6 +142,9 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
 
   // Debounced suggestion fetch.
   useEffect(() => {
+    // A fresh keystroke invalidates any "show more" results for the old query.
+    setWideResults([]);
+    setShowedMore(false);
     const q = query.trim();
     const places = placesRef.current;
     if (q.length < 3 || !places?.AutocompleteSuggestion) { setSuggestions([]); return; }
@@ -168,32 +179,71 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
     return () => { active = false; clearTimeout(timer); };
   }, [query]);
 
+  // Resolve a Google Place object → fire onSelect with the parsed address.
+  // Shared by both suggestion sources (the JS-SDK predictions and the wider
+  // backend /places/search results, which resolve a Place from their place_id).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const applyPlace = async (place: any, fallbackText: string) => {
+    await place.fetchFields({ fields: ['addressComponents', 'formattedAddress', 'location', 'displayName'] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const comps: any[] = place.addressComponents || [];
+    const get = (type: string) => comps.find((c) => (c.types || []).includes(type))?.longText as string | undefined;
+    const loc = place.location;
+    const lat = loc ? (typeof loc.lat === 'function' ? loc.lat() : loc.lat) : undefined;
+    const lng = loc ? (typeof loc.lng === 'function' ? loc.lng() : loc.lng) : undefined;
+    onSelect({
+      address_line1: place.formattedAddress || place.displayName || fallbackText,
+      city: get('locality') || get('administrative_area_level_3') || get('administrative_area_level_2'),
+      state: get('administrative_area_level_1'),
+      postal_code: get('postal_code'),
+      latitude: typeof lat === 'number' ? lat.toFixed(6) : undefined,
+      longitude: typeof lng === 'number' ? lng.toFixed(6) : undefined,
+    });
+    tokenRef.current = null; // end the billing session
+    setQuery('');
+    setSuggestions([]);
+    setWideResults([]);
+    setShowedMore(false);
+    setOpen(false);
+  };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pick = async (s: any) => {
     try {
       const pred = s.placePrediction;
       if (!pred) return;
-      const place = pred.toPlace();
-      await place.fetchFields({ fields: ['addressComponents', 'formattedAddress', 'location', 'displayName'] });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const comps: any[] = place.addressComponents || [];
-      const get = (type: string) => comps.find((c) => (c.types || []).includes(type))?.longText as string | undefined;
-      const loc = place.location;
-      const lat = loc ? (typeof loc.lat === 'function' ? loc.lat() : loc.lat) : undefined;
-      const lng = loc ? (typeof loc.lng === 'function' ? loc.lng() : loc.lng) : undefined;
-      onSelect({
-        address_line1: place.formattedAddress || place.displayName || (pred.text?.text ?? ''),
-        city: get('locality') || get('administrative_area_level_3') || get('administrative_area_level_2'),
-        state: get('administrative_area_level_1'),
-        postal_code: get('postal_code'),
-        latitude: typeof lat === 'number' ? lat.toFixed(6) : undefined,
-        longitude: typeof lng === 'number' ? lng.toFixed(6) : undefined,
-      });
-      tokenRef.current = null; // end the billing session
-      setQuery('');
-      setSuggestions([]);
-      setOpen(false);
+      await applyPlace(pred.toPlace(), pred.text?.text ?? '');
     } catch { /* ignore a single bad selection */ }
+  };
+
+  // A wider /places/search result carries only { place_id, description }, so we
+  // build a Place from the id (New Places API) and resolve it exactly like a
+  // normal pick — same address parsing, same billing-session teardown.
+  const pickWide = async (r: PlaceSuggestion) => {
+    try {
+      const places = placesRef.current;
+      if (!places?.Place) return;
+      await applyPlace(new places.Place({ id: r.place_id }), r.description);
+    } catch { /* ignore a single bad selection */ }
+  };
+
+  // Fetch the wider result set for the current query via the backend proxy.
+  const fetchMore = async () => {
+    const q = query.trim();
+    if (q.length < 3) return;
+    setLoadingMore(true);
+    try {
+      const bias = biasRef.current;
+      const resp = await crmPlaces.search(q, bias?.lat ?? null, bias?.lng ?? null);
+      setWideResults(resp?.data ?? []);
+      setShowedMore(true);
+      setOpen(true);
+    } catch {
+      setWideResults([]);
+      setShowedMore(true); // keep the panel showing the (empty) state rather than silently doing nothing
+    } finally {
+      setLoadingMore(false);
+    }
   };
 
   if (!KEY) return null;
@@ -212,14 +262,14 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
         data-invalid={err ? 'true' : undefined}
         style={{ height: 36, background: 'var(--field)', border: '1px solid var(--border)', color: 'var(--text)', padding: '0 11px', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box', outline: 'none' }}
       />
-      {open && suggestions.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 50, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 260, overflowY: 'auto', boxShadow: 'var(--shadow-pop)', padding: 4 }}>
+      {open && (suggestions.length > 0 || showedMore) && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 50, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 320, overflowY: 'auto', boxShadow: 'var(--shadow-pop)', padding: 4 }}>
           {suggestions.map((s, i) => {
             const text = s.placePrediction?.text?.text || '';
             if (!text) return null;
             return (
               <div
-                key={i}
+                key={`g-${i}`}
                 onMouseDown={(e) => { e.preventDefault(); pick(s); }}
                 className="km-navrow"
                 style={{ padding: '7px 8px', cursor: 'pointer', fontSize: 13, color: 'var(--text)', borderRadius: 6, lineHeight: 1.4 }}
@@ -228,6 +278,36 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
               </div>
             );
           })}
+          {/* Wider backend results — rendered under the Google list once the rep
+              taps "Show more suggestions". De-duped against the Google texts so
+              the same place doesn't appear twice. */}
+          {showedMore && (() => {
+            const seen = new Set(suggestions.map((s) => (s.placePrediction?.text?.text || '').trim()).filter(Boolean));
+            const extra = wideResults.filter((r) => r.description && !seen.has(r.description.trim()));
+            if (extra.length === 0) {
+              return <div style={{ padding: '7px 8px', fontSize: 12, color: 'var(--text-mute)' }}>No more suggestions.</div>;
+            }
+            return extra.map((r) => (
+              <div
+                key={`w-${r.place_id}`}
+                onMouseDown={(e) => { e.preventDefault(); pickWide(r); }}
+                className="km-navrow"
+                style={{ padding: '7px 8px', cursor: 'pointer', fontSize: 13, color: 'var(--text)', borderRadius: 6, lineHeight: 1.4 }}
+              >
+                {r.description}
+              </div>
+            ));
+          })()}
+          {!showedMore && query.trim().length >= 3 && (
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); void fetchMore(); }}
+              disabled={loadingMore}
+              style={{ width: '100%', marginTop: 4, padding: '7px 8px', background: 'transparent', border: '1px dashed var(--border)', borderRadius: 6, color: 'var(--primary)', fontSize: 12.5, fontWeight: 700, cursor: loadingMore ? 'wait' : 'pointer' }}
+            >
+              {loadingMore ? 'Loading…' : 'Show more suggestions'}
+            </button>
+          )}
         </div>
       )}
       {err

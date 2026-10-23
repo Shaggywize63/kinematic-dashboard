@@ -187,7 +187,7 @@ export default function PipelinePage() {
                                   <span style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     <span style={{ fontFamily: T.mono, fontSize: 11, color: T.mute, marginRight: 6 }}>{String(si + 1).padStart(2, '0')}</span>{s.name}
                                   </span>
-                                  <Badge tone={STAGE_TONE[s.stage_type] ?? 'neutral'} style={{ textTransform: 'capitalize', height: 20, fontSize: 11 }}>{s.stage_type}</Badge>
+                                  <Badge tone={STAGE_TONE[s.stage_type ?? ''] ?? 'neutral'} style={{ textTransform: 'capitalize', height: 20, fontSize: 11 }}>{s.stage_type}</Badge>
                                 </div>
                                 <div style={{ fontSize: 12.5, color: T.dim }}>
                                   <span style={{ fontFamily: T.mono, color: T.text }}>{count}</span> deal{count === 1 ? '' : 's'} · <span style={{ fontFamily: T.mono, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{formatINR(value)}</span>
