@@ -1,7 +1,11 @@
 'use client';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRightLeft, Handshake } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { ArrowRightLeft, Handshake, PackagePlus } from 'lucide-react';
 import type { Deal } from '../../../types/crm';
+import { crmLeads } from '../../../lib/crmApi';
 import { formatINR } from '../../../lib/formatCurrency';
 import UpsellsSection from '../UpsellsSection';
 import { Badge, Button, EmptyState, T, eyebrowStyle, type Tone } from '../../ui';
@@ -10,8 +14,40 @@ import { fmtDate } from './format';
 
 const DEAL_TONE: Record<string, Tone> = { won: 'ok', lost: 'red', open: 'info' };
 
+// kg → a compact tonne label, e.g. 40000 → "40 t", 42500 → "42.5 t".
+const asTonnes = (kg: number) => {
+  const t = kg / 1000;
+  const s = Number.isInteger(t) ? String(t) : t.toFixed(2).replace(/\.?0+$/, '');
+  return `${s} t`;
+};
+
 /** Deals opened from this lead, with a Total / Won / Balance rollup, plus the upsells logged against it. */
-export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon = false }: { leadId: string; deals: Deal[]; canConvert: boolean; onConvert: () => void; hideWon?: boolean }) {
+export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon = false, showFulfillBalance = false }: { leadId: string; deals: Deal[]; canConvert: boolean; onConvert: () => void; hideWon?: boolean; showFulfillBalance?: boolean }) {
+  const router = useRouter();
+  // BMW order balance (interested tonnage − booked). Fetched from the backend so
+  // it is authoritative (sums volume across every deal, not just what's loaded here).
+  const [bal, setBal] = useState<{ interested_kg: number; booked_kg: number; balance_kg: number; has_interest: boolean } | null>(null);
+  const [fulfilling, setFulfilling] = useState(false);
+  useEffect(() => {
+    if (!showFulfillBalance) { setBal(null); return; }
+    let cancelled = false;
+    crmLeads.balance(leadId).then((r) => { if (!cancelled) setBal(r.data ?? null); }).catch(() => { if (!cancelled) setBal(null); });
+    return () => { cancelled = true; };
+  }, [showFulfillBalance, leadId, deals.length]);
+
+  const onFulfill = async () => {
+    setFulfilling(true);
+    try {
+      const r = await crmLeads.fulfillBalance(leadId);
+      const dealId = r.data?.deal_id;
+      toast.success(`Balance deal created for ${asTonnes(r.data?.volume_kg ?? 0)}`);
+      if (dealId) router.push(`/dashboard/crm/deals/${dealId}`);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not create the balance deal');
+    } finally {
+      setFulfilling(false);
+    }
+  };
   // Won deals carry their won amount (the win flow overwrites `amount` with the closed figure), and
   // open deals — including the "(Balance)" deals spawned by partial closes — ARE the outstanding
   // balance, so summing plain `amount` per status is exactly the split we want.
@@ -47,6 +83,22 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon
                 </div>
               ))}
             </div>
+            {showFulfillBalance && bal?.has_interest && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 14px', background: 'var(--s3)', border: `1px solid ${T.border}`, borderRadius: 10, marginBottom: 14 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ ...eyebrowStyle, fontSize: 10 }}>Order balance</div>
+                  <div style={{ marginTop: 3, fontSize: 13, color: T.text }}>
+                    Interested <strong>{asTonnes(bal.interested_kg)}</strong> · Booked <strong>{asTonnes(bal.booked_kg)}</strong> · Balance{' '}
+                    <strong style={{ color: bal.balance_kg > 0 ? T.warn : T.ok }}>{asTonnes(bal.balance_kg)}</strong>
+                  </div>
+                </div>
+                {bal.balance_kg > 0 && (
+                  <Button variant="primary" onClick={onFulfill} disabled={fulfilling} icon={<PackagePlus size={15} strokeWidth={1.8} />}>
+                    {fulfilling ? 'Creating…' : 'Fulfill balance'}
+                  </Button>
+                )}
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {deals.map((d) => (
                 <Link key={d.id} href={`/dashboard/crm/deals/${d.id}`} className="km-navrow" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--s3)', borderRadius: 10, textDecoration: 'none' }}>

@@ -105,6 +105,15 @@ export const crmLeads = {
       `${BASE}/leads/${id}/convert`,
       body
     ),
+  // Steel-dealer (BMW) order balance: the lead's interested volume minus what's
+  // already booked across its deals.
+  balance: (id: string) =>
+    api.get<Wrapped<{ interested_kg: number; booked_kg: number; balance_kg: number; has_interest: boolean }>>(
+      `${BASE}/leads/${id}/balance`),
+  // Spawn an open deal for the remaining (or a smaller requested) balance volume.
+  fulfillBalance: (id: string, body: { volume_kg?: number; deal_name?: string } = {}) =>
+    api.post<Wrapped<{ deal_id: string; volume_kg: number; balance_before_kg: number; balance_remaining_kg: number }>>(
+      `${BASE}/leads/${id}/fulfill-balance`, body),
   bulkAssign: (body: { lead_ids: string[]; owner_id?: string; territory_id?: string }) =>
     api.post<Wrapped<{ updated: number }>>(`${BASE}/leads/bulk-assign`, body),
   // Bulk lat/long backfill for existing leads. Each row matches one lead by

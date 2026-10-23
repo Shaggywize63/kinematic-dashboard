@@ -472,7 +472,7 @@ export default function LeadDetailPage() {
                 onActivitiesChanged={() => { void reload(); }}
               />
             )}
-            {activeTab === 'deals' && <DealsTab leadId={id} deals={deals} canConvert={!isClosed} onConvert={onConvert} hideWon={isBmw} />}
+            {activeTab === 'deals' && <DealsTab leadId={id} deals={deals} canConvert={!isClosed} onConvert={onConvert} hideWon={isBmw} showFulfillBalance={isBmw} />}
             {activeTab === 'insights' && hasInsights && <InsightsTab conversations={conversations} />}
           </div>
         </div>
