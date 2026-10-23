@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { TeamDailyCard } from '../../../../../types/crm';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
+import { getStoredUser } from '../../../../../lib/auth';
+import { isBmwActive } from '../../../../../lib/clientFeatures';
 
 /**
  * Team Daily Activity — per-rep snapshot for the chosen day, sourced
@@ -31,6 +33,8 @@ export default function TeamDailyPage() {
   const [cards, setCards] = useState<TeamDailyCard[]>([]);
   const [loading, setLoading] = useState(true);
   const cityKey = useReportCityKey();
+  // BMW has no close-as-won flow — hide the "Deals won today" tile.
+  const bmwActive = isBmwActive(getStoredUser() as Parameters<typeof isBmwActive>[0]);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,7 +70,7 @@ export default function TeamDailyPage() {
         <Kpi label="Inactive"     value={loading ? '—' : String(inactive)} accent="#ef5350" />
         <Kpi label="Leads today"      value={loading ? '—' : String(totalLeads)}      accent="#A855F7" />
         <Kpi label="Activities today" value={loading ? '—' : String(totalActivities)} accent="#3E9EFF" />
-        <Kpi label="Deals won today"  value={loading ? '—' : String(totalWon)}        accent="#10B981" />
+        {!bmwActive && <Kpi label="Deals won today"  value={loading ? '—' : String(totalWon)}        accent="#10B981" />}
         <Kpi label="Pipeline value"   value={loading ? '—' : fmtNum(totalPipeline)}   accent="#F59E0B" />
       </div>
 

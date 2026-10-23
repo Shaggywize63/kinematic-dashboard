@@ -589,6 +589,17 @@ export const crmLookup = {
 // Phase 2: Products + WhatsApp
 export const crmProductCategories = crud<ProductCategory>(`${BASE}/product-categories`);
 export const crmProducts = crud<Product>(`${BASE}/products`);
+
+// Google Places proxy — the backend fronts the Places API so the key stays
+// server-side. `search` returns a WIDER result set (up to 20) than the
+// Google-JS-SDK autocomplete the address picker normally renders (~5), in the
+// same { place_id, description } shape, powering the "Show more suggestions"
+// affordance. lat/lng bias toward the rep's current location when available.
+export interface PlaceSuggestion { place_id: string; description: string }
+export const crmPlaces = {
+  search: (q: string, lat?: number | null, lng?: number | null) =>
+    api.get<Wrapped<PlaceSuggestion[]>>(`${BASE}/places/search${qs({ q, lat: lat ?? undefined, lng: lng ?? undefined })}`),
+};
 export const crmWhatsappTemplates = crud<WhatsappTemplate>(`${BASE}/whatsapp-templates`);
 
 export const crmWhatsapp = {

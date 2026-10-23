@@ -139,6 +139,9 @@ export interface Pipeline {
 export interface Stage {
   id: string; pipeline_id: string; name: string; position: number;
   default_probability: number; is_won: boolean; is_lost: boolean; color?: string | null;
+  // Backend-classified stage kind ('open' | 'won' | 'lost'). Widely read across
+  // the deal UI (stage progress, kanban, close flow) to decide terminal stages.
+  stage_type?: 'open' | 'won' | 'lost' | string | null;
 }
 
 export interface Deal {

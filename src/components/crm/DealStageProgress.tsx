@@ -13,6 +13,9 @@ interface Props {
   onMove?: (stageId: string) => void;
   /** Called when the "Mark Complete" button is tapped. Promotes to next open stage. */
   onMarkComplete?: () => void;
+  /** Hide the won/lost terminal pills (BMW has no close-as-won/lost flow). The
+   *  current stage is never hidden, so a legacy terminal deal still renders. */
+  hideTerminalStages?: boolean;
 }
 
 /**
@@ -36,6 +39,7 @@ export default function DealStageProgress({
   daysToClose,
   onMove,
   onMarkComplete,
+  hideTerminalStages,
 }: Props) {
   const sorted = useMemo(() => {
     const list = Array.isArray(stages) ? stages.filter(Boolean) : [];
@@ -46,10 +50,13 @@ export default function DealStageProgress({
         if (seen.has(s.id)) continue;
         seen.add(s.id);
       }
+      // Drop won/lost pills when asked (BMW), but never hide the deal's own
+      // current stage — otherwise the breadcrumb would flag "not in pipeline".
+      if (hideTerminalStages && (s?.stage_type === 'won' || s?.stage_type === 'lost') && s?.id !== currentStageId) continue;
       unique.push(s);
     }
     return unique.sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0));
-  }, [stages]);
+  }, [stages, hideTerminalStages, currentStageId]);
 
   const currentIdx = sorted.findIndex((s) => s.id === currentStageId);
   const current = currentIdx >= 0 ? sorted[currentIdx] : null;

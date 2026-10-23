@@ -9,7 +9,7 @@ import Modal from './shared/Modal';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 import { useAuth } from '../../hooks/useAuth';
 import { isHorizonOrg } from '../../lib/crmFeatureGates';
-import { isTataTiscanActive } from '../../lib/clientFeatures';
+import { isTataTiscanActive, isBmwActive } from '../../lib/clientFeatures';
 
 interface Props { deal: Deal; stages: Stage[]; open: boolean; onClose: () => void; onSaved: (updated: Deal) => void; }
 
@@ -49,6 +49,9 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
   // basket. On save the backend re-sizes the deal `amount` from the basket
   // total (custom_fields.estimated_amount) — the rep never types the amount.
   const steelDealer = isTataTiscanActive(user as never);
+  // BMW has no close-as-won/lost — keep terminal stages out of the Stage picker
+  // so a deal can't be moved to Won/Lost from the edit modal either.
+  const isBmw = isBmwActive(user as never);
   // Products are locked once the deal is CLOSED (the backend strips
   // custom_fields.product_lines from won/lost PATCHes), so the basket editor
   // only renders while the deal is still open.
@@ -107,7 +110,12 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
   // pipeline) so the dropdown is never empty. This also fixes the deals-list
   // case where the prop is empty under the "All pipelines" filter.
   const currentPipeline = pipelines.find((p) => p.id === form.pipeline_id);
-  const stageOptions: Stage[] = currentPipeline?.stages ?? stages;
+  const stageOptionsAll: Stage[] = currentPipeline?.stages ?? stages;
+  // Drop Won/Lost stages for BMW, but keep the deal's current stage so the
+  // Select always has a value matching the deal.
+  const stageOptions: Stage[] = isBmw
+    ? stageOptionsAll.filter((s) => ((s as { stage_type?: string }).stage_type !== 'won' && (s as { stage_type?: string }).stage_type !== 'lost') || s.id === form.stage_id)
+    : stageOptionsAll;
   const singlePipeline = pipelines.length === 1;
 
   // Switching pipeline resets the stage to the new pipeline's first OPEN

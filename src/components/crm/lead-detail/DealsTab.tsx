@@ -11,7 +11,7 @@ import { fmtDate } from './format';
 const DEAL_TONE: Record<string, Tone> = { won: 'ok', lost: 'red', open: 'info' };
 
 /** Deals opened from this lead, with a Total / Won / Balance rollup, plus the upsells logged against it. */
-export default function DealsTab({ leadId, deals, canConvert, onConvert }: { leadId: string; deals: Deal[]; canConvert: boolean; onConvert: () => void }) {
+export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon = false }: { leadId: string; deals: Deal[]; canConvert: boolean; onConvert: () => void; hideWon?: boolean }) {
   // Won deals carry their won amount (the win flow overwrites `amount` with the closed figure), and
   // open deals — including the "(Balance)" deals spawned by partial closes — ARE the outstanding
   // balance, so summing plain `amount` per status is exactly the split we want.
@@ -19,7 +19,12 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert }: { lea
   const total = sum(deals);
   const won = sum(deals.filter((d) => d.status === 'won'));
   const balance = sum(deals.filter((d) => d.status === 'open'));
-  const rollup: Array<[string, number, string]> = [['Total', total, T.text], ['Won', won, T.ok], ['Balance', balance, T.warn]];
+  // BMW (hideWon) has no close-as-won flow, so the "Won" rollup column is dropped for them.
+  const rollup: Array<[string, number, string]> = [
+    ['Total', total, T.text],
+    ...(hideWon ? [] : [['Won', won, T.ok] as [string, number, string]]),
+    ['Balance', balance, T.warn],
+  ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
