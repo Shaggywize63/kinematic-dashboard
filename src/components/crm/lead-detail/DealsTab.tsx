@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { ArrowRightLeft, Handshake, PackagePlus } from 'lucide-react';
 import type { Deal } from '../../../types/crm';
 import { crmLeads } from '../../../lib/crmApi';
+import { getStoredUser } from '../../../lib/auth';
+import { isBmwActive } from '../../../lib/clientFeatures';
 import { formatINR } from '../../../lib/formatCurrency';
 import UpsellsSection from '../UpsellsSection';
 import { Badge, Button, EmptyState, T, eyebrowStyle, type Tone } from '../../ui';
@@ -24,6 +26,8 @@ const asTonnes = (kg: number) => {
 /** Deals opened from this lead, with a Total / Won / Balance rollup, plus the upsells logged against it. */
 export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon = false, showFulfillBalance = false }: { leadId: string; deals: Deal[]; canConvert: boolean; onConvert: () => void; hideWon?: boolean; showFulfillBalance?: boolean }) {
   const router = useRouter();
+  // BMW does not use the upsell flow — hide the Upsells section entirely for them.
+  const hideUpsells = isBmwActive(getStoredUser());
   // BMW order balance (interested tonnage − booked). Fetched from the backend so
   // it is authoritative (sums volume across every deal, not just what's loaded here).
   const [bal, setBal] = useState<{ interested_kg: number; booked_kg: number; balance_kg: number; has_interest: boolean } | null>(null);
@@ -38,10 +42,11 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon
   const onFulfill = async () => {
     setFulfilling(true);
     try {
-      const r = await crmLeads.fulfillBalance(leadId);
-      const dealId = r.data?.deal_id;
-      toast.success(`Balance deal created for ${asTonnes(r.data?.volume_kg ?? 0)}`);
-      if (dealId) router.push(`/dashboard/crm/deals/${dealId}`);
+      await crmLeads.fulfillBalance(leadId);
+      // Confirm with a simple popup and send the user to the deals list (not the
+      // freshly-created balance deal) so they return to their working view.
+      toast.success('Balance has been updated');
+      router.push('/dashboard/crm/deals');
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Could not create the balance deal');
     } finally {
@@ -117,7 +122,7 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon
           </>
         )}
       </SectionCard>
-      <UpsellsSection leadId={leadId} />
+      {!hideUpsells && <UpsellsSection leadId={leadId} />}
     </div>
   );
 }

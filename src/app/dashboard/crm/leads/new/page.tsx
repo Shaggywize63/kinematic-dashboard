@@ -857,8 +857,9 @@ export default function NewLeadPage() {
             is extracted and merged into `form` (applyExtracted). No modal — the
             orb + transcript animate in-place. The field-override contract still
             governs what renders + saves. Voice is input only. B2C/B2B scope is
-            passed through so the extractor parses fields for the right lead type. */}
-        <InlineLeadVoiceCapture isB2C={isTata || form.is_b2c} onExtracted={applyExtracted} />
+            passed through so the extractor parses fields for the right lead type.
+            Removed for BMW — no KINI surfaces for that tenant. */}
+        {!isBmw && <InlineLeadVoiceCapture isB2C={isTata || form.is_b2c} onExtracted={applyExtracted} />}
 
         {myTarget && myTarget.target > 0 && (() => {
           const done = myTarget.achieved >= myTarget.target;
@@ -905,7 +906,7 @@ export default function NewLeadPage() {
           )}
         </Section>
 
-        {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked)) && (
+        {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked) || isBmw) && (
           <Section title="Assignment" hint={ownerLocked ? 'Stage and source.' : 'Stage, source and owner. The owner sees this lead in their queue.'}>
             <FormGrid narrow={narrow}>
               {!fields.isHidden('status') && (
@@ -948,6 +949,28 @@ export default function NewLeadPage() {
                   />
                 </Field>
               )}
+              {/* BMW: a dedicated, prominent Follow-up date. Writes into
+                  custom_fields.next_follow_up_date as yyyy-mm-dd (the backend
+                  turns it into the day-of reminder). The same custom-field key
+                  is excluded from the generic CustomFieldsSection render below
+                  for BMW so it isn't shown twice. */}
+              {isBmw && (
+                <Field label="Follow-up date" htmlFor="lead-field-next_follow_up_date">
+                  <Input
+                    id="lead-field-next_follow_up_date"
+                    type="date"
+                    value={typeof form.custom_fields.next_follow_up_date === 'string' ? form.custom_fields.next_follow_up_date : ''}
+                    onChange={(e) => {
+                      const v = e.target.value; // native date input yields yyyy-mm-dd
+                      setForm((f) => {
+                        const cf = { ...f.custom_fields };
+                        if (v) cf.next_follow_up_date = v; else delete cf.next_follow_up_date;
+                        return { ...f, custom_fields: cf };
+                      });
+                    }}
+                  />
+                </Field>
+              )}
             </FormGrid>
           </Section>
         )}
@@ -969,6 +992,9 @@ export default function NewLeadPage() {
                   onChange={(cf) => setForm({ ...form, custom_fields: cf })}
                   onFieldsChange={setCustomFieldDefs}
                   isB2c={form.is_b2c}
+                  // BMW renders next_follow_up_date as a dedicated control in
+                  // the Assignment section, so skip it here to avoid a double render.
+                  excludeKeys={isBmw ? ['next_follow_up_date'] : undefined}
                 />
               </FormGrid>
             </Section>
@@ -1022,6 +1048,9 @@ export default function NewLeadPage() {
                   onChange={(cf) => setForm({ ...form, custom_fields: cf })}
                   onFieldsChange={setCustomFieldDefs}
                   isB2c={form.is_b2c}
+                  // BMW renders next_follow_up_date as a dedicated control in
+                  // the Assignment section, so skip it here to avoid a double render.
+                  excludeKeys={isBmw ? ['next_follow_up_date'] : undefined}
                 />
               </FormGrid>
             </Section>

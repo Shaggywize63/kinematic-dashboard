@@ -722,9 +722,12 @@ export default function DealDetailPage() {
             <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?deal_id=${id}`} /></Card>
           </SafeRender>
 
-          <SafeRender label="upsells">
-            <UpsellsSection dealId={id} />
-          </SafeRender>
+          {/* BMW does not use the upsell flow — hide the Upsells section for them. */}
+          {!isBmw && (
+            <SafeRender label="upsells">
+              <UpsellsSection dealId={id} />
+            </SafeRender>
+          )}
 
           <SafeRender label="history">
             <Card title="History">

@@ -155,9 +155,17 @@ export default function LeadsListPage() {
   // client picker is set to; the Kinematic super-admin — org-level, client_id
   // null — falls through to newest-added, which is what the earlier
   // org-id-based check missed.)
-  const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>(() =>
-    isTataTiscon(getStoredUser()) ? { key: 'recent', order: 'desc' } : { key: 'created', order: 'desc' },
-  );
+  // BMW is in the steel-dealer set (isTataTiscon) but, unlike Tata, works a
+  // fresh-lead queue — so it keeps the universal "Date added (newest)" resting
+  // sort rather than Tata's "most recent activity" default.
+  const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>(() => {
+    const u = getStoredUser();
+    return isBmwActive(u)
+      ? { key: 'created', order: 'desc' }
+      : isTataTiscon(u)
+        ? { key: 'recent', order: 'desc' }
+        : { key: 'created', order: 'desc' };
+  });
   const view = useViewPrefs('leads');
   // BMW removes the AI score entirely — the Score column + its sort are dropped
   // and the score surfaces in the table / card-stack / preview are gated via the
@@ -325,7 +333,9 @@ export default function LeadsListPage() {
           hasPrev: false,
         });
       }
-      if (s.status === 'fulfilled') setSources(s.value.data || []);
+      // Only surface active sources in the filter dropdown — a deactivated
+      // source (e.g. Excel/CSV) must not appear anywhere (all tenants).
+      if (s.status === 'fulfilled') setSources((s.value.data || []).filter((x) => x.is_active !== false));
     } catch (e: any) {
       toast.error(e.message || 'Failed to load leads');
     } finally {
