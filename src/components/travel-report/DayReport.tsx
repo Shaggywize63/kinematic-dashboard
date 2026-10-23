@@ -101,7 +101,7 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
     .filter((i) => i.marker != null && i.at && (i.kind === 'visit' || i.kind === 'halt'))
     .map((i) => ({
       n: i.marker as number, kind: i.kind as 'visit' | 'halt', at: i.at as { lat: number; lng: number },
-      title: i.kind === 'visit' ? `${i.marker}. Visit — ${i.detail}` : `${i.marker}. Halt`,
+      title: i.kind === 'visit' ? `${i.marker}. Visit — ${i.customerName || i.detail}` : `${i.marker}. Halt`,
       lines: [timeRange(i), fmtMinutes(i.minutes)],
     })), [items]);
   const start = useMemo(() => items.find((i) => i.kind === 'checkin')?.at ?? null, [items]);
@@ -266,6 +266,11 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
                           <Badge tone={KIND_TONE[it.kind]}>{it.title}</Badge>
                           {it.openEnd && <Badge tone="info" dot>In progress</Badge>}
                         </div>
+                        {it.customerName && (
+                          <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, marginTop: 4, overflowWrap: 'anywhere' }}>
+                            <span style={{ color: T.mute, fontWeight: 400 }}>Customer: </span>{it.customerName}
+                          </div>
+                        )}
                         {it.detail && <div style={{ fontSize: 12.5, color: T.dim, marginTop: 4, overflowWrap: 'anywhere' }}>{it.detail}</div>}
                       </td>
                       <td style={{ ...td, minWidth: 190 }}>

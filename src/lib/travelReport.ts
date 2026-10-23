@@ -83,6 +83,7 @@ export function readDailyReport(res: unknown): DailyReport | null {
     const p = point(v?.lat, v?.lng);
     return {
       submission_id: String(v?.submission_id ?? `visit-${i}`), label: str(v?.label) || 'Customer Visit',
+      customer_name: str(v?.customer_name),
       arrival_at: String(v?.arrival_at ?? ''), departure_at: String(v?.departure_at ?? ''),
       minutes: num(v?.minutes), lat: p ? p.lat : null, lng: p ? p.lng : null,
     };
@@ -162,6 +163,8 @@ export interface TimelineItem {
   km: number | null;
   title: string;
   detail: string;
+  /** Visits only: the outlet / customer the visit was logged at (null for other kinds, or when unnamed). */
+  customerName: string | null;
   /** Where it happened (for a travel leg: where it started). */
   at: LatLng | null;
   /** Travel legs only: where it ended. */
@@ -196,7 +199,7 @@ export function buildTimeline(report: DailyReport): TimelineItem[] {
   if (report.shift.checkin_at) {
     items.push({
       key: 'checkin', kind: 'checkin', start: report.shift.checkin_at, end: null, openEnd: false, minutes: null, km: null,
-      title: KIND_LABEL.checkin, detail: '',
+      title: KIND_LABEL.checkin, detail: '', customerName: null,
       at: firstLeg?.from?.kind === 'checkin' ? point(firstLeg.from.lat, firstLeg.from.lng) : null, to: null,
     });
   }
@@ -205,27 +208,28 @@ export function buildTimeline(report: DailyReport): TimelineItem[] {
     const suffix = l.method === 'straight_line' ? ' · straight line' : l.method === 'none' ? ' · no location' : '';
     items.push({
       key: `leg-${l.index ?? i}`, kind: 'travel', start: str(l.from?.at), end: open ? null : str(l.to?.at), openEnd: open,
-      minutes: null, km: num(l.km), title: KIND_LABEL.travel, detail: `${pointLabel(l.from)} → ${pointLabel(l.to)}${suffix}`,
+      minutes: null, km: num(l.km), title: KIND_LABEL.travel, detail: `${pointLabel(l.from)} → ${pointLabel(l.to)}${suffix}`, customerName: null,
       at: point(l.from?.lat, l.from?.lng), to: point(l.to?.lat, l.to?.lng),
     });
   });
   report.visits.forEach((v, i) => {
     items.push({
       key: `visit-${v.submission_id}-${i}`, kind: 'visit', start: str(v.arrival_at), end: str(v.departure_at), openEnd: false,
-      minutes: v.minutes, km: null, title: KIND_LABEL.visit, detail: v.label, at: point(v.lat, v.lng), to: null,
+      minutes: v.minutes, km: null, title: KIND_LABEL.visit, detail: v.label, customerName: str(v.customer_name),
+      at: point(v.lat, v.lng), to: null,
     });
   });
   report.halts.forEach((h, i) => {
     items.push({
       key: `halt-${h.index}-${i}`, kind: 'halt', start: str(h.start_at), end: str(h.end_at), openEnd: false,
-      minutes: h.minutes, km: null, title: KIND_LABEL.halt, detail: h.points > 0 ? `${h.points} GPS pings` : '',
+      minutes: h.minutes, km: null, title: KIND_LABEL.halt, detail: h.points > 0 ? `${h.points} GPS pings` : '', customerName: null,
       at: point(h.lat, h.lng), to: null,
     });
   });
   if (report.shift.checkout_at) {
     items.push({
       key: 'checkout', kind: 'checkout', start: report.shift.checkout_at, end: null, openEnd: false, minutes: null, km: null,
-      title: KIND_LABEL.checkout, detail: '',
+      title: KIND_LABEL.checkout, detail: '', customerName: null,
       at: lastLeg?.to?.kind === 'checkout' ? point(lastLeg.to.lat, lastLeg.to.lng) : null, to: null,
     });
   }
@@ -278,7 +282,7 @@ export function timelinePlaces(items: TimelineItem[]): LatLng[] {
 // ── CSV ──────────────────────────────────────────────────────────────────────
 
 export const TIMELINE_CSV_COLUMNS = [
-  '#', 'Date', 'Employee', 'Employee ID', 'Event', 'Start', 'End', 'Minutes', 'Distance (km)', 'Details', 'Place', 'Latitude', 'Longitude',
+  '#', 'Date', 'Employee', 'Employee ID', 'Event', 'Start', 'End', 'Minutes', 'Distance (km)', 'Customer', 'Details', 'Place', 'Latitude', 'Longitude',
 ] as const;
 
 const coord = (n: number) => Number(n.toFixed(6));
@@ -305,6 +309,7 @@ export function timelineCsvRows(
       End: it.openEnd ? 'now' : csvStamp(it.end),
       Minutes: it.minutes ?? '',
       'Distance (km)': it.km == null ? '' : Number(it.km.toFixed(2)),
+      Customer: csvSafe(it.customerName || ''),
       Details: csvSafe(it.detail),
       Place: csvSafe(place),
       Latitude: it.at ? coord(it.at.lat) : '',
