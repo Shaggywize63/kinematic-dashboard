@@ -55,6 +55,11 @@ function DealsListPage() {
   const [totals, setTotals] = useState<{ value: number; volume_kg: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  // Debounced copy of the free-text search, sent to the backend `q` param so
+  // the deals list searches the whole result set server-side (not just the
+  // current page), mirroring the leads list. The live `q` still narrows the
+  // current page instantly for feedback while the debounce settles.
+  const [debouncedQ, setDebouncedQ] = useState('');
   const [status, setStatus] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Inline edit — the deal currently open in the edit modal, launched from
@@ -152,6 +157,8 @@ function DealsListPage() {
         params.limit = pageSize;
         if (status) params.status = status;
         if (pipelineId) params.pipeline_id = pipelineId;
+        // Server-side text search (whole result set, all pages).
+        if (debouncedQ) params.q = debouncedQ;
         // Server-side sort — only in list view; kanban keeps its own order.
         if (sort.key) { params.sort = sort.key; params.order = sort.order; }
       }
@@ -175,16 +182,23 @@ function DealsListPage() {
     finally { setLoading(false); }
   };
 
+  // Debounce the free-text search into debouncedQ (350ms) so the server
+  // isn't hit on every keystroke — same cadence as the leads list.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q.trim()), 350);
+    return () => clearTimeout(t);
+  }, [q]);
+
   useEffect(() => { loadPipelines(); /* eslint-disable-next-line */ }, []);
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
     range.from, range.to, view, pipelineId,
-    page, pageSize, status, sort.key, sort.order,
+    page, pageSize, status, debouncedQ, sort.key, sort.order,
   ]);
 
   // Reset to page 1 whenever the server-side filter set changes,
   // otherwise a stricter filter while on page 5 lands on an empty page.
   useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
-    range.from, range.to, status, pageSize, view, sort.key, sort.order,
+    range.from, range.to, status, debouncedQ, pageSize, view, sort.key, sort.order,
   ]);
 
   useEffect(() => {
@@ -195,9 +209,10 @@ function DealsListPage() {
   const activePipeline = useMemo(() => pipelines.find((p) => p.id === pipelineId) || null, [pipelines, pipelineId]);
   const stages = useMemo(() => (activePipeline?.stages || []).slice().sort((a, b) => a.position - b.position), [activePipeline]);
 
-  // `status` is now server-side so the page+count are correct. `q`
-  // (text search) stays client-side as "find within this page" — the
-  // dashboard doesn't reload on every keystroke.
+  // `status` and the debounced `q` are server-side so the page+count are
+  // correct across the whole result set. The live `q` additionally narrows
+  // the current page instantly (same name/account match the server uses)
+  // for feedback while the 350ms debounce settles.
   const filtered = deals.filter((d) => {
     if (q && !`${d.name} ${d.account_name || ''}`.toLowerCase().includes(q.toLowerCase())) return false;
     return true;

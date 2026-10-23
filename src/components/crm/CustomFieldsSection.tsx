@@ -52,9 +52,14 @@ interface Props {
   // its segment. Undefined (non-lead entities, or a form with no B2C/B2B
   // split) means "no segment filter" — every field shows.
   isB2c?: boolean;
+  // Field keys to skip rendering here because the parent form renders them as
+  // a dedicated control (e.g. BMW surfaces `next_follow_up_date` as a prominent
+  // date input on the create form). Excluded keys are also dropped from the
+  // reported field defs so they don't trip required-field validation twice.
+  excludeKeys?: string[];
 }
 
-export default function CustomFieldsSection({ entity, values, onChange, onFieldsChange, isB2c }: Props) {
+export default function CustomFieldsSection({ entity, values, onChange, onFieldsChange, isB2c, excludeKeys }: Props) {
   const [fields, setFields] = useState<CustomField[]>([]);
   const [loading, setLoading] = useState(true);
   // Keep the latest callback in a ref so the load effect can stay keyed on
@@ -62,6 +67,10 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
   // fetch.
   const onFieldsChangeRef = useRef(onFieldsChange);
   onFieldsChangeRef.current = onFieldsChange;
+  // Keep the exclude set in a ref so the load effect can stay keyed on
+  // [entity, isB2c] — passing a fresh array inline must not retrigger the fetch.
+  const excludeRef = useRef<Set<string>>(new Set(excludeKeys));
+  excludeRef.current = new Set(excludeKeys);
 
   useEffect(() => {
     let cancel = false;
@@ -91,6 +100,9 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
           // gets a multi-row UI with the auto-calculated amount. Skip
           // them here so they don't double-render.
           .filter((f) => entity !== 'lead' || !PRODUCT_LINE_KEYS.includes(f.field_key as typeof PRODUCT_LINE_KEYS[number]))
+          // Keys the parent renders as a dedicated control (e.g. BMW's
+          // next_follow_up_date) are skipped here to avoid a double render.
+          .filter((f) => !excludeRef.current.has(f.field_key))
           // A field with no org_role_ids is universal; otherwise it must list
           // the user's role. Admins/users with no resolved role see universal
           // fields only (role-scoped fields stay with their roles).

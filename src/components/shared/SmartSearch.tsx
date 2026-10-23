@@ -27,6 +27,10 @@ interface Props {
   onClose: () => void;
   navGroups: NavGroupLike[];
   userId?: string;
+  /** BMW has no KINI surfaces — hide the "Ask KINI" hand-off row, the KINI
+   *  empty-state / prompt copy and the "Powered by KINI" footer. Record
+   *  search still works exactly the same. */
+  hideKini?: boolean;
 }
 
 // ── Route + icon maps ────────────────────────────────────────────────
@@ -104,7 +108,7 @@ function navItems(groups: NavGroupLike[]): Array<{ label: string; href: string; 
   return out;
 }
 
-export default function SmartSearch({ open, onClose, navGroups, userId }: Props) {
+export default function SmartSearch({ open, onClose, navGroups, userId, hideKini }: Props) {
   const router = useRouter();
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
@@ -177,10 +181,13 @@ export default function SmartSearch({ open, onClose, navGroups, userId }: Props)
         rows: g.items.map((it) => ({ key: `${g.type}:${it.id}`, kind: 'result', label: it.title, sub: it.subtitle, type: g.type, id: it.id })),
       });
     }
-    // KINI hand-off is always offered (and is the sole action on zero hits).
-    out.push({ rows: [{ key: 'kini', kind: 'kini', label: `Ask KINI about “${query}”`, query }] });
+    // KINI hand-off is normally offered (and is the sole action on zero hits),
+    // but BMW has no KINI surfaces, so it's suppressed there.
+    if (!hideKini) {
+      out.push({ rows: [{ key: 'kini', kind: 'kini', label: `Ask KINI about “${query}”`, query }] });
+    }
     return out;
-  }, [debouncedQ, groups, allNav, recent]);
+  }, [debouncedQ, groups, allNav, recent, hideKini]);
 
   const flatRows = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
 
@@ -313,13 +320,15 @@ export default function SmartSearch({ open, onClose, navGroups, userId }: Props)
 
           {showEmpty && (
             <div style={{ padding: '18px 14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--text-dim)', fontSize: 13, animation: 'fadeIn 0.2s ease both' }}>
-              <KiniMascot size={44} />
-              <span>No records match “{debouncedQ}” — ask KINI, it can answer questions and dig deeper.</span>
+              {!hideKini && <KiniMascot size={44} />}
+              <span>{hideKini ? `No records match “${debouncedQ}”.` : `No records match “${debouncedQ}” — ask KINI, it can answer questions and dig deeper.`}</span>
             </div>
           )}
           {!debouncedQ && recent.length === 0 && (
             <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>
-              Search across leads, deals, contacts, accounts, activities, products &amp; people — or ask KINI anything.
+              {hideKini
+                ? 'Search across leads, deals, contacts, accounts, activities, products & people.'
+                : 'Search across leads, deals, contacts, accounts, activities, products & people — or ask KINI anything.'}
             </div>
           )}
         </div>
@@ -328,9 +337,11 @@ export default function SmartSearch({ open, onClose, navGroups, userId }: Props)
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '8px 14px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-dim)' }}>
           <span><kbd style={kbdStyle}>↑</kbd><kbd style={kbdStyle}>↓</kbd> navigate</span>
           <span><kbd style={kbdStyle}>↵</kbd> open</span>
-          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-            <KiniMascot size={17} /> Powered by KINI
-          </span>
+          {!hideKini && (
+            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+              <KiniMascot size={17} /> Powered by KINI
+            </span>
+          )}
         </div>
       </div>
     </div>

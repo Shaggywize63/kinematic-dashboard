@@ -47,6 +47,8 @@ interface Props {
   user: { name?: string; avatar_url?: string } | null;
   isPlatformAdmin: boolean;
   showClientFilter: boolean;
+  /** BMW has no chat UI — suppress the floating chat launcher for them. */
+  hideChat?: boolean;
 }
 
 /**
@@ -106,7 +108,7 @@ export default function TopBar(p: Props) {
             <Search size={18} strokeWidth={1.6} />
           </IconButton>
         )}
-        {p.token && <ChatLauncher />}
+        {p.token && !p.hideChat && <ChatLauncher />}
         {/* Theme switch stays in Settings on phones — the header has no room. */}
         {!p.isMobile && <ThemeToggle compact />}
         <NotificationBell />

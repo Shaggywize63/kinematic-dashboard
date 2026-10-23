@@ -629,7 +629,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // it's restricted to the Kinematic super admin — no client tenant (BMW,
       // Tata, …) or client-admin should see it. `superAdminOnly` already
       // subsumes the old `hiddenForTata` gate (no super admin is on Tata).
-      { href: '/dashboard/crm/website-chats',    label: 'Website Chats',  icon: 'chatText', module: 'crm_dashboard', superAdminOnly: true },
+      // Also explicitly hidden for BMW (no chat UI) — belt-and-suspenders on top
+      // of superAdminOnly, matching how Pipeline is hidden for BMW.
+      { href: '/dashboard/crm/website-chats',    label: 'Website Chats',  icon: 'chatText', module: 'crm_dashboard', superAdminOnly: true, hiddenForBmw: true },
       // Email alerts + verified senders — the marketing-side email surface.
       // Templates live at the existing /crm/email-templates page; alerts
       // composes them with a verified From + scheduler.
@@ -865,6 +867,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             user={user}
             isPlatformAdmin={isPlatformAdmin}
             showClientFilter={!actingAs?.staging && !hideClientFilter}
+            hideChat={bmwActive}
           />
           <div style={{ padding: isMobile ? '16px 14px 32px' : '24px 32px 40px', flex:1, minWidth:0 }}>
             {/* Impersonation sets acting-as under the hood to scope org/client,
@@ -909,13 +912,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {children}
           </div>
         </main>
-        {token && <KinematicAI token={token} />}
+        {/* KINI AI assistant — removed entirely for BMW (no KINI surfaces). */}
+        {token && !bmwActive && <KinematicAI token={token} />}
         {token && (
           <SmartSearch
             open={searchOpen}
             onClose={() => setSearchOpen(false)}
             navGroups={orderedNavGroups}
             userId={user?.id}
+            hideKini={bmwActive}
           />
         )}
         {editingNav && (
