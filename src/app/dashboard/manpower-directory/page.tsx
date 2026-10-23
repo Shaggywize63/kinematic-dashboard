@@ -165,7 +165,13 @@ export default function ManpowerDirectoryPage() {
     setLoading(true);
     try {
       const qs = selectedClientId ? `&client_id=${selectedClientId}` : '';
-      const [uR,zR,sR,cR, cityR, clR] = await Promise.all([
+      // Load each endpoint independently. A module the client isn't entitled to
+      // (e.g. `zones` / `cities` → 403 "Module not enabled for your account")
+      // must NOT blank the whole directory: only a failure of the primary users
+      // list is fatal, every other call degrades to an empty list. Previously
+      // these ran under Promise.all, so a single 403 rejected the batch and the
+      // page showed zero members for an otherwise-healthy client.
+      const [uR,zR,sR,cR, cityR, clR] = await Promise.allSettled([
         api.get<any>(`/api/v1/users?limit=1000${qs}`),
         api.get<any>(`/api/v1/zones?limit=500${qs}`),
         api.get<any>(`/api/v1/users?role=supervisor&limit=200${qs}`),
@@ -173,6 +179,7 @@ export default function ManpowerDirectoryPage() {
         api.get<any>(`/api/v1/cities?limit=200${qs}`),
         api.get<any>('/api/v1/misc/clients'),
       ]);
+      const val = (r: PromiseSettledResult<any>): any => (r.status === 'fulfilled' ? r.value : null);
       const pick = (r: any): any[] => {
         if (!r) return [];
         if (Array.isArray(r)) return r;
@@ -180,6 +187,10 @@ export default function ManpowerDirectoryPage() {
         if (Array.isArray(r?.data?.data)) return r.data.data;
         return [];
       };
+      // The users list is the only call that must succeed — surface its failure.
+      if (uR.status === 'rejected') {
+        throw new Error(uR.reason?.message || 'Failed to load users');
+      }
       // The "Users" directory lists FIELD STAFF — field executives & supervisors
       // — not the manager/admin tier. Field-force tenants (e.g. ByteBack) put
       // their field reps on the generic 'sub_admin' preset, distinguished from
@@ -188,16 +199,16 @@ export default function ManpowerDirectoryPage() {
       // user scoped to 'own', and never the team/org-wide managers/admins.
       // getUsers scopes rows to the caller's org + client already.
       const FIELD_ROLES = ['executive', 'fe', 'field_executive', 'field-executive', 'supervisor'];
-      setStaff(pick(uR).filter((u:any) => {
+      setStaff(pick(val(uR)).filter((u:any) => {
         const role = (u.role || '').toLowerCase().trim();
         const scope = (u.org_role?.data_scope || '').toLowerCase();
         return FIELD_ROLES.includes(role) || scope === 'own';
       }));
-      setZones(pick(zR));
-      setSups(pick(sR).filter((u:any) => (u.role || '').toLowerCase().trim() === 'supervisor'));
-      setCMs(pick(cR));
-      setCities(pick(cityR).filter((c:any) => c.is_active));
-      setClients(pick(clR));
+      setZones(pick(val(zR)));
+      setSups(pick(val(sR)).filter((u:any) => (u.role || '').toLowerCase().trim() === 'supervisor'));
+      setCMs(pick(val(cR)));
+      setCities(pick(val(cityR)).filter((c:any) => c.is_active));
+      setClients(pick(val(clR)));
       setError('');
     } catch(e:any) { setError(e.message||'Failed to load'); }
     finally { setLoading(false); }
