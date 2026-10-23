@@ -24,10 +24,21 @@ export type GMaps = any;
 
 export const GMAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
+// Pin the language and region of EVERY Google Maps / Geocoder result so every
+// viewer sees the same place names, regardless of their browser or Google-
+// account locale. Without this the SDK answers in the viewer's own language,
+// so the same GPS fix on a travel report came back as "Welfare Association,
+// Sodepur, Panihati" for one admin and a wrong, Vietnamese-script street for
+// another — two people seeing "different locations" for one point. English +
+// India also keep the geocoder's results biased to, and spelled for, where the
+// field force actually works. Overridable for a future non-India deployment.
+export const GMAPS_LANGUAGE = process.env.NEXT_PUBLIC_GOOGLE_MAPS_LANGUAGE || 'en';
+export const GMAPS_REGION = process.env.NEXT_PUBLIC_GOOGLE_MAPS_REGION || 'IN';
+
 function bootstrapMaps(key: string) {
   /* eslint-disable */
   // @ts-ignore — official Google Maps Dynamic Library Import bootstrap
-  ((g:any)=>{let h:any,a:any,k:any,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b:any=window;b=b[c]||(b[c]={});let d=b.maps||(b.maps={}),r=new Set<string>(),e=new URLSearchParams(),u=()=>h||(h=new Promise(async(f:any,n:any)=>{a=m.createElement("script");e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,(t:string)=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=(m.querySelector("script[nonce]") as any)?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f:any,...n:any[])=>r.add(f)&&u().then(()=>d[l](f,...n))})({key,v:"weekly"});
+  ((g:any)=>{let h:any,a:any,k:any,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b:any=window;b=b[c]||(b[c]={});let d=b.maps||(b.maps={}),r=new Set<string>(),e=new URLSearchParams(),u=()=>h||(h=new Promise(async(f:any,n:any)=>{a=m.createElement("script");e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,(t:string)=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=(m.querySelector("script[nonce]") as any)?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f:any,...n:any[])=>r.add(f)&&u().then(()=>d[l](f,...n))})({key,v:"weekly",language:GMAPS_LANGUAGE,region:GMAPS_REGION});
   /* eslint-enable */
 }
 

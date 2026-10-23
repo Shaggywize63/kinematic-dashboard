@@ -335,6 +335,8 @@ export interface AttendanceTravelPoint {
   lat: number | null;
   lng: number | null;
   label: string;
+  /** Place name the SERVER reverse-geocoded for this point (consistent, English/India); absent on older backends. */
+  place?: string | null;
 }
 export interface AttendanceTravelLeg {
   index: number;
@@ -378,6 +380,8 @@ export interface DailyReportVisit {
   minutes: number;
   lat: number | null;
   lng: number | null;
+  /** Server-resolved place name of the visit point (absent on older backends). */
+  place?: string | null;
 }
 /** A halt: the person stayed within ~100 m for the minimum halt time away from a customer. lat/lng = centroid. */
 export interface DailyReportHalt {
@@ -389,6 +393,8 @@ export interface DailyReportHalt {
   lng: number;
   /** How many GPS pings the halt is made of. */
   points: number;
+  /** Server-resolved place name of the halt centroid (absent on older backends). */
+  place?: string | null;
 }
 export interface DailyReportRoutePoint { lat: number; lng: number; at: string }
 export interface DailyReport {
