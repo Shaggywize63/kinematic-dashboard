@@ -68,8 +68,8 @@ export function demoDailyReport(date: string, userId: string, people: DemoPerson
       ],
     },
     visits: [
-      { submission_id: 'demo-s1', label: 'Daily Store Audit', arrival_at: t('10:05'), departure_at: t('10:43'), minutes: 38, lat: a.lat, lng: a.lng },
-      { submission_id: 'demo-s2', label: 'Dealer Visit', arrival_at: t('14:10'), departure_at: t('14:36'), minutes: 26, lat: b.lat, lng: b.lng },
+      { submission_id: 'demo-s1', label: 'Daily Store Audit', customer_name: 'Sri Balaji Traders', arrival_at: t('10:05'), departure_at: t('10:43'), minutes: 38, lat: a.lat, lng: a.lng },
+      { submission_id: 'demo-s2', label: 'Dealer Visit', customer_name: 'Metro Hardware', arrival_at: t('14:10'), departure_at: t('14:36'), minutes: 26, lat: b.lat, lng: b.lng },
     ],
     halts: [{ index: 0, start_at: t('12:30'), end_at: t('12:52'), minutes: 22, lat: halt.lat, lng: halt.lng, points: 6 }],
     route: { points: route, thinned: false },

@@ -348,6 +348,8 @@ export interface AttendanceTravelLeg {
 export interface AttendanceTravelStop {
   submission_id: string;
   label: string;
+  /** The outlet / customer the visit was logged at; null when the submission names none. */
+  customer_name: string | null;
   check_in_at: string;
   check_out_at: string;
   minutes: number;
@@ -375,6 +377,8 @@ export interface AttendanceTravel {
 export interface DailyReportVisit {
   submission_id: string;
   label: string;
+  /** The outlet / customer the visit was logged at; null when the submission names none. */
+  customer_name: string | null;
   arrival_at: string;
   departure_at: string;
   minutes: number;
