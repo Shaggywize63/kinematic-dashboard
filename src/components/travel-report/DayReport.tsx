@@ -20,6 +20,7 @@ import {
 import { fmtClock, fmtMinutes } from '../../lib/visitTime';
 import { Avatar, Badge, Button, Card, EmptyState, Eyebrow, Field, IconButton, Input, T, useIsCompact, type Tone } from '../ui';
 import PlaceText, { knownPlaceName, resolvePlaces } from './PlaceText';
+import { seedPlaceName } from '../../lib/placeName';
 import { shareInflight } from './shareInflight';
 import RouteMap, { type RouteMarker } from './RouteMap';
 import { alertBox, td, tdNum, tdTime, th } from './styles';
@@ -95,7 +96,17 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
   // Refetch when the person or day changes AND when the global client picker changes.
   useEffect(() => { load(); }, [load]);
 
-  const items = useMemo<TimelineItem[]>(() => (report ? buildTimeline(report) : []), [report]);
+  const items = useMemo<TimelineItem[]>(() => {
+    const built = report ? buildTimeline(report) : [];
+    // The server already named each point (once, consistently, in English/India). Seed those names into the
+    // shared place-name cache so every reader — the rows, the CSV, the print view — uses them and the browser
+    // never reverse-geocodes the point itself. Points the server didn't name fall back to the browser lookup.
+    for (const it of built) {
+      if (it.place && it.at) seedPlaceName(it.at.lat, it.at.lng, it.place);
+      if (it.placeTo && it.to) seedPlaceName(it.to.lat, it.to.lng, it.placeTo);
+    }
+    return built;
+  }, [report]);
   const path = useMemo(() => (report ? routePath(report) : []), [report]);
   const markers = useMemo<RouteMarker[]>(() => items
     .filter((i) => i.marker != null && i.at && (i.kind === 'visit' || i.kind === 'halt'))

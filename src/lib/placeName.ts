@@ -105,6 +105,28 @@ export function peekPlaceName(lat?: number | null, lng?: number | null): PlaceNa
   return cache.get(cellKey(lat, lng as number)) ?? null;
 }
 
+/**
+ * Seed the cache with a name resolved elsewhere — the server now reverse-geocodes
+ * each travel-report point ONCE (consistently, in English/India) and ships the
+ * name in the payload. Seeding it here means every reader (the on-screen row, the
+ * CSV, the print view) uses that one name and the browser never geocodes the point
+ * at all. A browser lookup already in the cache is left as-is. `short` defaults to
+ * the first few comma parts of a long formatted address.
+ */
+export function seedPlaceName(lat: number | null | undefined, lng: number | null | undefined, name: string | null | undefined): void {
+  if (!valid(lat, lng)) return;
+  const full = (name || '').trim();
+  if (!full) return;
+  const key = cellKey(lat, lng as number);
+  if (cache.has(key)) return;
+  const short = full.split(',').slice(0, 3).map((s) => s.trim()).filter(Boolean).join(', ') || full;
+  if (cache.size >= CACHE_MAX) {
+    const first = cache.keys().next().value;
+    if (first !== undefined) cache.delete(first);
+  }
+  cache.set(key, { full, short });
+}
+
 export function getPlaceName(lat?: number | null, lng?: number | null): Promise<PlaceName | null> {
   if (!valid(lat, lng)) return Promise.resolve(null);
   const key = cellKey(lat, lng as number);
