@@ -4,6 +4,7 @@ import type { LeadUpdate } from '../../../lib/crmApi';
 import type { FieldHelpers } from '../../../lib/crmFieldOverrides';
 import LeadDetailsPanel from '../LeadDetailsPanel';
 import OwnerAvatar from '../shared/OwnerAvatar';
+import SignedImage, { openSignedUrl } from '../../shared/SignedImage';
 import { renderMentions } from '../../messaging/MentionInput';
 import { Button, T } from '../../ui';
 import ContactCard from './ContactCard';
@@ -67,9 +68,13 @@ export default function OverviewTab({
     add('Discount', 'discount_value');
     add('Final price', 'estimated_final_price', '₹');
     add('Follow-up', 'next_follow_up_date');
+    add('Items shown', 'items_viewed');
     add('Remarks', 'estimate_remarks');
     const other = str('not_purchase_reason_other');
-    return { reason: reason === 'Other' && other ? `Other — ${other}` : reason, details };
+    const photos = Array.isArray(cf.items_viewed_photos)
+      ? (cf.items_viewed_photos as unknown[]).filter((u): u is string => typeof u === 'string' && !!u.trim())
+      : [];
+    return { reason: reason === 'Other' && other ? `Other — ${other}` : reason, details, photos };
   }, [lead.custom_fields]);
 
   return (
@@ -88,6 +93,15 @@ export default function OverviewTab({
                   <div style={{ fontSize: 11, color: T.mute, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</div>
                   <div style={{ fontSize: 13.5, color: T.text, marginTop: 2, overflowWrap: 'anywhere' }}>{value}</div>
                 </div>
+              ))}
+            </div>
+          )}
+          {walkIn.photos.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: walkIn.details.length ? 12 : 0 }}>
+              {walkIn.photos.map((url) => (
+                <a key={url} href={url} onClick={(e) => openSignedUrl(e, url)} target="_blank" rel="noopener noreferrer">
+                  <SignedImage src={url} alt="Item shown" style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 10, border: `1px solid ${T.border}` }} />
+                </a>
               ))}
             </div>
           )}

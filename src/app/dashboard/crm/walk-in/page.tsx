@@ -6,6 +6,7 @@ import { crmLeads, crmAfterSales } from '../../../../lib/crmApi';
 import type { AfterSalesTelecaller } from '../../../../types/crm';
 import { useAuth } from '../../../../hooks/useAuth';
 import { canManageAfterSales } from '../../../../lib/clientFeatures';
+import SignedImage from '../../../../components/shared/SignedImage';
 
 /**
  * Walk-in "Not Purchased" lead capture — the web twin of the Android
@@ -34,6 +35,8 @@ interface WalkInForm {
   visitDate: string;
   marketingEmployee: string;
   storeBranch: string;
+  itemsViewed: string;
+  itemsViewedPhotos: string[];
   goldRate: string;
   totalWeight: string;
   estimateAmount: string;
@@ -50,6 +53,7 @@ interface WalkInForm {
 
 const emptyForm = (): WalkInForm => ({
   name: '', phone: '', location: '', visitDate: '', marketingEmployee: '', storeBranch: '',
+  itemsViewed: '', itemsViewedPhotos: [],
   goldRate: '', totalWeight: '', estimateAmount: '', discountType: 'per_gram', discountValue: '',
   estimatedFinalPrice: '', estimateRemarks: '', notPurchaseReason: '', notPurchaseReasonOther: '',
   nextFollowUpDate: '', assignTelecallerId: '', sendWhatsappReminder: true,
@@ -70,6 +74,9 @@ function buildCustomFields(f: WalkInForm): Record<string, unknown> {
   put('visit_date', f.visitDate);
   put('marketing_employee', f.marketingEmployee);
   put('store_branch', f.storeBranch);
+  put('items_viewed', f.itemsViewed);
+  const photos = f.itemsViewedPhotos.filter((u) => u.trim());
+  if (photos.length) out.items_viewed_photos = photos;
   put('gold_rate', f.goldRate);
   put('total_weight_gm', f.totalWeight);
   put('estimate_amount', f.estimateAmount);
@@ -103,7 +110,39 @@ export default function WalkInLeadPage() {
   const [form, setForm] = useState<WalkInForm>(emptyForm);
   const [telecallers, setTelecallers] = useState<AfterSalesTelecaller[]>([]);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(0);
   const set = <K extends keyof WalkInForm>(k: K, v: WalkInForm[K]) => setForm((p) => ({ ...p, [k]: v }));
+
+  // Upload each picked image via /api/v1/upload/photo (the shared form-photo
+  // endpoint; multer expects field name `photo`) and append the stored URLs to
+  // the form. Stored URLs resolve to a signed URL on display via SignedImage.
+  const uploadPhotos = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+    const orgId = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('kinematic_user') || '{}').org_id || '') : '';
+    for (const file of Array.from(files)) {
+      if (!/^image\//.test(file.type)) { toast.error(`${file.name}: pick an image file`); continue; }
+      if (file.size > 8 * 1024 * 1024) { toast.error(`${file.name}: must be under 8 MB`); continue; }
+      setUploading((n) => n + 1);
+      try {
+        const fd = new FormData();
+        fd.append('photo', file);
+        const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/photo`, {
+          method: 'POST',
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(orgId ? { 'X-Org-Id': orgId } : {}) },
+          body: fd,
+        });
+        const json = await r.json();
+        const url = json?.data?.url || json?.url;
+        if (!url) throw new Error(json?.error || json?.message || 'Upload failed');
+        setForm((p) => ({ ...p, itemsViewedPhotos: [...p.itemsViewedPhotos, url] }));
+      } catch (e: any) {
+        toast.error(e?.message || `${file.name}: upload failed`);
+      } finally {
+        setUploading((n) => Math.max(0, n - 1));
+      }
+    }
+  };
 
   useEffect(() => {
     crmAfterSales.telecallers()
@@ -184,7 +223,37 @@ export default function WalkInLeadPage() {
       </Card>
 
       <Card>
-        <SectionTitle>3. Estimate &amp; Discount Offered</SectionTitle>
+        <SectionTitle>3. Items Viewed / Shown</SectionTitle>
+        <Field label="Items viewed / shown">
+          <textarea style={{ ...inp(), minHeight: 60, resize: 'vertical' }} value={form.itemsViewed} onChange={(e) => set('itemsViewed', e.target.value)} placeholder="e.g. 22K bangles set, diamond pendant" />
+        </Field>
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600, marginBottom: 6 }}>Photos</div>
+          {form.itemsViewedPhotos.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+              {form.itemsViewedPhotos.map((url) => (
+                <div key={url} style={{ position: 'relative' }}>
+                  <SignedImage src={url} alt="Item" style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)' }} />
+                  <button
+                    type="button"
+                    onClick={() => set('itemsViewedPhotos', form.itemsViewedPhotos.filter((u) => u !== url))}
+                    aria-label="Remove photo"
+                    style={{ position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 999, border: 'none', background: '#EF4444', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', lineHeight: '22px', padding: 0 }}
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <label style={{ ...ghostBtn(), display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            {uploading > 0 ? 'Uploading…' : '📷 Add photos'}
+            <input type="file" accept="image/*" multiple style={{ display: 'none' }} disabled={uploading > 0}
+              onChange={(e) => { void uploadPhotos(e.target.files); e.target.value = ''; }} />
+          </label>
+        </div>
+      </Card>
+
+      <Card>
+        <SectionTitle>4. Estimate &amp; Discount Offered</SectionTitle>
         <Grid>
           <Field label="Gold rate (₹/gm)"><input type="number" style={inp()} value={form.goldRate} onChange={(e) => set('goldRate', e.target.value)} /></Field>
           <Field label="Total weight (gm)"><input type="number" style={inp()} value={form.totalWeight} onChange={(e) => set('totalWeight', e.target.value)} /></Field>
@@ -204,7 +273,7 @@ export default function WalkInLeadPage() {
       </Card>
 
       <Card>
-        <SectionTitle>4. Reason for Not Purchasing *</SectionTitle>
+        <SectionTitle>5. Reason for Not Purchasing *</SectionTitle>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {REASONS.map((r) => (
             <Chip key={r} selected={form.notPurchaseReason === r} onClick={() => set('notPurchaseReason', r)}>{r}</Chip>
@@ -218,7 +287,7 @@ export default function WalkInLeadPage() {
       </Card>
 
       <Card>
-        <SectionTitle>5. Follow Up Details</SectionTitle>
+        <SectionTitle>6. Follow Up Details</SectionTitle>
         <Grid>
           <Field label="Next follow-up date"><input type="date" style={inp()} value={form.nextFollowUpDate} onChange={(e) => set('nextFollowUpDate', e.target.value)} /></Field>
           <Field label="Assign telecaller *">
