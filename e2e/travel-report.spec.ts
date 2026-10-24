@@ -399,17 +399,17 @@ test.describe('Daily Travel Report — Employee day', () => {
     const { name, csv } = await downloadOf(page, () => page.getByRole('button', { name: 'Export CSV' }).click());
 
     expect(name).toMatch(new RegExp(`^daily-travel-asha-menon-${DATE}-\\d{4}-\\d{2}-\\d{2}\\.csv$`));
-    expect(csv[0]).toEqual(['#', 'Date', 'Employee', 'Employee ID', 'Event', 'Start', 'End', 'Minutes', 'Distance (km)', 'Details', 'Place', 'Latitude', 'Longitude']);
+    expect(csv[0]).toEqual(['#', 'Date', 'Employee', 'Employee ID', 'Event', 'Start', 'End', 'Minutes', 'Distance (km)', 'Customer', 'Details', 'Place', 'Latitude', 'Longitude']);
     const body = csv.slice(1).filter((r) => r.length > 1);
     expect(body.map((r) => r[4])).toEqual(['Check-in', 'Travel', 'Visit', 'Travel', 'Halt', 'Visit', 'Travel', 'Check-out']);
     expect(body.map((r) => r[0])).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
 
-    expect(body[0]).toEqual(['1', DATE, 'Asha Menon', 'E-1', 'Check-in', `${DATE} 09:12`, '', '', '', '', NAME, '13', '80.1']);
-    expect(body[1].slice(4, 10)).toEqual(['Travel', `${DATE} 09:12`, `${DATE} 10:05`, '', '9.1', 'Check-in → Customer Visit']);
-    expect(body[1][10]).toBe(`${NAME} → ${NAME}`);
-    expect(body[2]).toEqual(['3', DATE, 'Asha Menon', 'E-1', 'Visit', `${DATE} 10:05`, `${DATE} 10:23`, '18', '', 'Customer Visit', NAME, '13.05', '80.2']);
-    expect(body[4]).toEqual(['5', DATE, 'Asha Menon', 'E-1', 'Halt', `${DATE} 12:30`, `${DATE} 12:52`, '22', '', '6 GPS pings', NAME, '13.07', '80.23']);
-    expect(body[6].slice(4, 10)).toEqual(['Travel', `${DATE} 14:30`, `${DATE} 18:05`, '', '8', 'Dealer Visit → Check-out · straight line']);
+    expect(body[0]).toEqual(['1', DATE, 'Asha Menon', 'E-1', 'Check-in', `${DATE} 09:12`, '', '', '', '', '', NAME, '13', '80.1']);
+    expect(body[1].slice(4, 11)).toEqual(['Travel', `${DATE} 09:12`, `${DATE} 10:05`, '', '9.1', '', 'Check-in → Customer Visit']);
+    expect(body[1][11]).toBe(`${NAME} → ${NAME}`);
+    expect(body[2]).toEqual(['3', DATE, 'Asha Menon', 'E-1', 'Visit', `${DATE} 10:05`, `${DATE} 10:23`, '18', '', '', 'Customer Visit', NAME, '13.05', '80.2']);
+    expect(body[4]).toEqual(['5', DATE, 'Asha Menon', 'E-1', 'Halt', `${DATE} 12:30`, `${DATE} 12:52`, '22', '', '', '6 GPS pings', NAME, '13.07', '80.23']);
+    expect(body[6].slice(4, 11)).toEqual(['Travel', `${DATE} 14:30`, `${DATE} 18:05`, '', '8', '', 'Dealer Visit → Check-out · straight line']);
   });
 
   test('"Print / Save as PDF" names every row first, then calls window.print()', async ({ page }) => {
