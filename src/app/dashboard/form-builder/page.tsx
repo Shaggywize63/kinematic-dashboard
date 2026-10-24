@@ -921,6 +921,15 @@ function PropertiesPanel({ q, allQs, onChange, onDelete }:{ q:BQuestion; allQs:B
       </div>
 
       <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:14, flex:1 }}>
+        {/* Field type — change the input type after adding (e.g. fix an accidental pick)
+            without deleting and re-creating the field. Persists via the same PATCH. */}
+        <div>
+          <label style={{ fontSize:11, color:C.gray, display:'block', marginBottom:5 }}>Field Type</label>
+          <select style={{ ...inpStyle, appearance:'none' as any }} value={q.qtype}
+            onChange={e => onChange({ ...q, qtype:e.target.value })}>
+            {ALL_TYPES.map(t => <option key={t.type} value={t.type}>{t.icon}  {t.label}</option>)}
+          </select>
+        </div>
         {/* Label */}
         <div>
           <label style={{ fontSize:11, color:C.gray, display:'block', marginBottom:5 }}>Question Label</label>
