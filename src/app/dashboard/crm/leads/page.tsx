@@ -8,7 +8,7 @@ import api, { EXPORT_TIMEOUT_MS, getRequestClientId } from '../../../../lib/api'
 import { downloadBlob } from '../../../../lib/financeFormat';
 import { getStoredUser } from '../../../../lib/auth';
 import { useLeadOwnerAccess } from '../../../../lib/leadOwnerAccess';
-import { isTataTiscon, canViewTelecallerReport, isBmwActive } from '../../../../lib/clientFeatures';
+import { isTataTiscon, canViewTelecallerReport, isBmwActive, isWalkInExecutive } from '../../../../lib/clientFeatures';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../lib/crmFieldOverrides';
 import { activeFilterCount, leadFilterParams, type ApprovalFilter } from '../../../../lib/crm/leadListParams';
@@ -171,6 +171,12 @@ export default function LeadsListPage() {
   // and the score surfaces in the table / card-stack / preview are gated via the
   // wrapped fieldHelpers below.
   const isBmw = useMemo(() => isBmwActive(getStoredUser()), []);
+  // A Walk-in Executive captures via the walk-in "Not Purchased" form only, so
+  // their "New lead" buttons point there instead of the standard lead form.
+  const newLeadHref = useMemo(
+    () => (isWalkInExecutive(getStoredUser()) ? '/dashboard/crm/walk-in' : '/dashboard/crm/leads/new'),
+    [],
+  );
   const hiddenSet = useMemo(() => {
     const s = new Set(view.prefs.hidden);
     if (isBmw) s.add('score');
@@ -638,7 +644,7 @@ export default function LeadsListPage() {
       ) : (
         <Button href="/dashboard/crm/leads/import" icon={<Upload size={16} strokeWidth={1.8} />}>Import</Button>
       )}
-      <Button href="/dashboard/crm/leads/new" variant="primary" icon={<Plus size={16} strokeWidth={2} />}>New lead</Button>
+      <Button href={newLeadHref} variant="primary" icon={<Plus size={16} strokeWidth={2} />}>New lead</Button>
     </>
   );
 
@@ -920,7 +926,7 @@ export default function LeadsListPage() {
           primary action is always one tap away regardless of scroll position. */}
       {isCompact && (
         <Link
-          href="/dashboard/crm/leads/new"
+          href={newLeadHref}
           aria-label="New lead"
           style={{
             position: 'fixed', right: 18, bottom: 84, zIndex: 50,

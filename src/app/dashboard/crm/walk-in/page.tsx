@@ -2,10 +2,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmAfterSales } from '../../../../lib/crmApi';
+import { crmLeads } from '../../../../lib/crmApi';
 import type { AfterSalesTelecaller } from '../../../../types/crm';
 import { useAuth } from '../../../../hooks/useAuth';
-import { canManageAfterSales } from '../../../../lib/clientFeatures';
+import { isWalkInExecutive } from '../../../../lib/clientFeatures';
 import SignedImage from '../../../../components/shared/SignedImage';
 
 /**
@@ -105,7 +105,7 @@ export default function WalkInLeadPage() {
   // Resolve the tenant gate after mount (reads the super-admin client picker off
   // localStorage, SSR-unsafe). Starting null avoids a hydration flash.
   const [allowed, setAllowed] = useState<boolean | null>(null);
-  useEffect(() => { setAllowed(canManageAfterSales(user as any)); }, [user]);
+  useEffect(() => { setAllowed(isWalkInExecutive(user as any)); }, [user]);
 
   const [form, setForm] = useState<WalkInForm>(emptyForm);
   const [telecallers, setTelecallers] = useState<AfterSalesTelecaller[]>([]);
@@ -145,7 +145,7 @@ export default function WalkInLeadPage() {
   };
 
   useEffect(() => {
-    crmAfterSales.telecallers()
+    crmLeads.telecallers()
       .then((r) => setTelecallers(r.data))
       .catch(() => { /* picker just stays empty; validation blocks save */ });
   }, []);

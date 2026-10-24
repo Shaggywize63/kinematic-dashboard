@@ -16,7 +16,8 @@ import { InlineLeadVoiceCapture } from '../../../../../components/crm/VoiceCaptu
 import ClientScopeField from '../../../../../components/ClientScopeField';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides, type FieldScope } from '../../../../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/crmLeadStatuses';
-import { STEEL_DEALER_CLIENT_IDS, BMW_CLIENT_ID } from '../../../../../lib/clientFeatures';
+import { STEEL_DEALER_CLIENT_IDS, BMW_CLIENT_ID, isWalkInExecutive } from '../../../../../lib/clientFeatures';
+import { getStoredUser } from '../../../../../lib/auth';
 import { orderLeadSources } from '../../../../../lib/leadSourceOrder';
 import {
   DEFAULT_LEAD_FORM, extractLeadForm, localDateTimeToIso, offersScheduleVisit, segmentName, segmentToggleLabel, showsAddress,
@@ -101,6 +102,11 @@ const empty: Form = {
 export default function NewLeadPage() {
   const router = useRouter();
   usePageTitle('New lead');
+  // A Walk-in Executive's only lead form is the walk-in "Not Purchased" form,
+  // so bounce them there if they land on the standard lead-create route.
+  useEffect(() => {
+    if (isWalkInExecutive(getStoredUser() as any)) router.replace('/dashboard/crm/walk-in');
+  }, [router]);
   // Two-column grid on desktop, one column below 900px.
   const narrow = useIsCompact(900);
   const [form, setForm] = useState<Form>(empty);

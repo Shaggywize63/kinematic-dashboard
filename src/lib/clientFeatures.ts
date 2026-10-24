@@ -92,6 +92,18 @@ export function isTelecaller(user: AnyUser): boolean {
 }
 
 /**
+ * A "Walk-in Executive" is a dedicated capture user whose ONLY lead form is the
+ * walk-in "Not Purchased" form — the standard lead form is hidden for them, and
+ * no other designation sees the walk-in form. Matched on the org-role
+ * designation (`org_role.name`, normalised) containing "walkin", so an admin
+ * just assigns the "Walk-in Executive" role (with the Leads module) to the user.
+ */
+export function isWalkInExecutive(user: AnyUser): boolean {
+  const name = (user?.org_role?.name ?? user?.org_role_name ?? '').toString().toLowerCase().replace(/[\s_-]+/g, '');
+  return name.includes('walkin');
+}
+
+/**
  * Read the active tenant id the user is operating against — falls back
  * to the user's bound client_id, then to the super-admin client picker
  * value in localStorage. Returns null when none of these resolve.

@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useClient } from '../../../context/ClientContext';
-import { isConsumerChampion, isTataTiscon, isKinematicActive, canViewFieldVisits, canManageAfterSales } from '../../../lib/clientFeatures';
+import { isConsumerChampion, isTataTiscon, isKinematicActive, canViewFieldVisits, canManageAfterSales, isWalkInExecutive } from '../../../lib/clientFeatures';
 
 type CrmLink = {
   href: string;
@@ -22,6 +22,9 @@ type CrmLink = {
   /** Visible ONLY to tenants running the After-Sales calling programme
    *  (canManageAfterSales — Rajkamal today). */
   afterSalesOnly?: boolean;
+  /** Visible ONLY to a Walk-in Executive (the dedicated walk-in capture role);
+   *  no other designation sees the walk-in form. */
+  walkInOnly?: boolean;
 };
 const LINKS: CrmLink[] = [
   { href: '/dashboard/crm/dashboard', label: 'Dashboard' },
@@ -46,9 +49,9 @@ const LINKS: CrmLink[] = [
   // Admin After-Sales Feedback data entry + bulk upload. Shown only for tenants
   // running the after-sales calling programme (Rajkamal today).
   { href: '/dashboard/crm/after-sales', label: 'After-Sales', afterSalesOnly: true },
-  // Walk-in "Not Purchased" lead capture — hands the lead to a telecaller under
-  // the Walk-in category. Same tenant gate as After-Sales (Rajkamal today).
-  { href: '/dashboard/crm/walk-in', label: 'Walk-in', afterSalesOnly: true },
+  // Walk-in "Not Purchased" lead capture — the dedicated Walk-in Executive's
+  // only lead form. Shown ONLY for that role; no other designation sees it.
+  { href: '/dashboard/crm/walk-in', label: 'Walk-in', walkInOnly: true },
   { href: '/dashboard/crm/whatsapp', label: 'WhatsApp' },
   // KINI website-chatbot conversations + the leads they capture. This is the
   // Kinematic platform's own website funnel, so it's visible only to the
@@ -87,6 +90,10 @@ export default function CrmSubNav() {
   // as fieldVisits (Rajkamal today).
   const [afterSales, setAfterSales] = useState(false);
   useEffect(() => { setAfterSales(canManageAfterSales(user as any)); }, [user, selectedClientId]);
+  // Walk-in Executive — resolved after mount (reads the user's org-role), same
+  // SSR-safe pattern as the gates above.
+  const [walkIn, setWalkIn] = useState(false);
+  useEffect(() => { setWalkIn(isWalkInExecutive(user as any)); }, [user, selectedClientId]);
   const visibleLinks = LINKS.filter((l) => {
     if (l.superAdminOnly && !superAdmin) return false;
     if (l.championHidden && champion) return false;
@@ -94,6 +101,7 @@ export default function CrmSubNav() {
     if (l.kinematicHidden && kinematic) return false;
     if (l.fieldVisitsOnly && !fieldVisits) return false;
     if (l.afterSalesOnly && !afterSales) return false;
+    if (l.walkInOnly && !walkIn) return false;
     return true;
   });
 
