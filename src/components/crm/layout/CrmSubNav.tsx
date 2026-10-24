@@ -46,6 +46,9 @@ const LINKS: CrmLink[] = [
   // Admin After-Sales Feedback data entry + bulk upload. Shown only for tenants
   // running the after-sales calling programme (Rajkamal today).
   { href: '/dashboard/crm/after-sales', label: 'After-Sales', afterSalesOnly: true },
+  // Walk-in "Not Purchased" lead capture — hands the lead to a telecaller under
+  // the Walk-in category. Same tenant gate as After-Sales (Rajkamal today).
+  { href: '/dashboard/crm/walk-in', label: 'Walk-in', afterSalesOnly: true },
   { href: '/dashboard/crm/whatsapp', label: 'WhatsApp' },
   // KINI website-chatbot conversations + the leads they capture. This is the
   // Kinematic platform's own website funnel, so it's visible only to the

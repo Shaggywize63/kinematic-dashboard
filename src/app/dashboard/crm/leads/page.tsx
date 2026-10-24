@@ -669,6 +669,7 @@ export default function LeadsListPage() {
               { value: 'General Calls', label: 'General' },
               { value: 'App & DigiGold', label: 'App & DigiGold' },
               { value: 'After-Sales', label: 'After-Sales' },
+              { value: 'Walk-in', label: 'Walk-in' },
             ]}
           />
         </div>
