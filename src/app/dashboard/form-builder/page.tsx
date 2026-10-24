@@ -140,6 +140,7 @@ const FIELD_GROUPS = [
     { type:'file',        icon:'📎',  label:'File Upload'  },
     { type:'signature',   icon:'✍️',  label:'Signature'    },
     { type:'location',    icon:'📍',  label:'Location'     },
+    { type:'card_scan',   icon:'💳',  label:'Card Scan'    },
   ]},
   { label:'Advanced', items:[
     { type:'section_header', icon:'📌', label:'Section'    },
@@ -1099,6 +1100,7 @@ function QuestionCard({ q, qNumber, isSelected, onSelect, onMoveUp, onMoveDown, 
       case 'file':        return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'20px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', gap:10, alignItems:'center', justifyContent:'center' }}><span style={{ fontSize:20 }}>📎</span><div style={{ fontSize:13, fontWeight:600 }}>Click to upload any file</div></div>;
       case 'signature':   return <div style={{ border:`2px solid ${C.border}`, background:C.s4, borderRadius:12, padding:14, height:100, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', color:C.grayd, position:'relative' }}><div style={{ borderBottom:`1.5px dashed ${C.grayd}`, width:'80%', marginBottom:10 }}/><span style={{ fontSize:12 }}>Sign here</span><span style={{ position:'absolute', top:10, right:12, fontSize:16, opacity:0.3 }}>✍️</span></div>;
       case 'location':    return <div style={{ border:`1px solid ${C.border}`, background:`${C.blue}10`, borderRadius:10, padding:'12px 14px', color:C.blue, fontSize:13, display:'flex', alignItems:'center', gap:10 }}><span style={{ fontSize:18 }}>📍</span>GPS Location (Auto-capture)</div>;
+      case 'card_scan':   return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'20px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', flexDirection:'column', gap:6, alignItems:'center' }}><span style={{ fontSize:24 }}>💳</span><div style={{ fontSize:13, fontWeight:600 }}>Scan Visiting Card</div><div style={{ fontSize:11, color:C.grayd }}>Camera · auto-fills contact fields (name, designation, phone, email, company)</div></div>;
       case 'section_header': return null;
       case 'consent':     return <div style={{ background:`${C.blue}08`, border:`1px solid ${C.blue}20`, borderRadius:10, padding:'12px 14px', fontSize:12, color:C.gray, lineHeight:1.6, display:'flex', gap:10, alignItems:'flex-start' }}><input type="checkbox" disabled checked/><div style={{ opacity:0.8 }}>I agree to the terms and data collection consent policy.</div></div>;
       default: return null;
