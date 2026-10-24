@@ -123,6 +123,10 @@ export const crmLeads = {
   // PATCH would strip. Used by the walk-in "Not Purchased" capture flow.
   assignTelecaller: (id: string, body: { telecaller_id: string; campaign?: string | null; follow_up_date?: string | null }) =>
     api.post<Wrapped<Lead>>(`${BASE}/leads/${id}/assign-telecaller`, body),
+  // Telecaller directory for the assign picker. Uses the Leads-module-gated
+  // /crm/telecallers (NOT /crm/after-sales/telecallers, which is admin-only) so
+  // a non-admin capture user (e.g. a Walk-in Executive) can load it.
+  telecallers: () => api.get<Wrapped<AfterSalesTelecaller[]>>(`${BASE}/telecallers`),
   // Bulk lat/long backfill for existing leads. Each row matches one lead by
   // id -> email -> phone (server-side, org-scoped).
   bulkCoordinates: (body: { rows: Array<{ id?: string; email?: string; phone?: string; latitude: number; longitude: number }> }) =>
