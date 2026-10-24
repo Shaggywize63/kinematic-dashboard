@@ -43,8 +43,57 @@ export default function OverviewTab({
   const noteText = latestUpdate?.body ?? lead.latest_update ?? null;
   const noteAt = latestUpdate?.created_at ?? lead.latest_update_at ?? null;
 
+  // Walk-in "Not Purchased" highlight — surfaces the capture reason + key
+  // details at the top of the overview when this is a walk-in lead, mirroring
+  // the Android My Calls WalkInDetailsCard. Reads the shared custom_fields
+  // contract written by the walk-in capture form (web + Android).
+  const walkIn = useMemo(() => {
+    const cf = (lead.custom_fields as Record<string, unknown> | null) ?? {};
+    const str = (k: string): string | null => {
+      const v = cf[k];
+      return typeof v === 'string' && v.trim() ? v.trim() : null;
+    };
+    const isWalkIn = str('campaign') === 'Walk-in' || cf.purchase_status === 'not_purchased' || !!str('not_purchase_reason');
+    if (!isWalkIn) return null;
+    const reason = str('not_purchase_reason');
+    const details: Array<[string, string]> = [];
+    const add = (label: string, k: string, prefix = '') => { const v = str(k); if (v) details.push([label, `${prefix}${v}`]); };
+    add('Visit date', 'visit_date');
+    add('Store branch', 'store_branch');
+    add('Marketing employee', 'marketing_employee');
+    add('Gold rate', 'gold_rate', '₹');
+    add('Total weight', 'total_weight_gm', '');
+    add('Estimate', 'estimate_amount', '₹');
+    add('Discount', 'discount_value');
+    add('Final price', 'estimated_final_price', '₹');
+    add('Follow-up', 'next_follow_up_date');
+    add('Remarks', 'estimate_remarks');
+    const other = str('not_purchase_reason_other');
+    return { reason: reason === 'Other' && other ? `Other — ${other}` : reason, details };
+  }, [lead.custom_fields]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {walkIn && (
+        <SectionCard title="Walk-in · Not purchased" accent={T.red}>
+          {walkIn.reason && (
+            <div style={{ display: 'inline-block', padding: '5px 12px', borderRadius: 999, background: T.redWash, color: T.red, fontSize: 13, fontWeight: 700, marginBottom: walkIn.details.length ? 12 : 0 }}>
+              Reason: {walkIn.reason}
+            </div>
+          )}
+          {walkIn.details.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px 16px' }}>
+              {walkIn.details.map(([label, value]) => (
+                <div key={label}>
+                  <div style={{ fontSize: 11, color: T.mute, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</div>
+                  <div style={{ fontSize: 13.5, color: T.text, marginTop: 2, overflowWrap: 'anywhere' }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      )}
+
       {shown.length > 0 && (
         <SectionCard
           title="Up next"

@@ -116,6 +116,13 @@ export const crmLeads = {
       `${BASE}/leads/${id}/fulfill-balance`, body),
   bulkAssign: (body: { lead_ids: string[]; owner_id?: string; territory_id?: string }) =>
     api.post<Wrapped<{ updated: number }>>(`${BASE}/leads/bulk-assign`, body),
+  // Hand a lead to a telecaller, stamping the calling campaign (so it lands in
+  // that telecaller's My Calls section) and, when a capture-time follow-up date
+  // is given, a telecaller-owned open call so it also shows in their Follow-ups.
+  // The privileged endpoint lets a marketing user set the owner, which a plain
+  // PATCH would strip. Used by the walk-in "Not Purchased" capture flow.
+  assignTelecaller: (id: string, body: { telecaller_id: string; campaign?: string | null; follow_up_date?: string | null }) =>
+    api.post<Wrapped<Lead>>(`${BASE}/leads/${id}/assign-telecaller`, body),
   // Bulk lat/long backfill for existing leads. Each row matches one lead by
   // id -> email -> phone (server-side, org-scoped).
   bulkCoordinates: (body: { rows: Array<{ id?: string; email?: string; phone?: string; latitude: number; longitude: number }> }) =>
