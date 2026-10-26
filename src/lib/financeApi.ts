@@ -2,7 +2,7 @@ import api, { API_BASE_URL } from './api';
 
 const BASE = '/api/v1/finance';
 
-export type Wrapped<T> = { success: boolean; data: T; pagination?: { total: number; page: number; limit: number } };
+export type Wrapped<T> = { success: boolean; data: T; pagination?: { total: number; page: number; limit: number }; totals?: Record<string, number> };
 type Params = Record<string, string | number | boolean | undefined | null>;
 
 const qs = (p?: Params) => {
