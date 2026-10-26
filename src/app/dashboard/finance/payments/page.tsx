@@ -60,6 +60,19 @@ export default function PaymentsPage() {
         <DataTable<PaymentRow> columns={columns} rows={rows} loading={loading}
           empty={filtered ? 'No payments match these filters.' : 'No payments recorded yet. Click “+ Record payment” to add one.'}
           onRowClick={(r) => router.push(`/dashboard/finance/payments/${r.id}`)} />
+        {data?.totals && data.totals.count > 0 && (
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: '12px 14px', borderTop: `1px solid ${T.border}`, background: T.panel }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>
+              {filtered ? 'Total received (filtered)' : 'Total received'}
+            </span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: T.ok, fontVariantNumeric: 'tabular-nums' }}>
+              {inr(data.totals.amount)}
+              <span style={{ fontSize: 12, fontWeight: 500, color: T.mute, marginLeft: 8 }}>
+                across {data.totals.count} {data.totals.count === 1 ? 'payment' : 'payments'}
+              </span>
+            </span>
+          </div>
+        )}
         <Pager page={page} limit={LIMIT} total={data?.pagination?.total ?? rows.length} onPage={setPage} />
       </Card>
     </FinancePage>
