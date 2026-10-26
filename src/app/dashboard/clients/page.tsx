@@ -378,6 +378,9 @@ export default function ClientManagement() {
     }
   };
 
+  // Shared column template for the list header + rows (kept in one place so they stay aligned).
+  const COLS = '1.7fr 1.1fr 1.2fr 130px 112px 172px 150px 182px';
+
   return (
     <div>
       <style>{`@keyframes kspin{to{transform:rotate(360deg)}}`}</style>
@@ -412,14 +415,17 @@ export default function ClientManagement() {
         </button>
       </div>
 
-      {/* Table */}
-      <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.3fr 140px 150px 190px', padding: '12px 20px', borderBottom: `1px solid ${C.border}`, gap: 12 }}>
+      {/* Table (scrolls horizontally on narrow viewports) */}
+      <div style={{ overflowX: 'auto' }}>
+      <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', minWidth: 1180 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: COLS, padding: '12px 20px', borderBottom: `1px solid ${C.border}`, gap: 12 }}>
           {([
             { h: 'Client Name', k: 'name' },
             { h: 'Contact Person', k: 'contact_person' },
             { h: 'Email / Phone', k: 'email' },
             { h: 'Module Access', k: 'modules' },
+            { h: 'Users', k: null },
+            { h: 'Next Payment', k: null },
             { h: 'Trial', k: null },
             { h: 'Actions', k: null },
           ] as { h: string; k: string | null }[]).map(col => (
@@ -443,7 +449,7 @@ export default function ClientManagement() {
           const expanded = expandedId === c.id;
           return (
           <div key={c.id} style={{ borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.3fr 140px 150px 190px', padding: '16px 20px', gap: 12, alignItems: 'center' }}
+            <div style={{ display: 'grid', gridTemplateColumns: COLS, padding: '16px 20px', gap: 12, alignItems: 'center' }}
               onMouseEnter={e => e.currentTarget.style.background = C.s3}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
@@ -461,6 +467,39 @@ export default function ClientManagement() {
                 <div style={{ fontSize: 10, color: C.grayd, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {c.modules?.map(m => MODULES.find(mod => mod.id === m)?.label).filter(Boolean).join(', ') || 'No access granted'}
                 </div>
+              </div>
+              {/* Seat usage: active / allocated (red at or over the cap). */}
+              <div style={{ fontSize: 13 }}>
+                {(() => {
+                  const alloc = (c as { max_active_users?: number | null }).max_active_users ?? null;
+                  const act = (c as { active_users?: number }).active_users ?? 0;
+                  const over = alloc != null && act >= alloc;
+                  return (
+                    <>
+                      <div style={{ fontWeight: 700, color: over ? C.red : C.white, fontVariantNumeric: 'tabular-nums' }}>
+                        {act} <span style={{ color: C.grayd, fontWeight: 600 }}>/ {alloc == null ? '∞' : alloc}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: C.grayd, marginTop: 2 }}>{alloc == null ? 'active' : over ? 'at limit' : 'active'}</div>
+                    </>
+                  );
+                })()}
+              </div>
+              {/* Next payment: the linked finance customer's next unpaid invoice. */}
+              <div style={{ fontSize: 13 }}>
+                {(() => {
+                  const np = (c as { next_payment?: { number?: string; due_date?: string | null; balance?: number } | null }).next_payment;
+                  if (!np) return <span style={{ color: C.grayd }}>—</span>;
+                  const today = new Date().toISOString().slice(0, 10);
+                  const overdue = !!np.due_date && String(np.due_date).slice(0, 10) < today;
+                  return (
+                    <>
+                      <div style={{ fontWeight: 700, color: overdue ? C.red : C.white }}>{np.due_date ? fmtDate(np.due_date) : 'On receipt'}</div>
+                      <div style={{ fontSize: 10, color: C.grayd, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        ₹{Number(np.balance ?? 0).toLocaleString('en-IN')}{np.number ? ` · ${np.number}` : ''}{overdue ? ' · overdue' : ''}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
               {/* Trial end date + status (—) when none set. */}
               <div style={{ fontSize: 13 }}>
@@ -529,6 +568,7 @@ export default function ClientManagement() {
           </div>
           );
         })}
+      </div>
       </div>
 
       {/* Modal */}
