@@ -7,6 +7,7 @@ import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } fro
 import { type AppCustomization } from '../../../lib/appCustomization';
 import AppCustomizationPanel from '../../../components/clients/AppCustomizationPanel';
 import ClientNotificationsPanel from '../../../components/clients/ClientNotificationsPanel';
+import ClientAccountPanel from '../../../components/clients/ClientAccountPanel';
 import AppLayoutEditor from '../../../components/clients/AppLayoutEditor';
 import api, { setActingAs } from '../../../lib/api';
 import { getStoredProjectKey, DEFAULT_PROJECT, setStoredProjectKey } from '../../../lib/projects';
@@ -653,6 +654,17 @@ export default function ClientManagement() {
                   );
                 })()}
               </div>
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
+              <Label t="Account & Billing" />
+              {editing && !provisionMode
+                ? <ClientAccountPanel key={editing.id} clientId={editing.id} />
+                : (
+                  <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}`, fontSize: 12, color: C.grayd }}>
+                    Seat usage (allocated vs active), the next payment date and the welcome / payment-reminder emails appear here once the client exists. Create the client, then reopen it.
+                  </div>
+                )}
             </div>
 
             <div style={{ marginBottom: 28 }}>
