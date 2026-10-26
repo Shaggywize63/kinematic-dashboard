@@ -51,6 +51,7 @@ export default function DocumentList({ type }: { type: 'invoice' | 'quote' }) {
 
   const [rows, setRows] = useState<DocRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [totals, setTotals] = useState<Record<string, number> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -62,9 +63,9 @@ export default function DocumentList({ type }: { type: 'invoice' | 'quote' }) {
     api.list({ status, q: dq, from, to, sort: sort.key, order: sort.dir, page, limit: LIMIT })
       .then((r) => {
         if (id !== reqId.current) return; // a newer request superseded this one
-        setRows(r.data); setTotal(r.pagination?.total ?? r.data.length); setError(null);
+        setRows(r.data); setTotal(r.pagination?.total ?? r.data.length); setTotals(r.totals ?? null); setError(null);
       })
-      .catch((e) => { if (id === reqId.current) { setError(errMsg(e, `Could not load ${noun.toLowerCase()}s`)); setRows([]); setTotal(0); } })
+      .catch((e) => { if (id === reqId.current) { setError(errMsg(e, `Could not load ${noun.toLowerCase()}s`)); setRows([]); setTotal(0); setTotals(null); } })
       .finally(() => { if (id === reqId.current) setLoading(false); });
   }, [api, noun, status, dq, from, to, sort.key, sort.dir, page, reload]);
 
@@ -134,6 +135,20 @@ export default function DocumentList({ type }: { type: 'invoice' | 'quote' }) {
           empty={filtered
             ? `No ${noun.toLowerCase()}s match these filters.`
             : <span>No {noun.toLowerCase()}s yet. <a href={`${base}/new`} onClick={(e) => { e.preventDefault(); router.push(`${base}/new`); }} style={{ color: T.info }}>Create your first {noun.toLowerCase()}</a>{isInvoice && <> or <a href={`${base}/import`} onClick={(e) => { e.preventDefault(); router.push(`${base}/import`); }} style={{ color: T.info }}>import the ones you already issued</a></>}.</span>} />
+        {totals && totals.count > 0 && (
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', padding: '12px 14px', borderTop: `1px solid ${T.border}`, background: T.panel }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>
+              {filtered ? 'Total (filtered)' : 'Total'}
+            </span>
+            <span style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
+              <span style={{ fontSize: 13, color: T.mute }}>{noun}s: <strong style={{ color: T.text }}>{totals.count}</strong></span>
+              <span style={{ fontSize: 13, color: T.mute }}>Amount: <strong style={{ fontSize: 15, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{inr(totals.amount)}</strong></span>
+              {isInvoice && (
+                <span style={{ fontSize: 13, color: T.mute }}>Outstanding: <strong style={{ fontSize: 15, color: totals.balance > 0 ? T.red : T.ok, fontVariantNumeric: 'tabular-nums' }}>{inr(totals.balance)}</strong></span>
+              )}
+            </span>
+          </div>
+        )}
         <Pager page={page} limit={LIMIT} total={total} onPage={setPage} />
       </Card>
       {narrow && <div style={{ fontSize: 12, color: T.mute }}>Tip: scroll the table sideways to see all columns.</div>}
