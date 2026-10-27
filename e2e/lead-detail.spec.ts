@@ -82,8 +82,11 @@ test.describe('Lead detail — structure', () => {
     // Journey: New is behind us, Working is current.
     const journey = page.getByRole('navigation', { name: 'Lead journey' });
     await expect(journey.locator('[aria-current="step"]')).toContainText('Working');
-    // KPI strip: an overdue follow-up is called out, deals are totalled.
-    await expect(page.getByText('Overdue · 1d').first()).toBeVisible();
+    // KPI strip: an overdue follow-up is called out, deals are totalled. The overdue
+    // count is in whole IST calendar days, so the fixed 30h-ago fixture reads "1d" or
+    // "2d" depending on the IST hour CI runs at — match any day count so the assertion
+    // is stable round the clock (it was flaking red on the 00:00–06:00 IST runs).
+    await expect(page.getByText(/Overdue · \d+d/).first()).toBeVisible();
     await expect(page.getByText('₹5,70,000')).toBeVisible();
     // Tabs carry counts; Call insights only exists because there are conversations.
     await expect(page.getByRole('tab', { name: /^Timeline/ })).toContainText('5');
