@@ -6,7 +6,7 @@ import { getStoredUser } from '../../../lib/auth';
 import { getStoredIndustryScope } from '../../../context/IndustryScopeContext';
 import { LowBatteryAlert, LowBatteryFilter } from '../../../components/live-tracking/LowBattery';
 import { Input, Select } from '../../../components/ui';
-import { escapeHtml } from '../../../lib/googleMaps';
+import { escapeHtml, readDocumentTheme } from '../../../lib/googleMaps';
 import { usePlaceName, useSeen, getPlaceName, peekPlaceName, formatLatLng, formatLatLngShort, googleMapsUrl, type PlaceName } from '../../../lib/placeName';
 
 import { trackingPausedMinutes, trackingPausedText } from '../../../lib/trackingPaused';
@@ -207,6 +207,47 @@ const DETAIL_MAP_STYLE: any[] = [
   { featureType: 'transit.station', stylers: [{ visibility: 'on' }] },
 ];
 
+// Light basemap — a quiet positron-style counterpart to DARK_MAP_STYLE, same
+// feature structure so DETAIL derives identically. Chosen by the user via the
+// map's light/dark toggle (defaults to the dashboard theme).
+const LIGHT_MAP_STYLE: any[] = [
+  { elementType: 'geometry', stylers: [{ color: '#eef1f5' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#6b7280' }] },
+  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#cfd6e0' }] },
+  { featureType: 'administrative.country', elementType: 'labels.text.fill', stylers: [{ color: '#70757a' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#3c4043' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#dcebe0' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9aa0a6' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#e6e9ef' }] },
+  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#6b7280' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9ddf0' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#5a7799' }] },
+];
+const LIGHT_DETAIL_MAP_STYLE: any[] = [
+  ...LIGHT_MAP_STYLE.filter((r) => !(r.featureType === 'poi' && !r.elementType)),
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#e6ebe8' }] },
+  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#5b6b7a' }] },
+  { featureType: 'poi', elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'poi', elementType: 'labels.icon', stylers: [{ saturation: -30 }, { lightness: 10 }] },
+  { featureType: 'administrative.neighborhood', elementType: 'labels.text.fill', stylers: [{ color: '#55657d' }] },
+  { featureType: 'administrative.neighborhood', elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#70757a' }] },
+  { featureType: 'transit.station', stylers: [{ visibility: 'on' }] },
+];
+
+type Basemap = 'light' | 'dark';
+// Pick the style array for the current basemap + zoom-detail state, and the
+// ground colour behind the tiles while they load.
+const basemapStyle = (bm: Basemap, detailed: boolean): any[] =>
+  bm === 'light'
+    ? (detailed ? LIGHT_DETAIL_MAP_STYLE : LIGHT_MAP_STYLE)
+    : (detailed ? DETAIL_MAP_STYLE : DARK_MAP_STYLE);
+const basemapGround = (bm: Basemap): string => (bm === 'light' ? '#eef1f5' : '#1b1b1b');
+
 /* ── Atoms ── */
 const Spin = () => (
   <div style={{ width:18, height:18, border:`2px solid ${C.border}`, borderTopColor:C.blue,
@@ -393,7 +434,7 @@ interface PopupEntry { m: any; build: PopupBuild; lat: number; lng: number; kind
 function LiveMap({
   fes, supervisors, outlets, warehouses,
   activeLayers, selectedId, onSelect,
-  mapLoaded, trail, trailColor, fitBottomInset = 0,
+  mapLoaded, trail, trailColor, fitBottomInset = 0, basemap = 'dark',
 }: {
   fes: FELoc[]; supervisors: FELoc[]; outlets: Outlet[]; warehouses: Warehouse[];
   activeLayers: Set<string>; selectedId: string|null; onSelect:(id:string,type:string)=>void;
@@ -403,9 +444,17 @@ function LiveMap({
   /** Pixels at the bottom of the map that a floating card covers, so framing a trail keeps it clear of
    *  the card. Read through a ref: changing it must not rebuild the pins. */
   fitBottomInset?: number;
+  /** Light or dark base map (user toggle). Read through a ref in the once-set
+   *  zoom listener; a dedicated effect restyles the live map when it changes. */
+  basemap?: Basemap;
 }) {
   const insetRef = useRef(fitBottomInset);
   insetRef.current = fitBottomInset;
+  // Current basemap + zoom-detail state, held in refs so the single
+  // zoom_changed listener (set up once at init) always reads the latest.
+  const basemapRef = useRef<Basemap>(basemap);
+  basemapRef.current = basemap;
+  const detailedRef = useRef(false);
   const mapRef   = useRef<HTMLDivElement>(null);
   const mapInst  = useRef<any>(null);
   const infoWin  = useRef<any>(null);
@@ -514,23 +563,32 @@ function LiveMap({
       zoomControl: true,
       zoomControlOptions: { position: g.maps.ControlPosition.RIGHT_BOTTOM },
       clickableIcons: false,
-      backgroundColor: '#1b1b1b',
-      styles: DARK_MAP_STYLE,
+      backgroundColor: basemapGround(basemapRef.current),
+      styles: basemapStyle(basemapRef.current, false),
     });
     infoWin.current = new g.maps.InfoWindow();
     infoWin.current.addListener('closeclick', () => { openPopup.current = null; });
     mapInst.current = map;
     // Swap to the place-name style when the user zooms in to street level (and
     // back out). setOptions only fires when the threshold is actually crossed.
-    let detailed = false;
+    // Reads the current basemap from the ref so a light/dark switch is honoured.
+    detailedRef.current = false;
     map.addListener('zoom_changed', () => {
       const want = (map.getZoom() ?? 0) >= DETAIL_ZOOM;
-      if (want !== detailed) {
-        detailed = want;
-        map.setOptions({ styles: want ? DETAIL_MAP_STYLE : DARK_MAP_STYLE });
+      if (want !== detailedRef.current) {
+        detailedRef.current = want;
+        map.setOptions({ styles: basemapStyle(basemapRef.current, want) });
       }
     });
   }, [mapLoaded]);
+
+  // Restyle the live map when the user flips the light/dark basemap toggle,
+  // preserving the current zoom-detail level.
+  useEffect(() => {
+    const map = mapInst.current;
+    if (!map) return;
+    map.setOptions({ styles: basemapStyle(basemap, detailedRef.current), backgroundColor: basemapGround(basemap) });
+  }, [basemap]);
 
   // Resize handler — when the layout flips between desktop (sidebar+map row)
   // and mobile (sidebar above, map below), the map container changes size.
@@ -644,7 +702,10 @@ function LiveMap({
     ) => {
       const m = new g.maps.Marker({ position: { lat, lng }, map, icon, label, zIndex });
       popups.set(id, { m, build, lat, lng, kind: type, withPlace });
-      m.addListener('click', () => { showPopup(id); onSelect(id, type); });
+      // FEs get the richer bottom detail card on select, so they do NOT also
+      // open the marker InfoWindow (it duplicated the same info). Supervisors,
+      // outlets and warehouses have no bottom card, so they still show it.
+      m.addListener('click', () => { if (type !== 'fe') showPopup(id); onSelect(id, type); });
       markers.current.push(m);
     };
 
@@ -745,11 +806,13 @@ function LiveMap({
     // popup the user already has open follows its marker through the refresh.
     const prev = openPopup.current;
     if (!selectedId) lastAutoOpen.current = null;
-    const isPerson = (k?: string) => k === 'fe' || k === 'supervisor';
-    if (selectedId && isPerson(selEntry?.kind) && lastAutoOpen.current !== selectedId) {
+    // Only supervisors auto-open their InfoWindow on select — FEs are
+    // represented by the bottom detail card instead (no duplicate popup).
+    const autoOpensPopup = (k?: string) => k === 'supervisor';
+    if (selectedId && autoOpensPopup(selEntry?.kind) && lastAutoOpen.current !== selectedId) {
       lastAutoOpen.current = selectedId;
       showPopup(selectedId);
-    } else if (prev && popups.has(prev.id) && (!isPerson(prev.kind) || prev.id === selectedId)) {
+    } else if (prev && popups.has(prev.id) && (!autoOpensPopup(prev.kind) || prev.id === selectedId)) {
       showPopup(prev.id);
     } else {
       infoWin.current?.close();
@@ -899,6 +962,21 @@ export default function LiveTrackingPage() {
   // and the rep card floats over the map instead of pushing it up — it can also be collapsed.
   const [listOpen, setListOpen] = useState(true);
   const [cardMin,  setCardMin]  = useState(false);
+  // Light / dark base map (user toggle). Starts 'dark' (server + first render
+  // match), then on mount resolves to the saved choice, else the app theme.
+  const [basemap,  setBasemap]  = useState<Basemap>('dark');
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('kinematic_live_basemap');
+      if (saved === 'light' || saved === 'dark') { setBasemap(saved); return; }
+    } catch { /* ignore */ }
+    setBasemap(readDocumentTheme());
+  }, []);
+  const toggleBasemap = useCallback(() => setBasemap(prev => {
+    const next: Basemap = prev === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('kinematic_live_basemap', next); } catch { /* ignore */ }
+    return next;
+  }), []);
   const [isFs,     setIsFs]     = useState(false);
   const [canFs,    setCanFs]    = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
@@ -1491,6 +1569,7 @@ export default function LiveTrackingPage() {
                 trail={selectedType === 'fe' ? selectedTrail : undefined}
                 trailColor={'#E01E2C'}
                 fitBottomInset={!isNarrow && selectedType === 'fe' && selectedId && !cardMin ? 230 : 0}
+                basemap={basemap}
               />
 
               {/* Top bar: list toggle + trail download on the left; trail day + fullscreen on the right.
@@ -1546,6 +1625,23 @@ export default function LiveTrackingPage() {
                           outline:'none' }}/>
                     </div>
                   )}
+
+                  <button className="lt-btn" onClick={toggleBasemap}
+                    title={basemap === 'dark' ? 'Switch to light map' : 'Switch to dark map'}
+                    aria-label={basemap === 'dark' ? 'Switch to light map' : 'Switch to dark map'}
+                    style={{ ...overlayBtn, padding:'7px 9px' }}>
+                    {basemap === 'dark' ? (
+                      // Sun — tapping brightens the map
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+                      </svg>
+                    ) : (
+                      // Moon — tapping dims the map
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                      </svg>
+                    )}
+                  </button>
 
                   {canFs && (
                     <button className="lt-btn lt-hide-mobile" onClick={toggleFullscreen}

@@ -77,14 +77,16 @@ test.describe('Live Trailing (stand-in Maps SDK)', () => {
     await expect(quiet).toContainText('tracking paused');
     await expect(fresh).not.toContainText('tracking paused');
 
+    // A field executive is shown in the bottom detail card (the duplicate
+    // marker InfoWindow was removed), so the "Tracking paused" banner lives there.
     await quiet.click();
-    await expect.poll(() => page.evaluate('window.__gm.info.content')).toContain('Tracking paused');
-    const html = await page.evaluate('window.__gm.info.content') as string;
-    expect(html).toMatch(/no location from this phone for 4\d min/);
-    expect(html).toContain('Quiet Rep');
+    const card = page.locator('.lt-detail');
+    await expect(card).toContainText('Quiet Rep');
+    await expect(card).toContainText('Tracking paused');
+    await expect(card).toContainText(/no location from this phone for 4\d min/);
 
     await fresh.click();
-    await expect.poll(() => page.evaluate('window.__gm.info.content')).toContain('Fresh Rep');
-    expect(await page.evaluate('window.__gm.info.content') as string).not.toContain('Tracking paused');
+    await expect(card).toContainText('Fresh Rep');
+    await expect(card).not.toContainText('Tracking paused');
   });
 });
