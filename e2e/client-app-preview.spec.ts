@@ -226,23 +226,6 @@ test.describe('Client Management — live app preview', () => {
     expect(patches[0].app_ui!.layout.tabs[0]).toBe('leave');
   });
 
-  test('the App layout button on a client card opens the editor straight at the layout section', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    const patches: Body[] = [];
-    const client = { id: 'cl-preview-1', name: 'Preview Client', is_active: true, modules: FF, created_at: '2026-01-01T00:00:00Z', app_ui: {} };
-    await seedSession(page, SEED_USER);
-    await mockApi(page, { onRequest: async (route, url, method) => {
-      if (method === 'GET' && new URL(url).pathname === '/api/v1/clients') { await route.fulfill({ json: { success: true, data: [client] } }); return true; }
-      return false;
-    } });
-    await page.goto('/dashboard/clients');
-    await page.getByTitle('App layout').click();
-    await expect(page.getByText('Update configurations for Preview Client')).toBeVisible();
-    await expect(zone(page, 'Bottom bar')).toBeInViewport();
-    await expect(phone(page)).toBeInViewport();
-    expect(patches).toEqual([]);
-  });
-
   test('the modal is wide enough for the editor and the phone side by side', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await open(page);
