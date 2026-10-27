@@ -27,14 +27,18 @@ test.describe('Live Trailing map (stand-in Maps SDK)', () => {
     await expect.poll(() => gm<number>(page, 'window.__gm.markers.length')).toBeGreaterThan(0);
   });
 
-  test('selecting a rep opens a popup with the place name, exact coordinates and a Maps link', async ({ page }) => {
+  test('selecting a rep shows the detail card with the place name, exact coordinates and a Maps link', async ({ page }) => {
+    // A field executive is represented by the bottom detail card (the duplicate
+    // marker InfoWindow was removed), so its place name / coordinates / Maps
+    // link live there — and the map must NOT also pop a marker InfoWindow.
     await page.locator('.lt-row', { hasText: 'Arjun Sharma' }).click();
-    await expect.poll(() => gm<string>(page, 'window.__gm.info.content')).toContain('Koramangala');
-    const html = await gm<string>(page, 'window.__gm.info.content');
-    expect(html).toContain('Plot 7, 80 Feet Rd, Koramangala, Bengaluru');
-    expect(html).toContain('12.935200, 77.624500');
-    expect(html).toContain('Arjun Sharma');
-    expect(html).toContain('google.com/maps?q=12.9352%2C77.6245');
+    const card = page.locator('.lt-detail');
+    await expect(card).toContainText('Arjun Sharma');
+    await expect(card).toContainText('Plot 7, 80 Feet Rd, Koramangala, Bengaluru');
+    await expect(card).toContainText('12.935200, 77.624500');
+    await expect(card.getByRole('link', { name: /Open in Google Maps/ }))
+      .toHaveAttribute('href', /google\.com\/maps\?q=12\.9352%2C77\.6245/);
+    expect(await gm<boolean>(page, '!!window.__gm.info.at')).toBe(false);
   });
 
   test('the sidebar row resolves the short place name', async ({ page }) => {
@@ -74,28 +78,32 @@ test.describe('Live Trailing map (stand-in Maps SDK)', () => {
     expect(await gm<boolean>(page, poiHidden('window.__gm.styles[window.__gm.styles.length - 1]'))).toBe(true);
   });
 
-  test('a data refresh keeps the zoom the user chose and keeps the popup open', async ({ page }) => {
+  test('a data refresh keeps the zoom the user chose and keeps the detail card open', async ({ page }) => {
     await page.locator('.lt-row', { hasText: 'Arjun Sharma' }).click();
-    await expect.poll(() => gm<string>(page, 'window.__gm.info.content')).toContain('Koramangala');
+    await expect(page.locator('.lt-detail')).toBeVisible();
     await expect.poll(() => gm<number>(page, `window.__gm.markers.filter(m => !m.removed && /ping \\d+ of \\d+/.test(m.o.title || '')).length`)).toBeGreaterThan(2);
 
     // The user zooms in to read street names…
     await page.evaluate('window.__gm.map.setZoom(18)');
-    const before = await page.evaluate('({ fit: window.__gm.fit, zooms: window.__gm.zooms.length, opens: window.__gm.opens })') as { fit: number; zooms: number; opens: number };
+    const before = await page.evaluate('({ fit: window.__gm.fit, zooms: window.__gm.zooms.length })') as { fit: number; zooms: number };
 
     // …then the 60s auto-refresh fires (same code path as the Refresh button).
     await page.getByRole('button', { name: /Refresh/ }).click();
-    await expect.poll(() => gm<number>(page, 'window.__gm.opens')).toBeGreaterThan(before.opens); // popup re-opened on the new marker
+    await page.waitForTimeout(600);
 
-    const after = await page.evaluate('({ fit: window.__gm.fit, zooms: window.__gm.zooms.length, zoom: window.__gm.map.zoom, open: !!window.__gm.info.at })') as { fit: number; zooms: number; zoom: number; open: boolean };
+    const after = await page.evaluate('({ fit: window.__gm.fit, zooms: window.__gm.zooms.length, zoom: window.__gm.map.zoom })') as { fit: number; zooms: number; zoom: number };
     expect(after.fit).toBe(before.fit);          // no re-fit of the viewport
     expect(after.zooms).toBe(before.zooms);      // no programmatic zoom change
     expect(after.zoom).toBe(18);                 // the user's zoom survived
-    expect(after.open).toBe(true);               // popup still showing
+    await expect(page.locator('.lt-detail')).toBeVisible(); // the rep card survived the refresh
   });
 
   test('a popup the user closed stays closed through a refresh', async ({ page }) => {
     await page.locator('.lt-row', { hasText: 'Arjun Sharma' }).click();
+    // FEs no longer open a marker InfoWindow — trail-ping dots still do. Open a
+    // ping popup, close it, and confirm the 60s refresh leaves it closed.
+    await expect.poll(() => gm<number>(page, `window.__gm.markers.filter(m => !m.removed && /ping \\d+ of \\d+/.test(m.o.title || '')).length`)).toBeGreaterThan(2);
+    await page.evaluate(`(() => { const p = window.__gm.markers.filter(m => !m.removed && /ping \\d+ of \\d+/.test(m.o.title || '')); p[p.length - 1].fire('click'); })()`);
     await expect.poll(() => gm<boolean>(page, '!!window.__gm.info.at')).toBe(true);
     await page.evaluate("window.__gm.info.at = null; window.__gm.info.fire('closeclick')");
     const opens = await gm<number>(page, 'window.__gm.opens');

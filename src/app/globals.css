@@ -320,6 +320,15 @@ html, body {
 h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01em; }
 .font-mono, code, kbd, samp, pre { font-family: var(--font-jetbrains); }
 
+/* ── "Text size" preference (Settings → Appearance) ──
+   The dashboard sizes text in fixed px via inline styles, so a rem / root
+   font-size change cannot cascade. A CSS `zoom` on the body is the one
+   mechanism that enlarges the WHOLE UI uniformly — chrome, content, and
+   body-portalled modals alike. `data-font-scale` is stamped on <html> by the
+   boot script in layout.tsx; 'normal' (the default) leaves the app untouched. */
+:root[data-font-scale="large"] body  { zoom: 1.12; }
+:root[data-font-scale="xlarge"] body { zoom: 1.25; }
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-l); border-radius: 3px; }

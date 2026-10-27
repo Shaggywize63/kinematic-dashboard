@@ -69,12 +69,18 @@ const themeBootScript = `
     document.documentElement.setAttribute('data-theme', v);
     document.documentElement.style.colorScheme = v;
   }
-  function readLs() {
-    try { return localStorage.getItem('kinematic-theme') || ''; } catch (_) { return ''; }
+  // "Text size" preference. The dashboard sizes text in fixed px, so a root
+  // font-size can't cascade — globals.css turns this attribute into a CSS
+  // zoom that scales the whole UI. 'normal' (default) leaves it untouched.
+  function applyScale(s) {
+    document.documentElement.setAttribute('data-font-scale', (s === 'large' || s === 'xlarge') ? s : 'normal');
   }
-  function readCookie() {
+  function readLs(key) {
+    try { return localStorage.getItem(key) || ''; } catch (_) { return ''; }
+  }
+  function readCookie(key) {
     try {
-      var m = (document.cookie || '').match(/(?:^|; )kinematic-theme=([^;]*)/);
+      var m = (document.cookie || '').match(new RegExp('(?:^|; )' + key + '=([^;]*)'));
       return m ? decodeURIComponent(m[1]) : '';
     } catch (_) { return ''; }
   }
@@ -82,13 +88,17 @@ const themeBootScript = `
   // store, cookie just mirrors it for SSR. If localStorage is empty,
   // fall back to the cookie so an SSR-stamped value isn't undone on
   // hydrate.
-  apply(readLs() || readCookie());
+  function sync() {
+    apply(readLs('kinematic-theme') || readCookie('kinematic-theme'));
+    applyScale(readLs('kinematic-font-scale') || readCookie('kinematic-font-scale'));
+  }
+  sync();
   try {
     window.addEventListener('storage', function(e) {
-      if (e.key === 'kinematic-theme') apply(readLs() || readCookie());
+      if (e.key === 'kinematic-theme' || e.key === 'kinematic-font-scale') sync();
     });
     document.addEventListener('visibilitychange', function() {
-      if (document.visibilityState === 'visible') apply(readLs() || readCookie());
+      if (document.visibilityState === 'visible') sync();
     });
   } catch (_) {}
 })();
@@ -100,8 +110,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // (first ever visit) is deterministic.
   const cookieStore = cookies();
   const cookieTheme = cookieStore.get('kinematic-theme')?.value === 'light' ? 'light' : 'dark';
+  // SSR-stamp the saved text-size so a hard refresh renders at the chosen
+  // scale with no flash (the boot script re-checks localStorage on hydrate).
+  const rawScale = cookieStore.get('kinematic-font-scale')?.value;
+  const cookieScale = rawScale === 'large' || rawScale === 'xlarge' ? rawScale : 'normal';
   return (
-    <html lang="en" data-theme={cookieTheme} style={{ colorScheme: cookieTheme }}>
+    <html lang="en" data-theme={cookieTheme} data-font-scale={cookieScale} style={{ colorScheme: cookieTheme }}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
