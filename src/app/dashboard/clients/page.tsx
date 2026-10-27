@@ -144,6 +144,10 @@ export default function ClientManagement() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
+  // Active / Inactive view. The list is split into two tabs; flipping a client's
+  // status (toggleActive) drops it from the current tab into the other, since
+  // `filtered` re-derives from is_active on every render.
+  const [tab, setTab] = useState<'active' | 'inactive'>('active');
   const [showModal, setShowModal] = useState(false);
   // Section the Edit modal should scroll to once it is open (the App Layout button on a client card sets it).
   const jumpRef = useRef<string | null>(null);
@@ -349,8 +353,12 @@ export default function ClientManagement() {
     });
   };
 
-  const filtered = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || (c.contact_person || '').toLowerCase().includes(search.toLowerCase()));
+  const matchesSearch = (c: Client) => c.name.toLowerCase().includes(search.toLowerCase()) || (c.contact_person || '').toLowerCase().includes(search.toLowerCase());
   const active = clients.filter(c => c.is_active).length;
+  const inactive = clients.length - active;
+  // Split the list by the selected tab. Flipping a client's status moves it to
+  // the other tab automatically (it stops matching this predicate).
+  const filtered = clients.filter(c => (tab === 'active' ? c.is_active : !c.is_active) && matchesSearch(c));
 
   // Type-aware column sorting for the client list (client-side; the full list
   // is already loaded). Sorts by the mapped value per column key.
@@ -417,6 +425,27 @@ export default function ClientManagement() {
         </button>
       </div>
 
+      {/* Active / Inactive tabs — a client flipped inactive drops into the Inactive tab */}
+      <div role="tablist" aria-label="Filter clients by status" style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {([['active', 'Active', active], ['inactive', 'Inactive', inactive]] as const).map(([k, label, count]) => {
+          const on = tab === k;
+          return (
+            <button key={k} role="tab" aria-selected={on} onClick={() => setTab(k)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRadius: 11, cursor: 'pointer',
+                fontSize: 13, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", transition: 'all .15s',
+                border: `1px solid ${on ? (k === 'active' ? 'rgba(0,217,126,0.4)' : C.border) : C.border}`,
+                background: on ? (k === 'active' ? 'rgba(0,217,126,0.12)' : C.s3) : 'transparent',
+                color: on ? (k === 'active' ? C.green : C.white) : C.gray,
+              }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: on ? (k === 'active' ? C.green : C.gray) : C.graydd }} />
+              {label}
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 999, background: on ? 'rgba(255,255,255,0.1)' : C.s3, color: on ? 'inherit' : C.grayd }}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Table — fluid columns, fits the window (no horizontal scroll) */}
       <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: COLS, padding: '12px 20px', borderBottom: `1px solid ${C.border}`, gap: 12 }}>
@@ -441,7 +470,11 @@ export default function ClientManagement() {
           <div style={{ padding: 40, textAlign: 'center', color: C.red, fontSize: 13 }}>{err}</div>
         ) : filtered.length === 0 ? (
           <div style={{ padding: 48, textAlign: 'center', color: C.grayd, fontSize: 13 }}>
-            {search ? 'No clients match your search.' : 'No clients yet. Add your first client to enable multi-tenancy.'}
+            {search
+              ? `No ${tab} clients match your search.`
+              : clients.length === 0
+                ? 'No clients yet. Add your first client to enable multi-tenancy.'
+                : tab === 'active' ? 'No active clients.' : 'No inactive clients.'}
           </div>
         ) : sorted.map((c, i) => {
           const canLogin = user?.role === 'super_admin' && !!(c as { org_id?: string }).org_id;
