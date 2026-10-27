@@ -2,6 +2,7 @@ import * as demo from './demoMocks';
 import { isUUID } from './utils';
 import { getStoredProjectKey, setStoredProjectKey, DEFAULT_PROJECT } from './projects';
 import { SwrStore, TtlCache, type KvStore } from './apiCache';
+import { isCityAwareCrmPath } from './cityScope';
 
 export function resolveApiUrl(): string {
   const url = process.env.NEXT_PUBLIC_API_URL;
@@ -178,34 +179,8 @@ const TTL_OVERRIDES: Array<[RegExp, number]> = [
   [/^\/api\/v1\/live-tracking\b/,                        15_000],
 ];
 
-// CRM endpoints whose backend handler actually filters by city. Anything
-// not on this list (lead-sources, assignment-rules, products, settings,
-// stages, hierarchy, …) goes through the generic list helper, which would
-// blindly `.eq('city', …)` and 500 on tables with no city column.
-const CITY_AWARE_CRM_PREFIXES = [
-  '/api/v1/crm/search',
-  '/api/v1/crm/leads',
-  '/api/v1/crm/contacts',
-  '/api/v1/crm/accounts',
-  '/api/v1/crm/deals',
-  '/api/v1/crm/activities',
-  '/api/v1/crm/tasks',
-  '/api/v1/crm/notes',
-  '/api/v1/crm/reports',
-  '/api/v1/crm/dashboard',
-  '/api/v1/crm/analytics',
-  '/api/v1/crm/lead-analytics',
-];
-
-// Never city-scoped, whatever the list above grows into: the Sales / Collection rupee targets (types, progress,
-// entries, the typed boards) belong to a person, not a city, and the backend does not read `city` on them — a
-// stray `?city=` would only fragment the response cache.
-const NEVER_CITY_SCOPED = ['/api/v1/crm/targets'];
-
-function isCityAwareCrmPath(path: string): boolean {
-  if (NEVER_CITY_SCOPED.some((p) => path === p || path.startsWith(`${p}/`) || path.startsWith(`${p}?`))) return false;
-  return CITY_AWARE_CRM_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`) || path.startsWith(`${p}?`));
-}
+// The CRM city-scope whitelist + isCityAwareCrmPath live in ./cityScope so the
+// routing contract can be unit-tested in isolation (see e2e/city-scope.spec.ts).
 
 function ttlFor(path: string): number {
   for (const [re, ttl] of TTL_OVERRIDES) if (re.test(path)) return ttl;
