@@ -212,6 +212,20 @@ export function SetupModal({ integration, onClose, onChanged }: { integration: T
           </section>
 
           <section>
+            <div style={sectionTitle}>Order status from Tally</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
+              Fetch the Tally state of the orders &amp; invoices you&apos;ve sent (present or cancelled in Tally) and show it on each order — the fetch-back half of two-way order sync.
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button style={primaryBtn} disabled={!health.last_seen_at || busy === 'vouchers'}
+                onClick={() => act('vouchers', () => api.post(`${BASE}/${integration.id}/pull-vouchers`, {}), 'Status pull requested — orders update within a minute')}>
+                {busy === 'vouchers' ? 'Pulling status…' : 'Pull order status from Tally'}
+              </button>
+              {!health.last_seen_at && <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Connect a Tally PC first</span>}
+            </div>
+          </section>
+
+          <section>
             <div style={sectionTitle}>Automatic sending (all off by default)</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {AUTO_OPTIONS.map(o => (
