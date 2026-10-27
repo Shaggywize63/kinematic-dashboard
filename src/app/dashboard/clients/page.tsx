@@ -379,7 +379,9 @@ export default function ClientManagement() {
   };
 
   // Shared column template for the list header + rows (kept in one place so they stay aligned).
-  const COLS = '1.7fr 1.1fr 1.2fr 130px 112px 172px 150px 182px';
+  // All tracks are minmax(0, …fr) so the row always fits the window — it never forces a horizontal
+  // scrollbar; columns share the width and long values truncate with an ellipsis instead.
+  const COLS = 'minmax(0,2.4fr) minmax(0,1.4fr) minmax(0,0.8fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.7fr)';
 
   return (
     <div>
@@ -415,21 +417,18 @@ export default function ClientManagement() {
         </button>
       </div>
 
-      {/* Table (scrolls horizontally on narrow viewports) */}
-      <div style={{ overflowX: 'auto' }}>
-      <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', minWidth: 1180 }}>
+      {/* Table — fluid columns, fits the window (no horizontal scroll) */}
+      <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: COLS, padding: '12px 20px', borderBottom: `1px solid ${C.border}`, gap: 12 }}>
           {([
-            { h: 'Client Name', k: 'name' },
-            { h: 'Contact Person', k: 'contact_person' },
-            { h: 'Email / Phone', k: 'email' },
-            { h: 'Module Access', k: 'modules' },
+            { h: 'Client', k: 'name' },
+            { h: 'Modules', k: 'modules' },
             { h: 'Users', k: null },
             { h: 'Next Payment', k: null },
             { h: 'Trial', k: null },
             { h: 'Actions', k: null },
           ] as { h: string; k: string | null }[]).map(col => (
-            <div key={col.h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+            <div key={col.h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.8px', textTransform: 'uppercase', minWidth: 0, textAlign: col.h === 'Actions' ? 'right' : 'left' }}>
               {col.k
                 ? <SortLabel label={col.h} sortKey={col.k} sort={sort} onToggle={toggle} style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase' }} />
                 : col.h}
@@ -453,23 +452,19 @@ export default function ClientManagement() {
               onMouseEnter={e => e.currentTarget.style.background = C.s3}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: C.white }}>{c.name}</div>
-                <div style={{ fontSize: 11, color: C.grayd, marginTop: 4 }}>ID: {c.id.split('-')[0]}...</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                {c.contact_person && <div style={{ fontSize: 12.5, color: C.gray, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.contact_person}</div>}
+                <div style={{ fontSize: 11.5, color: C.grayd, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[c.email, c.phone].filter(Boolean).join(' · ') || `ID ${c.id.split('-')[0]}…`}</div>
               </div>
-              <div style={{ fontSize: 13, color: C.white }}>{c.contact_person || '—'}</div>
-              <div style={{ fontSize: 13, color: C.gray }}>
-                <div>{c.email || '—'}</div>
-                <div style={{ fontSize: 11, marginTop: 2 }}>{c.phone || ''}</div>
-              </div>
-              <div style={{ padding: '4px 8px', background: c.modules?.length ? 'rgba(62,158,255,0.1)' : 'transparent', border: `1px solid ${c.modules?.length ? 'rgba(62,158,255,0.2)' : 'transparent'}`, borderRadius: 8 }}>
+              <div style={{ minWidth: 0, padding: '4px 8px', background: c.modules?.length ? 'rgba(62,158,255,0.1)' : 'transparent', border: `1px solid ${c.modules?.length ? 'rgba(62,158,255,0.2)' : 'transparent'}`, borderRadius: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: c.modules?.length ? C.blue : C.grayd }}>{c.modules?.length || 0} Modules Assigned</div>
                 <div style={{ fontSize: 10, color: C.grayd, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {c.modules?.map(m => MODULES.find(mod => mod.id === m)?.label).filter(Boolean).join(', ') || 'No access granted'}
                 </div>
               </div>
               {/* Seat usage: active / allocated (red at or over the cap). */}
-              <div style={{ fontSize: 13 }}>
+              <div style={{ fontSize: 13, minWidth: 0 }}>
                 {(() => {
                   const alloc = (c as { max_active_users?: number | null }).max_active_users ?? null;
                   const act = (c as { active_users?: number }).active_users ?? 0;
@@ -485,7 +480,7 @@ export default function ClientManagement() {
                 })()}
               </div>
               {/* Next payment: the linked finance customer's next unpaid invoice. */}
-              <div style={{ fontSize: 13 }}>
+              <div style={{ fontSize: 13, minWidth: 0 }}>
                 {(() => {
                   const np = (c as { next_payment?: { number?: string; due_date?: string | null; balance?: number } | null }).next_payment;
                   if (!np) return <span style={{ color: C.grayd }}>—</span>;
@@ -502,7 +497,7 @@ export default function ClientManagement() {
                 })()}
               </div>
               {/* Trial end date + status (—) when none set. */}
-              <div style={{ fontSize: 13 }}>
+              <div style={{ fontSize: 13, minWidth: 0 }}>
                 {(() => {
                   const t = clientTrial(c);
                   if (!t?.end_date) return <span style={{ color: C.grayd }}>—</span>;
@@ -518,7 +513,7 @@ export default function ClientManagement() {
                   );
                 })()}
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', minWidth: 0 }}>
                 {canLogin && (
                   <button onClick={() => setExpandedId(expanded ? null : c.id)} title="Show environments" style={{ height: 32, padding: '0 12px', border: `1px solid ${C.blue}`, borderRadius: 10, background: 'rgba(62,158,255,0.1)', cursor: 'pointer', color: C.blue, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
                     Envs {expanded ? '▴' : '▾'}
@@ -568,7 +563,6 @@ export default function ClientManagement() {
           </div>
           );
         })}
-      </div>
       </div>
 
       {/* Modal */}
