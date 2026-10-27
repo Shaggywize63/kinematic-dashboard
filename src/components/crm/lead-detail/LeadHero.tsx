@@ -93,14 +93,14 @@ export default function LeadHero(p: LeadHeroProps) {
                 <StatusControl status={lead.status} custom={p.leadStatuses} onChange={p.onStatusChange} />
               )}
               {!fields.isHidden('owner_id') && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                <span data-field="owner_id" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                   <Avatar name={lead.owner_name || '?'} size={20} />
                   <span style={{ color: T.text }}>{`${fields.labelFor('owner_id', 'Owner')}: ${ownerName}`}</span>
                   {p.canAssign && <AssignMenu users={p.users} loading={p.usersLoading} onOpen={p.onLoadUsers} onPick={p.onAssign} />}
                 </span>
               )}
               {!fields.isHidden('source_id') && lead.source_name && (
-                <span>{fields.labelFor('source_id', 'Source')} <span style={{ color: T.text, fontWeight: 600 }}>{lead.source_name}</span></span>
+                <span data-field="source_id">{fields.labelFor('source_id', 'Source')} <span style={{ color: T.text, fontWeight: 600 }}>{lead.source_name}</span></span>
               )}
               <span title={fmtIST(lead.created_at)}>Added <span style={{ color: T.text, fontWeight: 600 }}>{fmtDate(lead.created_at)}</span></span>
             </div>

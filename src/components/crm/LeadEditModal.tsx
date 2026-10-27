@@ -364,7 +364,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
 
         {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked)) && (
           <><SL>Assignment</SL><Grid>
-            {show('status', <SF label={lbl('status', 'Status')} value={form.status} options={leadStatuses ? leadStatuses.map((s) => ({ value: s.value, label: s.label })) : [{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }, { value: 'lost', label: 'Lost' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} />)}
+            {show('status', <div data-field="status" style={{ display: 'contents' }}><SF label={lbl('status', 'Status')} value={form.status} options={leadStatuses ? leadStatuses.map((s) => ({ value: s.value, label: s.label })) : [{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }, { value: 'lost', label: 'Lost' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} /></div>)}
             {/* Lost-reason capture — appears only when the rep is
                 moving the lead into a terminal status that needs an
                 explanation. Free-text for now; analytics rolls up by
@@ -391,7 +391,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             {/* Source — list comes from the active lead-sources catalogue. Empty
                 value clears the FK back to NULL; reps can manage the list under
                 CRM Settings → Lead Sources. */}
-            {show('source_id', <SF label={lbl('source_id', 'Source')} value={form.source_id} options={[{ value: '', label: '— Unspecified —' }, ...orderLeadSources(sources).map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, source_id: v })} />)}
+            {show('source_id', <div data-field="source_id" style={{ display: 'contents' }}><SF label={lbl('source_id', 'Source')} value={form.source_id} options={[{ value: '', label: '— Unspecified —' }, ...orderLeadSources(sources).map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, source_id: v })} /></div>)}
             {/* Owner reassignment — was previously absent from the modal
                 entirely. Hidden when the /users endpoint comes back empty
                 (e.g. client-role users without manpower read access). */}
