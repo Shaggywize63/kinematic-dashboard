@@ -169,7 +169,7 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
     <Modal open={open} onClose={onClose} title="Edit Deal"
       footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <Grid>
-        {!fields.isHidden('name') && <F label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} />}
+        {!fields.isHidden('name') && <div data-field="name" style={{ display: 'contents' }}><F label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} /></div>}
         {/* Amount is never typed directly. On a closed deal it's fixed at
             creation; on an open steel deal it follows the products basket
             below (the backend re-sizes it from the basket total on save). */}
@@ -198,8 +198,8 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
             )}
           </label>
         )}
-        {!fields.isHidden('stage_id') && <SF label={fields.labelFor('stage_id', 'Stage')} value={form.stage_id} options={[{ value: '', label: '—' }, ...stageOptions.map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, stage_id: v })} />}
-        {!fields.isHidden('probability') && <F label={fields.labelFor('probability', 'Probability (%)')} type="number" value={form.probability} onChange={(v) => setForm({ ...form, probability: v })} />}
+        {!fields.isHidden('stage_id') && <div data-field="stage_id" style={{ display: 'contents' }}><SF label={fields.labelFor('stage_id', 'Stage')} value={form.stage_id} options={[{ value: '', label: '—' }, ...stageOptions.map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, stage_id: v })} /></div>}
+        {!fields.isHidden('probability') && <div data-field="probability" style={{ display: 'contents' }}><F label={fields.labelFor('probability', 'Probability (%)')} type="number" value={form.probability} onChange={(v) => setForm({ ...form, probability: v })} /></div>}
         {!fields.isHidden('expected_close_date') && <F label={fields.labelFor('expected_close_date', 'Expected Close')} type="date" value={form.expected_close_date} onChange={(v) => setForm({ ...form, expected_close_date: v })} />}
         {/* Account + primary contact — Horizon only, gated identically to the
             create form. Contacts are scoped to the chosen account. */}
