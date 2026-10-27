@@ -70,10 +70,15 @@ const themeBootScript = `
     document.documentElement.style.colorScheme = v;
   }
   // "Text size" preference. The dashboard sizes text in fixed px, so a root
-  // font-size can't cascade — globals.css turns this attribute into a CSS
-  // zoom that scales the whole UI. 'normal' (default) leaves it untouched.
+  // font-size can't cascade — globals.css turns the --font-zoom factor into a
+  // CSS zoom on <body> that scales the whole UI. Unset ⇒ 1 ⇒ untouched.
+  // Tolerates the first release's named presets ('large' / 'xlarge').
   function applyScale(s) {
-    document.documentElement.setAttribute('data-font-scale', (s === 'large' || s === 'xlarge') ? s : 'normal');
+    var z = 1;
+    if (s === 'large') z = 1.1;
+    else if (s === 'xlarge') z = 1.3;
+    else { var n = parseFloat(s); if (n > 0) z = Math.min(1.5, Math.max(1, Math.round(n * 10) / 10)); }
+    document.documentElement.style.setProperty('--font-zoom', String(z));
   }
   function readLs(key) {
     try { return localStorage.getItem(key) || ''; } catch (_) { return ''; }
@@ -113,9 +118,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // SSR-stamp the saved text-size so a hard refresh renders at the chosen
   // scale with no flash (the boot script re-checks localStorage on hydrate).
   const rawScale = cookieStore.get('kinematic-font-scale')?.value;
-  const cookieScale = rawScale === 'large' || rawScale === 'xlarge' ? rawScale : 'normal';
+  const parsedScale = parseFloat(rawScale || '');
+  const fontZoom = rawScale === 'large' ? 1.1
+    : rawScale === 'xlarge' ? 1.3
+    : Number.isFinite(parsedScale) && parsedScale > 0 ? Math.min(1.5, Math.max(1, Math.round(parsedScale * 10) / 10))
+    : 1;
   return (
-    <html lang="en" data-theme={cookieTheme} data-font-scale={cookieScale} style={{ colorScheme: cookieTheme }}>
+    <html lang="en" data-theme={cookieTheme} style={{ colorScheme: cookieTheme, '--font-zoom': String(fontZoom) } as React.CSSProperties}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
