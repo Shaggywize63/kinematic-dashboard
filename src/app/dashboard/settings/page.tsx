@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { Bot, Building2, MessageCircle, Moon, Network, Plus, Sun, Type, User as UserIcon, Users, X } from 'lucide-react';
+import { Bot, Building2, MessageCircle, Moon, Network, Plus, Sun, User as UserIcon, Users, X } from 'lucide-react';
 import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
 import FieldTrackingCadencePicker from '../../../components/FieldTrackingCadencePicker';
@@ -139,9 +139,6 @@ export default function SettingsPage() {
   // root cause of "random theme changes" admins reported). Default
   // 'dark' is overwritten on mount from localStorage.
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
-  // "Text size" preference. Default 'normal' is overwritten on mount from
-  // localStorage (mirrors the theme control). See applyFontScale below.
-  const [fontScale, setFontScale] = useState<'normal'|'large'|'xlarge'>('normal');
   const [radius, setRadius] = useState(100);
   const [error, setError] = useState('');
 
@@ -194,10 +191,6 @@ export default function SettingsPage() {
       const raw = localStorage.getItem('kinematic-theme');
       setTheme(raw === 'light' ? 'light' : 'dark');
     } catch { setTheme('dark'); }
-    try {
-      const s = localStorage.getItem('kinematic-font-scale');
-      setFontScale(s === 'large' || s === 'xlarge' ? s : 'normal');
-    } catch { setFontScale('normal'); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -216,18 +209,6 @@ export default function SettingsPage() {
     // means it travels on every request to the dashboard.
     try {
       document.cookie = `kinematic-theme=${t}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
-    } catch { /* ignore */ }
-  };
-
-  // Text size — stamps <html data-font-scale> (globals.css turns it into a CSS
-  // zoom that enlarges the whole UI) and persists to localStorage + a 1-year
-  // cookie, exactly like the theme, so it survives reloads with no flash.
-  const applyFontScale = (s: 'normal'|'large'|'xlarge') => {
-    setFontScale(s);
-    if (typeof document !== 'undefined') document.documentElement.setAttribute('data-font-scale', s);
-    try { localStorage.setItem('kinematic-font-scale', s); } catch { /* ignore */ }
-    try {
-      document.cookie = `kinematic-font-scale=${s}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
     } catch { /* ignore */ }
   };
 
@@ -465,18 +446,6 @@ export default function SettingsPage() {
     />
   );
 
-  const fontSizeSwitch = (
-    <Segmented
-      value={fontScale}
-      onChange={applyFontScale}
-      options={[
-        { value: 'normal', label: 'Default' },
-        { value: 'large',  label: 'Large' },
-        { value: 'xlarge', label: 'Larger' },
-      ]}
-    />
-  );
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 40 }}>
       <PageHeader
@@ -490,25 +459,14 @@ export default function SettingsPage() {
       {/* Theme — surfaced at the top so it's the first thing visible.
           (Same toggleTheme handler as the System Preferences card below;
           kept both for discoverability.) */}
-      <Card style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <Eyebrow>Appearance</Eyebrow>
-            <div style={{ fontSize: 13, color: T.dim }}>Pick Dark or Light. Remembered across sessions on this browser.</div>
-          </div>
-          {/* "System" removed — followed OS auto-switching and made the
-              theme look "random" to admins. Stick to explicit choices. */}
-          {themeSwitch}
+      <Card style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <Eyebrow>Appearance</Eyebrow>
+          <div style={{ fontSize: 13, color: T.dim }}>Pick Dark or Light. Remembered across sessions on this browser.</div>
         </div>
-        {/* Text size — enlarges the whole dashboard (text + controls) for
-            readability. Applied as a CSS zoom keyed off <html data-font-scale>. */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap', borderTop: '1px solid var(--border-l)', paddingTop: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Type size={13} strokeWidth={1.8} /><Eyebrow>Text size</Eyebrow></div>
-            <div style={{ fontSize: 13, color: T.dim }}>Make the dashboard text and controls larger. Remembered on this browser.</div>
-          </div>
-          {fontSizeSwitch}
-        </div>
+        {/* "System" removed — followed OS auto-switching and made the
+            theme look "random" to admins. Stick to explicit choices. */}
+        {themeSwitch}
       </Card>
 
       {/* Geofence Management */}

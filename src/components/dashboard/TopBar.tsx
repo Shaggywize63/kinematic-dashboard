@@ -9,6 +9,7 @@ import ClientSelect from '../ClientSelect';
 import IndustryScopePicker from '../IndustryScopePicker';
 import NotificationBell from '../crm/NotificationBell';
 import ThemeToggle from '../shared/ThemeToggle';
+import FontSizeToggle from '../shared/FontSizeToggle';
 import SignedImage from '../shared/SignedImage';
 import { Avatar, IconButton, T } from '../ui';
 import { usePageTitleOverride, type Crumb } from '../../lib/pageTitle';
@@ -109,7 +110,8 @@ export default function TopBar(p: Props) {
           </IconButton>
         )}
         {p.token && !p.hideChat && <ChatLauncher />}
-        {/* Theme switch stays in Settings on phones — the header has no room. */}
+        {/* Text-size + theme controls — desktop only; the phone header has no room. */}
+        {!p.isMobile && <FontSizeToggle />}
         {!p.isMobile && <ThemeToggle compact />}
         <NotificationBell />
         <Link href="/dashboard/profile" title="My account" aria-label="My account" style={{ display: 'flex', marginLeft: 4, borderRadius: 999 }}>
