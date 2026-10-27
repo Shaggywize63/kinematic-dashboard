@@ -519,19 +519,14 @@ export default function ClientManagement() {
                     Envs {expanded ? '▴' : '▾'}
                   </button>
                 )}
-                <button onClick={() => openEdit(c, 'client-section-app-layout')} title="App layout" aria-label="App layout" style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
-                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4M9 6h6"/></svg>
-                </button>
                 <button onClick={() => openEdit(c)} title="Edit client" style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
                   <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
                 </button>
                 <button onClick={() => toggleActive(c)} title={c.is_active ? 'Active — click to deactivate' : 'Inactive — click to activate'}
-                  style={{ height: 32, padding: '0 10px', border: `1px solid ${c.is_active ? 'rgba(0,217,126,0.4)' : C.border}`, borderRadius: 10, background: c.is_active ? 'rgba(0,217,126,0.1)' : 'transparent', cursor: 'pointer', color: c.is_active ? C.green : C.gray, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700 }}>
-                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: c.is_active ? C.green : C.gray }} />
+                  style={{ height: 24, padding: '0 8px', border: `1px solid ${c.is_active ? 'rgba(0,217,126,0.4)' : C.border}`, borderRadius: 7, background: c.is_active ? 'rgba(0,217,126,0.1)' : 'transparent', cursor: 'pointer', color: c.is_active ? C.green : C.gray, display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700 }}>
+                   <div style={{ width: 5, height: 5, borderRadius: '50%', background: c.is_active ? C.green : C.gray }} />
                    {c.is_active ? 'Active' : 'Inactive'}
                 </button>
                 {user?.role !== 'client' && (
