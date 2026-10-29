@@ -61,7 +61,19 @@ export default function SubmissionsPage() {
   const [selected, setSelected] = useState<Submission | null>(null);
   const [details, setDetails] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  // Admin edit of a submitted report (backend PATCH /forms/submissions/:id).
+  const [editing, setEditing] = useState(false);
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState('');
   const limit = 20;
+
+  // Photo / signature / file answers aren't editable inline here (text/number/
+  // choice/date answers are).
+  const isPhotoField = (r: any): boolean => {
+    const qt = String(r?.form_fields?.qtype || r?.builder_questions?.qtype || r?.form_fields?.field_type || '').toLowerCase();
+    return /photo|image|signature|file/.test(qt) || (!!r?.photo_url && !r?.value_text);
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -91,6 +103,9 @@ export default function SubmissionsPage() {
     setSelected(s);
     setLoadingDetails(true);
     setDetails(null);
+    setEditing(false);
+    setEdits({});
+    setEditError('');
     try {
       const res = await api.get<any>(`/api/v1/forms/submissions/${s.id}`);
       setDetails(res);
@@ -98,6 +113,37 @@ export default function SubmissionsPage() {
       console.error(e);
     } finally {
       setLoadingDetails(false);
+    }
+  };
+
+  // Seed the editable text answers from the loaded responses and enter edit mode.
+  const startEdit = () => {
+    const seed: Record<string, string> = {};
+    for (const r of (details?.form_responses || [])) {
+      if (isPhotoField(r)) continue;
+      seed[String(r.field_id)] = r.value_text ?? '';
+    }
+    setEdits(seed);
+    setEditError('');
+    setEditing(true);
+  };
+
+  const saveEdits = async () => {
+    if (!selected) return;
+    setSaving(true);
+    setEditError('');
+    try {
+      const responses = Object.entries(edits).map(([field_id, value]) => ({ field_id, value }));
+      await api.updateSubmission(selected.id, { responses });
+      // Reload the detail (fresh answers) and the list, then leave edit mode.
+      const res = await api.get<any>(`/api/v1/forms/submissions/${selected.id}`);
+      setDetails(res);
+      setEditing(false);
+      fetchData();
+    } catch (e: any) {
+      setEditError(e?.message || 'Could not save changes.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -290,8 +336,22 @@ export default function SubmissionsPage() {
           <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:24, width:'100%', maxWidth:540, maxHeight:'90vh', overflowY:'auto', padding:0, position:'relative', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
             <div style={{ padding: '24px 28px', borderBottom: `1px solid ${C.border}`, position:'sticky', top:0, background:'#0E1420', zIndex:10, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                <h3 style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, margin:0 }}>Submission Details</h3>
-               <button onClick={() => setSelected(null)}
-                style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, width:36, height:36, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:C.gray, fontSize:18 }}>✕</button>
+               <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                 {!loadingDetails && details && !editing && (
+                   <button onClick={startEdit}
+                     style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, padding:'8px 14px', cursor:'pointer', color:C.blue, fontSize:13, fontWeight:700 }}>Edit</button>
+                 )}
+                 {editing && (
+                   <>
+                     <button onClick={() => { setEditing(false); setEditError(''); }} disabled={saving}
+                       style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, padding:'8px 14px', cursor:'pointer', color:C.gray, fontSize:13, fontWeight:700 }}>Cancel</button>
+                     <button onClick={saveEdits} disabled={saving}
+                       style={{ background:C.green, border:'none', borderRadius:10, padding:'8px 16px', cursor:saving?'default':'pointer', color:'#06281B', fontSize:13, fontWeight:800, opacity:saving?0.7:1 }}>{saving ? 'Saving…' : 'Save'}</button>
+                   </>
+                 )}
+                 <button onClick={() => setSelected(null)}
+                  style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, width:36, height:36, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:C.gray, fontSize:18 }}>✕</button>
+               </div>
             </div>
             
             <div style={{ padding: 28 }}>
@@ -342,6 +402,10 @@ export default function SubmissionsPage() {
 
               <div style={{ borderTop: `1.5px solid ${C.border}`, paddingTop: 24 }}>
                 <h4 style={{ fontSize:15, fontWeight:800, marginBottom:16, color:C.blue }}>Form Responses</h4>
+                {editing && (
+                  <div style={{ fontSize:12, color:C.grayd, marginBottom:12 }}>Editing answers — photo/signature fields stay as captured. Changes are saved with an audit trail.</div>
+                )}
+                {editError && <div style={{ color:'#FF6B6B', fontSize:12, marginBottom:12 }}>{editError}</div>}
                 {loadingDetails ? (
                   <div style={{ padding: 20, textAlign:'center', color:C.grayd }}>Loading responses...</div>
                 ) : details?.form_responses?.length > 0 ? (
@@ -353,7 +417,13 @@ export default function SubmissionsPage() {
                           <span style={{ fontSize:14, fontWeight:700, color:C.white }}>{r.form_fields?.label || r.field_key}</span>
                         </div>
                         <div style={{ paddingLeft: 22, fontSize:14 }}>
-                          {renderValue(r)}
+                          {editing && !isPhotoField(r) ? (
+                            <textarea
+                              value={edits[String(r.field_id)] ?? ''}
+                              onChange={e => setEdits(prev => ({ ...prev, [String(r.field_id)]: e.target.value }))}
+                              style={{ width:'100%', minHeight:40, background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:8, color:C.white, fontSize:14, padding:'8px 10px', resize:'vertical', fontFamily:'inherit' }}
+                            />
+                          ) : renderValue(r)}
                         </div>
                       </div>
                     ))}
