@@ -18,6 +18,7 @@ import type {
   InsightsRegionRow,
   ChronicGap,
   RiskForecastRow,
+  OsaChannelRow,
 } from '../../../../types/planogram';
 
 // Module palette convention: own = green (PC.good), competitor = brand red
@@ -45,6 +46,7 @@ export default function PlanogramInsightsPage() {
   const [data, setData] = useState<PlanogramInsights | null>(null);
   const [risk, setRisk] = useState<RiskForecastRow[]>([]);
   const [chronic, setChronic] = useState<ChronicGap[]>([]);
+  const [osa, setOsa] = useState<OsaChannelRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -55,12 +57,14 @@ export default function PlanogramInsightsPage() {
       // best-effort (older, org-wide) so a failure there never blanks the page.
       const ins = await planogramApi.insights(days);
       setData(ins.data);
-      const [r, g] = await Promise.allSettled([
+      const [r, g, o] = await Promise.allSettled([
         planogramApi.riskForecast(),
         planogramApi.chronicGaps(),
+        planogramApi.osaByChannel(days),
       ]);
       setRisk(r.status === 'fulfilled' ? r.value.data || [] : []);
       setChronic(g.status === 'fulfilled' ? g.value.data || [] : []);
+      setOsa(o.status === 'fulfilled' ? o.value.data || [] : []);
       setError('');
     } catch (e) {
       setError((e as Error)?.message || 'Failed to load insights');
@@ -205,6 +209,15 @@ export default function PlanogramInsightsPage() {
               <StateBlock>No per-store data in this window.</StateBlock>
             ) : (
               <StoreRanking rows={data.store_compliance} isCompact={isCompact} />
+            )}
+          </SectionCard>
+
+          {/* On-shelf availability by channel (store_type) */}
+          <SectionCard title="On-shelf availability by channel" caption="Average availability and out-of-stock counts per channel (store type) — lowest availability first">
+            {osa.length === 0 ? (
+              <StateBlock>No availability data in this window.</StateBlock>
+            ) : (
+              <OsaByChannel rows={osa} isCompact={isCompact} />
             )}
           </SectionCard>
 
@@ -485,6 +498,47 @@ function StoreRanking({ rows, isCompact }: { rows: InsightsStoreRow[]; isCompact
             )}
             <span style={{ fontSize: 14, fontWeight: 800, color: tone, fontVariantNumeric: 'tabular-nums', minWidth: 42, textAlign: 'right' }}>
               {Math.round(r.avg_score)}%
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── On-shelf availability by channel ─────────────────────────────────────────
+function OsaByChannel({ rows, isCompact }: { rows: OsaChannelRow[]; isCompact: boolean }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {rows.map((r, i) => {
+        const tone = toneColor(scoreTone(r.avg_availability_rate));
+        return (
+          <div
+            key={r.channel}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isCompact ? '1fr auto' : 'minmax(0,1.4fr) 1fr auto',
+              alignItems: 'center',
+              gap: 12,
+              padding: '11px 2px',
+              borderBottom: i === rows.length - 1 ? 'none' : `1px solid ${PC.border}`,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: PC.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {r.channel}
+              </div>
+              <div style={{ fontSize: 11, color: PC.muted, marginTop: 2 }}>
+                {r.captures} capture{r.captures === 1 ? '' : 's'} · {r.oos_count} OOS · {Math.round(r.oos_capture_rate)}% of captures
+              </div>
+            </div>
+            {!isCompact && (
+              <div style={{ height: 8, borderRadius: 4, background: PC.surface3, overflow: 'hidden' }}>
+                <div style={{ width: `${Math.max(0, Math.min(100, r.avg_availability_rate))}%`, height: '100%', background: tone }} />
+              </div>
+            )}
+            <span style={{ fontSize: 14, fontWeight: 800, color: tone, fontVariantNumeric: 'tabular-nums', minWidth: 42, textAlign: 'right' }}>
+              {Math.round(r.avg_availability_rate)}%
             </span>
           </div>
         );

@@ -366,6 +366,18 @@ export interface ChronicGap {
   avg_score: number;
 }
 
+/** One channel's on-shelf-availability rollup (GET /analytics/osa-by-channel).
+ *  `channel` is the store's store_type, or "Unspecified". */
+export interface OsaChannelRow {
+  channel: string;
+  captures: number;
+  avg_availability_rate: number;
+  oos_count: number;
+  avg_oos_per_capture: number;
+  low_stock_count: number;
+  oos_capture_rate: number;
+}
+
 export interface SkuVisibility {
   sku_id: string;
   sku_name: string;
