@@ -40,6 +40,11 @@ import type { LeadTab, LifecycleLead, UserOption } from '../../../../../componen
 
 // Roles that may delete a teammate's update (mirrors the backend allow-list).
 const UPDATE_ADMIN_ROLES = new Set(['super_admin', 'admin', 'org_admin']);
+// Tenant-admin tier that may edit ANY rep's lead — mirrors the backend
+// isTenantAdmin() predicate gating PATCH /leads/:id (Kinematic auth.ts). Must
+// stay in lockstep with it, or the `client` / city_manager admin is promised
+// (or denied) an Edit affordance the server then disagrees with.
+const TENANT_ADMIN_ROLES = ['super_admin', 'admin', 'main_admin', 'sub_admin', 'client', 'city_manager'];
 const TAB_IDS: LeadTab[] = ['overview', 'timeline', 'deals', 'insights'];
 
 const tabFromHash = (): LeadTab => {
@@ -61,7 +66,7 @@ export default function LeadDetailPage() {
   // Edit RBAC — only the rep who CREATED this lead may edit it (plus system-tier CRM admins). Owner /
   // assigned_to grants read but not edit. Mirrors the backend PATCH /leads/:id gate so reps aren't
   // promised an affordance the server will then 403.
-  const isAdminTier = ['super_admin', 'admin', 'sub_admin'].includes((user?.role ?? '').toLowerCase());
+  const isAdminTier = TENANT_ADMIN_ROLES.includes((user?.role ?? '').toLowerCase());
   // Tenant + designation gates. Consumer Champion FEs (TATA's frontline designation) don't see the Lead
   // Score breakdown, the boost-score suggestions, or the analytics surface — those tools target managers,
   // not field reps. Tata-Tiscon tenants get the streamlined convert flow (skip the create-account prompt
