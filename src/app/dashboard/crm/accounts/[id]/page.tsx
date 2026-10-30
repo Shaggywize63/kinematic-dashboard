@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmAccounts } from '../../../../../lib/crmApi';
+import { crmAccounts, type AccountTimeline } from '../../../../../lib/crmApi';
 import type { Account, Contact, Deal, Activity, Note } from '../../../../../types/crm';
 import AccountSummaryCard from '../../../../../components/crm/AccountSummaryCard';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
@@ -22,6 +22,7 @@ export default function AccountDetailPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [timeline, setTimeline] = useState<AccountTimeline | null>(null);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -30,12 +31,13 @@ export default function AccountDetailPage() {
   const reload = async () => {
     if (!id) return;
     setLoading(true);
-    const [r, c, d, act, n] = await Promise.allSettled([
+    const [r, c, d, act, n, tl] = await Promise.allSettled([
       crmAccounts.get(id),
       crmAccounts.contacts(id),
       crmAccounts.deals(id),
       crmAccounts.activities(id),
       crmAccounts.notes(id),
+      crmAccounts.timeline(id),
     ]);
     if (r.status === 'fulfilled') setA(r.value.data);
     else toast.error(r.reason?.message || 'Load failed');
@@ -43,6 +45,7 @@ export default function AccountDetailPage() {
     if (d.status === 'fulfilled') setDeals(d.value.data || []);
     if (act.status === 'fulfilled') setActivities(act.value.data || []);
     if (n.status === 'fulfilled') setNotes(n.value.data || []);
+    if (tl.status === 'fulfilled') setTimeline(tl.value.data || null);
     setLoading(false);
   };
 
@@ -115,6 +118,8 @@ export default function AccountDetailPage() {
             <Field label="Created" value={new Date(a.created_at).toLocaleDateString()} />
           </div>
         </div>
+
+        <TimelineCard data={timeline} />
 
         {a.description && (<Card title="About"><div style={{ fontSize: 13, color: 'var(--text)' }}>{a.description}</div></Card>)}
 
@@ -197,6 +202,72 @@ export default function AccountDetailPage() {
       />
       </div>
     </div>
+  );
+}
+
+// The management timeline: who visited, how often, and every visit / form / follow-up
+// with the data each captured. Renders nothing until the account has activity.
+function TimelineCard({ data }: { data: AccountTimeline | null }) {
+  if (!data) return null;
+  const { summary, timeline } = data;
+  if (!timeline?.length) {
+    return <Card title="Timeline"><div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No visits or forms captured yet.</div></Card>;
+  }
+  const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
+  const icon = (k: string) => (k === 'visit' ? '🏭' : k === 'submission' ? '📝' : '✅');
+  return (
+    <Card title={`Timeline (${timeline.length})`}>
+      {/* Who visited — the per-FE rollup. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', alignSelf: 'center' }}>
+          <strong style={{ color: 'var(--text)' }}>{summary.fe_count}</strong> field rep{summary.fe_count === 1 ? '' : 's'} ·{' '}
+          <strong style={{ color: 'var(--text)' }}>{summary.visit_count}</strong> visit{summary.visit_count === 1 ? '' : 's'} ·{' '}
+          <strong style={{ color: 'var(--text)' }}>{summary.submission_count}</strong> form{summary.submission_count === 1 ? '' : 's'}
+        </div>
+      </div>
+      {summary.fes.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          {summary.fes.map((fe) => (
+            <div key={fe.user_id} style={{ background: 'var(--s3)', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+              <div style={{ color: 'var(--text)', fontWeight: 600 }}>{fe.name || 'Unknown rep'}</div>
+              <div style={{ color: 'var(--text-dim)', fontSize: 11, marginTop: 2 }}>
+                {fe.visits} visit{fe.visits === 1 ? '' : 's'} · {fe.submissions} form{fe.submissions === 1 ? '' : 's'}
+                {fe.last_at ? ` · last ${new Date(fe.last_at).toLocaleDateString()}` : ''}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* The chronological feed. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {timeline.map((e) => (
+          <div key={`${e.kind}-${e.id}`} style={{ padding: 12, background: 'var(--s3)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+              <div style={{ color: 'var(--text)', fontWeight: 600, fontSize: 13 }}>
+                <span style={{ marginRight: 6 }}>{icon(e.kind)}</span>{e.title}
+                {e.status ? <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 8, textTransform: 'uppercase' }}>{e.status}</span> : null}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{when(e.at)}</div>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 3 }}>
+              {e.user_name ? `by ${e.user_name}` : ''}{e.detail ? `${e.user_name ? ' · ' : ''}${e.detail}` : ''}
+            </div>
+            {e.answers && e.answers.length > 0 && (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {e.answers.map((ans, i) => (
+                  <div key={i} style={{ fontSize: 12, display: 'flex', gap: 8 }}>
+                    <span style={{ color: 'var(--text-dim)', minWidth: 120 }}>{ans.label}</span>
+                    {ans.photo_url
+                      ? <a href={safeHref(ans.photo_url)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent, var(--primary))' }}>📷 Photo</a>
+                      : <span style={{ color: 'var(--text)' }}>{ans.value || '—'}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
