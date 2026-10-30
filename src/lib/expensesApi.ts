@@ -1,4 +1,5 @@
 import api, { type AttendanceTravel } from './api';
+import type { ForensicFinding } from './expenseForensics';
 
 // Typed client for the Expenses API (backend base path /api/v1/expenses, bearer +
 // X-Client-Id auto-attached by ./api). Every JSON response is { success, data }.
@@ -204,6 +205,13 @@ export interface ExpenseClaim {
   // only on getClaim
   items?: ClaimItem[];
   approvals?: ClaimApproval[];
+  /**
+   * Forgery/forensics highlights for a manager (co-location, duplicate receipt,
+   * long halt, mileage-over-GPS, …). A FRONTEND PROTOTYPE: today this is computed
+   * client-side over the demo fixtures by src/lib/expenseForensics; a real backend
+   * would emit it. Absent on live data.
+   */
+  forensic_findings?: ForensicFinding[];
 }
 
 export interface MileageResult {

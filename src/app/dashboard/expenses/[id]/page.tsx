@@ -10,6 +10,7 @@ import {
   ClaimStatusBadge, ClaimTimeline, ExpensesShell, Field, LineSummary, Panel, PolicyFindings, RejectionBanner, errText, fmtDate, fmtDateTime, isPartial, money, useClaimRules, useExpenseRoles,
 } from '../../../../components/expenses/kit';
 import ReviewPanel from '../../../../components/expenses/ReviewPanel';
+import { ForensicHighlights, RiskBadge } from '../../../../components/expenses/ForensicHighlights';
 import { ExpenseClaim, expensesApi } from '../../../../lib/expensesApi';
 import { usePageTitle } from '../../../../lib/pageTitle';
 
@@ -64,6 +65,8 @@ export default function ClaimDetailPage() {
   const items = c.items ?? [];
   const partial = isPartial(c);
   const findings = c.ai_flags ?? [];
+  const forensic = c.forensic_findings ?? [];
+  const claimDate = items[0]?.item_date || (c.submitted_at || c.created_at)?.slice(0, 10) || null;
   const actions = (
     <>
       <Button variant="ghost" href="/dashboard/expenses" icon={<ArrowLeft size={15} strokeWidth={1.7} />}>All claims</Button>
@@ -109,6 +112,15 @@ export default function ClaimDetailPage() {
             <Panel title="Policy checks" padding={20}>
               {c.ai_summary && <div style={{ fontSize: 13.5, color: T.dim, marginBottom: 12, lineHeight: 1.5 }}>{c.ai_summary}</div>}
               <PolicyFindings flags={findings} />
+            </Panel>
+          )}
+
+          {forensic.length > 0 && (
+            <Panel title="Forensic highlights" padding={20} aside={<RiskBadge findings={forensic} />}>
+              <div style={{ fontSize: 12.5, color: T.mute, marginBottom: 12, lineHeight: 1.5 }}>
+                Forgery signals detected for this claim. Review before approving.
+              </div>
+              <ForensicHighlights findings={forensic} date={claimDate} userId={c.user_id} />
             </Panel>
           )}
         </div>

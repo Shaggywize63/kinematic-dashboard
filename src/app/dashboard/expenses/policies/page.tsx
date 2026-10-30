@@ -6,6 +6,7 @@ import { Copy, Pencil, Plus, ScrollText, Trash2 } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, IconButton, T } from '../../../../components/ui';
 import { useConfirm } from '../../../../components/finance/ui';
 import { ExpensesShell, errText, money } from '../../../../components/expenses/kit';
+import ForensicsSettings from '../../../../components/expenses/ForensicsSettings';
 import {
   CATEGORY_LABELS, CATEGORIES, ExpensePolicy, PolicyRules, categoryLabel, expensesApi, odometerCameraOnly, routeFieldsOn, singleCategory, singleLineOn,
 } from '../../../../lib/expensesApi';
@@ -126,6 +127,7 @@ export default function PoliciesPage() {
           </div>
         </>
       )}
+      <div style={{ marginTop: 20 }}><ForensicsSettings /></div>
       {dialog}
     </ExpensesShell>
   );
