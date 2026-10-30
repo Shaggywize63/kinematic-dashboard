@@ -24,6 +24,10 @@ import {
 import { mockDealHistory, mockWinProbability, mockNextBestAction } from './demo/crmAiMocks';
 import { getActiveSeed, isInsuranceDemo, isPharmaceuticalDemo } from './demo/activeSeed';
 import {
+  demoExpensePending, demoExpenseAwaiting, demoExpenseMine, demoExpenseAll, demoExpenseClaim,
+  demoExpenseSummary, demoMyPolicy, demoExpensePolicies,
+} from './demoExpenses';
+import {
   mockLocationTrail, buildDemoConversations, demoConversationDetail,
   demoConversationAnalytics, mockLeadTracker, mockTeamPerformance,
   mockTeamDaily, mockSuggestFromUpdate,
@@ -1006,6 +1010,27 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
   const ACTIVE_ROUTE_PLANS = (__seed.ROUTE_PLANS as typeof ROUTE_PLANS | undefined) ?? ROUTE_PLANS;
 
   if (m === 'GET') {
+    // ── Expenses (frontend prototype: forgery/forensics highlights over demo claims) ──
+    // Literal paths MUST precede the /claims/:id regex (first-match-wins).
+    if (path === '/expenses/policy')                        return wrap(demoMyPolicy()) as unknown as T;
+    if (path === '/expenses/policies')                      return list(demoExpensePolicies()) as unknown as T;
+    if (path === '/expenses/claims/pending')                return list(demoExpensePending()) as unknown as T;
+    if (path === '/expenses/claims/awaiting-reimbursement') return list(demoExpenseAwaiting()) as unknown as T;
+    if (path === '/expenses/claims/summary')                return wrap(demoExpenseSummary()) as unknown as T;
+    if (path === '/expenses/claims/all') {
+      const r = demoExpenseAll({
+        status: query.get('status') || undefined, user_id: query.get('user_id') || undefined,
+        category: query.get('category') || undefined, from: query.get('from') || undefined,
+        to: query.get('to') || undefined, q: query.get('q') || undefined,
+      });
+      return { success: true, data: r.rows, pagination: { total: r.total, page: Number(query.get('page')) || 1, limit: Number(query.get('limit')) || 25 } } as unknown as T;
+    }
+    if (path === '/expenses/claims')                        return list(demoExpenseMine()) as unknown as T;
+    {
+      const mE = path.match(/^\/expenses\/claims\/([^/]+)$/);
+      if (mE) { const c = demoExpenseClaim(mE[1]); if (c) return wrap(c) as unknown as T; }
+    }
+
     if (path === '/analytics/dashboard-init')   return mockDashboardInit() as unknown as T;
     if (path === '/analytics/summary')          return mockSummary(new Date().toISOString().split('T')[0]) as unknown as T;
     if (path === '/analytics/trends')           return mockTrends() as unknown as T;
@@ -2042,6 +2067,25 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
   }
 
   if (m === 'POST' || m === 'PATCH' || m === 'PUT') {
+    // ── Expenses: approve / reject / reimburse succeed in the demo (no network) ──
+    {
+      const mD = path.match(/^\/expenses\/claims\/([^/]+)\/decision$/);
+      if (mD) return wrap({ ok: true, status: bodyObj.decision === 'rejected' ? 'rejected' : 'approved' }) as unknown as T;
+    }
+    if (path === '/expenses/claims/bulk-decision') {
+      const ids = (Array.isArray(bodyObj.ids) ? bodyObj.ids : []) as string[];
+      const status = bodyObj.decision === 'rejected' ? 'rejected' : 'approved';
+      return wrap({ done: ids.map((id) => ({ id, status })), failed: [] }) as unknown as T;
+    }
+    {
+      const mR = path.match(/^\/expenses\/claims\/([^/]+)\/reimburse$/);
+      if (mR) return wrap({ ok: true, status: 'reimbursed' }) as unknown as T;
+    }
+    {
+      const mX = path.match(/^\/expenses\/claims\/([^/]+)\/(submit|cancel)$/);
+      if (mX) { const c = demoExpenseClaim(mX[1]); return wrap(c ? { ...c, status: mX[2] === 'cancel' ? 'cancelled' : 'submitted' } : { ok: true }) as unknown as T; }
+    }
+
     // CRM AI endpoints — return realistic methodology / breakdown so the
     // new "How is this calculated?" popups have data in the demo account
     // (otherwise the generic noop response below would leave the cards empty).
