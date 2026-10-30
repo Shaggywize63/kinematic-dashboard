@@ -593,6 +593,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/planograms/library',     label: 'Planograms',   icon: 'layers', module: 'planograms' },
       { href: '/dashboard/planograms/competitors', label: 'Competitors',  icon: 'target', module: 'planograms' },
       { href: '/dashboard/planograms/insights',    label: 'Insights',     icon: 'lineChart', module: 'planograms' },
+      { href: '/dashboard/planograms/billing',     label: 'API Billing',  icon: 'banknote', module: 'planograms' },
     ]},
     { label: 'Lead Management', package: 'crm', items: [
       // Daily mission control — target + near-to-close + next actions

@@ -8,6 +8,7 @@ import type {
   StoreRanking,
   ChronicGap,
   OsaChannelRow,
+  BillingSummary,
   SkuVisibility,
   RiskForecastRow,
   ExpectedSKU,
@@ -267,6 +268,10 @@ export const planogramApi = {
    *  Org-scoped; `days` window (default 90, max 365). */
   insights: (days = 90) =>
     api.get<Wrapped<PlanogramInsights>>(`/api/v1/planograms/analytics/insights?days=${days}`),
+
+  /** Admin Billing: planogram vision API cost per client over [from, to] (ISO). */
+  billing: (from: string, to: string) =>
+    api.get<Wrapped<BillingSummary>>(`/api/v1/admin/billing?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
 };
 
 export default planogramApi;
