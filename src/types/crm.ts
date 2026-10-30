@@ -82,6 +82,11 @@ export interface Contact extends B2CFields {
   org_id: string;
   account_id?: string | null;
   account_name?: string | null;
+  // The lead this contact was captured on (B2B lead → contacts-with-requirements)
+  // and the free-text requirement that person gave. Both set by the lead-create
+  // bridge; present only on contacts logged through that flow.
+  lead_id?: string | null;
+  requirement?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   full_name?: string | null;
