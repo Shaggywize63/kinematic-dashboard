@@ -217,9 +217,11 @@ test.describe('Work Activities — time spent per form', () => {
     const text = readFileSync((await download.path())!, 'utf8');
     const [headerLine, ...lines] = text.split('\n');
     const header = headerLine.split(',');
+    // Each form question is its own column (here only "Shelf" appears across the rows),
+    // instead of all answers crammed into a single "Responses" cell.
     expect(header).toEqual([
       'Date', 'Client', 'Executive', 'Employee ID', 'Outlet', 'Activity', 'Address', 'Check In GPS', 'Check Out GPS',
-      'Check-in', 'Check-out', 'Time spent (min)', 'Responses',
+      'Check-in', 'Check-out', 'Time spent (min)', 'Shelf',
     ]);
     // Every cell is quoted; the GPS cells hold commas, so split on the quote-comma-quote boundary.
     const cells = (line: string) => line.slice(1, -1).split('","');
@@ -231,7 +233,7 @@ test.describe('Work Activities — time spent per form', () => {
     expect(a[col('Check-out')]).toBe('2026-10-09 10:18');
     expect(a[col('Time spent (min)')]).toBe('18');
     expect(a[col('Check In GPS')]).toBe('12.9,77.6');
-    expect(a[col('Responses')]).toBe('Shelf: Full');
+    expect(a[col('Shelf')]).toBe('Full');
     expect(b[col('Check-in')]).toBe('2026-10-09 10:30');
     expect(b[col('Check-out')]).toBe('2026-10-09 11:05');
     expect(b[col('Time spent (min)')]).toBe('35'); // older row: worked out from the two stamps
