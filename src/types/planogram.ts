@@ -366,6 +366,56 @@ export interface ChronicGap {
   avg_score: number;
 }
 
+/** Per-model token + cost breakdown within a client (admin Billing). */
+export interface BillingModelBreakdown {
+  model: string;
+  calls: number;
+  input_tokens: number;
+  cache_write_tokens: number;
+  cache_read_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
+/** One client's planogram-vision API cost over a period (admin Billing). */
+export interface ClientBilling {
+  client_id: string | null;
+  client_name: string | null;
+  captures: number;
+  calls: number;
+  input_tokens: number;
+  cache_write_tokens: number;
+  cache_read_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  by_model: BillingModelBreakdown[];
+}
+
+/** GET /api/v1/admin/billing — vision API cost per client + daily total. */
+export interface BillingSummary {
+  from: string;
+  to: string;
+  feature: string;
+  usd_to_omr: number;
+  total_cost_usd: number;
+  total_captures: number;
+  total_calls: number;
+  clients: ClientBilling[];
+  daily: Array<{ date: string; cost_usd: number }>;
+}
+
+/** One channel's on-shelf-availability rollup (GET /analytics/osa-by-channel).
+ *  `channel` is the store's store_type, or "Unspecified". */
+export interface OsaChannelRow {
+  channel: string;
+  captures: number;
+  avg_availability_rate: number;
+  oos_count: number;
+  avg_oos_per_capture: number;
+  low_stock_count: number;
+  oos_capture_rate: number;
+}
+
 export interface SkuVisibility {
   sku_id: string;
   sku_name: string;

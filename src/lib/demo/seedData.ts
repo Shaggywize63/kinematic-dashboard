@@ -571,6 +571,12 @@ export const PLAN_CHRONIC_GAPS = [
   { store_id: 'demo-store-5', failing:  6, avg_score: 71 }
 ];
 
+export const PLAN_OSA_BY_CHANNEL = [
+  { channel: 'Hypermarket', captures: 40, avg_availability_rate: 92.4, oos_count: 18, avg_oos_per_capture: 0.5, low_stock_count: 9,  oos_capture_rate: 27.5 },
+  { channel: 'Supermarket', captures: 33, avg_availability_rate: 84.1, oos_count: 41, avg_oos_per_capture: 1.2, low_stock_count: 14, oos_capture_rate: 45.5 },
+  { channel: 'Kirana',      captures: 21, avg_availability_rate: 68.9, oos_count: 63, avg_oos_per_capture: 3.0, low_stock_count: 20, oos_capture_rate: 71.4 }
+];
+
 export const PLAN_SKU_VISIBILITY = [
   { sku_id: 'demo-prod-1', sku_name: 'TMT Bar 8mm',   avg_facings: 3.2, appearances: 84 },
   { sku_id: 'demo-prod-2', sku_name: 'TMT Bar 12mm',  avg_facings: 5.8, appearances: 96 },

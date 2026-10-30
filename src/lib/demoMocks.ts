@@ -217,7 +217,7 @@ import {
   readDemoCustomFields, writeDemoCustomFields,
   PLANOGRAMS, PLAN_ASSIGNMENTS, PLAN_CAPTURES, planRecognitionFor, planComplianceFor,
   PLAN_TREND, PLAN_STORE_RANKING, PLAN_CHRONIC_GAPS, PLAN_SKU_VISIBILITY,
-  PLAN_RISK_FORECAST, HR_CANDIDATES,
+  PLAN_OSA_BY_CHANNEL, PLAN_RISK_FORECAST, HR_CANDIDATES,
 } from './demo/seedData';
 
 // ── Org roles (Settings → Roles "role hierarchy") ───────────────────────
@@ -2020,6 +2020,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/planograms/analytics/trend')          return list(PLAN_TREND) as unknown as T;
     if (path === '/planograms/analytics/store-ranking')  return list(PLAN_STORE_RANKING) as unknown as T;
     if (path === '/planograms/analytics/chronic-gaps')   return list(PLAN_CHRONIC_GAPS) as unknown as T;
+    if (path === '/planograms/analytics/osa-by-channel')  return list(PLAN_OSA_BY_CHANNEL) as unknown as T;
     if (path === '/planograms/analytics/sku-visibility') return list(PLAN_SKU_VISIBILITY) as unknown as T;
     if (path === '/planograms/analytics/risk-forecast')  return list(PLAN_RISK_FORECAST) as unknown as T;
     if (path === '/planograms')                          return list(PLANOGRAMS) as unknown as T;

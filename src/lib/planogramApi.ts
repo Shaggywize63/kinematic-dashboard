@@ -7,6 +7,8 @@ import type {
   TrendPoint,
   StoreRanking,
   ChronicGap,
+  OsaChannelRow,
+  BillingSummary,
   SkuVisibility,
   RiskForecastRow,
   ExpectedSKU,
@@ -252,6 +254,10 @@ export const planogramApi = {
     api.get<Wrapped<StoreRanking[]>>(`/api/v1/planograms/analytics/store-ranking?days=${days}`),
   chronicGaps: () =>
     api.get<Wrapped<ChronicGap[]>>('/api/v1/planograms/analytics/chronic-gaps'),
+  /** On-shelf availability rolled up by channel (store_type). Org-scoped;
+   *  `days` window (default 30, max 365). */
+  osaByChannel: (days = 30) =>
+    api.get<Wrapped<OsaChannelRow[]>>(`/api/v1/planograms/analytics/osa-by-channel?days=${days}`),
   skuVisibility: (days = 14) =>
     api.get<Wrapped<SkuVisibility[]>>(`/api/v1/planograms/analytics/sku-visibility?days=${days}`),
   riskForecast: () =>
@@ -262,6 +268,10 @@ export const planogramApi = {
    *  Org-scoped; `days` window (default 90, max 365). */
   insights: (days = 90) =>
     api.get<Wrapped<PlanogramInsights>>(`/api/v1/planograms/analytics/insights?days=${days}`),
+
+  /** Admin Billing: planogram vision API cost per client over [from, to] (ISO). */
+  billing: (from: string, to: string) =>
+    api.get<Wrapped<BillingSummary>>(`/api/v1/admin/billing?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
 };
 
 export default planogramApi;
