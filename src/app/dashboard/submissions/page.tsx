@@ -189,6 +189,12 @@ export default function SubmissionsPage() {
         </span>
       );
     }
+    // A `company` field stores the linked account's UUID; show the account's name
+    // (the submission's linked account) rather than the raw id.
+    if (qt === 'company') {
+      const name = (details as any)?.crm_accounts?.name;
+      return name ? `🏢 ${name}` : (val ? '🏢 Linked company' : '—');
+    }
     if (typeof val === 'object' && val !== null) return JSON.stringify(val);
     return String(val ?? '—');
   };
@@ -359,6 +365,7 @@ export default function SubmissionsPage() {
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:32 }}>
                 {[
                   ['FE Name', selected.users?.name],
+                  ['Company', (details as any)?.crm_accounts?.name],
                   ['Outlet', (selected as any).store_name || selected.outlet_name],
                   ['Form', selected.form_templates?.name],
                   ['Timestamp', new Date(selected.submitted_at).toLocaleString('en-IN')],
