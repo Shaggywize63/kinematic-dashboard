@@ -8,8 +8,10 @@ import SignedImage, { openSignedUrl } from '../../shared/SignedImage';
 import { renderMentions } from '../../messaging/MentionInput';
 import { Button, T } from '../../ui';
 import ContactCard from './ContactCard';
+import LeadContactsCard from './LeadContactsCard';
 import { ActivityRow } from './FeedItems';
 import SectionCard from './SectionCard';
+import type { Contact } from '../../../types/crm';
 import { useActivityActions } from './useActivityActions';
 import { fmtIST, isActionable, relTime, type DetailActivity } from './format';
 import type { LeadTab, LifecycleLead } from './types';
@@ -18,10 +20,16 @@ const UP_NEXT_MAX = 3;
 
 /** At-a-glance tab: what's due, the latest word on the lead, how to reach them, and every captured field. */
 export default function OverviewTab({
-  lead, fields, hideEmail, activities, latestUpdate, campaigns, leadCampaign, waPrefill, displayName, onPatch, onActivitiesChanged, onOpenTab,
+  lead, fields, contactFields, contacts, hideEmail, activities, latestUpdate, campaigns, leadCampaign, waPrefill, displayName, onPatch, onActivitiesChanged, onOpenTab,
 }: {
   lead: LifecycleLead;
   fields: FieldHelpers;
+  // Field-override helper scoped to the `contact` entity (contacts are a
+  // separate built-in-field namespace from the lead), for the captured
+  // contact-persons card.
+  contactFields: FieldHelpers;
+  // Contact-persons captured on this lead (B2B); empty for non-B2B / older leads.
+  contacts: Contact[];
   hideEmail: boolean;
   activities: DetailActivity[];
   latestUpdate: LeadUpdate | null;
@@ -161,6 +169,10 @@ export default function OverviewTab({
         displayName={displayName}
         campaigns={campaigns}
       />
+
+      {/* Contact-persons + requirements captured on this lead — the revisit
+          view, so opening an already-visited lead shows who was logged on it. */}
+      <LeadContactsCard contacts={contacts} fields={contactFields} />
 
       {/* Comprehensive categorised detail panel — every lead field grouped by Contact / Company / Personal /
           Address / Custom / Consent, hiding any group with no populated values. Gated through `fields`. */}

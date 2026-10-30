@@ -94,6 +94,11 @@ export const crmLeads = {
   scoreHistory: (id: string) => api.get<Wrapped<LeadScore[]>>(`${BASE}/leads/${id}/score-history`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/leads/${id}/activities`),
   deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/leads/${id}/deals`),
+  // Contact-persons captured on this lead (B2B: name/title/phone/email + the
+  // free-text `requirement` each one gave). Backend is org-scoped and NOT
+  // owner-filtered, so a revisit shows everyone logged on the lead — including
+  // contacts another rep added on an earlier visit.
+  contacts: (id: string) => api.get<Wrapped<Contact[]>>(`${BASE}/leads/${id}/contacts`),
   // All geo-tagged leads (up to 5000) for the dashboard map — bypasses the
   // 200-row list cap. City is auto-attached by the api client.
   geo: () => api.get<Wrapped<Array<{ id: string; first_name?: string | null; last_name?: string | null; city?: string | null; state?: string | null; status?: string | null; latitude?: number | null; longitude?: number | null; score?: number | null; score_grade?: 'A' | 'B' | 'C' | 'D' | null }>>>(`${BASE}/leads/geo`),
