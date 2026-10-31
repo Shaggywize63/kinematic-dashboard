@@ -7,6 +7,7 @@ import { Badge, Button, Card, EmptyState, IconButton, T } from '../../../../comp
 import { useConfirm } from '../../../../components/finance/ui';
 import { ExpensesShell, errText, money } from '../../../../components/expenses/kit';
 import ForensicsSettings from '../../../../components/expenses/ForensicsSettings';
+import api from '../../../../lib/api';
 import {
   CATEGORY_LABELS, CATEGORIES, ExpensePolicy, PolicyRules, categoryLabel, expensesApi, odometerCameraOnly, routeFieldsOn, singleCategory, singleLineOn,
 } from '../../../../lib/expensesApi';
@@ -43,6 +44,9 @@ export default function PoliciesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // The forgery/forensics checks card is demo-account only.
+  const [isDemo, setIsDemo] = useState(false);
+  useEffect(() => { setIsDemo(api.isDemoAccount()); }, []);
   const [ask, dialog] = useConfirm();
 
   const load = useCallback(async () => {
@@ -127,7 +131,7 @@ export default function PoliciesPage() {
           </div>
         </>
       )}
-      <div style={{ marginTop: 20 }}><ForensicsSettings /></div>
+      {isDemo && <div style={{ marginTop: 20 }}><ForensicsSettings /></div>}
       {dialog}
     </ExpensesShell>
   );
