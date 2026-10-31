@@ -7,6 +7,8 @@ import { useCityScope } from '../../../../context/CityScopeContext';
 import { Badge, Button, Card, EmptyState, Input, Segmented, T } from '../../../../components/ui';
 import { Col, DataTable, Modal, SearchBox, Toolbar } from '../../../../components/finance/ui';
 import { ExpensesShell, Field, FlagBadge, RemarkDialog, errText, fmtDate, money, useExpenseRoles } from '../../../../components/expenses/kit';
+import { RiskBadge } from '../../../../components/expenses/ForensicHighlights';
+import api from '../../../../lib/api';
 import { ExpenseClaim, expensesApi } from '../../../../lib/expensesApi';
 
 type Tab = 'review' | 'pay';
@@ -26,6 +28,9 @@ export default function ApprovalsPage() {
   const [paying, setPaying] = useState<ExpenseClaim | null>(null);
   const [ref, setRef] = useState('');
   const [busy, setBusy] = useState(false);
+  // The forgery-risk column is demo-account only.
+  const [isDemo, setIsDemo] = useState(false);
+  useEffect(() => { setIsDemo(api.isDemoAccount()); }, []);
 
   // selectedCity is a dependency, so changing the global city picker refetches.
   const load = useCallback(async () => {
@@ -124,6 +129,7 @@ export default function ApprovalsPage() {
         </span>
       );
     } },
+    ...(isDemo ? ([{ key: 'risk', label: 'Forgery risk', render: (c) => <RiskBadge findings={c.forensic_findings} /> }] as Col<ExpenseClaim>[]) : []),
     { key: 'act', label: '', align: 'right', render: (c) => (
       <span style={{ display: 'inline-flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
         <Button size="sm" onClick={() => router.push(`/dashboard/expenses/${c.id}`)}>Review</Button>

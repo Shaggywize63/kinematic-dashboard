@@ -94,6 +94,11 @@ export const crmLeads = {
   scoreHistory: (id: string) => api.get<Wrapped<LeadScore[]>>(`${BASE}/leads/${id}/score-history`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/leads/${id}/activities`),
   deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/leads/${id}/deals`),
+  // Contact-persons captured on this lead (B2B: name/title/phone/email + the
+  // free-text `requirement` each one gave). Backend is org-scoped and NOT
+  // owner-filtered, so a revisit shows everyone logged on the lead — including
+  // contacts another rep added on an earlier visit.
+  contacts: (id: string) => api.get<Wrapped<Contact[]>>(`${BASE}/leads/${id}/contacts`),
   // All geo-tagged leads (up to 5000) for the dashboard map — bypasses the
   // 200-row list cap. City is auto-attached by the api client.
   geo: () => api.get<Wrapped<Array<{ id: string; first_name?: string | null; last_name?: string | null; city?: string | null; state?: string | null; status?: string | null; latitude?: number | null; longitude?: number | null; score?: number | null; score_grade?: 'A' | 'B' | 'C' | 'D' | null }>>>(`${BASE}/leads/geo`),
@@ -242,12 +247,41 @@ export const crmContacts = {
   emails: (id: string) => api.get<Wrapped<EmailLog[]>>(`${BASE}/contacts/${id}/emails`),
 };
 
+// One thing that happened at a customer — a visit, a form, or a follow-up —
+// mirrors the backend TimelineEvent shape (visitBridge.getAccountTimeline).
+export interface AccountTimelineEvent {
+  kind: 'visit' | 'submission' | 'activity';
+  id: string;
+  at: string | null;
+  user_id: string | null;
+  user_name: string | null;
+  site_id?: string | null;
+  title: string;
+  detail?: string | null;
+  status?: string | null;
+  form_title?: string | null;
+  answers?: Array<{ label: string; value: string | null; photo_url: string | null }>;
+}
+export interface AccountTimeline {
+  account: Account;
+  summary: {
+    fe_count: number;
+    visit_count: number;
+    submission_count: number;
+    activity_count: number;
+    fes: Array<{ user_id: string; name: string | null; visits: number; submissions: number; last_at: string | null }>;
+  };
+  timeline: AccountTimelineEvent[];
+}
+
 export const crmAccounts = {
   ...crud<Account>(`${BASE}/accounts`),
   contacts: (id: string) => api.get<Wrapped<Contact[]>>(`${BASE}/accounts/${id}/contacts`),
   deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/accounts/${id}/deals`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/accounts/${id}/activities`),
   notes: (id: string) => api.get<Wrapped<Note[]>>(`${BASE}/accounts/${id}/notes`),
+  // Management timeline: every visit / form / follow-up, who visited, per-FE rollup.
+  timeline: (id: string) => api.get<Wrapped<AccountTimeline>>(`${BASE}/accounts/${id}/timeline`),
   summarize: (id: string) => api.post<Wrapped<{ text: string }>>(`${BASE}/accounts/${id}/summarize`, {}),
 };
 

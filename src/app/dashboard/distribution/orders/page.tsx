@@ -185,10 +185,11 @@ export default function OrdersPage() {
             <Th><SortLabel label="Placed" sortKey="placed" sort={sort} onToggle={toggle} /></Th>
             <Th><SortLabel label="Geofence" sortKey="geofence" sort={sort} onToggle={toggle} /></Th>
             <Th><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></Th>
+            <Th>Tally</Th>
             <Th style={{ textAlign: 'right' }}><SortLabel label="Amount" sortKey="amount" sort={sort} onToggle={toggle} align="right" /></Th>
           </tr></thead>
           <tbody>
-            {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
+            {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
               pagedOrders.map((o) => (
                 <tr key={o.id}>
                   <Td><PrefetchLink
@@ -201,10 +202,11 @@ export default function OrdersPage() {
                   <Td>{fmtDate(o.placed_at)}</Td>
                   <Td>{o.geofence_passed === false ? <Pill color="red">{o.geofence_distance_m}m</Pill> : o.geofence_passed === true ? <Pill color="green">in</Pill> : <Pill color="gray">—</Pill>}</Td>
                   <Td><Pill color={statusColor(o.status)}>{o.status}</Pill></Td>
+                  <Td>{o.tally_status === 'present' ? <span title={o.tally_voucher_no || undefined}><Pill color="green">Synced</Pill></span> : o.tally_status === 'cancelled' ? <Pill color="red">Cancelled</Pill> : <Pill color="gray">—</Pill>}</Td>
                   <Td style={{ textAlign: 'right', fontWeight: 700 }}>{inr(o.grand_total)}</Td>
                 </tr>
               ))}
-            {!loading && !filtered.length && <tr><Td colSpan={8 as any} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No orders match.</Td></tr>}
+            {!loading && !filtered.length && <tr><Td colSpan={9 as any} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No orders match.</Td></tr>}
           </tbody>
         </table>
       </Card>

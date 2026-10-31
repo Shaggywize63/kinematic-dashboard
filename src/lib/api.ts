@@ -1197,6 +1197,14 @@ class ApiClient {
   getSubmission(id: string) {
     return this.get(`/api/v1/forms/submissions/${id}`);
   }
+  /** Admin (or the submitter) edits a submitted report: changed answers +
+   *  outlet_name/address. Writes an audited history row per changed field. */
+  updateSubmission(id: string, body: unknown) {
+    return this.patch<any>(`/api/v1/forms/submissions/${id}`, body);
+  }
+  getSubmissionHistory(id: string) {
+    return this.get<any>(`/api/v1/forms/submissions/${id}/history`);
+  }
   getForms(params?: Record<string, string>) {
     return this.get(`/api/v1/forms/templates${this.sanitizeParams(params)}`);
   }

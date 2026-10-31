@@ -361,14 +361,42 @@ export default function WorkActivitiesPage() {
 
         // Check-in / Check-out are the REAL stamps of each form (date + time), blank when the rep recorded none —
         // never the submission time. Time spent is whole minutes.
-        const headers = ['Date', 'Client', 'Executive', 'Employee ID', 'Outlet', 'Activity', 'Address', 'Check In GPS', 'Check Out GPS', 'Check-in', 'Check-out', 'Time spent (min)', 'Responses'];
+        const metaHeaders = ['Date', 'Client', 'Executive', 'Employee ID', 'Outlet', 'Activity', 'Address', 'Check In GPS', 'Check Out GPS', 'Check-in', 'Check-out', 'Time spent (min)'];
+
+        // Each form question gets its OWN column (header) instead of all answers
+        // being crammed into a single "Responses" cell. Collect the question
+        // labels across every exported submission in first-seen order (the API
+        // returns a submission's responses in q_order), so the columns line up.
+        const questionCols: string[] = [];
+        const seenCols = new Set<string>();
+        for (const f of fullData) {
+            for (const r of (f.form_responses || [])) {
+                const label = r.builder_questions?.label;
+                if (label && !seenCols.has(label)) { seenCols.add(label); questionCols.push(label); }
+            }
+        }
+        const headers = [...metaHeaders, ...questionCols];
+
+        const respValue = (r: any): string => {
+            if (r.value_text != null && r.value_text !== '') return String(r.value_text);
+            if (r.value_number != null) return String(r.value_number);
+            if (typeof r.value_bool === 'boolean') return r.value_bool ? 'Yes' : 'No';
+            return '';
+        };
 
         const csvRows = fullData.map((f: any) => {
-            const responsesStr = (f.form_responses || []).map((r: any) =>
-                `${r.builder_questions?.label || 'Q'}: ${r.value_text || r.value_number || r.value_bool || '—'}`
-            ).join(' | ');
+            // Index this submission's answers by question label (multi-row
+            // answers such as checkboxes are joined), then emit one value per
+            // question column so each header stays separate.
+            const answerByLabel: Record<string, string> = {};
+            for (const r of (f.form_responses || [])) {
+                const label = r.builder_questions?.label;
+                if (!label) continue;
+                const v = respValue(r);
+                answerByLabel[label] = answerByLabel[label] ? `${answerByLabel[label]}, ${v}` : v;
+            }
 
-            return [
+            const meta = [
                 fmtDate(f.submitted_at),
                 selectedClientId || 'Global',
                 f.users?.name || 'Unknown',
@@ -381,8 +409,9 @@ export default function WorkActivitiesPage() {
                 csvStamp(f.check_in_at),
                 csvStamp(f.check_out_at),
                 visitMinutes(f) ?? '',
-                responsesStr
-            ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+            ];
+            const answers = questionCols.map((label) => answerByLabel[label] ?? '');
+            return [...meta, ...answers].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
         });
 
         const csvContent = headers.join(',') + '\n' + csvRows.join('\n');

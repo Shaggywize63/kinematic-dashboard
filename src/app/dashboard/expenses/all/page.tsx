@@ -7,6 +7,9 @@ import { useCityScope } from '../../../../context/CityScopeContext';
 import { Badge, Button, Card, EmptyState, Input, Select, T, useIsCompact } from '../../../../components/ui';
 import { Col, DataTable, Pager, SearchBox, Stat, Toolbar, useDebounced } from '../../../../components/finance/ui';
 import { ClaimStatusBadge, ExpensesShell, errText, fmtDate, isPartial, money, payable, saveBlob } from '../../../../components/expenses/kit';
+import { RiskBadge } from '../../../../components/expenses/ForensicHighlights';
+import Link from 'next/link';
+import api from '../../../../lib/api';
 import {
   CATEGORIES, ClaimFilters, ClaimsSummary, ExpenseClaim, ExpensePolicy, MyPolicy, categoryLabel, expensesApi, mergeCategoryRules, singleCategory,
 } from '../../../../lib/expensesApi';
@@ -42,6 +45,10 @@ export default function AllClaimsPage() {
   const [status, setStatus] = useState('');
   const [category, setCategory] = useState('');
   const [policyId, setPolicyId] = useState('');
+  const [user, setUser] = useState('');
+  const [people, setPeople] = useState<Array<{ id: string; name: string }>>([]);
+  // The forensics/forgery additions (user filter, risk + travel columns) are demo-account only.
+  const [isDemo, setIsDemo] = useState(false);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [q, setQ] = useState('');
@@ -59,9 +66,10 @@ export default function AllClaimsPage() {
   const [exporting, setExporting] = useState(false);
 
   const filters = useMemo<ClaimFilters>(() => ({
-    status, category, policy_id: policyId, from, to, q: dq, city: selectedCity || undefined,
-  }), [status, category, policyId, from, to, dq, selectedCity]);
+    status, category, policy_id: policyId, user_id: user || undefined, from, to, q: dq, city: selectedCity || undefined,
+  }), [status, category, policyId, user, from, to, dq, selectedCity]);
 
+  useEffect(() => { setIsDemo(api.isDemoAccount()); }, []);
   // Any filter change goes back to page 1.
   useEffect(() => { setPage(1); }, [filters]);
   useEffect(() => {
@@ -89,6 +97,14 @@ export default function AllClaimsPage() {
       setRows(l.data ?? []);
       setTotal(l.pagination?.total ?? 0);
       setSummary(s.data);
+      // Grow the people list for the User filter from the summary (never shrink, so a filtered view keeps all names).
+      if (s.data?.top_people?.length) {
+        setPeople((prev) => {
+          const map = new Map(prev.map((p) => [p.id, p]));
+          for (const tp of s.data!.top_people) if (tp.user_id && !map.has(tp.user_id)) map.set(tp.user_id, { id: tp.user_id, name: tp.name || tp.user_id });
+          return Array.from(map.values());
+        });
+      }
     } catch (e) { setError(errText(e, 'Could not load claims')); }
     finally { setLoading(false); }
   }, [filters, page]);
@@ -109,6 +125,13 @@ export default function AllClaimsPage() {
     { key: 'amount', label: 'Amount', align: 'right', render: (c) => (
       <div><strong>{money(payable(c), c.currency)}</strong>{isPartial(c) && <div style={{ fontSize: 12, color: T.mute, textDecoration: 'line-through' }}>{money(c.total_amount, c.currency)}</div>}</div>) },
     { key: 'status', label: 'Status', render: (c) => <ClaimStatusBadge status={c.status} partial={isPartial(c)} /> },
+    ...(isDemo ? ([
+      { key: 'risk', label: 'Forgery risk', render: (c) => <RiskBadge findings={c.forensic_findings} /> },
+      { key: 'travel', label: 'Travel', render: (c) => {
+        const d = (c.submitted_at || c.created_at)?.slice(0, 10);
+        return d ? <span onClick={(e) => e.stopPropagation()}><Link href={`/dashboard/travel-report?date=${d}&user_id=${c.user_id}`} style={{ fontSize: 12.5, color: T.info }}>Day report →</Link></span> : <span style={{ color: T.mute }}>—</span>;
+      } },
+    ] as Col<ExpenseClaim>[]) : []),
     { key: 'note', label: 'Remark', nowrap: false, render: (c) => c.status === 'rejected' && c.review_note
       ? <span style={{ fontSize: 12.5, color: T.dim, display: 'inline-block', maxWidth: 260, overflowWrap: 'anywhere' }}>{c.review_note}</span> : <span style={{ color: T.mute }}>—</span> },
   ];
@@ -122,6 +145,12 @@ export default function AllClaimsPage() {
         <Select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} style={{ width: 200 }}>
           {STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </Select>
+        {isDemo && people.length > 0 && (
+          <Select aria-label="User" value={user} onChange={(e) => setUser(e.target.value)} style={{ width: 170 }}>
+            <option value="">All people</option>
+            {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </Select>
+        )}
         {policiesReady && !oneCategory && (
           <Select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: 150 }}>
             <option value="">All categories</option>

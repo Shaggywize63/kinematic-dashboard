@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { crmLeads, crmAi, crmSettings } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import { conversationsApi, type ConversationRow } from '../../../../../lib/conversationsApi';
-import type { Deal, LeadScore, NextBestAction } from '../../../../../types/crm';
+import type { Contact, Deal, LeadScore, NextBestAction } from '../../../../../types/crm';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
 import LeadConvertModal from '../../../../../components/crm/LeadConvertModal';
 import ProposalBuilder from '../../../../../components/crm/ProposalBuilder';
@@ -40,6 +40,11 @@ import type { LeadTab, LifecycleLead, UserOption } from '../../../../../componen
 
 // Roles that may delete a teammate's update (mirrors the backend allow-list).
 const UPDATE_ADMIN_ROLES = new Set(['super_admin', 'admin', 'org_admin']);
+// Tenant-admin tier that may edit ANY rep's lead — mirrors the backend
+// isTenantAdmin() predicate gating PATCH /leads/:id (Kinematic auth.ts). Must
+// stay in lockstep with it, or the `client` / city_manager admin is promised
+// (or denied) an Edit affordance the server then disagrees with.
+const TENANT_ADMIN_ROLES = ['super_admin', 'admin', 'main_admin', 'sub_admin', 'client', 'city_manager'];
 const TAB_IDS: LeadTab[] = ['overview', 'timeline', 'deals', 'insights'];
 
 const tabFromHash = (): LeadTab => {
@@ -61,7 +66,7 @@ export default function LeadDetailPage() {
   // Edit RBAC — only the rep who CREATED this lead may edit it (plus system-tier CRM admins). Owner /
   // assigned_to grants read but not edit. Mirrors the backend PATCH /leads/:id gate so reps aren't
   // promised an affordance the server will then 403.
-  const isAdminTier = ['super_admin', 'admin', 'sub_admin'].includes((user?.role ?? '').toLowerCase());
+  const isAdminTier = TENANT_ADMIN_ROLES.includes((user?.role ?? '').toLowerCase());
   // Tenant + designation gates. Consumer Champion FEs (TATA's frontline designation) don't see the Lead
   // Score breakdown, the boost-score suggestions, or the analytics surface — those tools target managers,
   // not field reps. Tata-Tiscon tenants get the streamlined convert flow (skip the create-account prompt
@@ -100,6 +105,9 @@ export default function LeadDetailPage() {
     () => buildFieldHelpers(fieldOverrides, 'lead', lead?.is_b2c ? 'b2c' : 'b2b'),
     [fieldOverrides, lead?.is_b2c],
   );
+  // Contacts are a separate built-in-field namespace (`contact.*`), business-type
+  // agnostic — used to gate the captured contact-persons card on the overview.
+  const contactFields = useMemo(() => buildFieldHelpers(fieldOverrides, 'contact'), [fieldOverrides]);
   usePageTitle(lead ? (lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Lead') : null);
   const canEditLead = isAdminTier || (!!user?.id && lead?.created_by != null && lead.created_by === user.id);
 
@@ -110,6 +118,8 @@ export default function LeadDetailPage() {
   const [nbaLoading, setNbaLoading] = useState(false);
   const [activities, setActivities] = useState<DetailActivity[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
+  // Contact-persons captured on this lead (B2B). Empty for non-B2B / older leads.
+  const [contacts, setContacts] = useState<Contact[]>([]);
   // Conversation Analysis — compact history of recorded/consented calls for this lead. Loaded independently
   // (its own endpoint) so it never blocks the core load; failures are swallowed (module may be off).
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
@@ -151,15 +161,17 @@ export default function LeadDetailPage() {
     if (!id) return;
     if (!silent) setLoading(true);
     try {
-      const [l, a, d] = await Promise.allSettled([crmLeads.get(id), crmLeads.activities(id), crmLeads.deals(id)]);
+      const [l, a, d, c] = await Promise.allSettled([crmLeads.get(id), crmLeads.activities(id), crmLeads.deals(id), crmLeads.contacts(id)]);
       if (l.status === 'fulfilled') setLead(l.value.data as LifecycleLead);
       if (a.status === 'fulfilled') setActivities((a.value.data || []) as DetailActivity[]);
       if (d.status === 'fulfilled') setDeals(d.value.data || []);
+      // Non-blocking: a client without the B2B contacts flow just yields [].
+      if (c.status === 'fulfilled') setContacts(c.value.data || []);
     } catch (e: any) { toast.error(e.message || 'Load failed'); } finally { setLoading(false); }
   }, [id]);
 
   useEffect(() => {
-    setLead(null); setActivities([]); setDeals([]); setScore(null); setNba(null);
+    setLead(null); setActivities([]); setDeals([]); setContacts([]); setScore(null); setNba(null);
     void reload(false);
   }, [id, reload]);
 
@@ -445,6 +457,8 @@ export default function LeadDetailPage() {
               <OverviewTab
                 lead={lead}
                 fields={fields}
+                contactFields={contactFields}
+                contacts={contacts}
                 hideEmail={isTataActive}
                 activities={activities}
                 latestUpdate={updates.items[0] ?? null}

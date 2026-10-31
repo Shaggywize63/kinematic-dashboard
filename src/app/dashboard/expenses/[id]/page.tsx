@@ -10,6 +10,7 @@ import {
   ClaimStatusBadge, ClaimTimeline, ExpensesShell, Field, LineSummary, Panel, PolicyFindings, RejectionBanner, errText, fmtDate, fmtDateTime, isPartial, money, useClaimRules, useExpenseRoles,
 } from '../../../../components/expenses/kit';
 import ReviewPanel from '../../../../components/expenses/ReviewPanel';
+import { ForensicHighlights, RiskBadge } from '../../../../components/expenses/ForensicHighlights';
 import { ExpenseClaim, expensesApi } from '../../../../lib/expensesApi';
 import { usePageTitle } from '../../../../lib/pageTitle';
 
@@ -64,6 +65,8 @@ export default function ClaimDetailPage() {
   const items = c.items ?? [];
   const partial = isPartial(c);
   const findings = c.ai_flags ?? [];
+  const forensic = c.forensic_findings ?? [];
+  const claimDate = items[0]?.item_date || (c.submitted_at || c.created_at)?.slice(0, 10) || null;
   const actions = (
     <>
       <Button variant="ghost" href="/dashboard/expenses" icon={<ArrowLeft size={15} strokeWidth={1.7} />}>All claims</Button>
@@ -111,6 +114,15 @@ export default function ClaimDetailPage() {
               <PolicyFindings flags={findings} />
             </Panel>
           )}
+
+          {forensic.length > 0 && (
+            <Panel title="Forensic highlights" padding={20} aside={<RiskBadge findings={forensic} />}>
+              <div style={{ fontSize: 12.5, color: T.mute, marginBottom: 12, lineHeight: 1.5 }}>
+                Forgery signals detected for this claim. Review before approving.
+              </div>
+              <ForensicHighlights findings={forensic} date={claimDate} userId={c.user_id} />
+            </Panel>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -119,6 +131,10 @@ export default function ClaimDetailPage() {
               {([
                 ['Submitted', c.submitted_at ? fmtDateTime(c.submitted_at) : 'Not yet'],
                 ['Policy', c.policy_name || '—'],
+                // Connected-B2B links (shown only when set): the account + the form's name.
+                c.account_name ? ['Company', c.account_name] : null,
+                c.form_title ? ['Form', c.form_title] : null,
+                c.clarification ? ['Clarification', c.clarification] : null,
                 ['Claimed', money(c.total_amount, c.currency)],
                 c.approved_amount != null && c.status !== 'rejected' ? ['Approved', money(c.approved_amount, c.currency)] : null,
                 c.status === 'submitted' && c.approver_name ? ['With', `${c.approver_name}${c.current_level > 1 ? ` (level ${c.current_level})` : ''}`] : null,

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import api, { getActingAs, getImpersonateUser } from '../../../lib/api';
+import { isB2bClientActive } from '../../../lib/b2bClient';
 import { getStoredProjectKey, DEFAULT_PROJECT } from '../../../lib/projects';
 import { useClient } from '../../../context/ClientContext';
 import { matchDemoMock, DEMO_USER_EMAIL } from '../../../lib/demoMocks';
@@ -143,6 +144,7 @@ const FIELD_GROUPS = [
     { type:'card_scan',   icon:'💳',  label:'Card Scan'    },
   ]},
   { label:'Advanced', items:[
+    { type:'company',     icon:'🏢',  label:'Company'      },
     { type:'section_header', icon:'📌', label:'Section'    },
     { type:'consent',     icon:'🔏',  label:'Consent'      },
   ]},
@@ -1112,6 +1114,7 @@ function QuestionCard({ q, qNumber, isSelected, onSelect, onMoveUp, onMoveDown, 
       case 'card_scan':   return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'20px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', flexDirection:'column', gap:6, alignItems:'center' }}><span style={{ fontSize:24 }}>💳</span><div style={{ fontSize:13, fontWeight:600 }}>Scan Visiting Card</div><div style={{ fontSize:11, color:C.grayd }}>Camera · auto-fills contact fields (name, designation, phone, email, company)</div></div>;
       case 'section_header': return null;
       case 'consent':     return <div style={{ background:`${C.blue}08`, border:`1px solid ${C.blue}20`, borderRadius:10, padding:'12px 14px', fontSize:12, color:C.gray, lineHeight:1.6, display:'flex', gap:10, alignItems:'flex-start' }}><input type="checkbox" disabled checked/><div style={{ opacity:0.8 }}>I agree to the terms and data collection consent policy.</div></div>;
+      case 'company':     return <div style={{ border:`1px solid ${C.border}`, background:`${C.purple}10`, borderRadius:10, padding:'12px 14px', color:C.purple, fontSize:13, display:'flex', alignItems:'center', gap:10 }}><span style={{ fontSize:18 }}>🏢</span>Company / account picker — links this submission to a CRM account</div>;
       default: return null;
     }
   };
@@ -1477,7 +1480,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   /* Save form metadata */
   const saveForm = async () => {
     setSaving(true); setSaved(false);
-    await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'PATCH', body: JSON.stringify({ title:form.title, description:form.description, status:form.status }) }).catch(()=>{});
+    await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'PATCH', body: JSON.stringify({ title:form.title, description:form.description, status:form.status, ...(isB2bClientActive() ? { expense_linked: !!(form as any).expense_linked } : {}) }) }).catch(()=>{});
     setSavedTitle(form.title);
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -1761,6 +1764,14 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                   <Tog val={!!(form as any)[s.key]} onChange={v => setForm(p => ({...p, [s.key]:v}))}/>
                 </div>
               ))}
+              {/* Connected-B2B (Spark & Ray): mark this form so reps can link an expense
+                  to it. Shown only for that client; persisted via Save Settings. */}
+              {isB2bClientActive() && (
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 16px', background:C.s3, borderRadius:12, border:`1px solid ${C.border}` }}>
+                  <div><div style={{ fontSize:13, fontWeight:700, color:C.white }}>Allow expense linking</div><div style={{ fontSize:11, color:C.grayd, marginTop:2 }}>Reps can link an expense claim to this form (its name shows on the expense).</div></div>
+                  <Tog val={!!(form as any).expense_linked} onChange={v => setForm(p => ({...(p as any), expense_linked:v}))}/>
+                </div>
+              )}
               <button onClick={saveForm} disabled={saving} style={{ padding:'11px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
                 {saving?<><Spin/>Saving…</>:saved?'✓ Saved':'Save Settings'}
               </button>

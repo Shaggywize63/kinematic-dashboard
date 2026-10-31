@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Camera, Eye, FileText, MapPin, Plus, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
-import { Badge, Button, Card, FormGrid, IconButton, Input, Select, T, useIsCompact } from '../ui';
+import { Badge, Button, Card, FormGrid, IconButton, Input, Select, T, Textarea, useIsCompact } from '../ui';
 import {
   CATEGORIES, ClaimItem, ClaimItemInput, ClaimCheck, ExpenseClaim, ItemCategory, MyPolicy,
   VehicleRate, categoryLabel, enabledCategories, expensesApi, gpsDistanceOn, lineVehicle, odometerCameraOnly, policyVehicles, routeFieldsOn, singleCategory,
@@ -17,6 +17,8 @@ import {
   ExpensesShell, Field, Panel, PolicyFindings, ReceiptViewer, RejectionBanner, RECEIPT_ACCEPT, RECEIPT_MAX_BYTES,
   errText, fmtDate, money, prepareReceipt, todayIso,
 } from './kit';
+import { isB2bClientActive } from '../../lib/b2bClient';
+import { crmAccounts } from '../../lib/crmApi';
 
 interface Line {
   key: number;
@@ -143,6 +145,16 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   const nextKey = () => seq.current++;
 
   const [title, setTitle] = useState('');
+  // Connected-B2B (Spark & Ray): a mandatory clarification and the account + form
+  // this expense is linked to. Hidden for every other tenant.
+  const b2b = isB2bClientActive();
+  const [clarification, setClarification] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [accountQuery, setAccountQuery] = useState('');
+  const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
+  const [formId, setFormId] = useState('');
+  const [forms, setForms] = useState<Array<{ id: string; title: string }>>([]);
   const [lines, setLines] = useState<Line[]>(() => [blank(0)]);
   const [claim, setClaim] = useState<ExpenseClaim | null>(null);
   const [policy, setPolicy] = useState<MyPolicy | null>(null);
@@ -176,11 +188,39 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
       if (!['draft', 'submitted', 'rejected'].includes(c.status)) { router.replace(`/dashboard/expenses/${claimId}`); return; }
       setClaim(c);
       setTitle(c.title ?? '');
+      // Prefill the connected-B2B links from the loaded claim.
+      setClarification(c.clarification ?? '');
+      setAccountId(c.account_id ?? '');
+      setAccountName(c.account_name ?? '');
+      setFormId(c.form_id ?? '');
       setLines((c.items?.length ? c.items : []).map((it) => fromItem(it, nextKey())).concat(c.items?.length ? [] : [blank(nextKey())]));
     }).catch((e) => { toast.error(errText(e, 'Could not load the claim')); router.replace('/dashboard/expenses'); })
       .finally(() => { if (!off) setLoading(false); });
     return () => { off = true; };
   }, [claimId, router]);
+
+  // Connected-B2B: the forms an admin marked expense-linked (the form picker's options).
+  useEffect(() => {
+    if (!b2b) return;
+    let off = false;
+    expensesApi.linkableForms().then((fs) => { if (!off) setForms(fs); }).catch(() => { if (!off) setForms([]); });
+    return () => { off = true; };
+  }, [b2b]);
+
+  // Account typeahead: server search by name, debounced. Only while B2B and the
+  // typed query differs from the already-chosen account's name.
+  useEffect(() => {
+    if (!b2b) return;
+    const term = accountQuery.trim();
+    if (!term || term === accountName) { setAccountResults([]); return; }
+    let off = false;
+    const t = setTimeout(() => {
+      crmAccounts.list({ q: term, limit: 20 }).then((r) => {
+        if (!off) setAccountResults((r.data || []).map((a: any) => ({ id: a.id, name: a.name })).filter((a: any) => a.id && a.name));
+      }).catch(() => { if (!off) setAccountResults([]); });
+    }, 300);
+    return () => { off = true; clearTimeout(t); };
+  }, [b2b, accountQuery, accountName]);
 
   // ── what the policy says about the form ──
   const rules = policy?.rules;
@@ -362,7 +402,11 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
     const wrongOrder = lines.findIndex((l) => vf && l.category === 'mileage' && reading(l.odo_start) && reading(l.odo_end) && n(l.odo_end) < n(l.odo_start));
     if (wrongOrder >= 0) { toast.error(`Expense ${wrongOrder + 1}: the reading after the trip is lower than the reading before it`); return null; }
     if (lines.some((l) => l.uploading || l.odoUploading)) { toast.error('Wait for the photo to finish uploading'); return null; }
-    const body = { title: title.trim() || null, items: filled.map((l) => toInput(l, vf, vehicles, gpsOn)) };
+    const body = {
+      title: title.trim() || null,
+      items: filled.map((l) => toInput(l, vf, vehicles, gpsOn)),
+      ...(b2b ? { clarification: clarification.trim() || null, account_id: accountId || null, form_id: formId || null } : {}),
+    };
     if (savedId.current) { await expensesApi.updateClaim(savedId.current, body); return savedId.current; }
     const r = await expensesApi.createClaim(body);
     savedId.current = r.data.id;
@@ -379,6 +423,9 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   };
 
   const submit = async () => {
+    // Connected-B2B: a clarification is mandatory before submit (the backend enforces
+    // it too; this just saves a round-trip and points at the field).
+    if (b2b && !clarification.trim()) { toast.error('Add a clarification (the purpose of this expense) before submitting'); return; }
     setBusy('submit');
     let id: string | null = null;
     try {
@@ -448,6 +495,44 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
               <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} placeholder="What is this claim for?" />
             </Field>
           </Card>
+
+          {b2b && (
+            <Card padding={20} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <Field label="Clarification" required hint="The purpose of this expense — required before you can submit.">
+                <Textarea value={clarification} onChange={(e) => setClarification(e.target.value)} maxLength={2000} rows={3}
+                  placeholder="Why was this spent? e.g. Travel for the Acme Corp site visit" />
+              </Field>
+              <Field label="Linked company" hint="The CRM account this expense is against.">
+                {accountId ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>🏢 {accountName || 'Linked company'}</span>
+                    <Button size="sm" variant="ghost" onClick={() => { setAccountId(''); setAccountName(''); setAccountQuery(''); }}>Change</Button>
+                  </div>
+                ) : (
+                  <div style={{ position: 'relative' }}>
+                    <Input value={accountQuery} onChange={(e) => setAccountQuery(e.target.value)} placeholder="Search companies…" />
+                    {accountResults.length > 0 && (
+                      <div style={{ position: 'absolute', zIndex: 5, left: 0, right: 0, marginTop: 4, background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.md, maxHeight: 220, overflowY: 'auto', boxShadow: '0 6px 24px rgba(0,0,0,0.12)' }}>
+                        {accountResults.map((a) => (
+                          <button key={a.id} type="button"
+                            onClick={() => { setAccountId(a.id); setAccountName(a.name); setAccountQuery(''); setAccountResults([]); }}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', color: T.text, fontSize: 13.5, cursor: 'pointer' }}>
+                            {a.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Field>
+              <Field label="Linked form" hint={forms.length ? 'The form this expense relates to — its name shows wherever the link appears.' : 'No forms are marked for expense linking yet — turn it on for a form in the Form Builder.'}>
+                <Select value={formId} onChange={(e) => setFormId(e.target.value)} disabled={!forms.length}>
+                  <option value="">None</option>
+                  {forms.map((f) => <option key={f.id} value={f.id}>{f.title}</option>)}
+                </Select>
+              </Field>
+            </Card>
+          )}
 
           {!policyReady && <Card style={{ color: T.mute, fontSize: 14 }}>Loading your policy…</Card>}
           {policyReady && lines.map((l, i) => (
