@@ -421,9 +421,18 @@ export default function CaptureDetailPage() {
       </div>
     );
 
+  // "Share-only" capture: the planogram has no expected SKUs, so compliance %,
+  // placement and on-shelf availability can't be graded — only share-of-shelf.
+  // The backend signals this by returning availability_rate === null (with a
+  // placeholder score of 0). Show those metrics as "N/A" rather than a
+  // misleading 0%, and keep the share-of-shelf / occupancy numbers.
+  const shareOnly = !!compliance && compliance.availability_rate === null && (compliance.score ?? 0) === 0;
+
   const tone = scoreTone(compliance?.score);
   const scoreColor = toneColor(tone);
-  const scoreLabel = tone === 'good' ? 'On track' : tone === 'warn' ? 'Needs attention' : 'Action needed';
+  const scoreLabel = shareOnly
+    ? 'Share of shelf only'
+    : tone === 'good' ? 'On track' : tone === 'warn' ? 'Needs attention' : 'Action needed';
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'overview', label: 'Overview' },
@@ -526,7 +535,11 @@ export default function CaptureDetailPage() {
               boxShadow: '0 1px 2px rgba(16,20,30,0.04)',
             }}
           >
-            <ScoreRing score={compliance.score} color={scoreColor} />
+            {shareOnly ? (
+              <div style={{ fontSize: 22, fontWeight: 800, color: C.grayd, minWidth: 54, textAlign: 'center' }}>N/A</div>
+            ) : (
+              <ScoreRing score={compliance.score} color={scoreColor} />
+            )}
             <div>
               <div
                 style={{
@@ -574,9 +587,9 @@ export default function CaptureDetailPage() {
             gap: 9,
           }}
         >
-          <KpiTile label="Presence" value={compliance.presence_score} pctValue metricTone sub="on-shelf vs expected" />
-          <KpiTile label="Facings" value={compliance.facing_score} pctValue metricTone sub="detected vs planned" />
-          <KpiTile label="Position" value={compliance.position_score} pctValue metricTone sub="on the right shelf" />
+          <KpiTile label="Presence" value={shareOnly ? null : compliance.presence_score} pctValue metricTone emptyLabel="N/A" sub="on-shelf vs expected" />
+          <KpiTile label="Facings" value={shareOnly ? null : compliance.facing_score} pctValue metricTone emptyLabel="N/A" sub="detected vs planned" />
+          <KpiTile label="Position" value={shareOnly ? null : compliance.position_score} pctValue metricTone emptyLabel="N/A" sub="on the right shelf" />
           <KpiTile
             label="Occupancy"
             value={compliance.occupancy_score ?? null}
@@ -593,10 +606,11 @@ export default function CaptureDetailPage() {
           />
           <KpiTile
             label="Availability"
-            value={availabilityRate}
+            value={shareOnly ? null : availabilityRate}
             pctValue
             metricTone
-            sub={availabilityOos > 0 ? `${availabilityOos} out of stock` : 'all SKUs in stock'}
+            emptyLabel="N/A"
+            sub={shareOnly ? 'needs a planogram' : availabilityOos > 0 ? `${availabilityOos} out of stock` : 'all SKUs in stock'}
           />
           <KpiTile
             label="POSM"

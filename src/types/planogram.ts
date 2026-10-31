@@ -232,8 +232,9 @@ export interface StockSummary {
   total_units: number;
   own_units: number;
   competitor_units: number;
-  /** Share of expected/detected SKUs that are in stock, 0..100. */
-  availability_rate: number;
+  /** Share of expected/detected SKUs that are in stock, 0..100. null in
+   *  share-only mode (no expected SKUs → no availability to grade). */
+  availability_rate: number | null;
   oos_count: number;
   low_count: number;
   out_of_stock_skus: Array<{ sku_id: string; sku_name: string }>;
@@ -309,12 +310,14 @@ export interface Compliance {
   posm?: PosmCompliance;
   /** New: scalar mirror of `posm.score` for tiles/lists (null when no POSM expected). */
   posm_score?: number | null;
-  /** New: scalar mirror of `stock_summary.availability_rate` for tiles/lists. */
-  availability_rate?: number;
+  /** New: scalar mirror of `stock_summary.availability_rate` for tiles/lists.
+   *  null in share-only mode (no expected SKUs) → the UI shows compliance/OSA as
+   *  "N/A". This being null is the signal for a share-of-shelf-only capture. */
+  availability_rate?: number | null;
   /** New: scalar mirror of `stock_summary.oos_count`. */
-  oos_count?: number;
+  oos_count?: number | null;
   /** New: scalar mirror of `stock_summary.low_count`. */
-  low_stock_count?: number;
+  low_stock_count?: number | null;
   /** New: per-metric formula + inputs for the methodology popovers. */
   methodology?: Partial<Record<MethodologyKey, MethodologyEntry>>;
   created_at: string;
@@ -549,6 +552,9 @@ export interface CaptureListItem {
   score?: number | null;
   presence_score?: number | null;
   shelf_share_own?: number | null;
+  /** null in share-only mode (no expected SKUs) → list shows "—" for the
+   *  compliance score instead of a misleading 0. */
+  availability_rate?: number | null;
   needs_review?: boolean;
   recovered_count?: number | null;
   competitor_present?: boolean;

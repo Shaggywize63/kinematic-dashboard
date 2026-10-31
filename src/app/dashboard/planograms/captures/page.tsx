@@ -431,7 +431,11 @@ export default function CapturesPage() {
                   <td style={{ ...td, color: PC.muted }}>{c.fe_name || 'FE Executive'}</td>
                   <td style={{ ...td, color: PC.muted, whiteSpace: 'nowrap' }}>{fmtDate(c.captured_at)}</td>
                   <td style={tdR}>
-                    <ScorePill score={c.score} />
+                    {c.availability_rate === null && (c.score ?? 0) === 0 ? (
+                      <span style={{ color: PC.muted }} title="Share-of-shelf only — no planogram to score compliance against">—</span>
+                    ) : (
+                      <ScorePill score={c.score} />
+                    )}
                   </td>
                   <td style={{ ...tdR, color: PC.muted }}>{fmtPct(c.shelf_share_own)}</td>
                   <td style={td}>
