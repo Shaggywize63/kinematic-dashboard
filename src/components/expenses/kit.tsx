@@ -131,7 +131,7 @@ function useOdometerFlow(canApprove: boolean, ready: boolean): boolean {
 }
 
 // ── page shell ──────────────────────────────────────────────────────────────
-type TabKey = 'mine' | 'approvals' | 'all' | 'odometer' | 'policies';
+type TabKey = 'mine' | 'approvals' | 'all' | 'reports' | 'odometer' | 'policies';
 
 export function ExpensesShell({ title, description, actions, tab, children, maxWidth }: {
   title: ReactNode; description?: ReactNode; actions?: ReactNode; tab?: TabKey; children: ReactNode; maxWidth?: number;
@@ -141,7 +141,11 @@ export function ExpensesShell({ title, description, actions, tab, children, maxW
   const odometerFlow = useOdometerFlow(canApprove, ready);
   const tabs: Array<{ key: TabKey; href: string; label: string }> = [
     { key: 'mine', href: '/dashboard/expenses', label: 'My claims' },
-    ...(canApprove ? [{ key: 'approvals' as TabKey, href: '/dashboard/expenses/approvals', label: 'Approvals' }, { key: 'all' as TabKey, href: '/dashboard/expenses/all', label: 'All claims' }] : []),
+    ...(canApprove ? [
+      { key: 'approvals' as TabKey, href: '/dashboard/expenses/approvals', label: 'Approvals' },
+      { key: 'all' as TabKey, href: '/dashboard/expenses/all', label: 'All claims' },
+      { key: 'reports' as TabKey, href: '/dashboard/expenses/reports', label: 'Reports' },
+    ] : []),
     // Only for clients that pay mileage by vehicle (the page itself keeps its tab while you are on it).
     ...(odometerFlow || tab === 'odometer' ? [{ key: 'odometer' as TabKey, href: '/dashboard/expenses/odometer', label: 'Odometer' }] : []),
     ...(canAdmin ? [{ key: 'policies' as TabKey, href: '/dashboard/expenses/policies', label: 'Policies' }] : []),
