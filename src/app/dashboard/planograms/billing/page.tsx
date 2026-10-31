@@ -107,16 +107,13 @@ export default function PlanogramBillingPage() {
               <StateBlock>No API usage in this period.</StateBlock>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <Row header isCompact={isCompact} cells={['Client', 'Captures', 'Input tok', 'Output tok', 'Cost']} />
+                <Row header cells={['Client', 'Captures', 'Cost']} />
                 {data.clients.map((c) => (
                   <Row
                     key={c.client_id ?? 'none'}
-                    isCompact={isCompact}
                     cells={[
                       c.client_name || (c.client_id ? `${c.client_id.slice(0, 8)}…` : 'Unattributed'),
                       num(c.captures),
-                      num(c.input_tokens + c.cache_read_tokens + c.cache_write_tokens),
-                      num(c.output_tokens),
                       money(c.cost_usd),
                     ]}
                     lastCol
@@ -156,9 +153,9 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
   );
 }
 
-function Row({ cells, header, isCompact, lastCol }: { cells: string[]; header?: boolean; isCompact: boolean; lastCol?: boolean }) {
-  const cols = isCompact ? 'minmax(0,1.4fr) auto auto' : 'minmax(0,1.6fr) auto auto auto auto';
-  const shown = isCompact ? [cells[0], cells[1], cells[cells.length - 1]] : cells;
+function Row({ cells, header, lastCol }: { cells: string[]; header?: boolean; lastCol?: boolean }) {
+  const cols = 'minmax(0,1.6fr) auto auto';
+  const shown = cells;
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: cols, gap: 10, alignItems: 'center',
