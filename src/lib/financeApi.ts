@@ -115,7 +115,9 @@ export interface PaymentInput {
 export interface OpenInvoice { id: string; number: string; balance: number; status: string; issue_date: string; customer_id: string }
 
 export interface DashboardData {
-  period: { from: string; to: string; label: string };
+  /** from/to = the range the sales & receipts cover (the fiscal year, or the chosen month); fy_* = the whole fiscal year. */
+  period: { from: string; to: string; label: string; fy_from: string; fy_to: string; month: string | null };
+  granularity: 'month' | 'day';
   receivables: { total: number; current: number; d1_15: number; d16_30: number; d31_45: number; d45_plus: number; open_invoices: number; overdue_invoices: number };
   totals: { sales: number; receipts: number };
   months: Array<{ month: string; label: string; sales: number; receipts: number }>;
@@ -217,7 +219,7 @@ export const financeApi = {
     commit: (file: File, options: ImportOptions) => api.postForm<Wrapped<ImportResult>>(`${BASE}/import/invoices/commit`, importForm(file, options)),
   },
   reports: {
-    dashboard: (p?: { period?: 'this_fy' | 'last_fy' }) => get<DashboardData>(`/reports/dashboard${qs(p)}`),
+    dashboard: (p?: { period?: 'this_fy' | 'last_fy'; month?: string }) => get<DashboardData>(`/reports/dashboard${qs(p)}`),
     run: (name: ReportName, p?: Params) => api.get<Wrapped<ReportData>>(`${BASE}/reports/${name}${qs(p)}`, noCache),
     /** Same filters as run(); returns the CSV file. */
     csv: (name: ReportName, p?: Params) => api.download(`${BASE}/reports/${name}${qs({ ...p, format: 'csv' })}`),

@@ -18,6 +18,18 @@ const SalesReceiptsChart = dynamic(() => import('../../../components/finance/Sal
 
 type Period = 'this_fy' | 'last_fy';
 
+/** The 12 months of the fiscal year that starts at `fyFrom` (YYYY-MM-DD): value 'YYYY-MM', label 'Apr 2026'. */
+function fyMonthOptions(fyFrom: string): Array<{ value: string; label: string }> {
+  const [y, m] = [Number(fyFrom.slice(0, 4)), Number(fyFrom.slice(5, 7))];
+  return Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(Date.UTC(y, m - 1 + i, 1));
+    return { value: d.toISOString().slice(0, 7), label: d.toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }) };
+  });
+}
+
+/** 'YYYY-MM' → 'Oct 2026'. */
+const fmtMonth = (ym: string) => new Date(`${ym}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+
 function CardTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -41,6 +53,8 @@ function KpiCard({ href, label, value, tone, hint }: { href: string; label: stri
 export default function FinanceOverviewPage() {
   const narrow = useIsCompact(900);
   const [period, setPeriod] = useState<Period>('this_fy');
+  const [month, setMonth] = useState(''); // '' = the whole fiscal year, else 'YYYY-MM'
+  const [fyFrom, setFyFrom] = useState<string | null>(null);
   const [dash, setDash] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,17 +75,17 @@ export default function FinanceOverviewPage() {
     let off = false;
     setLoading(true);
     setError(null);
-    financeApi.reports.dashboard({ period })
-      .then((r) => { if (!off) setDash(r.data); })
+    financeApi.reports.dashboard({ period, ...(month ? { month } : {}) })
+      .then((r) => { if (!off) { setDash(r.data); setFyFrom(r.data.period.fy_from); } })
       .catch((e) => { if (!off) setError(errMsg(e, 'Could not load the finance overview')); })
       .finally(() => { if (!off) setLoading(false); });
     return () => { off = true; };
-  }, [period, reloadKey]);
+  }, [period, month, reloadKey]);
 
   const retry = useCallback(() => setReloadKey((k) => k + 1), []);
 
   const needsSetup = !!settings && (!settings.business_name?.trim() || !settings.state_code);
-  const isEmpty = !!dash && period === 'this_fy'
+  const isEmpty = !!dash && period === 'this_fy' && !month
     && num(dash.receivables.total) === 0 && num(dash.receivables.open_invoices) === 0
     && num(dash.totals.sales) === 0 && num(dash.totals.receipts) === 0
     && num(dash.draft_invoices) === 0 && num(dash.open_quotes) === 0;
@@ -136,19 +150,25 @@ export default function FinanceOverviewPage() {
 
           <Card>
             <CardTitle right={
-              <Select aria-label="Period" value={period} onChange={(e) => setPeriod(e.target.value as Period)} style={{ width: 190 }}>
-                <option value="this_fy">This Fiscal Year</option>
-                <option value="last_fy">Last Fiscal Year</option>
-              </Select>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <Select aria-label="Period" value={period} onChange={(e) => { setPeriod(e.target.value as Period); setMonth(''); }} style={{ width: 170 }}>
+                  <option value="this_fy">This Fiscal Year</option>
+                  <option value="last_fy">Last Fiscal Year</option>
+                </Select>
+                <Select aria-label="Month" value={month} onChange={(e) => setMonth(e.target.value)} style={{ width: 140 }} disabled={!fyFrom}>
+                  <option value="">All months</option>
+                  {fyFrom && fyMonthOptions(fyFrom).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </Select>
+              </div>
             }>
               Sales and Receipts
             </CardTitle>
             <div style={{ fontSize: 12.5, color: T.mute, marginTop: -8, marginBottom: 12 }}>
-              FY {dash.period.label} · {fmtDate(dash.period.from)} – {fmtDate(dash.period.to)}
+              {dash.period.month ? `${fmtMonth(dash.period.month)} · ` : ''}FY {dash.period.label} · {fmtDate(dash.period.from)} – {fmtDate(dash.period.to)}
             </div>
             <div style={{ display: 'flex', gap: 24, flexDirection: narrow ? 'column' : 'row', alignItems: narrow ? 'stretch' : 'flex-start' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <SalesReceiptsChart months={dash.months} periodLabel={dash.period.label} compact={narrow} />
+                <SalesReceiptsChart months={dash.months} periodLabel={dash.period.month ? fmtMonth(dash.period.month) : `fiscal year ${dash.period.label}`} granularity={dash.granularity} compact={narrow} />
               </div>
               <div style={{ display: 'flex', flexDirection: narrow ? 'row' : 'column', gap: narrow ? 24 : 22, flex: '0 0 auto', minWidth: narrow ? 0 : 200, flexWrap: 'wrap', paddingTop: narrow ? 0 : 6 }}>
                 <Stat label="Total Sales" value={inr(dash.totals.sales)} tone="info" hint="Sent, part-paid and paid invoices" />
