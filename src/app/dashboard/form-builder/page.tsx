@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import api, { getActingAs, getImpersonateUser } from '../../../lib/api';
+import { isB2bClientActive } from '../../../lib/b2bClient';
 import { getStoredProjectKey, DEFAULT_PROJECT } from '../../../lib/projects';
 import { useClient } from '../../../context/ClientContext';
 import { matchDemoMock, DEMO_USER_EMAIL } from '../../../lib/demoMocks';
@@ -1479,7 +1480,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   /* Save form metadata */
   const saveForm = async () => {
     setSaving(true); setSaved(false);
-    await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'PATCH', body: JSON.stringify({ title:form.title, description:form.description, status:form.status }) }).catch(()=>{});
+    await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'PATCH', body: JSON.stringify({ title:form.title, description:form.description, status:form.status, ...(isB2bClientActive() ? { expense_linked: !!(form as any).expense_linked } : {}) }) }).catch(()=>{});
     setSavedTitle(form.title);
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -1763,6 +1764,14 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                   <Tog val={!!(form as any)[s.key]} onChange={v => setForm(p => ({...p, [s.key]:v}))}/>
                 </div>
               ))}
+              {/* Connected-B2B (Spark & Ray): mark this form so reps can link an expense
+                  to it. Shown only for that client; persisted via Save Settings. */}
+              {isB2bClientActive() && (
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 16px', background:C.s3, borderRadius:12, border:`1px solid ${C.border}` }}>
+                  <div><div style={{ fontSize:13, fontWeight:700, color:C.white }}>Allow expense linking</div><div style={{ fontSize:11, color:C.grayd, marginTop:2 }}>Reps can link an expense claim to this form (its name shows on the expense).</div></div>
+                  <Tog val={!!(form as any).expense_linked} onChange={v => setForm(p => ({...(p as any), expense_linked:v}))}/>
+                </div>
+              )}
               <button onClick={saveForm} disabled={saving} style={{ padding:'11px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
                 {saving?<><Spin/>Saving…</>:saved?'✓ Saved':'Save Settings'}
               </button>
