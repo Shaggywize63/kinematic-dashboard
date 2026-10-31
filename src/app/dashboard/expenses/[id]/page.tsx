@@ -131,6 +131,10 @@ export default function ClaimDetailPage() {
               {([
                 ['Submitted', c.submitted_at ? fmtDateTime(c.submitted_at) : 'Not yet'],
                 ['Policy', c.policy_name || '—'],
+                // Connected-B2B links (shown only when set): the account + the form's name.
+                c.account_name ? ['Company', c.account_name] : null,
+                c.form_title ? ['Form', c.form_title] : null,
+                c.clarification ? ['Clarification', c.clarification] : null,
                 ['Claimed', money(c.total_amount, c.currency)],
                 c.approved_amount != null && c.status !== 'rejected' ? ['Approved', money(c.approved_amount, c.currency)] : null,
                 c.status === 'submitted' && c.approver_name ? ['With', `${c.approver_name}${c.current_level > 1 ? ` (level ${c.current_level})` : ''}`] : null,

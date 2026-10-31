@@ -195,6 +195,14 @@ export interface ExpenseClaim {
   auto_approved?: boolean | null;
   reimbursed_at: string | null;
   reimbursed_ref: string | null;
+  // Connected-B2B (Spark & Ray): the mandatory purpose, and the CRM account +
+  // builder form this expense is linked to. account_name / form_title are stamped
+  // server-side for display.
+  clarification?: string | null;
+  account_id?: string | null;
+  form_id?: string | null;
+  account_name?: string | null;
+  form_title?: string | null;
   created_at: string;
   updated_at?: string;
   // stamped for display
@@ -297,7 +305,14 @@ export interface ClaimItemInput {
   odometer_start_photo_url?: string | null;
   odometer_end_photo_url?: string | null;
 }
-export interface ClaimInput { title?: string | null; items?: ClaimItemInput[] }
+export interface ClaimInput {
+  title?: string | null;
+  // Connected-B2B (Spark & Ray): mandatory purpose + the linked account / form.
+  clarification?: string | null;
+  account_id?: string | null;
+  form_id?: string | null;
+  items?: ClaimItemInput[];
+}
 
 export interface ClaimCheck {
   policy: MyPolicy;
@@ -382,6 +397,15 @@ export const expensesApi = {
   cancelClaim: (id: string) => api.patch<Wrapped<{ ok: boolean }>>(`${BASE}/claims/${id}/cancel`, {}),
   /** Dry-run the policy against unsaved lines, so problems show before submitting. */
   checkClaim: (body: { items: ClaimItemInput[]; claim_id?: string }) => api.post<Wrapped<ClaimCheck>>(`${BASE}/claims/check`, body),
+  /**
+   * Builder forms marked "expense-linked" — the options for the claim's form
+   * picker (connected-B2B). Reads the shared builder-forms list and keeps only
+   * the forms an admin has flagged; empty until at least one form is marked.
+   */
+  linkableForms: async (): Promise<Array<{ id: string; title: string }>> => {
+    const r = await api.get<Wrapped<Array<{ id: string; title: string; expense_linked?: boolean }>>>('/api/v1/builder/forms');
+    return (r.data || []).filter((f) => f.expense_linked).map((f) => ({ id: f.id, title: f.title }));
+  },
 
   // Receipts + auto-mileage
   /**
