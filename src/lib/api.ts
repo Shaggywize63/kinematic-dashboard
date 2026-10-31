@@ -821,7 +821,7 @@ class ApiClient {
     while (true) {
       attempt++;
       try {
-        res = await fetchWithTimeout(`${this.baseUrl}${safePath}`, { ...options, headers }, REQUEST_TIMEOUT_MS);
+        res = await fetchWithTimeout(`${this.baseUrl}${safePath}`, { ...options, headers }, (options as { timeoutMs?: number }).timeoutMs ?? REQUEST_TIMEOUT_MS);
       } catch (err) {
         if (canRetry && attempt < maxAttempts) { await sleep(retryBackoffMs(attempt)); continue; }
         throw err;

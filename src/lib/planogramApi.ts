@@ -171,6 +171,10 @@ export const planogramApi = {
     api.post<Wrapped<{ capture: Capture; recognition: Recognition; compliance: Compliance }>>(
       '/api/v1/planograms/captures',
       body,
+      // The capture runs the synchronous 60–120s vision pipeline server-side, so
+      // this must outlast the default 25s client timeout (and sit under the ALB's
+      // 240s idle cutoff). Without this the dashboard aborts mid-analysis.
+      { timeoutMs: 180_000 } as RequestInit,
     ),
 
   // ── Redesigned module: Overview + Captures list ─────────────────────────
@@ -213,6 +217,8 @@ export const planogramApi = {
     api.post<Wrapped<{ capture: Capture; recognition: Recognition; compliance: Compliance }>>(
       `/api/v1/planograms/captures/${id}/reprocess`,
       {},
+      // Re-analysis re-runs the full vision pipeline; same long timeout as createCapture.
+      { timeoutMs: 180_000 } as RequestInit,
     ),
 
   /** Detection-level feedback for the review/feedback loop (wired now for the
