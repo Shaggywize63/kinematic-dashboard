@@ -141,6 +141,10 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // other tenant's edit modal is unchanged. Results render inline (not an
   // overlay) so the modal's own scroll never clips the dropdown.
   const b2bAccounts = isB2bClientActive();
+  // Connected-B2B (Spark & Ray) B2B lead = company-centric: the person Contact
+  // fields are dropped (people live in Contacts & requirements) and the lead's
+  // name comes from the Company. Mirrors the new-lead form.
+  const companyLead = b2bAccounts && !form.is_b2c;
   const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
   // Additive "Contacts & requirements" capture on edit — new people met on this
   // revisit. Starts empty (existing contacts show on the lead detail page); each
@@ -222,12 +226,16 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     // never whether a required phone was missing — which is how reps
     // could save mobile-less leads despite the override being set).
     const reqGuards: Array<{ key: string; value: string; default: boolean; message: string }> = [
-      { key: 'first_name', value: form.first_name, default: true,  message: 'First name is required.' },
-      { key: 'last_name',  value: form.last_name,  default: false, message: 'Last name is required.' },
-      // Email guard is suppressed for Tata Tiscon (field is hidden);
-      // an empty value should never block save there.
-      ...(isTata ? [] : [{ key: 'email', value: form.email, default: false, message: 'Email is required.' }]),
-      { key: 'phone',      value: form.phone,      default: true,  message: 'Primary mobile is required.' },
+      // Person fields are dropped on a company-centric Spark lead, so they are
+      // never required there (the lead's name comes from the Company).
+      ...(companyLead ? [] : [
+        { key: 'first_name', value: form.first_name, default: true,  message: 'First name is required.' },
+        { key: 'last_name',  value: form.last_name,  default: false, message: 'Last name is required.' },
+        // Email guard is suppressed for Tata Tiscon (field is hidden);
+        // an empty value should never block save there.
+        ...(isTata ? [] : [{ key: 'email', value: form.email, default: false, message: 'Email is required.' }]),
+        { key: 'phone',      value: form.phone,      default: true,  message: 'Primary mobile is required.' },
+      ]),
       ...(!form.is_b2c
         ? [{ key: 'company', value: form.company, default: true, message: `${fields.labelFor('company', 'Company')} is required for ${segmentName(leadForm, 'b2b')} leads.` }]
         : []),
@@ -304,6 +312,12 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       // lead. Only sent when set, so an untouched save never clears an account
       // that was auto-linked on create (linkLeadToCompany). B2B leads only.
       if (b2bAccounts && !form.is_b2c && form.account_id) { body.account_id = form.account_id; }
+      // Company-centric Spark lead: keep any existing person data (re-sent above),
+      // but guarantee the lead still has a name — fall back to the Company when
+      // both name parts are empty (e.g. a web-created company lead).
+      if (companyLead && !form.first_name.trim() && !form.last_name.trim() && form.company.trim()) {
+        body.last_name = form.company.trim();
+      }
       // Connected-B2B (Spark & Ray): new people met on this revisit. The backend
       // PATCH resolves these to crm_contacts under the lead's account (same path
       // as create). Only non-blank rows are sent; a linked row carries its `id`.
@@ -395,6 +409,9 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                 const anyBizOnB2C = explicitlyShownOnB2C('company') || explicitlyShownOnB2C('title') || explicitlyShownOnB2C('industry');
       return (
         <>
+        {/* Company-centric Spark lead: person Contact fields are dropped (people
+            live in Contacts & requirements); the lead's name is the Company. */}
+        {!companyLead && (<>
         <SL first>Contact</SL><Grid>
           {show('first_name', <F label={lbl('first_name', 'First Name')} required={req('first_name', true)} value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />)}
           {show('last_name',  <F label={lbl('last_name',  'Last Name')}  required={req('last_name',  false)} value={form.last_name}  onChange={(v) => setForm({ ...form, last_name:  v })} />)}
@@ -422,6 +439,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
           />
         )}
+        </>)}
 
         {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked)) && (
           <><SL>Assignment</SL><Grid>
