@@ -42,6 +42,12 @@ interface Line {
   receipt_view: string | null;
   receipt_name: string;
   ai_extracted: Record<string, unknown> | null;
+  // GST on the bill, for Finance's input-tax-credit report. gst_rate '' = no GST details given.
+  supplier_gstin: string;
+  supplier_invoice_no: string;
+  gst_rate: string;
+  gst_amount: string;
+  itc: '' | 'yes' | 'no';
   // Travel allowance by vehicle: vehicle + odometer readings with a photo of each.
   vehicle_type: string;
   odo_start: string;
@@ -70,6 +76,16 @@ const pos = (v: string) => Number.isFinite(n(v)) && n(v) > 0;
 /** An odometer reading: any number from 0 up (a new bike can read 0). */
 const reading = (v: string) => Number.isFinite(n(v)) && n(v) >= 0;
 const round2 = (x: number) => Math.round(x * 100) / 100;
+const GST_SLABS = [5, 12, 18, 28];
+/** When the receipt shows its GST, pre-fill the rate (snapped to a standard slab) and amount — only on lines nobody has typed GST on. */
+function gstFromScan(l: Line, s: { amount: number | null; tax_amount: number | null } | null | undefined): Partial<Line> {
+  if (!s || s.tax_amount == null || s.tax_amount <= 0 || l.gst_rate.trim() || l.gst_amount.trim()) return {};
+  const total = l.amount.trim() ? n(l.amount) : s.amount ?? NaN;
+  if (!Number.isFinite(total) || total <= s.tax_amount) return { gst_amount: String(s.tax_amount) };
+  const pct = (s.tax_amount / (total - s.tax_amount)) * 100;
+  const slab = GST_SLABS.find((r) => Math.abs(r - pct) <= 1.5);
+  return slab ? { gst_rate: String(slab), gst_amount: String(s.tax_amount) } : { gst_amount: String(s.tax_amount) };
+}
 /** Distance for a vehicle line, or null until both readings are in and in order. */
 const odoKm = (l: Line): number | null => (reading(l.odo_start) && reading(l.odo_end) && n(l.odo_end) >= n(l.odo_start) ? round2(n(l.odo_end) - n(l.odo_start)) : null);
 
@@ -80,6 +96,9 @@ function fromItem(it: ClaimItem, key: number): Line {
     from_location: it.from_location ?? '', to_location: it.to_location ?? '', distance_km: it.distance_km != null ? String(it.distance_km) : '',
     receipt_url: it.receipt_url ?? '', receipt_view: it.receipt_signed_url ?? null, receipt_name: it.receipt_url ? 'Receipt' : '',
     ai_extracted: it.ai_extracted ?? null,
+    supplier_gstin: it.supplier_gstin ?? '', supplier_invoice_no: it.supplier_invoice_no ?? '',
+    gst_rate: it.gst_rate != null ? String(it.gst_rate) : '', gst_amount: it.gst_amount != null ? String(it.gst_amount) : '',
+    itc: it.itc_eligible == null ? '' : it.itc_eligible ? 'yes' : 'no',
     vehicle_type: it.vehicle_type ?? '',
     odo_start: it.odometer_start != null ? String(it.odometer_start) : '', odo_end: it.odometer_end != null ? String(it.odometer_end) : '',
     odo_start_url: it.odometer_start_photo_url ?? '', odo_start_view: it.odometer_start_photo_signed_url ?? null,
@@ -90,6 +109,7 @@ function fromItem(it: ClaimItem, key: number): Line {
 const blank = (key: number, category: ItemCategory = 'food'): Line => ({
   key, category, item_date: todayIso(), amount: '', description: '', merchant: '', from_location: '', to_location: '',
   distance_km: '', receipt_url: '', receipt_view: null, receipt_name: '', ai_extracted: null,
+  supplier_gstin: '', supplier_invoice_no: '', gst_rate: '', gst_amount: '', itc: '',
   vehicle_type: '', odo_start: '', odo_end: '', odo_start_url: '', odo_start_view: null, odo_end_url: '', odo_end_view: null,
 });
 
@@ -142,6 +162,14 @@ function toInput(l: Line, vf = false, vehicles: VehicleRate[] = [], gps = false)
     merchant: mileage ? null : l.merchant.trim() || null,
     receipt_url: l.receipt_url || null,
     ai_extracted: l.ai_extracted,
+    // Mileage allowances carry no GST; for other lines the keys are always sent so clearing them works.
+    ...(mileage ? {} : {
+      supplier_gstin: l.supplier_gstin.trim().toUpperCase() || null,
+      supplier_invoice_no: l.supplier_invoice_no.trim() || null,
+      gst_rate: l.gst_rate.trim() !== '' && Number.isFinite(n(l.gst_rate)) ? n(l.gst_rate) : null,
+      gst_amount: pos(l.gst_amount) && l.gst_rate.trim() !== '' ? n(l.gst_amount) : null,
+      itc_eligible: l.itc === '' ? null : l.itc === 'yes',
+    }),
   };
 }
 
@@ -346,6 +374,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
           ai_extracted: s ? (s as unknown as Record<string, unknown>) : l.ai_extracted,
           amount: l.amount.trim() ? l.amount : s?.amount != null ? String(s.amount) : '',
           merchant: l.merchant.trim() ? l.merchant : s?.merchant ?? '',
+          ...gstFromScan(l, s),
           item_date: fresh && s?.txn_date ? s.txn_date : l.item_date,
           category: fresh && s?.category && l.category !== 'mileage' ? s.category : l.category,
           scanNote: read ? `Read from the receipt: ${[s?.amount != null ? money(s.amount, s.currency || currency) : null, s?.merchant].filter(Boolean).join(' · ')}. Check it looks right.` : null,
@@ -718,6 +747,8 @@ function LineCard({ index, line: l, policy, currency, removable, lastReading, fi
           </FormGrid>
         )}
 
+        {!mileage && <GstDetails line={l} currency={currency} onChange={onChange} />}
+
         <Field label="Notes"><Input value={l.description} onChange={(e) => onChange({ description: e.target.value })} placeholder="Optional" maxLength={500} /></Field>
 
         {!mileage && <ReceiptSlot line={l} onAttach={onAttach} onClear={onClearReceipt} onView={onView} />}
@@ -839,5 +870,38 @@ function PolicyCard({ policy, currency }: { policy: MyPolicy | null; currency: s
         {policy.rules?.enforcement === 'block' && <div style={{ fontSize: 12.5, color: T.warn, marginTop: 4 }}>A claim that breaks these rules can’t be submitted.</div>}
       </div>
     </Panel>
+  );
+}
+
+const GST_RATE_OPTIONS = ['0', '5', '12', '18', '28'];
+/** Optional GST details of the bill — once the claim is approved they feed Finance → Expenses & GST (input tax credit). */
+function GstDetails({ line: l, currency, onChange }: { line: Line; currency: string; onChange: (p: Partial<Line>) => void }) {
+  const has = !!(l.gst_rate.trim() || l.supplier_gstin.trim() || l.gst_amount.trim());
+  const bad = !!l.supplier_gstin.trim() && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(l.supplier_gstin.trim().toUpperCase());
+  return (
+    <details open={has || undefined} style={{ border: `1px solid ${T.border}`, borderRadius: T.radius.md, padding: '8px 12px', background: T.panel }}>
+      <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: T.dim }}>
+        GST details {has ? '' : '(optional) '}— for input tax credit
+      </summary>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+        <FormGrid narrow>
+          <Field label="GST rate" hint="Leave blank if the bill has no GST.">
+            <Select value={l.gst_rate} onChange={(e) => onChange({ gst_rate: e.target.value })}>
+              <option value="">No GST details</option>
+              {GST_RATE_OPTIONS.concat(l.gst_rate && !GST_RATE_OPTIONS.includes(l.gst_rate) ? [l.gst_rate] : []).map((r) => <option key={r} value={r}>{r}%</option>)}
+            </Select>
+          </Field>
+          <Field label={`GST amount on the bill (${currency})`} hint="Optional — worked out from the rate if blank.">
+            <Input inputMode="decimal" value={l.gst_amount} onChange={(e) => onChange({ gst_amount: e.target.value })} placeholder="Auto" disabled={!l.gst_rate.trim()} />
+          </Field>
+          <Field label="Supplier GSTIN" error={bad ? 'Not a valid 15-character GSTIN' : undefined} hint="Needed to claim the credit.">
+            <Input value={l.supplier_gstin} onChange={(e) => onChange({ supplier_gstin: e.target.value.toUpperCase() })} maxLength={15} autoComplete="off" disabled={!l.gst_rate.trim()} />
+          </Field>
+          <Field label="Supplier invoice no.">
+            <Input value={l.supplier_invoice_no} onChange={(e) => onChange({ supplier_invoice_no: e.target.value })} maxLength={60} autoComplete="off" disabled={!l.gst_rate.trim()} />
+          </Field>
+        </FormGrid>
+      </div>
+    </details>
   );
 }
