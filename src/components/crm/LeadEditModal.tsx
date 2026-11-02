@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings, crmLeadSources, crmAccounts, crmContacts, builderForms, type BuilderFormLite } from '../../lib/crmApi';
+import { crmLeads, crmSettings, crmLeadSources, crmAccounts, crmContacts } from '../../lib/crmApi';
 import api from '../../lib/api';
 import { isB2bClientActive } from '../../lib/b2bClient';
 import { orderLeadSources } from '../../lib/leadSourceOrder';
@@ -152,14 +152,6 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // to crm_contacts under the lead's account. Reset whenever the modal reopens.
   const [contactRows, setContactRows] = useState<LeadContactRow[]>([]);
   useEffect(() => { if (open) setContactRows([]); }, [open, lead]);
-  // Active builder forms for the per-requirement form picker (connected-B2B).
-  const [leadForms, setLeadForms] = useState<BuilderFormLite[]>([]);
-  useEffect(() => {
-    if (!open || !b2bAccounts) return;
-    builderForms.list()
-      .then((r) => setLeadForms(((r.data as BuilderFormLite[]) || []).filter((f) => f.id && (f.status ?? 'published') !== 'draft')))
-      .catch(() => setLeadForms([]));
-  }, [open, b2bAccounts]);
   useEffect(() => {
     if (!open || !b2bAccounts || form.is_b2c || form.account_id) { setAccountResults([]); return; }
     const term = form.company.trim();
@@ -334,7 +326,6 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             if (r.phone.trim()) c.phone = r.phone.trim();
             if (r.email.trim()) c.email = r.email.trim();
             if (r.requirement.trim()) c.requirement = r.requirement.trim();
-            if (r.formId) c.form_id = r.formId;
             return c;
           })
           .filter((c): c is Record<string, unknown> => c !== null);
@@ -566,7 +557,6 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                   key={row.key}
                   row={row}
                   index={i}
-                  forms={leadForms}
                   onChange={(next) => setContactRows((rows) => rows.map((r) => (r.key === row.key ? next : r)))}
                   onRemove={() => setContactRows((rows) => rows.filter((r) => r.key !== row.key))}
                 />
@@ -753,21 +743,19 @@ function seed(l: Lead) {
 // backend resolves that exact record).
 type LeadContactRow = {
   key: string; contactId: string;
-  firstName: string; lastName: string; title: string; phone: string; email: string;
-  requirement: string; formId: string;
+  firstName: string; lastName: string; title: string; phone: string; email: string; requirement: string;
 };
 const newContactRow = (): LeadContactRow => ({
   key: Math.random().toString(36).slice(2), contactId: '',
-  firstName: '', lastName: '', title: '', phone: '', email: '', requirement: '', formId: '',
+  firstName: '', lastName: '', title: '', phone: '', email: '', requirement: '',
 });
 
 // A single "Contacts & requirements" row on the edit modal. Leads with a name
 // typeahead against existing CRM contacts (inline results so the modal's own
 // scroll never clips them); picking one links the row, typing fresh creates a
 // new contact on save. B2B / Spark & Ray only.
-function EditContactRow({ row, index, onChange, onRemove, forms }: {
+function EditContactRow({ row, index, onChange, onRemove }: {
   row: LeadContactRow; index: number; onChange: (next: LeadContactRow) => void; onRemove: () => void;
-  forms: BuilderFormLite[];
 }) {
   const [results, setResults] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null; email?: string | null }>>([]);
   useEffect(() => {
@@ -826,15 +814,6 @@ function EditContactRow({ row, index, onChange, onRemove, forms }: {
       <Field label="Requirement" hint="What this person is asking for.">
         <Textarea rows={2} value={row.requirement} onChange={(e) => onChange({ ...row, requirement: e.target.value })} placeholder="e.g. 200 MT TMT bars for a Q3 project" />
       </Field>
-      {/* Connect a builder form to this requirement so it stays linked. */}
-      {forms.length > 0 && (
-        <Field label="Connected form" hint="Link a form from the form builder to this requirement.">
-          <Select value={row.formId} onChange={(e) => onChange({ ...row, formId: e.target.value })}>
-            <option value="">— No form —</option>
-            {forms.map((f) => <option key={f.id} value={f.id}>{f.title || 'Untitled form'}</option>)}
-          </Select>
-        </Field>
-      )}
     </div>
   );
 }

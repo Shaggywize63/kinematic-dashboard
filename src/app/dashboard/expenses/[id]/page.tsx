@@ -13,6 +13,7 @@ import ReviewPanel from '../../../../components/expenses/ReviewPanel';
 import { ForensicHighlights, RiskBadge } from '../../../../components/expenses/ForensicHighlights';
 import { ExpenseClaim, expensesApi } from '../../../../lib/expensesApi';
 import { usePageTitle } from '../../../../lib/pageTitle';
+import { formRefTitle } from '../../../../lib/formRef';
 
 function currentUserId(): string | null {
   try { return JSON.parse(localStorage.getItem('kinematic_user') || 'null')?.id ?? null; } catch { return null; }
@@ -131,9 +132,10 @@ export default function ClaimDetailPage() {
               {([
                 ['Submitted', c.submitted_at ? fmtDateTime(c.submitted_at) : 'Not yet'],
                 ['Policy', c.policy_name || '—'],
-                // Connected-B2B links (shown only when set): the account + the form's name.
+                // Connected-B2B links (shown only when set): the account + the filled form's reference and date
+                // (the form's name for an older claim that has no reference).
                 c.account_name ? ['Company', c.account_name] : null,
-                c.form_title ? ['Form', c.form_title] : null,
+                c.form_ref_no ? ['Form', formRefTitle(c.form_ref_no, c.form_submitted_at)] : c.form_title ? ['Form', c.form_title] : null,
                 c.clarification ? ['Clarification', c.clarification] : null,
                 ['Claimed', money(c.total_amount, c.currency)],
                 c.approved_amount != null && c.status !== 'rejected' ? ['Approved', money(c.approved_amount, c.currency)] : null,

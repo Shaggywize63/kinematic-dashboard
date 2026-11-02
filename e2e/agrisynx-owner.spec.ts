@@ -252,7 +252,8 @@ test.describe('Admin-only lead owner — detail', () => {
     await setup(page, { user: REP, adminOnly: true });
     await settled(page, () => page.goto('/dashboard/crm/leads/lead-1'));
     await expect(page.getByText('Owner: Asha Menon')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Proposal' })).toBeVisible();
+    // Still sees the page's other action buttons (Proposal was removed from the lead page on purpose).
+    await expect(page.getByRole('button', { name: 'Convert', exact: true })).toBeVisible();
     await expect(assignButton(page)).toHaveCount(0);
   });
 

@@ -285,14 +285,6 @@ export const crmAccounts = {
   summarize: (id: string) => api.post<Wrapped<{ text: string }>>(`${BASE}/accounts/${id}/summarize`, {}),
 };
 
-// A builder form, as the "Contacts & requirements" form picker needs it. The
-// list endpoint returns the org's forms (org-shared + the caller's client);
-// `status` distinguishes published/active forms from drafts.
-export interface BuilderFormLite { id: string; title?: string | null; status?: string | null }
-export const builderForms = {
-  list: () => api.get<Wrapped<BuilderFormLite[]>>(`/api/v1/builder/forms`),
-};
-
 export const crmDeals = {
   ...crud<Deal>(`${BASE}/deals`),
   moveStage: (id: string, body: { stage_id: string; reason?: string }) =>
