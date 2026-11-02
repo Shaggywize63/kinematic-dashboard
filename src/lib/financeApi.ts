@@ -123,6 +123,39 @@ export interface DashboardData {
   months: Array<{ month: string; label: string; sales: number; receipts: number }>;
   draft_invoices: number; open_quotes: number;
 }
+
+// ── projection & growth plan ────────────────────────────────────────────────
+export type Scenario = 'conservative' | 'base' | 'upside';
+export interface ProjectionMonth { month: string; label: string; contracted: number; conservative: number; base: number; upside: number; cum_conservative: number; cum_base: number; cum_upside: number }
+export interface ProjectionCustomer { customer: string; cadence: string; source: 'schedule' | 'duration' | 'history'; cycle_amount: number; per_year: number; share: number; last_invoice: string; next_billing: string; invoices_in_cycle: number }
+export interface GrowthRole {
+  key: string; title: string; why: string; expertise: string[]; trigger: string; note: string | null; priority: number;
+  monthly_salary: number; monthly_loaded: number; one_time: number; unlock_mrr: number; unlock_alone: number; gap_mrr: number; more_customers: number | null;
+  hire_month: string | null; hire_label: string | null; status: 'now' | 'planned' | 'beyond'; year1_cost: number; blocker: string | null;
+}
+export interface GrowthTimelineRow { month: string; label: string; mrr: number; customers: number; billings: number; payroll: number; one_time: number; existing: number; net: number; cum_net: number; hires: string[]; payroll_pct: number }
+export interface GrowthPlan {
+  roles: GrowthRole[]; timeline: GrowthTimelineRow[];
+  budget: { year1_total: number; payroll: number; one_time: number; peak_monthly: number; end_net: number };
+  headline: { hires: number; first_hire: { title: string; month: string; label: string; status: string } | null; next_unlock: { title: string; unlock_mrr: number; gap_mrr: number; more_customers: number | null } | null };
+}
+export interface ProjectionData {
+  as_of: string; horizon: { from: string; to: string };
+  options: { churn_pct: number; growth: number; growth_up: number };
+  summary: { billed_to_date: number; billed_incl_gst: number; collected: number; outstanding: number; recurring_customers: number; mrr: number; arr: number; top2_share: number; one_off_total: number; gst_factor: number };
+  scenarios: { contracted: number; conservative: number; base: number; upside: number };
+  months: ProjectionMonth[];
+  history: Array<{ month: string; label: string; billed: number; collected: number }>;
+  customers: ProjectionCustomer[];
+  one_off: Array<{ customer: string; amount: number; date: string }>;
+  pipeline: { quotes: Array<{ number: string; customer: string; amount: number }>; total: number };
+  growth: {
+    options: { cap_pct: number; oncost_pct: number; existing: number; costs: Record<string, number> };
+    current: { mrr: number; customers: number; avg_mrr_per_customer: number; outstanding: number };
+    assumptions: string[];
+    plans: Record<Scenario, GrowthPlan>;
+  };
+}
 export interface ReportColumn { key: string; label: string; type?: 'text' | 'money' | 'number' | 'date' }
 export interface ReportData { title: string; columns: ReportColumn[]; rows: Array<Record<string, unknown>>; totals?: Record<string, unknown>; meta: Record<string, unknown> }
 export type ReportName = 'sales-by-customer' | 'sales-by-item' | 'gst-summary' | 'receivables-ageing' | 'payments-received' | 'invoice-details'
@@ -248,6 +281,7 @@ export const financeApi = {
     commit: (file: File, options: ImportOptions) => api.postForm<Wrapped<ImportResult>>(`${BASE}/import/invoices/commit`, importForm(file, options)),
   },
   reports: {
+    projection: (p?: Params) => get<ProjectionData>(`/reports/projection${qs(p)}`),
     dashboard: (p?: { period?: 'this_fy' | 'last_fy'; month?: string }) => get<DashboardData>(`/reports/dashboard${qs(p)}`),
     run: (name: ReportName, p?: Params) => api.get<Wrapped<ReportData>>(`${BASE}/reports/${name}${qs(p)}`, noCache),
     /** Same filters as run(); returns the CSV file. */
