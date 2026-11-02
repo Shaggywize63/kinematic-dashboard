@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmAi, crmSettings } from '../../../../../lib/crmApi';
+import { crmLeads, crmAi, crmSettings, builderForms, type BuilderFormLite } from '../../../../../lib/crmApi';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import api from '../../../../../lib/api';
 import { conversationsApi, type ConversationRow } from '../../../../../lib/conversationsApi';
 import type { Contact, Deal, LeadScore, NextBestAction } from '../../../../../types/crm';
@@ -120,6 +121,19 @@ export default function LeadDetailPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   // Contact-persons captured on this lead (B2B). Empty for non-B2B / older leads.
   const [contacts, setContacts] = useState<Contact[]>([]);
+  // form_id → title, so a contact's connected builder form shows by name on the
+  // "Contacts & requirements" card. Loaded only for the connected-B2B client.
+  const [formNameById, setFormNameById] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!isB2bClientActive()) return;
+    builderForms.list()
+      .then((r) => {
+        const m: Record<string, string> = {};
+        for (const f of ((r.data as BuilderFormLite[]) || [])) if (f.id) m[f.id] = f.title || 'Untitled form';
+        setFormNameById(m);
+      })
+      .catch(() => {});
+  }, [id]);
   // Conversation Analysis — compact history of recorded/consented calls for this lead. Loaded independently
   // (its own endpoint) so it never blocks the core load; failures are swallowed (module may be off).
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
@@ -465,6 +479,7 @@ export default function LeadDetailPage() {
                 fields={fields}
                 contactFields={contactFields}
                 contacts={contacts}
+                formNameById={formNameById}
                 hideEmail={isTataActive}
                 activities={activities}
                 latestUpdate={updates.items[0] ?? null}

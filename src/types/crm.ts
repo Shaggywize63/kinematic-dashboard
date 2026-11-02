@@ -87,6 +87,8 @@ export interface Contact extends B2CFields {
   // bridge; present only on contacts logged through that flow.
   lead_id?: string | null;
   requirement?: string | null;
+  // Builder form connected to this person's requirement (B2B lead capture).
+  form_id?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   full_name?: string | null;

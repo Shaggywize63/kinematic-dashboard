@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, crmAccounts, crmContacts, type MyTarget, type ExtractedLead } from '../../../../../lib/crmApi';
+import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, crmAccounts, crmContacts, builderForms, type BuilderFormLite, type MyTarget, type ExtractedLead } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import { reverseGeocode } from '../../../../../lib/googleGeocode';
@@ -112,11 +112,12 @@ const empty: Form = {
 // resolves that exact record instead of de-duping by email/phone).
 type LeadContactRow = {
   key: string; contactId: string;
-  firstName: string; lastName: string; title: string; phone: string; email: string; requirement: string;
+  firstName: string; lastName: string; title: string; phone: string; email: string;
+  requirement: string; formId: string;
 };
 const newContactRow = (): LeadContactRow => ({
   key: Math.random().toString(36).slice(2), contactId: '',
-  firstName: '', lastName: '', title: '', phone: '', email: '', requirement: '',
+  firstName: '', lastName: '', title: '', phone: '', email: '', requirement: '', formId: '',
 });
 
 export default function NewLeadPage() {
@@ -349,6 +350,15 @@ export default function NewLeadPage() {
   // to (or creating) a CRM contact and sent as the lead-create `contacts[]`.
   // Always starts with one blank row; blank rows are dropped on submit.
   const [contactRows, setContactRows] = useState<LeadContactRow[]>([newContactRow()]);
+  // Active builder forms, for the per-requirement form picker (connected-B2B).
+  // Loaded once; drafts are filtered out so only usable forms are offered.
+  const [leadForms, setLeadForms] = useState<BuilderFormLite[]>([]);
+  useEffect(() => {
+    if (!b2bAccounts) return;
+    builderForms.list()
+      .then((r) => setLeadForms(((r.data as BuilderFormLite[]) || []).filter((f) => f.id && (f.status ?? 'published') !== 'draft')))
+      .catch(() => setLeadForms([]));
+  }, [b2bAccounts]);
   useEffect(() => {
     // Only search for a B2B lead on the connected-B2B client, and never while a
     // company is already linked (the rep clears the link to search again).
@@ -708,6 +718,7 @@ export default function NewLeadPage() {
             if (r.phone.trim()) c.phone = r.phone.trim();
             if (r.email.trim()) c.email = r.email.trim();
             if (r.requirement.trim()) c.requirement = r.requirement.trim();
+            if (r.formId) c.form_id = r.formId;
             return c;
           })
           .filter((c): c is Record<string, unknown> => c !== null);
@@ -1182,6 +1193,7 @@ export default function NewLeadPage() {
                       row={row}
                       index={i}
                       narrow={narrow}
+                      forms={leadForms}
                       canRemove={contactRows.length > 1}
                       onChange={(next) => setContactRows((rows) => rows.map((r) => (r.key === row.key ? next : r)))}
                       onRemove={() => setContactRows((rows) => (rows.length > 1 ? rows.filter((r) => r.key !== row.key) : rows))}
@@ -1367,9 +1379,10 @@ function Section({ title, hint, first, children }: { title: string; hint?: strin
 // typing a fresh name creates a new contact on save. Manages its own search
 // state so each row searches independently. Mirrors the Company→account
 // typeahead one level down (lead → account → contacts).
-function ContactRow({ row, index, onChange, onRemove, canRemove, narrow }: {
+function ContactRow({ row, index, onChange, onRemove, canRemove, narrow, forms }: {
   row: LeadContactRow; index: number;
   onChange: (next: LeadContactRow) => void; onRemove: () => void; canRemove: boolean; narrow: boolean;
+  forms: BuilderFormLite[];
 }) {
   const [results, setResults] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null; email?: string | null }>>([]);
   useEffect(() => {
@@ -1454,6 +1467,16 @@ function ContactRow({ row, index, onChange, onRemove, canRemove, narrow }: {
       <Field label="Requirement" hint="What this person is asking for.">
         <Textarea rows={2} value={row.requirement} onChange={(e) => onChange({ ...row, requirement: e.target.value })} placeholder="e.g. 200 MT TMT bars for a Q3 project" />
       </Field>
+      {/* Connect a builder form to this requirement so it stays linked to the
+          form that captures it. All active forms are selectable. */}
+      {forms.length > 0 && (
+        <Field label="Connected form" hint="Link a form from the form builder to this requirement.">
+          <Select value={row.formId} onChange={(e) => onChange({ ...row, formId: e.target.value })}>
+            <option value="">— No form —</option>
+            {forms.map((f) => <option key={f.id} value={f.id}>{f.title || 'Untitled form'}</option>)}
+          </Select>
+        </Field>
+      )}
     </div>
   );
 }
