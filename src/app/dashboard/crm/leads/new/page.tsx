@@ -349,6 +349,11 @@ export default function NewLeadPage() {
   // to (or creating) a CRM contact and sent as the lead-create `contacts[]`.
   // Always starts with one blank row; blank rows are dropped on submit.
   const [contactRows, setContactRows] = useState<LeadContactRow[]>([newContactRow()]);
+  // A connected-B2B (Spark & Ray) B2B lead is company-centric: the lead IS the
+  // company and the people live in the Contacts & requirements section, so the
+  // per-person Contact fields (name/mobile/email) are dropped and the lead's
+  // name is taken from the Company on submit. Only for a B2B lead on Spark.
+  const companyLead = b2bAccounts && !form.is_b2c;
   useEffect(() => {
     // Only search for a B2B lead on the connected-B2B client, and never while a
     // company is already linked (the rep clears the link to search again).
@@ -530,6 +535,7 @@ export default function NewLeadPage() {
     // tooltip the user often misses. Promote it to an explicit JS check
     // so we can scroll-to-field consistently with the others.
     if (
+      !companyLead &&
       !fields.isHidden('first_name') &&
       fields.requiredFor('first_name', true) &&
       (!form.first_name || !form.first_name.trim())
@@ -544,6 +550,7 @@ export default function NewLeadPage() {
     // need a matching backend rule (handled elsewhere) — this block
     // just makes the dashboard stop forcing the field on its own.
     if (
+      !companyLead &&
       !fields.isHidden('last_name') &&
       fields.requiredFor('last_name', true) &&
       (!form.last_name || !form.last_name.trim())
@@ -560,6 +567,7 @@ export default function NewLeadPage() {
     // mandatory on B2B leads (or phone mandatory on B2C) can flip the
     // toggle in settings once and the form picks it up immediately.
     if (
+      !companyLead &&
       !isTata &&
       !fields.isHidden('email') &&
       fields.requiredFor('email', false) &&
@@ -569,6 +577,7 @@ export default function NewLeadPage() {
       return;
     }
     if (
+      !companyLead &&
       !fields.isHidden('phone') &&
       fields.requiredFor('phone', true) &&
       (!form.phone || !form.phone.trim())
@@ -689,6 +698,17 @@ export default function NewLeadPage() {
       // account from the company name (linkLeadToCompany). B2B leads only.
       if (b2bAccounts && !form.is_b2c && form.account_id) {
         payload.account_id = form.account_id;
+      }
+      // Company-centric Spark lead: the person Contact fields are gone, so give
+      // the lead its identity from the Company (the backend requires a name, and
+      // the lead then reads as the company in lists). The people go in contacts[].
+      if (companyLead) {
+        const co = form.company.trim();
+        payload.first_name = undefined;
+        payload.last_name = co || undefined;
+        payload.phone = undefined;
+        payload.email = undefined;
+        payload.alternate_mobiles = undefined;
       }
       // Connected-B2B (Spark & Ray): the people met at the company, each with
       // their requirement. Resolved server-side to crm_contacts linked to the
@@ -1051,6 +1071,12 @@ export default function NewLeadPage() {
           <ClientScopeField value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id })} />
         )}
 
+        {/* Connected-B2B (Spark & Ray) B2B leads are company-centric — the
+            people are captured in "Contacts & requirements" below, so the
+            per-person Contact section (name / mobile / email) is removed and the
+            lead's name is taken from the Company on submit. Every other tenant
+            keeps the full Contact section. */}
+        {!companyLead && (
         <Section title="Contact" hint="Who you’re talking to." first>
           <FormGrid narrow={narrow}>
             {text('first_name', 'First name', { required: fields.requiredFor('first_name', true) })}
@@ -1072,6 +1098,7 @@ export default function NewLeadPage() {
             />
           )}
         </Section>
+        )}
 
         {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked) || isBmw) && (
           <Section title="Assignment" hint={ownerLocked ? 'Stage and source.' : 'Stage, source and owner. The owner sees this lead in their queue.'}>
