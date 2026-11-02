@@ -406,6 +406,11 @@ export function LineSummary({ item, currency, rules, also }: { item: ClaimItem; 
           {item.decision === 'approved' && <Badge tone="ok">Approved</Badge>}
         </div>
         {detail && <div style={{ fontSize: 13, color: T.dim, marginTop: 2, overflowWrap: 'anywhere' }}>{detail}</div>}
+        {item.gst_rate != null && item.category !== 'mileage' && (
+          <div style={{ fontSize: 12.5, color: T.mute, marginTop: 2, overflowWrap: 'anywhere' }}>
+            {['GST ' + item.gst_rate + '%', item.supplier_gstin ? 'GSTIN ' + item.supplier_gstin : 'no supplier GSTIN', item.supplier_invoice_no ? 'Inv ' + item.supplier_invoice_no : null].filter(Boolean).join(' · ')}
+          </div>
+        )}
         {item.category === 'mileage' && (item.vehicle_type || item.odometer_start != null || item.odometer_end != null) && (
           <div style={{ fontSize: 13, color: T.dim, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
             {[

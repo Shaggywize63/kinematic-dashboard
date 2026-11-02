@@ -656,6 +656,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/finance/quotes',           label: 'Quotes',            icon: 'fileText', module: 'finance', financeOnly: true },
       { href: '/dashboard/finance/invoices',         label: 'Invoices',          icon: 'receipt',  module: 'finance', financeOnly: true },
       { href: '/dashboard/finance/payments',         label: 'Payments Received', icon: 'wallet',   module: 'finance', financeOnly: true },
+      { href: '/dashboard/finance/expenses',         label: 'Expenses & GST',    icon: 'banknote',  module: 'finance', financeOnly: true },
       { href: '/dashboard/finance/reports',          label: 'Reports',           icon: 'trending', module: 'finance', financeOnly: true },
       { href: '/dashboard/finance/settings',         label: 'Finance Settings',  icon: 'settings', module: 'finance', financeOnly: true },
     ]},

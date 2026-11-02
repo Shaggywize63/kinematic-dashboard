@@ -158,7 +158,29 @@ export interface ProjectionData {
 }
 export interface ReportColumn { key: string; label: string; type?: 'text' | 'money' | 'number' | 'date' }
 export interface ReportData { title: string; columns: ReportColumn[]; rows: Array<Record<string, unknown>>; totals?: Record<string, unknown>; meta: Record<string, unknown> }
-export type ReportName = 'sales-by-customer' | 'sales-by-item' | 'gst-summary' | 'receivables-ageing' | 'payments-received' | 'invoice-details';
+export type ReportName = 'sales-by-customer' | 'sales-by-item' | 'gst-summary' | 'receivables-ageing' | 'payments-received' | 'invoice-details'
+  | 'gst-expenses' | 'expense-gst-details' | 'net-gst-payable';
+
+// ── expenses (business bills + GST-bearing approved field-claim lines) ──────
+export interface ExpenseRecord {
+  id: string; source: 'bill' | 'claim'; date: string | null; vendor: string; vendor_gstin: string | null; bill_number: string | null;
+  category: string; description: string | null; gst_rate: number; taxable_value: number; cgst: number; sgst: number; igst: number;
+  total_tax: number; total: number; itc_eligible: boolean; itc_reason: string | null; itc_total: number; receipt_url: string | null;
+  claim_id: string | null; claim_title: string | null; claimed_by: string | null;
+}
+export interface ExpenseTotals { count: number; spend: number; taxable: number; gst_paid: number; itc_claimable: number; itc_blocked: number }
+/** What the user typed on the bill; the server works out taxable value, CGST/SGST/IGST and the default credit. */
+export interface ExpenseInput {
+  expense_date: string; vendor_name: string; vendor_gstin?: string | null; bill_number?: string | null; category?: string; description?: string | null;
+  place_of_supply?: string | null; amount: number; tax_inclusive?: boolean; gst_rate: number; gst_amount?: number | null;
+  itc_eligible?: boolean | null; itc_reason?: string | null; notes?: string | null;
+}
+/** The stored bill, as returned for editing (`amount` = the bill total). */
+export interface ExpenseBill {
+  id: string; expense_date: string; vendor_name: string; vendor_gstin: string | null; bill_number: string | null; category: string; description: string | null;
+  place_of_supply: string | null; gst_rate: number; taxable_value: number; cgst: number; sgst: number; igst: number; total: number; amount: number;
+  itc_eligible: boolean; itc_reason: string | null; notes: string | null;
+}
 
 // ── import previous invoices ────────────────────────────────────────────────
 export interface ImportOptions { create_customers: boolean; allow_total_mismatch: boolean; advance_numbering: boolean }
@@ -244,6 +266,13 @@ export const financeApi = {
     update: (id: string, body: Partial<Pick<PaymentInput, 'payment_date' | 'mode' | 'reference' | 'notes'>>) => api.put<Wrapped<PaymentRow>>(`${BASE}/payments/${id}`, body),
     remove: (id: string) => api.delete<Wrapped<{ id: string }>>(`${BASE}/payments/${id}`),
     apply: (id: string, allocations: Array<{ document_id: string; amount: number }>) => api.post<Wrapped<PaymentRow>>(`${BASE}/payments/${id}/apply`, { allocations }),
+  },
+  expenses: {
+    list: (p?: Params) => api.get<Wrapped<ExpenseRecord[]> & { totals: ExpenseTotals }>(`${BASE}/expenses${qs(p)}`, noCache),
+    get: (id: string) => get<ExpenseBill>(`/expenses/${id}`),
+    create: (body: ExpenseInput) => api.post<Wrapped<ExpenseBill>>(`${BASE}/expenses`, body),
+    update: (id: string, body: ExpenseInput) => api.put<Wrapped<ExpenseBill>>(`${BASE}/expenses/${id}`, body),
+    remove: (id: string) => api.delete<Wrapped<{ ok: boolean }>>(`${BASE}/expenses/${id}`),
   },
   importInvoices: {
     /** Parses and validates the file; writes nothing. */

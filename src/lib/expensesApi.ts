@@ -148,6 +148,12 @@ export interface ClaimItem {
   odometer_start_photo_signed_url?: string | null;
   odometer_end_photo_signed_url?: string | null;
   ai_extracted: Record<string, unknown> | null;
+  // GST on the bill (feeds Finance → Expenses & GST once the claim is approved).
+  supplier_gstin?: string | null;
+  supplier_invoice_no?: string | null;
+  gst_rate?: number | null;
+  gst_amount?: number | null;
+  itc_eligible?: boolean | null;
   flagged: boolean;
   flag_reason: string | null;
   decision?: Decision | null;
@@ -306,6 +312,11 @@ export interface ClaimItemInput {
   merchant?: string | null;
   receipt_url?: string | null;
   ai_extracted?: Record<string, unknown> | null;
+  supplier_gstin?: string | null;
+  supplier_invoice_no?: string | null;
+  gst_rate?: number | null;
+  gst_amount?: number | null;
+  itc_eligible?: boolean | null;
   vehicle_type?: string | null;
   odometer_start?: number | null;
   odometer_end?: number | null;
