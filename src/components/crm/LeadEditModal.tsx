@@ -478,7 +478,9 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                   ))
                 : show('company',  <F label={lbl('company',  'Company')}   required={req('company', true)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
               {show('title',    <F label={lbl('title',    'Job Title')} value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
-              {show('industry', <F label={lbl('industry', 'Industry')}  value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
+              {/* Spark & Ray lead with Company only — Industry dropped for them
+                  (every other tenant keeps it). */}
+              {!b2bAccounts && show('industry', <F label={lbl('industry', 'Industry')}  value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
             </Grid></>
           )}
           {/* Location on a B2B lead too. Inbound leads (Google Ads / web form)
