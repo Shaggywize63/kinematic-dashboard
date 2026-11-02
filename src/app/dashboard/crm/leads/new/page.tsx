@@ -2,8 +2,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, type MyTarget, type ExtractedLead } from '../../../../../lib/crmApi';
+import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, crmAccounts, type MyTarget, type ExtractedLead } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import { reverseGeocode } from '../../../../../lib/googleGeocode';
 import { useClient } from '../../../../../context/ClientContext';
 import type { BusinessType, LeadSource, Product, CustomField } from '../../../../../types/crm';
@@ -62,6 +63,10 @@ const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
 type Form = {
   first_name: string; last_name: string; email: string; phone: string;
   company: string; title: string; industry: string; is_b2c: boolean;
+  // Connected-B2B (Spark & Ray): when the rep links the lead's company to an
+  // existing CRM account via the typeahead, its id is pinned here and sent so
+  // the backend reuses that account instead of matching/creating one by name.
+  account_id: string;
   date_of_birth: string; gender: '' | 'male' | 'female' | 'other' | 'prefer_not_to_say';
   address_line1: string; address_line2: string; city: string; state: string;
   postal_code: string; country: string;
@@ -84,6 +89,7 @@ type Form = {
 
 const empty: Form = {
   first_name: '', last_name: '', email: '', phone: '', company: '', title: '', industry: '',
+  account_id: '',
   is_b2c: false, date_of_birth: '', gender: '', address_line1: '', address_line2: '',
   city: '', state: '', postal_code: '', country: 'India',
   preferred_contact_method: '', marketing_consent: false, whatsapp_consent: false,
@@ -315,6 +321,33 @@ export default function NewLeadPage() {
   const photoGalleryRef = useRef<HTMLInputElement>(null);
   const photoCameraRef  = useRef<HTMLInputElement>(null);
 
+  // Company → CRM account typeahead. Connected-B2B tenants (Spark & Ray) capture
+  // a company as a lead and that company becomes a CRM account. As the rep types
+  // the company we search existing accounts so they can LINK to one (pins
+  // account_id) instead of unknowingly spawning a near-duplicate; typing a fresh
+  // name leaves account_id empty and the backend creates the account on save
+  // (linkLeadToCompany → findOrCreateAccount, matched case-insensitively by name).
+  // Gated to the connected-B2B client so every other tenant's form is unchanged.
+  const b2bAccounts = isB2bClientActive();
+  const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
+  const [accountSearching, setAccountSearching] = useState(false);
+  useEffect(() => {
+    // Only search for a B2B lead on the connected-B2B client, and never while a
+    // company is already linked (the rep clears the link to search again).
+    if (!b2bAccounts || form.is_b2c || form.account_id) { setAccountResults([]); setAccountSearching(false); return; }
+    const term = form.company.trim();
+    if (term.length < 2) { setAccountResults([]); setAccountSearching(false); return; }
+    let off = false;
+    setAccountSearching(true);
+    const t = setTimeout(() => {
+      crmAccounts.list({ q: term, limit: 8 })
+        .then((r) => { if (!off) setAccountResults(((r.data as any[]) || []).map((a) => ({ id: a.id, name: a.name })).filter((a) => a.id && a.name)); })
+        .catch(() => { if (!off) setAccountResults([]); })
+        .finally(() => { if (!off) setAccountSearching(false); });
+    }, 250);
+    return () => { off = true; clearTimeout(t); };
+  }, [b2bAccounts, form.is_b2c, form.account_id, form.company]);
+
   // Upload via /api/v1/upload/photo — same backend endpoint as the
   // activity-photo flow. Multer middleware expects the file under
   // field name `photo`.
@@ -413,7 +446,7 @@ export default function NewLeadPage() {
         const alts = e.alternate_mobiles.map(digits10).filter((d) => d.length === 10);
         if (alts.length) next.alternate_mobiles = alts;
       }
-      const co = clean(e.company); if (co) next.company = co;
+      const co = clean(e.company); if (co) { next.company = co; next.account_id = ''; }
       const ti = clean(e.title); if (ti) next.title = ti;
       const ind = clean(e.industry); if (ind) next.industry = ind;
       const a1 = clean(e.address_line1); if (a1) next.address_line1 = a1;
@@ -632,6 +665,13 @@ export default function NewLeadPage() {
       if (!form.is_b2c || bizOnB2C) {
         Object.assign(payload, { company: form.company || undefined, title: form.title || undefined, industry: form.industry || undefined });
       }
+      // Connected-B2B (Spark & Ray): the lead's company becomes a CRM account.
+      // When the rep linked to an existing account via the typeahead, send its
+      // id so the backend reuses it; otherwise the backend creates/matches the
+      // account from the company name (linkLeadToCompany). B2B leads only.
+      if (b2bAccounts && !form.is_b2c && form.account_id) {
+        payload.account_id = form.account_id;
+      }
       if (form.is_b2c) {
         Object.assign(payload, {
           date_of_birth: form.date_of_birth || undefined, gender: form.gender || undefined,
@@ -748,6 +788,86 @@ export default function NewLeadPage() {
           <option value="">—</option>
           {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </Select>
+      </Field>
+    );
+  };
+
+  // The Company field for connected-B2B (Spark & Ray): the same admin-gated
+  // built-in `company` row as text(), but with a CRM-account typeahead layered
+  // on so the rep can link to an existing company account (pins account_id) or
+  // type a fresh name that becomes a new account on save. Still honours the
+  // field-override contract (hidden / label / required) exactly like text().
+  const companyField = () => {
+    if (fields.isHidden('company')) return null;
+    const effLabel    = fields.labelFor('company', 'Company');
+    const effRequired = fields.requiredFor('company', true);
+    const id = 'lead-field-company';
+    return (
+      <Field label={effLabel} required={effRequired} htmlFor={id}>
+        <div style={{ position: 'relative' }}>
+          <Input
+            id={id}
+            type="text"
+            autoComplete="off"
+            placeholder="Start typing to link or create a company…"
+            value={form.company}
+            onChange={(e) => {
+              // Editing the name means the lead is no longer tied to the picked
+              // account — drop the link so the search runs against the new text.
+              const v = e.target.value;
+              setForm((f) => ({ ...f, company: v, account_id: f.account_id ? '' : f.account_id }));
+            }}
+            required={effRequired}
+          />
+          {!form.account_id && form.company.trim().length >= 2 && accountResults.length > 0 && (
+            <div
+              role="listbox"
+              style={{
+                position: 'absolute', zIndex: 20, top: 'calc(100% + 4px)', left: 0, right: 0,
+                background: T.panel, border: `1px solid ${T.border}`, borderRadius: 8,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden', maxHeight: 240, overflowY: 'auto',
+              }}
+            >
+              {accountResults.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  role="option"
+                  onClick={() => { setForm((f) => ({ ...f, company: a.name, account_id: a.id })); setAccountResults([]); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
+                    padding: '9px 12px', background: 'transparent', border: 'none', cursor: 'pointer',
+                    fontSize: 13.5, color: T.text,
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--s3)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                >
+                  <span aria-hidden>🏢</span>
+                  <span style={{ fontWeight: 600 }}>{a.name}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 11.5, color: T.dim }}>Existing account</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {form.account_id ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12.5, color: T.ok }}>
+            <CheckCircle2 size={14} strokeWidth={2} />
+            <span>Linked to existing account</span>
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, account_id: '' }))}
+              style={{ marginLeft: 4, background: 'transparent', border: 'none', color: T.dim, cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}
+            >
+              Change
+            </button>
+          </div>
+        ) : form.company.trim().length >= 2 && !accountSearching && accountResults.length === 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12.5, color: T.dim }}>
+            <Info size={13} strokeWidth={1.8} />
+            <span>New company — a CRM account will be created on save.</span>
+          </div>
+        ) : null}
       </Field>
     );
   };
@@ -989,7 +1109,7 @@ export default function NewLeadPage() {
                   on extension. CustomFieldsSection yields raw <label>
                   children with no wrapper of its own. */}
               <FormGrid narrow={narrow}>
-                {text('company', 'Company', { required: true })}
+                {b2bAccounts ? companyField() : text('company', 'Company', { required: true })}
                 {text('title', 'Job title')}
                 {text('industry', 'Industry')}
                 <CustomFieldsSection
