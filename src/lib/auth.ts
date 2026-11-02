@@ -120,7 +120,13 @@ export function userHasModule(user: AuthUser | null | undefined, moduleId: strin
   // A scoped read-only viewer (non-super_admin) does NOT get the blanket
   // platform-admin bypass — its module access is governed by the org_role
   // entitlement/permission check below, same as the sidebar gate in the layout.
-  const isReadOnlyViewer = !!(user as any).is_read_only && role !== 'super_admin';
+  // A master-admin "View as user" mirror is read-only too, but must render the
+  // target's EXACT module set, so it is excluded (mirrors the layout's isViewer).
+  const impersonating = (() => {
+    try { return typeof window !== 'undefined' && !!window.localStorage.getItem('kinematic_impersonate_user'); }
+    catch { return false; }
+  })();
+  const isReadOnlyViewer = !!(user as any).is_read_only && role !== 'super_admin' && !impersonating;
   if (isPlatformAdmin && !isReadOnlyViewer) return true;
   const entitled: string[] = Array.isArray((user as any).enabled_modules) ? (user as any).enabled_modules : [];
   // A strict list is the complete set the client was given, so an empty one means nothing (not "show everything").
