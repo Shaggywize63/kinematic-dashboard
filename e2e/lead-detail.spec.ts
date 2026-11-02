@@ -218,6 +218,7 @@ test.describe('Lead detail — field overrides and access', () => {
     await setup(page, { user: rep });
     await open(page);
     await expect(page.getByRole('button', { name: 'Edit lead' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Proposal' })).toBeVisible();
+    // The rep still gets the page's other action buttons (Proposal was removed from the lead page on purpose).
+    await expect(page.getByRole('button', { name: 'Convert', exact: true })).toBeVisible();
   });
 });
