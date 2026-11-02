@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, crmAccounts, type MyTarget, type ExtractedLead } from '../../../../../lib/crmApi';
+import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, crmAccounts, crmContacts, type MyTarget, type ExtractedLead } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import { reverseGeocode } from '../../../../../lib/googleGeocode';
@@ -26,7 +26,7 @@ import {
 } from '../../../../../lib/crmLeadForm';
 import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
 import { DataCollectionConsent, NOTICE_VERSION } from '../../../../../components/crm/DataConsent';
-import { Button, Eyebrow, Field, FormGrid, Input, PageHeader, Section as FormSection, Segmented, Select, T, cardStyle, requiredMark, useIsCompact } from '../../../../../components/ui';
+import { Button, Eyebrow, Field, FormGrid, Input, PageHeader, Section as FormSection, Segmented, Select, T, Textarea, cardStyle, requiredMark, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { Check, CheckCircle2, Info, LocateFixed, MapPin, Target } from 'lucide-react';
 
@@ -104,6 +104,20 @@ const empty: Form = {
   // on non-Tata tenants so this default doesn't pollute other tenants.
   log_as_site_visit: true,
 };
+
+// One person met at a B2B lead's company, with what they need. Mirrors the
+// backend leadContactSchema (contacts[]) and the iOS LeadContactDraft. `key`
+// is a client-only React key; `contactId` is set when the rep linked the row
+// to an existing CRM contact via the typeahead (sent as `id` so the backend
+// resolves that exact record instead of de-duping by email/phone).
+type LeadContactRow = {
+  key: string; contactId: string;
+  firstName: string; lastName: string; title: string; phone: string; email: string; requirement: string;
+};
+const newContactRow = (): LeadContactRow => ({
+  key: Math.random().toString(36).slice(2), contactId: '',
+  firstName: '', lastName: '', title: '', phone: '', email: '', requirement: '',
+});
 
 export default function NewLeadPage() {
   const router = useRouter();
@@ -331,6 +345,10 @@ export default function NewLeadPage() {
   const b2bAccounts = isB2bClientActive();
   const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
   const [accountSearching, setAccountSearching] = useState(false);
+  // B2B "Contacts & requirements": the people met at the company, each linked
+  // to (or creating) a CRM contact and sent as the lead-create `contacts[]`.
+  // Always starts with one blank row; blank rows are dropped on submit.
+  const [contactRows, setContactRows] = useState<LeadContactRow[]>([newContactRow()]);
   useEffect(() => {
     // Only search for a B2B lead on the connected-B2B client, and never while a
     // company is already linked (the rep clears the link to search again).
@@ -671,6 +689,29 @@ export default function NewLeadPage() {
       // account from the company name (linkLeadToCompany). B2B leads only.
       if (b2bAccounts && !form.is_b2c && form.account_id) {
         payload.account_id = form.account_id;
+      }
+      // Connected-B2B (Spark & Ray): the people met at the company, each with
+      // their requirement. Resolved server-side to crm_contacts linked to the
+      // lead's account (linkLeadToCompany → findOrCreateContact). A linked row
+      // sends its `id` for an exact match; a fresh one is de-duped/created.
+      // Blank rows are dropped. B2B leads only.
+      if (b2bAccounts && !form.is_b2c) {
+        const contacts = contactRows
+          .map((r) => {
+            const anyIdentity = r.firstName.trim() || r.lastName.trim() || r.email.trim() || r.phone.trim();
+            if (!anyIdentity && !r.contactId) return null; // skip an entirely empty row
+            const c: Record<string, unknown> = {};
+            if (r.contactId) c.id = r.contactId;
+            if (r.firstName.trim()) c.first_name = r.firstName.trim();
+            if (r.lastName.trim()) c.last_name = r.lastName.trim();
+            if (r.title.trim()) c.title = r.title.trim();
+            if (r.phone.trim()) c.phone = r.phone.trim();
+            if (r.email.trim()) c.email = r.email.trim();
+            if (r.requirement.trim()) c.requirement = r.requirement.trim();
+            return c;
+          })
+          .filter((c): c is Record<string, unknown> => c !== null);
+        if (contacts.length) payload.contacts = contacts;
       }
       if (form.is_b2c) {
         Object.assign(payload, {
@@ -1124,6 +1165,33 @@ export default function NewLeadPage() {
                 />
               </FormGrid>
             </Section>
+            {/* Connected-B2B (Spark & Ray): the people met at this company and
+                what each needs. Each row links to (or creates) a CRM contact
+                under the lead's account on save. Spark-gated so no other tenant
+                sees it; the backend only resolves these when the lead carries a
+                company/account. */}
+            {b2bAccounts && (
+              <Section title="Contacts & requirements" hint="People you met at the company and what each one needs. They’re linked to the company’s account.">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {contactRows.map((row, i) => (
+                    <ContactRow
+                      key={row.key}
+                      row={row}
+                      index={i}
+                      narrow={narrow}
+                      canRemove={contactRows.length > 1}
+                      onChange={(next) => setContactRows((rows) => rows.map((r) => (r.key === row.key ? next : r)))}
+                      onRemove={() => setContactRows((rows) => (rows.length > 1 ? rows.filter((r) => r.key !== row.key) : rows))}
+                    />
+                  ))}
+                  <div>
+                    <Button type="button" onClick={() => setContactRows((rows) => [...rows, newContactRow()])}>
+                      + Add another person
+                    </Button>
+                  </div>
+                </div>
+              </Section>
+            )}
             {/* Clients that turned on lead_form.address_on_b2b get the full
                 address block (search + fields) here, like the B2C form. */}
             {leadForm.addressOnB2b && (
@@ -1288,4 +1356,101 @@ export default function NewLeadPage() {
 
 function Section({ title, hint, first, children }: { title: string; hint?: string; first?: boolean; children: React.ReactNode }) {
   return <FormSection eyebrow={title} hint={hint} first={first}>{children}</FormSection>;
+}
+
+// One row of the B2B "Contacts & requirements" capture (Spark & Ray). Leads
+// with a name typeahead against existing CRM contacts — picking one LINKS the
+// row (pins contactId + fills the fields) so a repeat person isn't duplicated;
+// typing a fresh name creates a new contact on save. Manages its own search
+// state so each row searches independently. Mirrors the Company→account
+// typeahead one level down (lead → account → contacts).
+function ContactRow({ row, index, onChange, onRemove, canRemove, narrow }: {
+  row: LeadContactRow; index: number;
+  onChange: (next: LeadContactRow) => void; onRemove: () => void; canRemove: boolean; narrow: boolean;
+}) {
+  const [results, setResults] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null; email?: string | null }>>([]);
+  useEffect(() => {
+    // Don't search once a contact is linked; the rep clears the link to search again.
+    if (row.contactId) { setResults([]); return; }
+    const term = `${row.firstName} ${row.lastName}`.trim();
+    if (term.length < 2) { setResults([]); return; }
+    let off = false;
+    const t = setTimeout(() => {
+      crmContacts.list({ q: term, limit: 8 })
+        .then((r) => { if (!off) setResults(((r.data as any[]) || []).filter((c) => c && c.id)); })
+        .catch(() => { if (!off) setResults([]); });
+    }, 250);
+    return () => { off = true; clearTimeout(t); };
+  }, [row.contactId, row.firstName, row.lastName]);
+
+  const nameOf = (c: { first_name?: string | null; last_name?: string | null }) =>
+    [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Unnamed contact';
+
+  return (
+    <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: narrow ? 12 : 14, display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--s2)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: T.dim, textTransform: 'uppercase', letterSpacing: 0.3 }}>Person {index + 1}</span>
+        {canRemove && (
+          <button type="button" onClick={onRemove} style={{ background: 'transparent', border: 'none', color: T.dim, cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>
+            Remove
+          </button>
+        )}
+      </div>
+
+      {row.contactId ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text }}>
+          <CheckCircle2 size={15} strokeWidth={2} style={{ color: T.ok, flexShrink: 0 }} />
+          <span style={{ fontWeight: 600 }}>👤 {[row.firstName, row.lastName].filter(Boolean).join(' ') || 'Linked contact'}</span>
+          {row.title && <span style={{ color: T.dim }}>· {row.title}</span>}
+          <button
+            type="button"
+            onClick={() => onChange({ ...row, contactId: '' })}
+            style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: T.dim, cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}
+          >
+            Change
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '10px 16px' }}>
+          <Field label="First name">
+            <div style={{ position: 'relative' }}>
+              <Input
+                autoComplete="off"
+                placeholder="Start typing to link a contact…"
+                value={row.firstName}
+                onChange={(e) => onChange({ ...row, firstName: e.target.value })}
+              />
+              {results.length > 0 && (
+                <div role="listbox" style={{ position: 'absolute', zIndex: 20, top: 'calc(100% + 4px)', left: 0, right: 0, background: T.panel, border: `1px solid ${T.border}`, borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
+                  {results.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      role="option"
+                      onClick={() => { onChange({ ...row, contactId: c.id, firstName: c.first_name || '', lastName: c.last_name || '', title: c.title || '', phone: c.phone || '', email: c.email || '' }); setResults([]); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13.5, color: T.text }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--s3)'; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                    >
+                      <span aria-hidden>👤</span>
+                      <span style={{ fontWeight: 600 }}>{nameOf(c)}</span>
+                      {(c.title || c.phone) && <span style={{ marginLeft: 'auto', fontSize: 11.5, color: T.dim }}>{c.title || c.phone}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Field>
+          <Field label="Last name"><Input value={row.lastName} onChange={(e) => onChange({ ...row, lastName: e.target.value })} /></Field>
+          <Field label="Designation"><Input value={row.title} onChange={(e) => onChange({ ...row, title: e.target.value })} /></Field>
+          <Field label="Phone"><Input type="tel" inputMode="numeric" value={row.phone} onChange={(e) => onChange({ ...row, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} placeholder="10-digit mobile" /></Field>
+          <Field label="Email"><Input type="email" value={row.email} onChange={(e) => onChange({ ...row, email: e.target.value })} placeholder="name@company.com" /></Field>
+        </div>
+      )}
+
+      <Field label="Requirement" hint="What this person is asking for.">
+        <Textarea rows={2} value={row.requirement} onChange={(e) => onChange({ ...row, requirement: e.target.value })} placeholder="e.g. 200 MT TMT bars for a Q3 project" />
+      </Field>
+    </div>
+  );
 }
