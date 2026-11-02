@@ -9,7 +9,6 @@ import { conversationsApi, type ConversationRow } from '../../../../../lib/conve
 import type { Contact, Deal, LeadScore, NextBestAction } from '../../../../../types/crm';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
 import LeadConvertModal from '../../../../../components/crm/LeadConvertModal';
-import ProposalBuilder from '../../../../../components/crm/ProposalBuilder';
 import LeadDisqualifyModal, { type LeadDisqualifyOutcome } from '../../../../../components/crm/LeadDisqualifyModal';
 import LeadEditModal from '../../../../../components/crm/LeadEditModal';
 import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSuggestions';
@@ -140,7 +139,6 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
-  const [proposalOpen, setProposalOpen] = useState(false);
   // Auto-open the Convert modal when the page is reached with ?convert=1 (the leads list "→ Deal" action
   // uses this so users don't have to click through the detail page to find Convert).
   useEffect(() => {
@@ -429,7 +427,6 @@ export default function LeadDetailPage() {
         }}
         onStatusChange={changeStatus}
         onEdit={() => setEditOpen(true)}
-        onProposal={isBmw ? undefined : () => setProposalOpen(true)}
         onConvert={onConvert}
         converting={tataConverting}
         onReopen={handleReopen}
@@ -559,15 +556,6 @@ export default function LeadDetailPage() {
         onSaved={(updated) => { setLead(updated as LifecycleLead); void reload(); void reScore(); }}
       />
 
-      {proposalOpen && (
-        <ProposalBuilder
-          leadId={id}
-          leadName={fullName}
-          leadPhone={lead.phone ?? null}
-          leadEmail={lead.email ?? null}
-          onClose={() => setProposalOpen(false)}
-        />
-      )}
     </div>
   );
 }
