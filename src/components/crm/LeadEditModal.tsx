@@ -2,8 +2,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings, crmLeadSources } from '../../lib/crmApi';
+import { crmLeads, crmSettings, crmLeadSources, crmAccounts } from '../../lib/crmApi';
 import api from '../../lib/api';
+import { isB2bClientActive } from '../../lib/b2bClient';
 import { orderLeadSources } from '../../lib/leadSourceOrder';
 import type { BusinessType, Lead, LeadStatus, LeadSource } from '../../types/crm';
 import Modal from './shared/Modal';
@@ -133,6 +134,26 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     const merged = { ...(uni ?? {}), ...(b2c ?? {}) };
     return merged.hidden === false;
   }, [fieldOverrides]);
+
+  // Company → CRM account typeahead for connected-B2B (Spark & Ray). Lets the
+  // rep link this B2B lead's company to an existing CRM account (pins
+  // account_id, persisted on save). Gated to the connected-B2B client so every
+  // other tenant's edit modal is unchanged. Results render inline (not an
+  // overlay) so the modal's own scroll never clips the dropdown.
+  const b2bAccounts = isB2bClientActive();
+  const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
+  useEffect(() => {
+    if (!open || !b2bAccounts || form.is_b2c || form.account_id) { setAccountResults([]); return; }
+    const term = form.company.trim();
+    if (term.length < 2) { setAccountResults([]); return; }
+    let off = false;
+    const t = setTimeout(() => {
+      crmAccounts.list({ q: term, limit: 8 })
+        .then((r) => { if (!off) setAccountResults(((r.data as any[]) || []).map((a) => ({ id: a.id, name: a.name })).filter((a) => a.id && a.name)); })
+        .catch(() => { if (!off) setAccountResults([]); });
+    }, 250);
+    return () => { off = true; clearTimeout(t); };
+  }, [open, b2bAccounts, form.is_b2c, form.account_id, form.company]);
 
   useEffect(() => { if (open) setForm(seed(lead)); }, [open, lead]);
   // Fetch org's B2B/B2C mode AND the active lead sources on first open. The
@@ -265,6 +286,10 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       // explicitly un-hidden them (so the value the rep typed actually saves).
       const bizOnB2C = form.is_b2c && (explicitlyShownOnB2C('company') || explicitlyShownOnB2C('title') || explicitlyShownOnB2C('industry'));
       if (!form.is_b2c || bizOnB2C) { Object.assign(body, { company: form.company || null, title: form.title || null, industry: form.industry || null }); }
+      // Connected-B2B (Spark & Ray): persist the linked CRM account on a B2B
+      // lead. Only sent when set, so an untouched save never clears an account
+      // that was auto-linked on create (linkLeadToCompany). B2B leads only.
+      if (b2bAccounts && !form.is_b2c && form.account_id) { body.account_id = form.account_id; }
       if (form.is_b2c) { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
       // City / state / country are editable on B2B leads too (the Location
       // section above) — persist them when city isn't admin-hidden, so an
@@ -416,7 +441,42 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           <>
           {(!fields.isHidden('company') || !fields.isHidden('title') || !fields.isHidden('industry')) && (
             <><SL>Company</SL><Grid>
-              {show('company',  <F label={lbl('company',  'Company')}   required={req('company', true)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
+              {b2bAccounts
+                ? (!fields.isHidden('company') && (
+                    <Field label={lbl('company', 'Company')} required={req('company', true)}>
+                      <Input
+                        type="text"
+                        autoComplete="off"
+                        placeholder="Start typing to link a company…"
+                        value={form.company}
+                        required={req('company', true)}
+                        onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, company: v, account_id: f.account_id ? '' : f.account_id })); }}
+                      />
+                      {!form.account_id && form.company.trim().length >= 2 && accountResults.length > 0 && (
+                        <div style={{ marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                          {accountResults.map((a) => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              onClick={() => { setForm((f) => ({ ...f, company: a.name, account_id: a.id })); setAccountResults([]); }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}
+                            >
+                              <span aria-hidden>🏢</span>
+                              <span style={{ fontWeight: 600 }}>{a.name}</span>
+                              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>Existing account</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {form.account_id && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12.5, color: 'var(--ok)' }}>
+                          <span>✓ Linked to existing account</span>
+                          <button type="button" onClick={() => setForm((f) => ({ ...f, account_id: '' }))} style={{ marginLeft: 4, background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
+                        </div>
+                      )}
+                    </Field>
+                  ))
+                : show('company',  <F label={lbl('company',  'Company')}   required={req('company', true)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
               {show('title',    <F label={lbl('title',    'Job Title')} value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
               {show('industry', <F label={lbl('industry', 'Industry')}  value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
             </Grid></>
@@ -572,6 +632,7 @@ function seed(l: Lead) {
     alternate_mobiles?: string[] | null;
     address_line2?: string | null;
     custom_fields?: Record<string, unknown> | null;
+    account_id?: string | null;
   };
   return {
     first_name: l.first_name || '', last_name: l.last_name || '',
@@ -582,6 +643,10 @@ function seed(l: Lead) {
     alternate_mobiles: Array.isArray(anyL.alternate_mobiles) ? anyL.alternate_mobiles : [],
     custom_fields: (anyL.custom_fields && typeof anyL.custom_fields === 'object') ? { ...(anyL.custom_fields as Record<string, unknown>) } : {} as Record<string, unknown>,
     company: l.company || '', title: l.title || '', industry: l.industry || '',
+    // Connected-B2B (Spark & Ray): the CRM account this B2B lead's company is
+    // linked to. Pre-filled so an existing link shows as "Linked" on open and
+    // is harmlessly re-sent on save; the typeahead lets the rep relink.
+    account_id: anyL.account_id || '',
     is_b2c: !!l.is_b2c,
     date_of_birth: l.date_of_birth || '', gender: l.gender || '',
     address_line1: l.address_line1 || '',
