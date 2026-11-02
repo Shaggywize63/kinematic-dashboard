@@ -59,7 +59,7 @@ function isReadOnlyAllowedPath(path: string): boolean {
 // REAL caller being the master admin (s@kinematicapp.com); a non-master sending
 // the header is simply ignored. Persisted in localStorage so it survives
 // reloads; cleared on "Exit impersonation".
-export type ImpersonateUser = { id: string; name?: string; email?: string; org_id?: string; client_id?: string; project?: string };
+export type ImpersonateUser = { id: string; name?: string; email?: string; org_id?: string; client_id?: string; project?: string; read_only?: boolean };
 export function getImpersonateUser(): ImpersonateUser | null {
   if (typeof window === 'undefined') return null;
   try {

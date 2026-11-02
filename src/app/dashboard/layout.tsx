@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
-import api, { getActingAs, setActingAs, getImpersonateUser, stopImpersonation } from '../../lib/api';
+import api, { getActingAs, setActingAs, getImpersonateUser, stopImpersonation, type ImpersonateUser } from '../../lib/api';
 import { webChatsApi } from '../../lib/webChatsApi';
 import { crmLeads } from '../../lib/crmApi';
 import { WHATS_NEW, markSectionSeen } from '../../lib/whatsNew';
@@ -53,7 +53,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => { setActingAsState(getActingAs()); }, []);
   // Master-admin user impersonation ("Viewing as <user>"). Resolved after mount
   // to avoid SSR hydration mismatch. Drives the fixed top banner below.
-  const [impersonate, setImpersonateState] = useState<{ id: string; name?: string; email?: string } | null>(null);
+  const [impersonate, setImpersonateState] = useState<ImpersonateUser | null>(null);
   useEffect(() => { setImpersonateState(getImpersonateUser()); }, []);
   const stagingProject = actingAs?.project || getStoredProjectKey() || 'default';
   // Per-org UI flags (e.g. hide the global client filter). Re-fetched on mount;
@@ -319,7 +319,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // grants, exactly like an ordinary rep. Detected as read-only + non-super_admin
   // (a read-only super_admin, the older look-but-don't-touch account, keeps full
   // nav). This is the ONLY thing that un-bypasses the platform-admin nav below.
-  const isViewer = !!(user?.is_read_only) && !isSuperAdmin;
+  //
+  // A master-admin "View as user" mirror is ALSO read-only, but it must render
+  // the target's EXACT nav — so it is explicitly excluded here. Its writes are
+  // still blocked (client guard + backend readOnlyGuard both key off
+  // is_read_only); only the nav-restriction is skipped so the mirror matches
+  // what the target really sees.
+  const isViewer = !!(user?.is_read_only) && !isSuperAdmin && !impersonate;
 
   // Only build the nav once we can trust the permission set. Platform admins
   // and cached profiles that already carry permissions render immediately;
@@ -807,9 +813,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14,
           padding: '0 16px', fontSize: 13, fontWeight: 600,
         }}>
-          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Viewing as <strong>{impersonate.name || 'user'}</strong>
-            {impersonate.email ? <> ({impersonate.email})</> : null}
+          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Viewing as <strong>{impersonate.name || 'user'}</strong>
+              {impersonate.email ? <> ({impersonate.email})</> : null}
+            </span>
+            {impersonate.read_only !== false && (
+              <span style={{
+                flexShrink: 0, padding: '2px 8px', borderRadius: 999,
+                background: 'rgba(255,255,255,0.22)', fontSize: 11, fontWeight: 800, letterSpacing: 0.4,
+              }}>
+                READ-ONLY
+              </span>
+            )}
           </span>
           <button
             onClick={exitImpersonation}

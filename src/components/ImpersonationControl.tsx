@@ -79,10 +79,14 @@ export default function ImpersonationControl() {
       const r: any = await api.post('/api/v1/auth/impersonate/start', { user_id: u.id, project: u.project });
       const d = r?.data ?? r;
       if (!d?.token) throw new Error('Could not start impersonation (no session token returned).');
+      // The mirror is read-only by default — the backend mints a `ro:true` token
+      // and its readOnlyGuard blocks every write. Carry the flag so the banner
+      // can label the session and the client-side guard matches the server.
+      const readOnly = d.read_only !== false;
       startImpersonation({
         token: d.token,
         project: d.project ?? u.project,
-        user: d.user ?? { id: u.id, name: u.name, email: u.email, org_id: u.org_id, client_id: u.client_id },
+        user: { ...(d.user ?? { id: u.id, name: u.name, email: u.email, org_id: u.org_id, client_id: u.client_id }), read_only: readOnly },
       });
       // Full navigation to the dashboard root (not a reload, which would keep
       // the master on the Clients page). /dashboard re-resolves as the target
@@ -122,8 +126,8 @@ export default function ImpersonationControl() {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Impersonate User"
-        subtitle="Master admin only — view the dashboard as any user."
+        title="View as User"
+        subtitle="Master admin only — open a read-only mirror of any user's dashboard."
         width={520}
       >
         <input
