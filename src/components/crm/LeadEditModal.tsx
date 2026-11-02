@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings, crmLeadSources, crmAccounts } from '../../lib/crmApi';
+import { crmLeads, crmSettings, crmLeadSources, crmAccounts, crmContacts } from '../../lib/crmApi';
 import api from '../../lib/api';
 import { isB2bClientActive } from '../../lib/b2bClient';
 import { orderLeadSources } from '../../lib/leadSourceOrder';
@@ -142,6 +142,12 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // overlay) so the modal's own scroll never clips the dropdown.
   const b2bAccounts = isB2bClientActive();
   const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
+  // Additive "Contacts & requirements" capture on edit — new people met on this
+  // revisit. Starts empty (existing contacts show on the lead detail page); each
+  // non-blank row is sent as the lead PATCH `contacts[]` and resolved server-side
+  // to crm_contacts under the lead's account. Reset whenever the modal reopens.
+  const [contactRows, setContactRows] = useState<LeadContactRow[]>([]);
+  useEffect(() => { if (open) setContactRows([]); }, [open, lead]);
   useEffect(() => {
     if (!open || !b2bAccounts || form.is_b2c || form.account_id) { setAccountResults([]); return; }
     const term = form.company.trim();
@@ -290,6 +296,27 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       // lead. Only sent when set, so an untouched save never clears an account
       // that was auto-linked on create (linkLeadToCompany). B2B leads only.
       if (b2bAccounts && !form.is_b2c && form.account_id) { body.account_id = form.account_id; }
+      // Connected-B2B (Spark & Ray): new people met on this revisit. The backend
+      // PATCH resolves these to crm_contacts under the lead's account (same path
+      // as create). Only non-blank rows are sent; a linked row carries its `id`.
+      if (b2bAccounts && !form.is_b2c && contactRows.length) {
+        const contacts = contactRows
+          .map((r) => {
+            const anyIdentity = r.firstName.trim() || r.lastName.trim() || r.email.trim() || r.phone.trim();
+            if (!anyIdentity && !r.contactId) return null;
+            const c: Record<string, unknown> = {};
+            if (r.contactId) c.id = r.contactId;
+            if (r.firstName.trim()) c.first_name = r.firstName.trim();
+            if (r.lastName.trim()) c.last_name = r.lastName.trim();
+            if (r.title.trim()) c.title = r.title.trim();
+            if (r.phone.trim()) c.phone = r.phone.trim();
+            if (r.email.trim()) c.email = r.email.trim();
+            if (r.requirement.trim()) c.requirement = r.requirement.trim();
+            return c;
+          })
+          .filter((c): c is Record<string, unknown> => c !== null);
+        if (contacts.length) body.contacts = contacts;
+      }
       if (form.is_b2c) { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
       // City / state / country are editable on B2B leads too (the Location
       // section above) — persist them when city isn't admin-hidden, so an
@@ -495,6 +522,28 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               {show('country', <F label={lbl('country', 'Country')} value={form.country} onChange={(v) => setForm({ ...form, country: v })} />)}
             </Grid></>
           )}
+          {/* Connected-B2B (Spark & Ray): add people met on this revisit. Each
+              becomes/links a CRM contact under the lead's account on save. */}
+          {b2bAccounts && (
+            <><SL>Contacts &amp; requirements</SL>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {contactRows.length === 0 && (
+                <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
+                  Add a person you met on this visit — they’ll be linked to the company’s account. Existing contacts show on the lead’s detail page.
+                </div>
+              )}
+              {contactRows.map((row, i) => (
+                <EditContactRow
+                  key={row.key}
+                  row={row}
+                  index={i}
+                  onChange={(next) => setContactRows((rows) => rows.map((r) => (r.key === row.key ? next : r)))}
+                  onRemove={() => setContactRows((rows) => rows.filter((r) => r.key !== row.key))}
+                />
+              ))}
+              <div><Button type="button" onClick={() => setContactRows((rows) => [...rows, newContactRow()])}>+ Add a person</Button></div>
+            </div></>
+          )}
           </>
         ) : (
           <>
@@ -668,6 +717,87 @@ function seed(l: Lead) {
       : '',
   };
 }
+// One person added on a lead edit (B2B / Spark & Ray), mirroring the new-lead
+// form's row. `key` is a client-only React key; `contactId` is set when the row
+// is linked to an existing CRM contact via the typeahead (sent as `id` so the
+// backend resolves that exact record).
+type LeadContactRow = {
+  key: string; contactId: string;
+  firstName: string; lastName: string; title: string; phone: string; email: string; requirement: string;
+};
+const newContactRow = (): LeadContactRow => ({
+  key: Math.random().toString(36).slice(2), contactId: '',
+  firstName: '', lastName: '', title: '', phone: '', email: '', requirement: '',
+});
+
+// A single "Contacts & requirements" row on the edit modal. Leads with a name
+// typeahead against existing CRM contacts (inline results so the modal's own
+// scroll never clips them); picking one links the row, typing fresh creates a
+// new contact on save. B2B / Spark & Ray only.
+function EditContactRow({ row, index, onChange, onRemove }: {
+  row: LeadContactRow; index: number; onChange: (next: LeadContactRow) => void; onRemove: () => void;
+}) {
+  const [results, setResults] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null; email?: string | null }>>([]);
+  useEffect(() => {
+    if (row.contactId) { setResults([]); return; }
+    const term = `${row.firstName} ${row.lastName}`.trim();
+    if (term.length < 2) { setResults([]); return; }
+    let off = false;
+    const t = setTimeout(() => {
+      crmContacts.list({ q: term, limit: 8 })
+        .then((r) => { if (!off) setResults(((r.data as any[]) || []).filter((c) => c && c.id)); })
+        .catch(() => { if (!off) setResults([]); });
+    }, 250);
+    return () => { off = true; clearTimeout(t); };
+  }, [row.contactId, row.firstName, row.lastName]);
+  const nameOf = (c: { first_name?: string | null; last_name?: string | null }) =>
+    [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Unnamed contact';
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--s2)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Person {index + 1}</span>
+        <button type="button" onClick={onRemove} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Remove</button>
+      </div>
+      {row.contactId ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: 'var(--text)' }}>
+          <span style={{ fontWeight: 600, color: 'var(--ok)' }}>✓ 👤 {[row.firstName, row.lastName].filter(Boolean).join(' ') || 'Linked contact'}</span>
+          {row.title && <span style={{ color: 'var(--text-dim)' }}>· {row.title}</span>}
+          <button type="button" onClick={() => onChange({ ...row, contactId: '' })} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px 16px' }}>
+          <Field label="First name">
+            <Input autoComplete="off" placeholder="Start typing to link a contact…" value={row.firstName} onChange={(e) => onChange({ ...row, firstName: e.target.value })} />
+            {results.length > 0 && (
+              <div style={{ marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                {results.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => { onChange({ ...row, contactId: c.id, firstName: c.first_name || '', lastName: c.last_name || '', title: c.title || '', phone: c.phone || '', email: c.email || '' }); setResults([]); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}
+                  >
+                    <span aria-hidden>👤</span>
+                    <span style={{ fontWeight: 600 }}>{nameOf(c)}</span>
+                    {(c.title || c.phone) && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{c.title || c.phone}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </Field>
+          <Field label="Last name"><Input value={row.lastName} onChange={(e) => onChange({ ...row, lastName: e.target.value })} /></Field>
+          <Field label="Designation"><Input value={row.title} onChange={(e) => onChange({ ...row, title: e.target.value })} /></Field>
+          <Field label="Phone"><Input type="tel" inputMode="numeric" value={row.phone} onChange={(e) => onChange({ ...row, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} placeholder="10-digit mobile" /></Field>
+          <Field label="Email"><Input type="email" value={row.email} onChange={(e) => onChange({ ...row, email: e.target.value })} placeholder="name@company.com" /></Field>
+        </div>
+      )}
+      <Field label="Requirement" hint="What this person is asking for.">
+        <Textarea rows={2} value={row.requirement} onChange={(e) => onChange({ ...row, requirement: e.target.value })} placeholder="e.g. 200 MT TMT bars for a Q3 project" />
+      </Field>
+    </div>
+  );
+}
+
 // One-line hint shown under each section title, keyed by the section name —
 // mirrors the lead-CREATE form's `<Section title hint>` so the edit form reads
 // as clearly grouped sections rather than a flat list of fields.
