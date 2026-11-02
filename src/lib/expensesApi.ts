@@ -196,10 +196,17 @@ export interface ExpenseClaim {
   reimbursed_at: string | null;
   reimbursed_ref: string | null;
   // Connected-B2B (Spark & Ray): the mandatory purpose, and the CRM account +
-  // builder form this expense is linked to. account_name / form_title are stamped
-  // server-side for display.
+  // filled form entry this expense is linked to. account_name / form_title /
+  // form_ref_no / form_submitted_at are stamped server-side for display.
   clarification?: string | null;
   account_id?: string | null;
+  /** The filled form (submission) this expense is linked to. */
+  form_submission_id?: string | null;
+  /** Unique reference of that filled form, e.g. "SRPR2627-1". */
+  form_ref_no?: string | null;
+  /** When that form was filled (ISO). */
+  form_submitted_at?: string | null;
+  /** Superseded template link — read-only legacy value; never sent by the claim editor. */
   form_id?: string | null;
   account_name?: string | null;
   form_title?: string | null;
@@ -305,12 +312,21 @@ export interface ClaimItemInput {
   odometer_start_photo_url?: string | null;
   odometer_end_photo_url?: string | null;
 }
+/** A filled form an expense can be linked to. `ref_no` is its unique reference (e.g. "SRPR2627-1"). */
+export interface LinkableSubmission {
+  id: string;
+  ref_no: string | null;
+  submitted_at: string | null;
+  form_title: string | null;
+  account_id: string | null;
+  account_name: string | null;
+}
 export interface ClaimInput {
   title?: string | null;
-  // Connected-B2B (Spark & Ray): mandatory purpose + the linked account / form.
+  // Connected-B2B (Spark & Ray): mandatory purpose + the linked account / filled form.
   clarification?: string | null;
   account_id?: string | null;
-  form_id?: string | null;
+  form_submission_id?: string | null;
   items?: ClaimItemInput[];
 }
 
@@ -398,14 +414,11 @@ export const expensesApi = {
   /** Dry-run the policy against unsaved lines, so problems show before submitting. */
   checkClaim: (body: { items: ClaimItemInput[]; claim_id?: string }) => api.post<Wrapped<ClaimCheck>>(`${BASE}/claims/check`, body),
   /**
-   * Builder forms marked "expense-linked" — the options for the claim's form
-   * picker (connected-B2B). Reads the shared builder-forms list and keeps only
-   * the forms an admin has flagged; empty until at least one form is marked.
+   * The current user's own filled forms that an expense can be linked to (connected-B2B), newest first
+   * (max 50). Optionally narrowed to one CRM account. Empty for non-B2B clients.
    */
-  linkableForms: async (): Promise<Array<{ id: string; title: string }>> => {
-    const r = await api.get<Wrapped<Array<{ id: string; title: string; expense_linked?: boolean }>>>('/api/v1/builder/forms');
-    return (r.data || []).filter((f) => f.expense_linked).map((f) => ({ id: f.id, title: f.title }));
-  },
+  linkableSubmissions: (accountId?: string) =>
+    api.get<Wrapped<LinkableSubmission[]>>(`${BASE}/linkable-submissions${qs({ account_id: accountId })}`),
 
   // Receipts + auto-mileage
   /**

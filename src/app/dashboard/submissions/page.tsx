@@ -10,6 +10,8 @@ const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple
 
 interface Submission {
   id: string;
+  // Unique reference of the filled form, e.g. "SRPR2627-1" (absent on rows filled before references existed).
+  ref_no?: string | null;
   submitted_at: string;
   is_converted: boolean;
   outlet_name?: string;
@@ -255,6 +257,7 @@ export default function SubmissionsPage() {
               <thead>
                 <tr style={{ borderBottom:`1px solid ${C.border}` }}>
                   {([
+                    { h: 'Ref', k: 'ref_no' },
                     { h: 'FE Name', k: 'user' },
                     { h: 'Outlet', k: 'outlet' },
                     { h: 'Template', k: 'template' },
@@ -279,6 +282,7 @@ export default function SubmissionsPage() {
                   <tr key={i} style={{ borderBottom:`1px solid ${C.border}40` }}
                     onMouseEnter={e => (e.currentTarget.style.background = C.s2)}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                    <td data-testid="sub-ref" style={{ padding:'12px 16px', fontSize:12, fontWeight:600, color:C.white, whiteSpace:'nowrap' }}>{s.ref_no || ''}</td>
                     <td style={{ padding:'12px 16px', fontSize:13, fontWeight:600 }}>{s.users?.name || '—'}</td>
                     <td style={{ padding:'12px 16px', fontSize:13, color:C.gray }}>{s.outlet_name || '—'}</td>
                     <td style={{ padding:'12px 16px', fontSize:13, color:C.gray }}>{s.form_templates?.name || '—'}</td>
@@ -341,7 +345,12 @@ export default function SubmissionsPage() {
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', padding:24, backdropFilter: 'blur(4px)' }}>
           <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:24, width:'100%', maxWidth:540, maxHeight:'90vh', overflowY:'auto', padding:0, position:'relative', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
             <div style={{ padding: '24px 28px', borderBottom: `1px solid ${C.border}`, position:'sticky', top:0, background:'#0E1420', zIndex:10, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-               <h3 style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, margin:0 }}>Submission Details</h3>
+               <div>
+                 <h3 style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, margin:0 }}>Submission Details</h3>
+                 {(selected.ref_no || details?.ref_no) && (
+                   <div data-testid="sub-detail-ref" style={{ fontSize:12, fontWeight:700, color:C.gray, marginTop:4, letterSpacing:'0.4px' }}>{selected.ref_no || details?.ref_no}</div>
+                 )}
+               </div>
                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                  {!loadingDetails && details && !editing && (
                    <button onClick={startEdit}

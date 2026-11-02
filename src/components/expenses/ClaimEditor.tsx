@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { Camera, Eye, FileText, MapPin, Plus, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
 import { Badge, Button, Card, FormGrid, IconButton, Input, Select, T, Textarea, useIsCompact } from '../ui';
 import {
-  CATEGORIES, ClaimItem, ClaimItemInput, ClaimCheck, ExpenseClaim, ItemCategory, MyPolicy,
+  CATEGORIES, ClaimItem, ClaimItemInput, ClaimCheck, ExpenseClaim, ItemCategory, LinkableSubmission, MyPolicy,
   VehicleRate, categoryLabel, enabledCategories, expensesApi, gpsDistanceOn, lineVehicle, odometerCameraOnly, policyVehicles, routeFieldsOn, singleCategory,
   singleLineOn, soleVehicleId,
 } from '../../lib/expensesApi';
@@ -18,7 +18,14 @@ import {
   errText, fmtDate, money, prepareReceipt, todayIso,
 } from './kit';
 import { isB2bClientActive } from '../../lib/b2bClient';
+import { formRefTitle } from '../../lib/formRef';
 import { crmAccounts } from '../../lib/crmApi';
+
+// "SRPR2627-1 · 02 Nov 2026 — Site visit — Acme Corp" (the company only when the list isn't already narrowed to one).
+function submissionLabel(x: LinkableSubmission, withAccount: boolean): string {
+  return [formRefTitle(x.ref_no, x.submitted_at), x.form_title?.trim(), withAccount ? x.account_name?.trim() : '']
+    .filter(Boolean).join(' — ');
+}
 
 interface Line {
   key: number;
@@ -145,16 +152,18 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   const nextKey = () => seq.current++;
 
   const [title, setTitle] = useState('');
-  // Connected-B2B (Spark & Ray): a mandatory clarification and the account + form
-  // this expense is linked to. Hidden for every other tenant.
+  // Connected-B2B (Spark & Ray): a mandatory clarification and the account + filled
+  // form entry this expense is linked to. Hidden for every other tenant.
   const b2b = isB2bClientActive();
   const [clarification, setClarification] = useState('');
   const [accountId, setAccountId] = useState('');
   const [accountName, setAccountName] = useState('');
   const [accountQuery, setAccountQuery] = useState('');
   const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
-  const [formId, setFormId] = useState('');
-  const [forms, setForms] = useState<Array<{ id: string; title: string }>>([]);
+  const [submissionId, setSubmissionId] = useState('');
+  const [submissions, setSubmissions] = useState<LinkableSubmission[]>([]);
+  // The entry already saved on the claim — kept as an option even if it has aged out of the newest-50 list.
+  const savedSubmission = useRef<LinkableSubmission | null>(null);
   const [lines, setLines] = useState<Line[]>(() => [blank(0)]);
   const [claim, setClaim] = useState<ExpenseClaim | null>(null);
   const [policy, setPolicy] = useState<MyPolicy | null>(null);
@@ -192,20 +201,35 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
       setClarification(c.clarification ?? '');
       setAccountId(c.account_id ?? '');
       setAccountName(c.account_name ?? '');
-      setFormId(c.form_id ?? '');
+      setSubmissionId(c.form_submission_id ?? '');
+      savedSubmission.current = c.form_submission_id
+        ? { id: c.form_submission_id, ref_no: c.form_ref_no ?? null, submitted_at: c.form_submitted_at ?? null, form_title: c.form_title ?? null, account_id: c.account_id ?? null, account_name: c.account_name ?? null }
+        : null;
       setLines((c.items?.length ? c.items : []).map((it) => fromItem(it, nextKey())).concat(c.items?.length ? [] : [blank(nextKey())]));
     }).catch((e) => { toast.error(errText(e, 'Could not load the claim')); router.replace('/dashboard/expenses'); })
       .finally(() => { if (!off) setLoading(false); });
     return () => { off = true; };
   }, [claimId, router]);
 
-  // Connected-B2B: the forms an admin marked expense-linked (the form picker's options).
+  // Connected-B2B: my own filled forms (the "Linked form entry" options), narrowed to the chosen company and
+  // reloaded whenever it changes. A selected entry that no longer fits the company is dropped.
   useEffect(() => {
     if (!b2b) return;
     let off = false;
-    expensesApi.linkableForms().then((fs) => { if (!off) setForms(fs); }).catch(() => { if (!off) setForms([]); });
+    expensesApi.linkableSubmissions(accountId || undefined).then((r) => {
+      if (off) return;
+      const rows = Array.isArray(r.data) ? r.data : [];
+      setSubmissions(rows);
+      setSubmissionId((cur) => {
+        if (!cur) return cur;
+        const hit = rows.find((x) => x.id === cur);
+        if (hit) return accountId && hit.account_id && hit.account_id !== accountId ? '' : cur;
+        const saved = savedSubmission.current;
+        return saved && saved.id === cur && (!accountId || !saved.account_id || saved.account_id === accountId) ? cur : '';
+      });
+    }).catch(() => { if (!off) setSubmissions([]); });
     return () => { off = true; };
-  }, [b2b]);
+  }, [b2b, accountId]);
 
   // Account typeahead: server search by name, debounced. Only while B2B and the
   // typed query differs from the already-chosen account's name.
@@ -221,6 +245,13 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
     }, 300);
     return () => { off = true; clearTimeout(t); };
   }, [b2b, accountQuery, accountName]);
+
+  // The entries on offer, plus the claim's saved one when it is not in the list (so editing never silently drops it).
+  const submissionOptions = useMemo(() => {
+    const saved = savedSubmission.current;
+    if (saved && submissionId === saved.id && !submissions.some((x) => x.id === saved.id)) return [saved, ...submissions];
+    return submissions;
+  }, [submissions, submissionId]);
 
   // ── what the policy says about the form ──
   const rules = policy?.rules;
@@ -405,7 +436,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
     const body = {
       title: title.trim() || null,
       items: filled.map((l) => toInput(l, vf, vehicles, gpsOn)),
-      ...(b2b ? { clarification: clarification.trim() || null, account_id: accountId || null, form_id: formId || null } : {}),
+      ...(b2b ? { clarification: clarification.trim() || null, account_id: accountId || null, form_submission_id: submissionId || null } : {}),
     };
     if (savedId.current) { await expensesApi.updateClaim(savedId.current, body); return savedId.current; }
     const r = await expensesApi.createClaim(body);
@@ -525,10 +556,10 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
                   </div>
                 )}
               </Field>
-              <Field label="Linked form" hint={forms.length ? 'The form this expense relates to — its name shows wherever the link appears.' : 'No forms are marked for expense linking yet — turn it on for a form in the Form Builder.'}>
-                <Select value={formId} onChange={(e) => setFormId(e.target.value)} disabled={!forms.length}>
+              <Field label="Linked form entry" hint={submissionOptions.length ? 'The filled form this expense relates to — its reference and date show wherever the link appears.' : 'No filled forms with a reference yet — fill a form first.'}>
+                <Select value={submissionId} onChange={(e) => setSubmissionId(e.target.value)} disabled={!submissionOptions.length}>
                   <option value="">None</option>
-                  {forms.map((f) => <option key={f.id} value={f.id}>{f.title}</option>)}
+                  {submissionOptions.map((x) => <option key={x.id} value={x.id}>{submissionLabel(x, !accountId)}</option>)}
                 </Select>
               </Field>
             </Card>

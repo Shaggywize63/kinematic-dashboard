@@ -22,7 +22,7 @@ const rowStyle: CSSProperties = {
  * contract; `requirement` is a non-built-in column so it renders directly.
  * Renders nothing when there are no contacts.
  */
-export default function LeadContactsCard({ contacts, fields, formNameById }: { contacts: Contact[]; fields: FieldHelpers; formNameById?: Record<string, string> }) {
+export default function LeadContactsCard({ contacts, fields }: { contacts: Contact[]; fields: FieldHelpers }) {
   if (!contacts.length) return null;
   const showTitle = !fields.isHidden('title');
   const showPhone = !fields.isHidden('phone');
@@ -43,12 +43,6 @@ export default function LeadContactsCard({ contacts, fields, formNameById }: { c
                   <div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.5, color: T.dim, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                     <span style={{ color: T.mute, fontWeight: 600 }}>{fields.labelFor('requirement', 'Requirement')}: </span>
                     {c.requirement}
-                  </div>
-                )}
-                {/* Connected builder form, if one was linked to this requirement. */}
-                {c.form_id && formNameById?.[c.form_id] && (
-                  <div style={{ marginTop: 4, fontSize: 12, color: T.mute }}>
-                    <span style={{ fontWeight: 600 }}>📋 Form: </span>{formNameById[c.form_id]}
                   </div>
                 )}
               </div>
