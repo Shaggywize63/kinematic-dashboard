@@ -196,7 +196,13 @@ export default function LeadDetailPage() {
     if (!lead) return;
     try {
       const r = await crmLeads.update(lead.id, patch as any);
+      // The backend now recomputes the score on every update and returns it on
+      // the row (and invalidates the NBA). Fold the fresh row, then drop any
+      // manually-set score state so the card shows the just-persisted score
+      // instead of a stale Re-score, and clear the now-stale next-best-action.
       setLead((prev) => ({ ...(prev as LifecycleLead), ...(r.data as LifecycleLead) }));
+      setScore(null);
+      setNba(null);
       toast.success(okText);
     } catch (e: any) {
       toast.error(e?.message || 'Update failed');
