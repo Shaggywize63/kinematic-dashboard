@@ -1152,7 +1152,10 @@ export default function NewLeadPage() {
               <FormGrid narrow={narrow}>
                 {b2bAccounts ? companyField() : text('company', 'Company', { required: true })}
                 {text('title', 'Job title')}
-                {text('industry', 'Industry')}
+                {/* Spark & Ray lead with Company only — Industry is dropped for
+                    them (the company's account carries industry). Every other
+                    tenant keeps the Industry field. */}
+                {!b2bAccounts && text('industry', 'Industry')}
                 <CustomFieldsSection
                   entity="lead"
                   values={form.custom_fields}
