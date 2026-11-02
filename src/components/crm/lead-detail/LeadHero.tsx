@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowRightLeft, ChevronDown, FileText, Link2, MoreHorizontal, Pencil, Phone, RotateCcw, Search, Trash2, UserPlus, XCircle } from 'lucide-react';
+import { ArrowRightLeft, ChevronDown, Link2, MoreHorizontal, Pencil, Phone, RotateCcw, Search, Trash2, UserPlus, XCircle } from 'lucide-react';
 import type { FieldHelpers } from '../../../lib/crmFieldOverrides';
 import type { LeadStatusOption } from '../../../lib/crmLeadStatuses';
 import { isValidWaPhone, waLink } from '../../../lib/whatsapp';
@@ -38,8 +38,6 @@ export interface LeadHeroProps {
   onRename: (next: string) => Promise<void>;
   onStatusChange: (next: string) => Promise<void>;
   onEdit: () => void;
-  /** Opens the Proposal builder. Omitted (undefined) hides the Proposal button — e.g. BMW. */
-  onProposal?: () => void;
   onConvert: () => void;
   converting: boolean;
   onReopen: () => void;
@@ -134,7 +132,6 @@ export default function LeadHero(p: LeadHeroProps) {
               <svg width={15} height={15} viewBox="0 0 24 24" fill="#25D366" aria-hidden><path d={WA_PATH} /></svg>WhatsApp
             </a>
           )}
-          {p.onProposal && <Button onClick={p.onProposal} icon={<FileText size={15} strokeWidth={1.8} />}>Proposal</Button>}
           {closedAny ? (
             <Button variant="primary" onClick={p.onReopen} disabled={p.reopening} icon={<RotateCcw size={15} strokeWidth={1.8} />}>
               {p.reopening ? 'Re-opening…' : 'Re-open lead'}
