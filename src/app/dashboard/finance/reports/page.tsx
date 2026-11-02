@@ -29,6 +29,18 @@ export default function FinanceReportsHubPage() {
           </section>
         );
       })}
+      <section aria-labelledby="grp-planning">
+        <h2 id="grp-planning" style={{ margin: '0 0 10px', fontFamily: T.heading, fontSize: 14, fontWeight: 700, color: T.dim, letterSpacing: '0.02em' }}>Planning</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+          <Link href="/dashboard/finance/reports/projection" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+            <Card padding={16} style={{ height: '100%' }}>
+              <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text, fontFamily: T.heading }}>Projection &amp; Growth Plan</div>
+              <div style={{ fontSize: 13, color: T.dim, marginTop: 6, lineHeight: 1.45 }}>A 12-month billing projection from your invoices, with a hiring plan — who to hire, when and at what budget — that updates as the projection does.</div>
+              <div style={{ fontSize: 12.5, color: T.info, fontWeight: 600, marginTop: 12 }}>Open →</div>
+            </Card>
+          </Link>
+        </div>
+      </section>
     </FinancePage>
   );
 }
