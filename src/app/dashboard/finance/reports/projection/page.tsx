@@ -21,8 +21,8 @@ const rs = (n: unknown) => `₹${Math.round(num(n)).toLocaleString('en-IN')}`;
 const monthLong = (ym: string) => new Date(`${ym}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 const SOURCE: Record<string, string> = { schedule: 'Repeat schedule', duration: 'Line duration', history: 'Invoice history' };
 
-interface Params { churn: string; growth: string; growth_up: string; cap: string; oncost: string; existing: string; costs: Record<string, string> }
-const DEFAULTS: Params = { churn: '15', growth: '2500', growth_up: '5000', cap: '50', oncost: '12', existing: '0', costs: {} };
+interface Params { churn: string; growth: string; growth_up: string; cap: string; oncost: string; existing: string; founder: string; costs: Record<string, string> }
+const DEFAULTS: Params = { churn: '15', growth: '2500', growth_up: '5000', cap: '50', oncost: '12', existing: '0', founder: '200000', costs: {} };
 
 function useDebounced<T>(v: T, ms = 500): T {
   const [d, setD] = useState(v);
@@ -58,7 +58,7 @@ export default function ProjectionPage() {
   const [reload, setReload] = useState(0);
 
   const query = useMemo(() => {
-    const q: Record<string, string> = { churn: dp.churn, growth: dp.growth, growth_up: dp.growth_up, cap: dp.cap, oncost: dp.oncost, existing: dp.existing };
+    const q: Record<string, string> = { churn: dp.churn, growth: dp.growth, growth_up: dp.growth_up, cap: dp.cap, oncost: dp.oncost, existing: dp.existing, founder: dp.founder };
     for (const [k, v] of Object.entries(dp.costs)) if (v.trim() !== '') q[`cost_${k}`] = v;
     return q;
   }, [dp]);
@@ -186,9 +186,10 @@ export default function ProjectionPage() {
                     <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute, marginBottom: 6 }}>Growth scenario</div>
                     <Segmented value={scenario} onChange={setScenario} options={[{ value: 'conservative', label: 'Low' }, { value: 'base', label: 'Base' }, { value: 'upside', label: 'High' }]} />
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(3, 190px)', gap: 12, flex: narrow ? '1 1 100%' : '0 0 auto' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(2, 190px)', gap: 12, flex: narrow ? '1 1 100%' : '0 0 auto' }}>
                     <Field label="Team cost cap (% of revenue)" htmlFor="g-cap"><Input id="g-cap" type="number" min={10} max={100} value={params.cap} onChange={set('cap')} /></Field>
                     <Field label="Employer cost on salary (%)" htmlFor="g-on"><Input id="g-on" type="number" min={0} max={60} value={params.oncost} onChange={set('oncost')} /></Field>
+                    <Field label="Founder salary (₹ / month)" htmlFor="g-fd"><Input id="g-fd" type="number" min={0} value={params.founder} onChange={set('founder')} /></Field>
                     <Field label="Other monthly costs (₹)" htmlFor="g-ex"><Input id="g-ex" type="number" min={0} value={params.existing} onChange={set('existing')} /></Field>
                   </div>
                 </div>
@@ -210,7 +211,7 @@ export default function ProjectionPage() {
                   <Stat label="Hiring budget, next 12 months" value={rs(plan.budget.year1_total)} tone="warn" hint={`${rs(plan.budget.payroll)} pay + ${rs(plan.budget.one_time)} one-time`} />
                   <Stat label="Peak monthly team cost" value={rs(plan.budget.peak_monthly)} hint="Salary plus employer cost" />
                   <Stat label="Hires planned" value={plan.headline.hires} hint={`of ${plan.roles.length} roles`} />
-                  <Stat label="Left after costs, 12 months" value={rs(plan.budget.end_net)} tone={plan.budget.end_net >= 0 ? 'ok' : 'red'} hint="Billings − team − other costs" />
+                  <Stat label="Left after costs, 12 months" value={rs(plan.budget.end_net)} tone={plan.budget.end_net >= 0 ? 'ok' : 'red'} hint={`Billings − founder pay (${rs(plan.budget.founder_year1)}) − team − other costs`} />
                 </div>
               </Card>
 

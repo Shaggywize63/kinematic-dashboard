@@ -136,7 +136,7 @@ export function MrrHiringChart({ plan, current, compact }: { plan: GrowthPlan; c
 
 /** Billings vs the team's cost, and what is left after payroll (cumulative). */
 export function PayrollChart({ plan, compact }: { plan: GrowthPlan; compact?: boolean }) {
-  const rows = plan.timeline.map((t) => ({ label: monthName(t.month), billings: t.billings, cost: t.payroll + t.one_time + t.existing, cum_net: t.cum_net }));
+  const rows = plan.timeline.map((t) => ({ label: monthName(t.month), billings: t.billings, cost: t.payroll + t.one_time + t.existing + t.founder, cum_net: t.cum_net }));
   return (
     <Frame height={compact ? 280 : 320} alt={`Monthly billings against team and other costs, and the running balance after those costs. Year-one hiring budget ${inr(plan.budget.year1_total)}.`}>
       <ComposedChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={2} barCategoryGap="26%">
@@ -146,7 +146,7 @@ export function PayrollChart({ plan, compact }: { plan: GrowthPlan; compact?: bo
         <Tooltip content={<Tip />} cursor={{ fill: 'var(--s3)', opacity: 0.6 }} />
         <Legend wrapperStyle={{ fontSize: 12.5 }} />
         <Bar dataKey="billings" name="Billings" fill={C.actual} radius={[4, 4, 0, 0]} maxBarSize={20} isAnimationActive={false} />
-        <Bar dataKey="cost" name="Hiring + other costs" fill={C.payroll} fillOpacity={0.8} radius={[4, 4, 0, 0]} maxBarSize={20} isAnimationActive={false} />
+        <Bar dataKey="cost" name="Founder + hiring + other costs" fill={C.payroll} fillOpacity={0.8} radius={[4, 4, 0, 0]} maxBarSize={20} isAnimationActive={false} />
         <Line dataKey="cum_net" name="Running balance after costs" stroke={T.ok} strokeWidth={2.5} dot={false} isAnimationActive={false} />
       </ComposedChart>
     </Frame>
