@@ -133,10 +133,10 @@ export interface GrowthRole {
   monthly_salary: number; monthly_loaded: number; one_time: number; unlock_mrr: number; unlock_alone: number; gap_mrr: number; more_customers: number | null;
   hire_month: string | null; hire_label: string | null; status: 'now' | 'planned' | 'beyond'; year1_cost: number; blocker: string | null;
 }
-export interface GrowthTimelineRow { month: string; label: string; mrr: number; customers: number; billings: number; payroll: number; one_time: number; existing: number; net: number; cum_net: number; hires: string[]; payroll_pct: number }
+export interface GrowthTimelineRow { month: string; label: string; mrr: number; customers: number; billings: number; payroll: number; one_time: number; existing: number; founder: number; net: number; cum_net: number; hires: string[]; payroll_pct: number }
 export interface GrowthPlan {
   roles: GrowthRole[]; timeline: GrowthTimelineRow[];
-  budget: { year1_total: number; payroll: number; one_time: number; peak_monthly: number; end_net: number };
+  budget: { year1_total: number; payroll: number; one_time: number; peak_monthly: number; founder_year1: number; end_net: number };
   headline: { hires: number; first_hire: { title: string; month: string; label: string; status: string } | null; next_unlock: { title: string; unlock_mrr: number; gap_mrr: number; more_customers: number | null } | null };
 }
 export interface ProjectionData {
@@ -150,7 +150,7 @@ export interface ProjectionData {
   one_off: Array<{ customer: string; amount: number; date: string }>;
   pipeline: { quotes: Array<{ number: string; customer: string; amount: number }>; total: number };
   growth: {
-    options: { cap_pct: number; oncost_pct: number; existing: number; costs: Record<string, number> };
+    options: { cap_pct: number; oncost_pct: number; existing: number; founder: number; costs: Record<string, number> };
     current: { mrr: number; customers: number; avg_mrr_per_customer: number; outstanding: number };
     assumptions: string[];
     plans: Record<Scenario, GrowthPlan>;
