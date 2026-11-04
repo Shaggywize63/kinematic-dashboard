@@ -21,6 +21,10 @@ interface Health {
   master_sync_pending: boolean;
   pending_commands: number;
   last_command_result: { ok: boolean; error?: string | null; label?: string | null; type?: string | null } | null;
+  // What the connector itself last reported it couldn't do (e.g. bad/expired code, Tally
+  // unreachable), so the client's exact error shows here without touching their PC.
+  agent_last_error: string | null;
+  agent_last_error_at: string | null;
 }
 interface Master {
   id: string; kind: 'stock_item' | 'party'; tally_guid: string; name: string; data: Record<string, unknown>;
@@ -61,6 +65,9 @@ export function PairingPanel({ integrationId, autoGenerate }: { integrationId: s
         <li>Open Command Prompt <strong>as Administrator</strong> in the download folder and run the command below.</li>
         <li>In Tally: <strong>F1 → Settings → Connectivity → Client/Server</strong>, set <em>TallyPrime acts as</em> = Both, port 9000. Keep the company open.</li>
       </ol>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.6, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+        <strong style={{ color: 'var(--text)' }}>Windows blocked it?</strong> If you see “Windows protected your PC”, click <strong>More info → Run anyway</strong> (the connector is safe, just not yet code-signed). If the file disappears after download, your antivirus quarantined it — restore/allow <code>kinematic-tally-agent.exe</code>. Double-clicking the file also works — it asks for the code, no Command Prompt needed.
+      </div>
       {code ? (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -165,6 +172,12 @@ export function SetupModal({ integration, onClose, onChanged }: { integration: T
             </div>
             {health.last_command_result && health.last_command_result.ok === false && (
               <div style={errBox}>Last Tally action failed: {health.last_command_result.error}</div>
+            )}
+            {agentFailing && health.agent_last_error && (
+              <div style={errBox}>
+                Connector reported: {health.agent_last_error}
+                {health.agent_last_error_at && ` (${new Date(health.agent_last_error_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })})`}
+              </div>
             )}
             {health.agent_version && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 8 }}>Connector v{health.agent_version}</div>}
           </section>
