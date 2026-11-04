@@ -20,6 +20,7 @@ import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/c
 import { STEEL_DEALER_CLIENT_IDS, BMW_CLIENT_ID, isWalkInExecutive } from '../../../../../lib/clientFeatures';
 import { getStoredUser } from '../../../../../lib/auth';
 import { orderLeadSources } from '../../../../../lib/leadSourceOrder';
+import { sparkIndustryOptions } from '../../../../../lib/sparkIndustries';
 import {
   DEFAULT_LEAD_FORM, extractLeadForm, localDateTimeToIso, offersScheduleVisit, segmentName, segmentToggleLabel, showsAddress,
   type LeadFormConfig,
@@ -839,19 +840,29 @@ export default function NewLeadPage() {
       </Field>
     );
   };
-  const select = (k: keyof Form, label: string, options: Array<{ value: string; label: string }>) => {
+  // `opts.required` opts a select into the admin's required override (default false); selects that don't pass it
+  // keep their existing never-required behaviour.
+  const select = (k: keyof Form, label: string, options: Array<{ value: string; label: string }>, opts: { required?: boolean } = {}) => {
     if (fields.isHidden(k as string)) return null;
     const effLabel = fields.labelFor(k as string, label);
+    const effRequired = opts.required === undefined ? undefined : fields.requiredFor(k as string, opts.required);
     const id = `lead-field-${k as string}`;
     return (
-      <Field label={effLabel} htmlFor={id}>
-        <Select id={id} value={form[k] as string} onChange={(e) => setForm({ ...form, [k]: e.target.value })}>
+      <Field label={effLabel} required={effRequired} htmlFor={id}>
+        <Select id={id} value={form[k] as string} required={effRequired} onChange={(e) => setForm({ ...form, [k]: e.target.value })}>
           <option value="">—</option>
           {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </Select>
       </Field>
     );
   };
+
+  // Industry: Spark & Ray picks from a fixed list (sparkIndustryOptions keeps a legacy / free-text value
+  // selectable); every other tenant keeps today's free-text field. Same admin gate (hidden / label / required)
+  // either way, via select() / text().
+  const industryField = () => b2bAccounts
+    ? select('industry', 'Industry', sparkIndustryOptions(form.industry).map((v) => ({ value: v, label: v })), { required: false })
+    : text('industry', 'Industry');
 
   // The Company field for connected-B2B (Spark & Ray): the same admin-gated
   // built-in `company` row as text(), but with a CRM-account typeahead layered
@@ -1179,10 +1190,9 @@ export default function NewLeadPage() {
               <FormGrid narrow={narrow}>
                 {b2bAccounts ? companyField() : text('company', 'Company', { required: true })}
                 {text('title', 'Job title')}
-                {/* Spark & Ray lead with Company only — Industry is dropped for
-                    them (the company's account carries industry). Every other
-                    tenant keeps the Industry field. */}
-                {!b2bAccounts && text('industry', 'Industry')}
+                {/* Industry: a fixed dropdown for Spark & Ray, free text for
+                    every other tenant (see industryField). */}
+                {industryField()}
                 <CustomFieldsSection
                   entity="lead"
                   values={form.custom_fields}
@@ -1249,7 +1259,7 @@ export default function NewLeadPage() {
                 <FormGrid narrow={narrow}>
                   {explicitlyShownOnB2C('company')  && text('company', 'Company')}
                   {explicitlyShownOnB2C('title')    && text('title', 'Job title')}
-                  {explicitlyShownOnB2C('industry') && text('industry', 'Industry')}
+                  {explicitlyShownOnB2C('industry') && industryField()}
                 </FormGrid>
               </Section>
             )}
