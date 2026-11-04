@@ -11,6 +11,10 @@ import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 import { isTataTiscanActive } from '../../../../../lib/clientFeatures';
 import ProductLinesSection from '../../../../../components/crm/ProductLinesSection';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import { buildDealItems, type DealLineDraft } from '../../../../../lib/sparkAccounts';
+import { AccountPicker, DealItemsEditor } from '../../../../../components/crm/spark/DealItemsEditor';
+import { useIsCompact } from '../../../../../components/ui';
 
 // useSearchParams() forces a Suspense boundary on Next 14. The inner
 // component reads ?pipeline_id= so the Pipeline page's "+ New Deal" CTA
@@ -29,6 +33,13 @@ function NewDealPageInner() {
   const sp = useSearchParams();
   const { user } = useAuth();
   const showLinks = isHorizonOrg(user?.org_id);
+  // Spark & Ray (connected-B2B): customer (account) picker, quotation number and a product-lines editor. The
+  // server computes the deal amount from the lines. Every other tenant's form is unchanged.
+  const spark = isB2bClientActive();
+  const narrow = useIsCompact(700);
+  const [quotationNo, setQuotationNo] = useState('');
+  const [lines, setLines] = useState<DealLineDraft[]>([]);
+  const [catalogue, setCatalogue] = useState<Product[]>([]);
   const initialPipelineId = sp.get('pipeline_id') ?? '';
   const initialAccountId = sp.get('account_id') ?? '';
   const initialContactId = sp.get('contact_id') ?? '';
@@ -136,6 +147,16 @@ function NewDealPageInner() {
     crmAccounts.list({ limit: 500 } as any).then((r) => setAccounts(r.data || [])).catch(() => setAccounts([]));
   }, [showLinks]);
 
+  // Spark: the full catalogue (the steel-dealer list above is filtered to weight/price products) + every account
+  // for the searchable Customer picker. Plain lists; a failure just leaves the pickers empty.
+  useEffect(() => {
+    if (!spark) return;
+    let off = false;
+    crmProducts.list({ limit: 200 } as any).then((r) => { if (!off) setCatalogue(((r.data || []) as Product[]).filter((p) => p.is_active !== false)); }).catch(() => { if (!off) setCatalogue([]); });
+    crmAccounts.list({ limit: 500 } as any).then((r) => { if (!off) setAccounts(r.data || []); }).catch(() => { if (!off) setAccounts([]); });
+    return () => { off = true; };
+  }, [spark]);
+
   // Refresh the contact list whenever the picked account changes. Filters
   // server-side by account_id; falls back to "no contacts" silently.
   useEffect(() => {
@@ -184,13 +205,14 @@ function NewDealPageInner() {
     });
   };
 
+  const sparkItems = useMemo(() => (spark ? buildDealItems(lines) : []), [spark, lines]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
       const r = await crmDeals.create({
         name: form.name,
-        amount: form.amount ? Number(form.amount) : null,
+        amount: spark && sparkItems.length ? undefined : (form.amount ? Number(form.amount) : null),
         // Backend auto-resolves the org/client's default pipeline +
         // opening stage when these are blank, so single-pipeline clients
         // and lead-conversion flows work without forcing a UI choice.
@@ -200,11 +222,16 @@ function NewDealPageInner() {
         client_id: form.client_id || undefined,
         // Account / contact links — only sent for Horizon users.
         // Tata Tiscon's form doesn't expose those pickers so they stay null.
-        account_id: showLinks && form.account_id ? form.account_id : undefined,
+        account_id: (showLinks || spark) && form.account_id ? form.account_id : undefined,
         primary_contact_id: showLinks && form.primary_contact_id ? form.primary_contact_id : undefined,
         // Source lead — every tenant can attach one via the picker below,
         // enabling additional deals for a lead that already converted.
         lead_id: form.lead_id || undefined,
+        // Spark only: the quotation number and the product lines (amount is computed from them server-side).
+        ...(spark ? {
+          ...(quotationNo.trim() ? { quotation_no: quotationNo.trim() } : {}),
+          ...(sparkItems.length ? { items: sparkItems } : {}),
+        } : {}),
         custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
       } as any);
       toast.success('Deal created');
@@ -239,7 +266,7 @@ function NewDealPageInner() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         {!fields.isHidden('name') && <Field label={fields.labelFor('name', 'Name')}><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required={fields.requiredFor('name', true)} style={input} /></Field>}
 
-        {!steelDealer && (
+        {!steelDealer && !spark && (
           <>
             <Field label="Product (optional)">
               <select value={form.product_id} onChange={(e) => onProductChange(e.target.value)} style={input}>
@@ -255,7 +282,9 @@ function NewDealPageInner() {
           </>
         )}
 
-        {!fields.isHidden('amount') && <Field label={fields.labelFor('amount', 'Amount (INR)')}><input type="number" step="0.01" value={form.amount} onChange={(e) => onAmountChange(e.target.value)} style={input} /></Field>}
+        {!fields.isHidden('amount') && (spark && sparkItems.length > 0
+          ? <Field label={fields.labelFor('amount', 'Amount (INR)')}><input type="number" value={sparkItems.reduce((t, i) => t + i.quantity * i.unit_price, 0)} readOnly aria-label="Amount (from product lines)" title="Computed from the product lines" style={{ ...input, opacity: 0.8 }} /></Field>
+          : <Field label={fields.labelFor('amount', 'Amount (INR)')}><input type="number" step="0.01" value={form.amount} onChange={(e) => onAmountChange(e.target.value)} style={input} /></Field>)}
         {!fields.isHidden('pipeline_id') && (
         <Field label={fields.labelFor('pipeline_id', 'Pipeline')}>
           {singlePipeline ? (
@@ -327,7 +356,17 @@ function NewDealPageInner() {
           )}
         </Field>
         )}
-        {showLinks && (
+        {spark && !fields.isHidden('account_id') && (
+          <Field label={fields.labelFor('account_id', 'Customer (account)') + (fields.requiredFor('account_id', false) ? ' *' : '')}>
+            <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} />
+          </Field>
+        )}
+        {spark && (
+          <Field label="Quotation number">
+            <input value={quotationNo} onChange={(e) => setQuotationNo(e.target.value)} placeholder="e.g. QT-2026-014" maxLength={60} aria-label="Quotation number" style={input} />
+          </Field>
+        )}
+        {showLinks && !spark && (
           <>
             {!fields.isHidden('account_id') && (
             <Field label={fields.labelFor('account_id', 'Account')}>
@@ -357,6 +396,13 @@ function NewDealPageInner() {
           onChange={setCustomFields}
         />
       </div>
+
+      {spark && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>Products</div>
+          <DealItemsEditor lines={lines} onChange={setLines} products={catalogue} narrow={narrow} />
+        </div>
+      )}
 
       {/* Steel-dealer multi-product basket — writes product_lines (+ the
           legacy single-field mirrors) into the same customFields map the

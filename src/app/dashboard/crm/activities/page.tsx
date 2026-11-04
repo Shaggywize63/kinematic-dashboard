@@ -18,6 +18,9 @@ import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
+import { isB2bClientActive } from '../../../../lib/b2bClient';
+import { apiErrorText, arr, sparkActivityFields } from '../../../../lib/sparkAccounts';
+import { AssigneeChips, FormSerialInput, ProductChips, SparkActivityMeta, useProductCatalogue } from '../../../../components/crm/spark/SparkActivityFields';
 
 // Activity cards are not a table, so the customizer toggles which
 // optional sections appear in each card. Subject + status are locked.
@@ -712,6 +715,8 @@ function ActivitiesPageInner() {
                           </span>
                         )}
                       </div>
+                      {/* Spark & Ray: assignees / products / form serial (absent on every other tenant's rows). */}
+                      <SparkActivityMeta a={a} />
                     </div>
                   </div>
                   <div style={{
@@ -1150,8 +1155,38 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Spark & Ray only: assignees (first = primary), products and the form serial.
+  const spark = isB2bClientActive();
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(() => {
+    const ids = arr<{ id: string }>(activity.assignees).map((u) => u.id).filter(Boolean);
+    const legacy = (activity as Activity & { assigned_to?: string | null }).assigned_to;
+    return ids.length ? ids : legacy ? [legacy] : [];
+  });
+  const [productIds, setProductIds] = useState<string[]>(() =>
+    arr<string>(activity.product_ids).length ? arr<string>(activity.product_ids) : arr<{ id: string }>(activity.products).map((p) => p.id));
+  const [formSerial, setFormSerial] = useState(activity.form_ref_no || '');
+  const [serialError, setSerialError] = useState<string | null>(null);
+  const catalogue = useProductCatalogue(spark);
+  const [userOptions, setUserOptions] = useState<UserOption[]>(() =>
+    arr<{ id: string; name: string }>(activity.assignees).map((u) => ({ id: u.id, name: u.name })));
+  useEffect(() => {
+    if (!spark) return;
+    let off = false;
+    (api.getUsers({ limit: '500', scope: 'assignable' }) as Promise<any>)
+      .then((u) => {
+        if (off) return;
+        const list: UserOption[] = (u.data || u || []).map((x: any) => ({ id: x.id, name: x.name || x.full_name || x.email || 'User' }));
+        // Keep already-assigned people selectable (and named) even if the directory omits them.
+        for (const known of arr<{ id: string; name: string }>(activity.assignees)) if (!list.some((p) => p.id === known.id)) list.push({ id: known.id, name: known.name });
+        setUserOptions(list);
+      })
+      .catch(() => { /* keep the assignees we already know */ });
+    return () => { off = true; };
+  }, [spark, activity.assignees]);
+
   const submit = async () => {
     setSaving(true);
+    setSerialError(null);
     try {
       const payload: Record<string, unknown> = {
         type,
@@ -1161,10 +1196,21 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
         due_at: dueAt ? new Date(dueAt).toISOString() : null,
         custom_fields: customFields,
       };
+      if (spark) {
+        const f = sparkActivityFields({ assigneeIds, productIds, formSerial }, 'patch');
+        // An untouched serial is not re-sent (the row shows the resolved ref, which is what the box starts with).
+        if (formSerial.trim() === (activity.form_ref_no || '')) delete f.form_serial;
+        Object.assign(payload, f);
+        if (assigneeIds[0]) payload.assigned_to = assigneeIds[0];
+      }
       await crmActivities.update(activity.id, payload as any);
       toast.success('Activity updated');
       onSaved();
-    } catch (e: any) { toast.error(e.message || 'Failed to update'); }
+    } catch (e: any) {
+      const msg = apiErrorText(e, 'Failed to update');
+      if (spark && formSerial.trim() && /serial|form|ref/i.test(msg)) setSerialError(msg);
+      else toast.error(msg);
+    }
     finally { setSaving(false); }
   };
 
@@ -1199,6 +1245,22 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
         </Field>
         <Field label="Outcome (optional)"><input value={outcome} onChange={(e) => setOutcome(e.target.value)} style={editInput} /></Field>
         <Field label="Due / scheduled for"><input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={editInput} /></Field>
+        {spark && (
+          <>
+            <div role="group" aria-label="Assign to (multiple)">
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Assign to (multiple)</label>
+              <AssigneeChips users={userOptions} value={assigneeIds} onChange={setAssigneeIds} />
+            </div>
+            <div role="group" aria-label="Product interested">
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Product interested</label>
+              <ProductChips products={catalogue} value={productIds} onChange={setProductIds} />
+            </div>
+            <div role="group" aria-label="Form serial">
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Form serial</label>
+              <FormSerialInput value={formSerial} onChange={(v) => { setFormSerial(v); setSerialError(null); }} error={serialError} />
+            </div>
+          </>
+        )}
         {/* Admin-defined activity custom fields. CustomFieldsSection yields
             raw <label> children (or nothing when no defs exist), so they
             stack with the modal's other fields via the parent flex gap. */}

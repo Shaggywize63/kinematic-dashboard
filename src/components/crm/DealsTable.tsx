@@ -181,6 +181,8 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, onEdit,
                     )}
                   </div>
                   {d.account_name && <div style={{ fontSize: 12, color: T.dim, marginTop: 2 }}>{d.account_name}</div>}
+                  {/* Spark & Ray: the quotation number (only Spark deal rows carry one). */}
+                  {d.quotation_no && <div data-testid="deal-quotation-no" style={{ fontSize: 11.5, color: T.info, fontFamily: T.mono, marginTop: 2 }}>Quotation {d.quotation_no}</div>}
                 </td>
                 {!hidden.has('dealer')     && <td style={{ ...td, color: d.dealer_name ? T.text : T.mute }} data-label="Dealer">{d.dealer_name ?? '—'}</td>}
                 {!hidden.has('amount')     && <td style={{ ...num, textAlign: 'right' }} data-label="Amount">{formatINR(d.amount)}</td>}

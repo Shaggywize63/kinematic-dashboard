@@ -9,6 +9,7 @@ import MentionInput, { renderMentions } from '../../messaging/MentionInput';
 import OwnerAvatar from '../shared/OwnerAvatar';
 import { WA_PATH } from '../shared/WhatsAppButton';
 import { ActivityFields } from '../ActivityTimeline';
+import { SparkActivityMeta } from '../spark/SparkActivityFields';
 import { Button, T } from '../../ui';
 import RowMenu, { type RowMenuItem } from './RowMenu';
 import { activityCampaign, activityState, activityWhen, dueInfo, fmtIST, relTime, TYPE_LABEL, type DetailActivity } from './format';
@@ -223,6 +224,7 @@ export function ActivityRow({
       )}
       {a.body && <div style={{ ...bodyStyle, color: T.dim, marginTop: 6 }}><Clamp lines={4}>{a.body}</Clamp></div>}
       <ActivityFields cf={a.custom_fields} />
+      <SparkActivityMeta a={a} />
       {a.image_url && (
         <a href={a.image_url} target="_blank" rel="noreferrer" onClick={(e) => openSignedUrl(e, a.image_url)} style={{ display: 'inline-block', marginTop: 8 }}>
           <SignedImage src={a.image_url} alt="Activity photo" style={{ maxWidth: 240, maxHeight: 180, borderRadius: 8, border: `1px solid ${T.border}`, objectFit: 'cover', display: 'block' }} />

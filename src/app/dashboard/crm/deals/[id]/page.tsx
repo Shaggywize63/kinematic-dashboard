@@ -619,6 +619,8 @@ export default function DealDetailPage() {
                   card further down. Hidden when the tenant doesn't stamp it. */}
               {deal.dealer_name && <Field label="Dealer" value={deal.dealer_name} />}
               <Field label="Stage" value={deal.stage_name} />
+              {/* Spark & Ray: only their deal rows carry a quotation number. */}
+              {deal.quotation_no && <Field label="Quotation no." value={deal.quotation_no} />}
               <Field label="Status" value={deal.status} />
               {/* Win probability is hidden for BMW — their steel-dealer flow
                   tracks booked volume, not a forecast likelihood. */}

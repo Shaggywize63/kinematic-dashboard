@@ -29,6 +29,7 @@ import LeadTabs, { type TabDef } from '../../../../../components/crm/lead-detail
 import OverviewTab from '../../../../../components/crm/lead-detail/OverviewTab';
 import TimelineTab from '../../../../../components/crm/lead-detail/TimelineTab';
 import DealsTab from '../../../../../components/crm/lead-detail/DealsTab';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import InsightsTab from '../../../../../components/crm/lead-detail/InsightsTab';
 import ScoreCard from '../../../../../components/crm/lead-detail/ScoreCard';
 import DisqualifiedBanner from '../../../../../components/crm/lead-detail/DisqualifiedBanner';
@@ -489,7 +490,7 @@ export default function LeadDetailPage() {
                 onActivitiesChanged={() => { void reload(); }}
               />
             )}
-            {activeTab === 'deals' && <DealsTab leadId={id} deals={deals} canConvert={!isClosed} onConvert={onConvert} hideWon={isBmw} showFulfillBalance={isBmw} />}
+            {activeTab === 'deals' && <DealsTab leadId={id} deals={deals} canConvert={!isClosed} onConvert={onConvert} hideWon={isBmw} showFulfillBalance={isBmw} newDealHref={isB2bClientActive() ? `/dashboard/crm/deals/new?lead_id=${id}${lead.converted_account_id ? `&account_id=${lead.converted_account_id}` : ''}` : undefined} />}
             {activeTab === 'insights' && hasInsights && <InsightsTab conversations={conversations} />}
           </div>
         </div>
