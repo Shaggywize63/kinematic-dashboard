@@ -37,6 +37,9 @@ const ACCENT = '#6366F1';
 const STATUS_COLOR: Record<ClaimStatus, string> = {
   draft: '#94A3B8', submitted: '#F59E0B', approved: '#10B981', rejected: '#E0282C', reimbursed: '#06B6D4', cancelled: '#64748B',
 };
+// Categorical palette for the category-mix donut — distinguishable hues that hold up in
+// both themes, cycled by index (the slice also carries a legend + tooltip, never colour-alone).
+const CAT_PALETTE = ['#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#14B8A6', '#F97316', '#0EA5E9', '#EF4444'];
 
 type ReportKind = 'summary' | 'list' | 'odometer';
 interface ReportDef { id: string; label: string; kind: ReportKind; status?: ClaimStatus }
@@ -47,6 +50,7 @@ const REPORTS: ReportDef[] = [
   { id: 'trend', label: 'Monthly trend', kind: 'summary' },
   { id: 'policy', label: 'By policy', kind: 'summary' },
   { id: 'status', label: 'By status', kind: 'summary' },
+  { id: 'approvals', label: 'Approvals & SLA', kind: 'summary' },
   { id: 'reimbursements', label: 'Reimbursement register', kind: 'list', status: 'reimbursed' },
   { id: 'pending', label: 'Pending & aging', kind: 'list', status: 'submitted' },
   { id: 'rejected', label: 'Rejected', kind: 'list', status: 'rejected' },
@@ -229,6 +233,19 @@ export default function ExpenseReportsPage() {
         } else if (active.id === 'status') {
           downloadCsv(`expense-by-status-${stamp}.csv`, ['Status', 'Claims', 'Amount'],
             s.by_status.map((x) => [CLAIM_STATUS_LABEL[x.status] ?? x.status, x.claims, x.amount]));
+        } else if (active.id === 'approvals') {
+          const t = s.totals;
+          const cleared = t.approved_count + t.reimbursed_count;
+          const decided = cleared + t.rejected_count;
+          downloadCsv(`expense-approvals-${stamp}.csv`, ['Metric', 'Value'], [
+            ['Approval rate (%)', decided ? Math.round((cleared / decided) * 100) : ''],
+            ['Cleared approval (claims)', cleared],
+            ['Rejected (claims)', t.rejected_count],
+            ['Awaiting approval (claims)', t.pending_count],
+            ['Awaiting approval (amount)', t.pending_amount],
+            ['Auto-approved (claims)', t.auto_approved_count],
+            ['Avg decision (hours)', t.avg_turnaround_hours ?? ''],
+          ]);
         }
       }
     } catch (e) { toast.error(errText(e, 'Could not export')); }
@@ -307,11 +324,12 @@ function ReportBody({ report, summary, rules, currency, narrow, listRows, listTo
 }) {
   switch (report.id) {
     case 'overview': return <Overview summary={summary} currency={currency} narrow={narrow} />;
-    case 'category': return <CategoryReport summary={summary} rules={rules} currency={currency} />;
+    case 'category': return <CategoryReport summary={summary} rules={rules} currency={currency} narrow={narrow} />;
     case 'employee': return <EmployeeReport summary={summary} currency={currency} />;
-    case 'trend': return <TrendReport summary={summary} currency={currency} />;
+    case 'trend': return <TrendReport summary={summary} currency={currency} narrow={narrow} />;
     case 'policy': return <PolicyReport summary={summary} currency={currency} />;
     case 'status': return <StatusReport summary={summary} currency={currency} />;
+    case 'approvals': return <ApprovalsReport summary={summary} currency={currency} narrow={narrow} />;
     case 'reimbursements': return <RegisterReport kind="reimbursements" rows={listRows} total={listTotal} page={listPage} onPage={onListPage} loading={subLoading} onOpenClaim={onOpenClaim} />;
     case 'pending': return <PendingReport rows={listRows} total={listTotal} currency={currency} loading={subLoading} onOpenClaim={onOpenClaim} />;
     case 'rejected': return <RegisterReport kind="rejected" rows={listRows} total={listTotal} page={listPage} onPage={onListPage} loading={subLoading} onOpenClaim={onOpenClaim} />;
@@ -371,7 +389,40 @@ function Overview({ summary, currency, narrow }: { summary: ClaimsSummary; curre
           )}
         </ChartCard>
       </div>
+      <ReimbursementPipeline t={summary.totals} currency={currency} />
     </div>
+  );
+}
+
+/** Claim money's journey Claimed → cleared approval → reimbursed, each as a share of
+ *  what was claimed. Pure CSS bars (no chart lib) so it reads as a funnel, not a plot. */
+function ReimbursementPipeline({ t, currency }: { t: ClaimsSummary['totals']; currency: string }) {
+  const base = t.claimed || 1;
+  const cleared = t.approved_amount + t.reimbursed_amount; // everything that passed approval
+  const pct = (v: number) => Math.max(0, Math.min(100, Math.round((v / base) * 100)));
+  const stages = [
+    { label: 'Claimed', amount: t.claimed, pct: 100, color: ACCENT },
+    { label: 'Cleared approval', amount: cleared, pct: pct(cleared), color: STATUS_COLOR.approved },
+    { label: 'Reimbursed', amount: t.reimbursed_amount, pct: pct(t.reimbursed_amount), color: STATUS_COLOR.reimbursed },
+  ];
+  return (
+    <ChartCard title="Reimbursement pipeline" subtitle="How claimed money moves through to paid">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '6px 2px 2px' }}>
+        {stages.map((s) => (
+          <div key={s.label}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{s.label}</span>
+              <span style={{ fontSize: 12.5, color: T.dim, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                {money(s.amount, currency)} · {s.pct}%
+              </span>
+            </div>
+            <div style={{ height: 10, borderRadius: 999, background: T.raised, overflow: 'hidden' }}>
+              <div style={{ width: `${s.pct}%`, height: '100%', borderRadius: 999, background: s.color, transition: 'width .3s ease' }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </ChartCard>
   );
 }
 
@@ -406,11 +457,16 @@ function ReportTable<R extends { id: string }>({ cols, rows, empty, loading, onO
   );
 }
 
-function CategoryReport({ summary, rules, currency }: { summary: ClaimsSummary; rules: ReturnType<typeof mergeCategoryRules>; currency: string }) {
+function CategoryReport({ summary, rules, currency, narrow }: { summary: ClaimsSummary; rules: ReturnType<typeof mergeCategoryRules>; currency: string; narrow: boolean }) {
   const names = summary.by_category.map((c) => c.category);
   const rows = summary.by_category.slice().sort((a, b) => b.amount - a.amount);
   const total = rows.reduce((s, c) => s + c.amount, 0) || 1;
   const bars = rows.map((c) => ({ name: categoryLabel(rules, c.category, names), value: c.amount }));
+  // Donut: keep the top slices legible, roll the long tail into one "Other" slice.
+  const TOP = CAT_PALETTE.length - 1;
+  const mix = bars.slice(0, TOP).map((b, i) => ({ name: b.name, value: b.value, color: CAT_PALETTE[i] }));
+  const tail = bars.slice(TOP).reduce((s, b) => s + b.value, 0);
+  if (tail > 0) mix.push({ name: 'Other', value: tail, color: CAT_PALETTE[CAT_PALETTE.length - 1] });
   const cols: Col<{ id: string; label: string; amount: number }>[] = [
     { key: 'label', label: 'Category' },
     { key: 'amount', label: 'Amount', align: 'right', render: (r) => money(r.amount, currency) },
@@ -418,7 +474,22 @@ function CategoryReport({ summary, rules, currency }: { summary: ClaimsSummary; 
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <ChartCard title="Spend by category" subtitle="Claimed amount per expense category"><MagnitudeBars data={bars} currency={currency} /></ChartCard>
+      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.5fr 1fr', gap: 16 }}>
+        <ChartCard title="Spend by category" subtitle="Claimed amount per expense category"><MagnitudeBars data={bars} currency={currency} /></ChartCard>
+        <ChartCard title="Category mix" subtitle="Share of total claimed" minHeight={260}>
+          {mix.length === 0 ? <ChartEmpty /> : (
+            <ResponsiveContainer width="100%" height={230}>
+              <PieChart>
+                <Pie data={mix} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={80} paddingAngle={2} stroke="var(--s2)" strokeWidth={2} labelLine={false} {...CHART.animation}>
+                  {mix.map((d) => <Cell key={d.name} fill={d.color} />)}
+                </Pie>
+                <Tooltip content={<ChartTooltip unit="inr" />} />
+                <Legend verticalAlign="bottom" height={28} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+      </div>
       <ReportTable cols={cols} rows={bars.map((b, i) => ({ id: String(i), label: b.name, amount: b.value }))} empty="No categories." />
     </div>
   );
@@ -441,7 +512,7 @@ function EmployeeReport({ summary, currency }: { summary: ClaimsSummary; currenc
   );
 }
 
-function TrendReport({ summary, currency }: { summary: ClaimsSummary; currency: string }) {
+function TrendReport({ summary, currency, narrow }: { summary: ClaimsSummary; currency: string; narrow: boolean }) {
   const data = summary.by_month.map((m) => ({ name: prettyMonth(m.month), amount: m.amount, claims: m.claims }));
   const rows = summary.by_month.slice().reverse();
   const cols: Col<{ id: string; month: string; claims: number; amount: number }>[] = [
@@ -451,20 +522,36 @@ function TrendReport({ summary, currency }: { summary: ClaimsSummary; currency: 
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <ChartCard title="Monthly trend" subtitle="Claimed amount by month" minHeight={260}>
-        {data.length === 0 ? <ChartEmpty /> : (
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={data} margin={CHART.margin}>
-              <GradientDefs colors={[ACCENT]} top={0.5} bottom={0.02} />
-              <CartesianGrid {...CHART.grid} />
-              <XAxis dataKey="name" {...CHART.axis} minTickGap={18} />
-              <YAxis {...CHART.axis} width={46} tickFormatter={(v) => formatINRCompact(v)} />
-              <Tooltip content={<ChartTooltip unit="inr" />} />
-              <Area type="monotone" dataKey="amount" name="Claimed" stroke={ACCENT} strokeWidth={2} fill={grad(ACCENT)} dot={{ r: 2.5, fill: ACCENT, strokeWidth: 0 }} {...CHART.animation} />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
-      </ChartCard>
+      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.5fr 1fr', gap: 16 }}>
+        <ChartCard title="Spend over time" subtitle="Claimed amount by month" minHeight={260}>
+          {data.length === 0 ? <ChartEmpty /> : (
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={data} margin={CHART.margin}>
+                <GradientDefs colors={[ACCENT]} top={0.5} bottom={0.02} />
+                <CartesianGrid {...CHART.grid} />
+                <XAxis dataKey="name" {...CHART.axis} minTickGap={18} />
+                <YAxis {...CHART.axis} width={46} tickFormatter={(v) => formatINRCompact(v)} />
+                <Tooltip content={<ChartTooltip unit="inr" />} />
+                <Area type="monotone" dataKey="amount" name="Claimed" stroke={ACCENT} strokeWidth={2} fill={grad(ACCENT)} dot={{ r: 2.5, fill: ACCENT, strokeWidth: 0 }} {...CHART.animation} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+        <ChartCard title="Claims filed" subtitle="Number of claims per month" minHeight={260}>
+          {data.length === 0 ? <ChartEmpty /> : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={data} margin={CHART.margin}>
+                <GradientDefs colors={[ACCENT]} />
+                <CartesianGrid {...CHART.grid} vertical={false} />
+                <XAxis dataKey="name" {...CHART.axis} minTickGap={18} />
+                <YAxis {...CHART.axis} width={32} allowDecimals={false} />
+                <Tooltip cursor={{ fill: 'var(--s3)', opacity: 0.4 }} content={<ChartTooltip />} />
+                <Bar dataKey="claims" name="Claims" fill={grad(ACCENT)} radius={CHART.barRadius} maxBarSize={44} {...CHART.animation} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+      </div>
       <ReportTable cols={cols} rows={rows.map((m, i) => ({ id: String(i), month: prettyMonth(m.month), claims: m.claims, amount: m.amount }))} empty="No months." />
     </div>
   );
@@ -510,6 +597,54 @@ function StatusReport({ summary, currency }: { summary: ClaimsSummary; currency:
         )}
       </ChartCard>
       <ReportTable cols={cols} rows={rows.map((s) => ({ id: s.status, status: s.status, claims: s.claims, amount: s.amount }))} empty="No claims." />
+    </div>
+  );
+}
+
+/** Approval throughput & SLA — how reliably and how fast claims get decided. All
+ *  derived from the same /claims/summary totals that power the other reports. */
+function ApprovalsReport({ summary, currency, narrow }: { summary: ClaimsSummary; currency: string; narrow: boolean }) {
+  const t = summary.totals;
+  const cleared = t.approved_count + t.reimbursed_count;      // passed approval (approved or already paid)
+  const decided = cleared + t.rejected_count;                 // everything no longer pending
+  const approvalRate = decided ? Math.round((cleared / decided) * 100) : null;
+  const autoPct = t.claims ? Math.round((t.auto_approved_count / t.claims) * 100) : 0;
+  const decision = t.avg_turnaround_hours == null ? '—' : t.avg_turnaround_hours < 48 ? `${t.avg_turnaround_hours}h` : `${Math.round(t.avg_turnaround_hours / 24)}d`;
+  const rows = summary.by_status.filter((s) => s.claims > 0);
+  const donut = rows.map((s) => ({ name: CLAIM_STATUS_LABEL[s.status] ?? s.status, status: s.status, value: s.claims }));
+  const cols: Col<{ id: string; status: ClaimStatus; claims: number; amount: number }>[] = [
+    { key: 'status', label: 'Status', render: (r) => <ClaimStatusBadge status={r.status} /> },
+    { key: 'claims', label: 'Claims', align: 'right' },
+    { key: 'amount', label: 'Amount', align: 'right', render: (r) => money(r.amount, currency) },
+  ];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <Card padding={20}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 20 }}>
+          <Stat label="Approval rate" value={approvalRate == null ? '—' : `${approvalRate}%`}
+            hint={decided ? `${cleared} of ${decided} decided` : 'No decisions yet'}
+            tone={approvalRate != null && approvalRate >= 80 ? 'ok' : undefined} />
+          <Stat label="Avg decision time" value={decision} hint="Submit → decision" />
+          <Stat label="Auto-approved" value={`${autoPct}%`} hint={`${t.auto_approved_count} of ${t.claims} claims`} tone={t.auto_approved_count ? 'info' : undefined} />
+          <Stat label="Awaiting approval" value={String(t.pending_count)} hint={money(t.pending_amount, currency)} tone={t.pending_count ? 'warn' : undefined} />
+        </div>
+      </Card>
+      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1fr 1fr', gap: 16 }}>
+        <ChartCard title="Claims by status" subtitle="Count of claims in each state" minHeight={280}>
+          {donut.length === 0 ? <ChartEmpty /> : (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={donut} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={92} paddingAngle={2} stroke="var(--s2)" strokeWidth={2} labelLine={false} {...CHART.animation}>
+                  {donut.map((d) => <Cell key={d.status} fill={STATUS_COLOR[d.status]} />)}
+                </Pie>
+                <Tooltip content={<ChartTooltip />} />
+                <Legend verticalAlign="bottom" height={28} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+        <ReportTable cols={cols} rows={rows.map((s) => ({ id: s.status, status: s.status, claims: s.claims, amount: s.amount }))} empty="No claims." />
+      </div>
     </div>
   );
 }
