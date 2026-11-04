@@ -13,6 +13,9 @@ import CallButton from '../../../../../components/crm/shared/CallButton';
 import { formatINR } from '../../../../../lib/formatCurrency';
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import { safeHref } from '../../../../../lib/safeUrl';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import AccountUpdatesCard from '../../../../../components/crm/spark/AccountUpdatesCard';
+import { Button } from '../../../../../components/ui';
 
 export default function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +30,8 @@ export default function AccountDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
+  // Spark & Ray (connected-B2B) only: Recent updates, task / deal shortcuts and the journey page.
+  const spark = isB2bClientActive();
 
   const reload = async () => {
     if (!id) return;
@@ -103,6 +108,13 @@ export default function AccountDetailPage() {
               {a.website && <a href={safeHref(a.website)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--accent, var(--primary))' }}>{a.website}</a>}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {spark && (
+                <>
+                  <Button variant="primary" href={`/dashboard/crm/accounts/${a.id}/journey`}>View journey</Button>
+                  <Button href={`/dashboard/crm/activities/new?account_id=${a.id}&account_name=${encodeURIComponent(a.name || '')}`}>Assign task / activity</Button>
+                  <Button href={`/dashboard/crm/deals/new?account_id=${a.id}`}>New deal</Button>
+                </>
+              )}
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
               <button onClick={handleDeactivate} disabled={deactivating} style={{ background: 'transparent', border: '1px solid var(--text-dim)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: 8, cursor: deactivating ? 'not-allowed' : 'pointer', opacity: deactivating ? 0.6 : 1 }}>{deactivating ? 'Deactivating...' : 'Deactivate'}</button>
               <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}>{deleting ? 'Deleting...' : 'Delete'}</button>
@@ -118,6 +130,12 @@ export default function AccountDetailPage() {
             <Field label="Created" value={new Date(a.created_at).toLocaleDateString()} />
           </div>
         </div>
+
+        {spark && (
+          <Card title="Recent updates">
+            <AccountUpdatesCard accountId={a.id} contacts={contacts} />
+          </Card>
+        )}
 
         <TimelineCard data={timeline} />
 
@@ -157,7 +175,7 @@ export default function AccountDetailPage() {
                 <Link key={d.id} href={`/dashboard/crm/deals/${d.id}`} style={rowLink}>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: 'var(--text)', fontWeight: 600 }}>{d.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{d.stage_name || '—'} · {d.status}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{d.stage_name || '—'} · {d.status}{d.quotation_no ? ` · Quotation ${d.quotation_no}` : ''}</div>
                   </div>
                   <div style={{ color: 'var(--text)', fontWeight: 700 }}>{formatINR(d.amount || 0)}</div>
                 </Link>

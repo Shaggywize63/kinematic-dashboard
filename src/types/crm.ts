@@ -179,6 +179,8 @@ export interface Deal {
   ai_win_probability?: number | null;
   ai_win_confidence?: number | null;
   tags?: string[] | null;
+  // Spark & Ray only (connected-B2B): the quotation number typed on the deal.
+  quotation_no?: string | null;
   // Stamped by the deals list + detail endpoints (not real columns):
   // dealer_name is resolved server-side; lead_name / lead_phone come
   // from the linked source lead.
@@ -218,6 +220,12 @@ export interface Activity {
   lead_id?: string | null; contact_id?: string | null; account_id?: string | null; deal_id?: string | null;
   owner_id?: string | null; owner_name?: string | null;
   image_url?: string | null;
+  // Spark & Ray only (connected-B2B). Absent on every other tenant.
+  assignees?: Array<{ id: string; name: string }> | null;
+  form_ref_no?: string | null;
+  form_submission_id?: string | null;
+  product_ids?: string[] | null;
+  products?: Array<{ id: string; name: string }> | null;
   created_at: string; updated_at: string;
 }
 

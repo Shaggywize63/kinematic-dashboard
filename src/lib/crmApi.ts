@@ -274,6 +274,67 @@ export interface AccountTimeline {
   timeline: AccountTimelineEvent[];
 }
 
+// ── Spark & Ray (connected-B2B) account journey ─────────────────────────────
+// Backend: Kinematic/src/services/crm/accountJourney.service.ts. Every array may be empty / missing, so
+// consumers must read defensively (see lib/accountJourney.ts).
+export interface AccountUpdate {
+  id: string;
+  account_id: string;
+  contact_id: string | null;
+  body: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  contact_name?: string | null;
+  author_name?: string | null;
+}
+
+export type JourneyStepKey = 'lead' | 'account' | 'contacts' | 'visits' | 'followups' | 'deals' | 'expenses';
+export interface JourneyStep {
+  key: JourneyStepKey;
+  label: string;
+  count: number;
+  state: 'done' | 'current' | 'todo';
+  note?: string | null;
+  at?: string | null;
+}
+export interface JourneyEvent {
+  at: string | null;
+  kind: string;
+  title: string;
+  detail?: string | null;
+  ref?: string | null;
+  who?: string | null;
+}
+export interface JourneyDealItem { name: string; quantity: number; unit_price: number }
+export interface JourneyDeal {
+  id: string; name: string; amount?: number | null; currency?: string | null; status?: string | null;
+  stage_name?: string | null; stage_type?: string | null; quotation_no?: string | null;
+  expected_close_date?: string | null; created_at?: string | null; items?: JourneyDealItem[] | null;
+}
+export interface JourneyExpense {
+  id?: string; claim_no?: string | null; status?: string | null; total_amount?: number | null;
+  form_ref_no?: string | null; form_submitted_at?: string | null; created_at?: string | null;
+}
+export interface JourneyTimelineRow {
+  kind?: string; id?: string; at?: string | null; user_name?: string | null; title?: string;
+  detail?: string | null; status?: string | null; form_title?: string | null; ref_no?: string | null;
+}
+export interface AccountJourney {
+  account?: Partial<Account> | null;
+  steps?: JourneyStep[] | null;
+  summary?: Partial<AccountTimeline['summary']> | null;
+  leads?: Array<{ id: string; first_name?: string | null; last_name?: string | null; company?: string | null; status?: string | null; created_at?: string | null }> | null;
+  contacts?: Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null; email?: string | null; created_at?: string | null }> | null;
+  updates?: AccountUpdate[] | null;
+  visits?: JourneyTimelineRow[] | null;
+  forms?: JourneyTimelineRow[] | null;
+  activities?: JourneyTimelineRow[] | null;
+  deals?: JourneyDeal[] | null;
+  expenses?: JourneyExpense[] | null;
+  events?: JourneyEvent[] | null;
+}
+
 export const crmAccounts = {
   ...crud<Account>(`${BASE}/accounts`),
   contacts: (id: string) => api.get<Wrapped<Contact[]>>(`${BASE}/accounts/${id}/contacts`),
@@ -283,6 +344,17 @@ export const crmAccounts = {
   // Management timeline: every visit / form / follow-up, who visited, per-FE rollup.
   timeline: (id: string) => api.get<Wrapped<AccountTimeline>>(`${BASE}/accounts/${id}/timeline`),
   summarize: (id: string) => api.post<Wrapped<{ text: string }>>(`${BASE}/accounts/${id}/summarize`, {}),
+  // Spark & Ray only (the backend 404s for every other tenant). "Recent updates" on an account, each
+  // optionally from a named contact person of that account.
+  updates: (id: string) => api.get<Wrapped<AccountUpdate[]>>(`${BASE}/accounts/${id}/updates`),
+  addUpdate: (id: string, body: { body: string; contact_id?: string }) =>
+    api.post<Wrapped<AccountUpdate>>(`${BASE}/accounts/${id}/updates`, body),
+  editUpdate: (id: string, updateId: string, body: { body?: string; contact_id?: string | null }) =>
+    api.patch<Wrapped<AccountUpdate>>(`${BASE}/accounts/${id}/updates/${updateId}`, body),
+  deleteUpdate: (id: string, updateId: string) =>
+    api.delete<unknown>(`${BASE}/accounts/${id}/updates/${updateId}`),
+  // The whole path of a customer — lead → account → contacts → visits & forms → tasks → deals → expenses.
+  journey: (id: string) => api.get<Wrapped<AccountJourney>>(`${BASE}/accounts/${id}/journey`),
 };
 
 export const crmDeals = {

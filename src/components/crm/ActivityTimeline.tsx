@@ -7,6 +7,7 @@ import type { Activity } from '../../types/crm';
 import { format, formatDistanceToNow } from 'date-fns';
 import { crmActivities } from '../../lib/crmApi';
 import { ActivityTypeIcon } from './shared/ActivityTypeIcon';
+import { SparkActivityMeta } from './spark/SparkActivityFields';
 
 // Date + time in user-readable form. Falls back to '' on bad input so
 // the row still renders.
@@ -173,6 +174,7 @@ export default function ActivityTimeline({ activities, onChange, addHref, leadCa
                   )}
                   {a.body && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{a.body}</div>}
                   <ActivityFields cf={(a as any).custom_fields} />
+                  <SparkActivityMeta a={a} />
                   {a.image_url && (
                     /* Thumbnail click → opens full-size in a new tab. No URL
                        text shown — the image IS the visible affordance. */

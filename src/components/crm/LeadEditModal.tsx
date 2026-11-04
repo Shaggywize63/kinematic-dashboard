@@ -15,6 +15,7 @@ import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../lib/crmLeadStatuses';
 import { DEFAULT_LEAD_FORM, extractLeadForm, segmentName, segmentToggleLabel, showsAddress, type LeadFormConfig } from '../../lib/crmLeadForm';
+import { sparkIndustryOptions } from '../../lib/sparkIndustries';
 import { isKinematicTenant, STEEL_DEALER_CLIENT_IDS } from '../../lib/clientFeatures';
 import { useAuth } from '../../hooks/useAuth';
 import { useLeadOwnerAccess } from '../../lib/leadOwnerAccess';
@@ -397,6 +398,9 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       {(() => { const show = (k: string, node: React.ReactNode) => fields.isHidden(k) ? null : node;
                 const lbl  = (k: string, d: string) => fields.labelFor(k, d);
                 const req  = (k: string, d: boolean) => fields.requiredFor(k, d);
+                // Industry for Spark & Ray: a fixed dropdown (a legacy / free-text value stays selectable). Every
+                // other tenant keeps the free-text <F> at each site below. Callers wrap it in show('industry', …).
+                const sparkIndustry = <SF label={lbl('industry', 'Industry')} required={req('industry', false)} value={form.industry} options={[{ value: '', label: '—' }, ...sparkIndustryOptions(form.industry).map((v) => ({ value: v, label: v }))]} onChange={(v) => setForm({ ...form, industry: v })} />;
                 const anyBizOnB2C = explicitlyShownOnB2C('company') || explicitlyShownOnB2C('title') || explicitlyShownOnB2C('industry');
       return (
         <>
@@ -523,9 +527,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                   ))
                 : show('company',  <F label={lbl('company',  'Company')}   required={req('company', true)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
               {show('title',    <F label={lbl('title',    'Job Title')} value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
-              {/* Spark & Ray lead with Company only — Industry dropped for them
-                  (every other tenant keeps it). */}
-              {!b2bAccounts && show('industry', <F label={lbl('industry', 'Industry')}  value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
+              {/* Industry: dropdown for Spark & Ray, free text for every other tenant. */}
+              {show('industry', b2bAccounts ? sparkIndustry : <F label={lbl('industry', 'Industry')}  value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
             </Grid></>
           )}
           {/* Location on a B2B lead too. Inbound leads (Google Ads / web form)
@@ -574,7 +577,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             <><SL>Company</SL><Grid>
               {explicitlyShownOnB2C('company')  && show('company',  <F label={lbl('company',  'Company')}   required={req('company', false)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
               {explicitlyShownOnB2C('title')    && show('title',    <F label={lbl('title',    'Job Title')} required={req('title', false)}   value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
-              {explicitlyShownOnB2C('industry') && show('industry', <F label={lbl('industry', 'Industry')}  required={req('industry', false)} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
+              {explicitlyShownOnB2C('industry') && show('industry', b2bAccounts ? sparkIndustry : <F label={lbl('industry', 'Industry')}  required={req('industry', false)} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
             </Grid></>
           )}
           <SL>Customer</SL><Grid>
@@ -870,10 +873,10 @@ function F(p: { label: string; value: string; onChange: (v: string) => void; typ
     </Field>
   );
 }
-function SF(p: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void }) {
+function SF(p: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void; required?: boolean }) {
   return (
-    <Field label={p.label}>
-      <Select value={p.value} onChange={(e) => p.onChange(e.target.value)}>{p.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
+    <Field label={p.label} required={p.required}>
+      <Select value={p.value} required={p.required} onChange={(e) => p.onChange(e.target.value)}>{p.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
     </Field>
   );
 }

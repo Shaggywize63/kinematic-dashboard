@@ -9,6 +9,9 @@ import type { Lead } from '../../../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import ActivityTypePicker from '../../../../../components/crm/shared/ActivityTypePicker';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import { apiErrorText, sparkActivityFields } from '../../../../../lib/sparkAccounts';
+import { AssigneeChips, FormSerialInput, ProductChips, useProductCatalogue } from '../../../../../components/crm/spark/SparkActivityFields';
 
 // Built-ins are kept for the initial render before the API responds. The
 // real list (including any client-specific custom types) loads from
@@ -61,6 +64,8 @@ function NewActivityPageInner() {
   const prefillContactId = searchParams.get('contact_id') || '';
   const prefillDealId = searchParams.get('deal_id') || '';
   const prefillAccountId = searchParams.get('account_id') || '';
+  // Passed by the account page's "Assign task / activity" so the picker shows the name straight away.
+  const prefillAccountName = searchParams.get('account_name') || '';
   const initialEntityType =
     prefillLeadId ? 'lead' :
     prefillContactId ? 'contact' :
@@ -110,6 +115,17 @@ function NewActivityPageInner() {
     const u = getStoredUser() as { id?: string } | null;
     return u?.id || '';
   });
+  // Spark & Ray (connected-B2B) only: several assignees (the first is the Primary), the products the customer
+  // is interested in and the filled-form serial. Every other tenant keeps the single "Assign To" picker.
+  const spark = isB2bClientActive();
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(() => {
+    const u = getStoredUser() as { id?: string } | null;
+    return u?.id ? [u.id] : [];
+  });
+  const [productIds, setProductIds] = useState<string[]>([]);
+  const [formSerial, setFormSerial] = useState('');
+  const [serialError, setSerialError] = useState<string | null>(null);
+  const catalogue = useProductCatalogue(spark);
   // Admin-defined custom fields scoped to entity_type='activity'.
   // CustomFieldsSection reads /api/v1/crm/custom-fields?entity=activity
   // on mount; we just hold the form's values blob and post it as
@@ -211,10 +227,12 @@ function NewActivityPageInner() {
         fetchEntityOptions('');
         // Stamp a placeholder label so the user can see the binding before
         // the fetch resolves. Will be overwritten by hydrateEntityLabel below.
-        if (entityId && !entityLabel) setEntitySearch('(loading…)');
+        if (entityId && !entityLabel) setEntitySearch(prefillAccountName && entityType === 'account' ? prefillAccountName : '(loading…)');
       }
       return;
     }
+    // React strict mode (dev) re-runs this effect once on mount: don't wipe a prefill that is still intact.
+    if (initialEntityId && entityType === initialEntityType && entityId === initialEntityId) { fetchEntityOptions(''); return; }
     setEntityId('');
     setEntityLabel('');
     setEntitySearch('');
@@ -327,7 +345,11 @@ function NewActivityPageInner() {
     }
 
     setBusy(true);
+    setSerialError(null);
     const nowIso = new Date().toISOString();
+    // Spark-only body fields; {} for every other tenant so their payload is byte-for-byte unchanged.
+    const sparkFields = spark ? sparkActivityFields({ assigneeIds, productIds, formSerial }) : {};
+    const primaryAssignee = spark ? (assigneeIds[0] || '') : assignedTo;
     // Subject is derived: a URL-provided subject wins (descriptive prefills
     // like "Meeting — Acme"); otherwise use the selected type's display name
     // (e.g. "Call", "Site Visit") so the timeline/reports still read cleanly
@@ -366,7 +388,8 @@ function NewActivityPageInner() {
       due_at: params.dueAt,
       completed_at: params.completedAt,
       status: params.status,
-      assigned_to: assignedTo || undefined,
+      assigned_to: primaryAssignee || undefined,
+      ...sparkFields,
       image_url: imageUrl || undefined,
       custom_fields: {
         ...sharedCustomFields,
@@ -413,22 +436,30 @@ function NewActivityPageInner() {
           due_at: dueAt ? new Date(dueAt).toISOString() : undefined,
           completed_at: noSchedule && type !== 'task' ? nowIso : undefined,
           status: noSchedule && type !== 'task' ? 'completed' : 'planned',
-          assigned_to: assignedTo || undefined,
+          assigned_to: primaryAssignee || undefined,
+          ...sparkFields,
           image_url: imageUrl || undefined,
           custom_fields: Object.keys(cf).length > 0 ? cf : undefined,
           ...linkedFields,
         } as any));
       }
 
-      await Promise.all(requests);
+      const results = await Promise.all(requests);
+      // Spark: the server resolves the typed serial to the filled form's reference — say which one it linked.
+      const linkedRef = spark
+        ? (results as Array<{ data?: { form_ref_no?: string | null } } | undefined>).map((r) => r?.data?.form_ref_no).find(Boolean)
+        : null;
       toast.success(
         requests.length === 2
           ? 'First visit logged + next visit scheduled'
-          : 'Activity logged successfully',
+          : linkedRef ? `Activity logged · linked to form ${linkedRef}` : 'Activity logged successfully',
       );
       router.push('/dashboard/crm/activities');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to save activity');
+      const msg = apiErrorText(err, 'Failed to save activity');
+      // An unknown / invalid serial comes back as a 400 — show it next to the field instead of only a toast.
+      if (spark && formSerial.trim() && /serial|form|ref/i.test(msg)) setSerialError(msg);
+      else toast.error(msg);
       setBusy(false);
     }
   };
@@ -594,16 +625,33 @@ function NewActivityPageInner() {
               <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Leave blank to log it as happening right now.</div>
             </Field>
           )}
-          <Field label="Assign To">
-            <UserSearchSelect
-              options={users}
-              value={assignedTo}
-              onChange={setAssignedTo}
-              placeholder="Search team member…"
-              emptyLabel="Unassigned"
-            />
-          </Field>
+          {!spark && (
+            <Field label="Assign To">
+              <UserSearchSelect
+                options={users}
+                value={assignedTo}
+                onChange={setAssignedTo}
+                placeholder="Search team member…"
+                emptyLabel="Unassigned"
+              />
+            </Field>
+          )}
         </div>
+        {spark && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+            <Block label="Assign to (multiple)">
+              <AssigneeChips users={users} value={assigneeIds} onChange={setAssigneeIds} />
+              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>The first person is the primary assignee. Everyone listed can see and complete this activity and is notified.</div>
+            </Block>
+            <Block label="Product interested">
+              <ProductChips products={catalogue} value={productIds} onChange={setProductIds} />
+            </Block>
+            <Block label="Form serial (optional)">
+              <FormSerialInput value={formSerial} onChange={(v) => { setFormSerial(v); setSerialError(null); }} error={serialError} />
+              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Link a filled form, e.g. SRPR2627-12.</div>
+            </Block>
+          </div>
+        )}
       </Section>
 
       <Section title="Link to Entity (optional)">
@@ -669,6 +717,17 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <div style={{ marginTop: 20 }}>
       <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+// Like Field but a <div>: a <label> wrapping buttons (chip remove / make primary) would "click" the first
+// button when the caption is clicked.
+function Block({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div role="group" aria-label={label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
       {children}
     </div>
   );

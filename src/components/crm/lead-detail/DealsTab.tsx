@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowRightLeft, Handshake, PackagePlus } from 'lucide-react';
+import { ArrowRightLeft, Handshake, PackagePlus, Plus } from 'lucide-react';
 import type { Deal } from '../../../types/crm';
 import { crmLeads } from '../../../lib/crmApi';
 import { getStoredUser } from '../../../lib/auth';
@@ -24,7 +24,7 @@ const asTonnes = (kg: number) => {
 };
 
 /** Deals opened from this lead, with a Total / Won / Balance rollup, plus the upsells logged against it. */
-export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon = false, showFulfillBalance = false }: { leadId: string; deals: Deal[]; canConvert: boolean; onConvert: () => void; hideWon?: boolean; showFulfillBalance?: boolean }) {
+export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon = false, showFulfillBalance = false, newDealHref }: { leadId: string; deals: Deal[]; canConvert: boolean; onConvert: () => void; hideWon?: boolean; showFulfillBalance?: boolean; newDealHref?: string }) {
   const router = useRouter();
   // BMW does not use the upsell flow — hide the Upsells section entirely for them.
   const hideUpsells = isBmwActive(getStoredUser());
@@ -69,7 +69,12 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <SectionCard title="Deals" count={deals.length}>
+      <SectionCard
+        title="Deals"
+        count={deals.length}
+        // Spark & Ray: several deals can be opened for one lead / customer — the link carries lead_id (+ account_id when converted).
+        aside={newDealHref ? <Button size="sm" variant="primary" href={newDealHref} icon={<Plus size={14} strokeWidth={2} />}>New deal</Button> : undefined}
+      >
         {deals.length === 0 ? (
           <EmptyState
             icon={<Handshake size={20} strokeWidth={1.6} />}
@@ -113,6 +118,7 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon
                       {d.stage_name && <span>{d.stage_name}</span>}
                       <Badge tone={DEAL_TONE[d.status] ?? 'neutral'} dot style={{ textTransform: 'capitalize', height: 20 }}>{d.status}</Badge>
                       {d.expected_close_date && <span>Closes {fmtDate(d.expected_close_date)}</span>}
+                      {d.quotation_no && <span data-testid="deal-quotation-no" style={{ fontFamily: T.mono, fontSize: 11.5, fontWeight: 600, padding: '1px 8px', borderRadius: 999, background: T.infoWash, color: T.info }}>Quotation {d.quotation_no}</span>}
                     </div>
                   </div>
                   <div style={{ color: T.text, fontWeight: 650, fontFamily: T.mono, whiteSpace: 'nowrap', fontSize: 14 }}>{formatINR(d.amount || 0)}</div>
