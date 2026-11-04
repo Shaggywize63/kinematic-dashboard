@@ -231,6 +231,8 @@ function NewActivityPageInner() {
       }
       return;
     }
+    // React strict mode (dev) re-runs this effect once on mount: don't wipe a prefill that is still intact.
+    if (initialEntityId && entityType === initialEntityType && entityId === initialEntityId) { fetchEntityOptions(''); return; }
     setEntityId('');
     setEntityLabel('');
     setEntitySearch('');

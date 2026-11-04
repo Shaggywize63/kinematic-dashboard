@@ -8,6 +8,11 @@ export function arr<T>(v: T[] | null | undefined | unknown): T[] {
   return Array.isArray(v) ? (v as T[]) : [];
 }
 
+/** Like arr, but also drops null / non-object entries so a row can be read without a guard. */
+export function rows<T>(v: T[] | null | undefined | unknown): T[] {
+  return arr<T>(v).filter((x) => x !== null && typeof x === 'object');
+}
+
 const num = (v: unknown): number => {
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : 0;

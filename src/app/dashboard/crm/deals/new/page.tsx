@@ -361,8 +361,8 @@ function NewDealPageInner() {
             <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} />
           </Field>
         )}
-        {spark && (
-          <Field label="Quotation number">
+        {spark && !fields.isHidden('quotation_no') && (
+          <Field label={fields.labelFor('quotation_no', 'Quotation number')}>
             <input value={quotationNo} onChange={(e) => setQuotationNo(e.target.value)} placeholder="e.g. QT-2026-014" maxLength={60} aria-label="Quotation number" style={input} />
           </Field>
         )}

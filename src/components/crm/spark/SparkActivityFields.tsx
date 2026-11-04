@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { crmProducts } from '../../../lib/crmApi';
-import { arr, normalizeFormSerialInput } from '../../../lib/sparkAccounts';
+import { arr, normalizeFormSerialInput, rows } from '../../../lib/sparkAccounts';
 import type { Activity, Product } from '../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../shared/UserSearchSelect';
 import { Select, T } from '../../ui';
@@ -120,8 +120,8 @@ export function FormSerialInput({ value, onChange, error }: { value: string; onC
 
 /** Assignee / product / form-serial chips on an activity card or timeline row. Renders nothing for non-Spark rows. */
 export function SparkActivityMeta({ a, style }: { a: Pick<Activity, 'assignees' | 'products' | 'form_ref_no'>; style?: React.CSSProperties }) {
-  const assignees = arr<{ id: string; name: string }>(a.assignees);
-  const products = arr<{ id: string; name: string }>(a.products);
+  const assignees = rows<{ id: string; name: string }>(a.assignees);
+  const products = rows<{ id: string; name: string }>(a.products);
   const ref = (a.form_ref_no ?? '').toString().trim();
   if (!assignees.length && !products.length && !ref) return null;
   const pill = (bg: string, fg: string): React.CSSProperties => ({ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: bg, color: fg, whiteSpace: 'nowrap' });

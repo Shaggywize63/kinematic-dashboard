@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { crmAccounts, type AccountUpdate } from '../../../lib/crmApi';
 import type { Contact } from '../../../types/crm';
 import { getStoredUser } from '../../../lib/auth';
-import { apiErrorText, arr, personName } from '../../../lib/sparkAccounts';
+import { apiErrorText, personName, rows } from '../../../lib/sparkAccounts';
 import { Button, Select, T, Textarea } from '../../ui';
 import OwnerAvatar from '../shared/OwnerAvatar';
 import { fmtIST, relTime } from '../lead-detail/format';
@@ -38,7 +38,7 @@ export default function AccountUpdatesCard({ accountId, contacts, onChanged }: {
     setLoading(true);
     try {
       const r = await crmAccounts.updates(accountId);
-      setItems(arr<AccountUpdate>(r?.data));
+      setItems(rows<AccountUpdate>(r?.data));
     } catch (e) {
       toast.error(apiErrorText(e, 'Failed to load updates'));
     } finally {
@@ -47,7 +47,7 @@ export default function AccountUpdatesCard({ accountId, contacts, onChanged }: {
   }, [accountId]);
   useEffect(() => { void load(); }, [load]);
 
-  const contactOptions = arr<Contact>(contacts).map((c) => ({ id: c.id, name: c.full_name || personName(c, c.email || 'Unnamed') }));
+  const contactOptions = rows<Contact>(contacts).map((c) => ({ id: c.id, name: c.full_name || personName(c, c.email || 'Unnamed') }));
 
   const submit = async () => {
     const text = draft.trim();
