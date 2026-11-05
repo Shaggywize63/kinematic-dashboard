@@ -1181,6 +1181,14 @@ class ApiClient {
     );
   }
 
+  /** Sign many stored private-bucket URLs at once (report exports). Maps each stored URL to a signed link, or null. */
+  async signMediaBatch(urls: string[], ttl: number): Promise<Record<string, string | null>> {
+    const res = await this.post<{ data?: { urls?: Record<string, string | null> }; urls?: Record<string, string | null> }>(
+      '/api/v1/media/sign-batch', { urls, ttl },
+    );
+    return res?.data?.urls ?? res?.urls ?? {};
+  }
+
   getAdminSubmissions(params?: Record<string, string>) {
     // Route through request() like every other call. The old raw fetch went to
     // window.location.origin to reach the backend via the (now-retired)
