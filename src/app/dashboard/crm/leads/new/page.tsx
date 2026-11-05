@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, crmAccounts, crmContacts, type MyTarget, type ExtractedLead } from '../../../../../lib/crmApi';
@@ -16,7 +16,7 @@ import UserSearchSelect, { type UserOption } from '../../../../../components/crm
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
 import { InlineLeadVoiceCapture } from '../../../../../components/crm/VoiceCaptureOverlay';
 import ClientScopeField from '../../../../../components/ClientScopeField';
-import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides, type FieldScope } from '../../../../../lib/crmFieldOverrides';
+import { UNORDERED_LAST, buildFieldHelpers, extractFieldOverrides, type FieldOverrides, type FieldScope } from '../../../../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/crmLeadStatuses';
 import { STEEL_DEALER_CLIENT_IDS, BMW_CLIENT_ID, isWalkInExecutive } from '../../../../../lib/clientFeatures';
 import { getStoredUser } from '../../../../../lib/auth';
@@ -325,6 +325,25 @@ export default function NewLeadPage() {
   // shown, nothing is required and no `_consent` is sent.
   const showDataConsent = settingsLoaded && !fields.isHidden('data_consent');
   const dataConsentRequired = fields.requiredFor('data_consent', consentRequired);
+  // Form order (Settings → Custom Fields): once the admin has ordered the lead's fields, every field row — built-in
+  // and custom — becomes an item of ONE grid (see FlatRegion) and takes its CSS `order`. Until then `flat` is false
+  // and the section-by-section layout below is rendered exactly as before.
+  const flat = fields.orderStyle('first_name') !== undefined;
+  const hasOwnOrder = (k: string) => typeof fieldOverrides[`lead.${k}`]?.order === 'number';
+  // Order of a row that has no settings entry of its own (alternate mobiles, the address search …): its own number if
+  // the admin placed it, else the neighbour it belongs to — equal orders keep DOM order, so it stays glued to it.
+  const orderOf = (key: string, glueTo?: string) => fields.orderStyle(glueTo && !hasOwnOrder(key) ? glueTo : key);
+  // A full-width block (not a Field) as an item of the flat grid; a no-op wrapper-less passthrough when not ordered.
+  const fullRow = (key: string, node: React.ReactNode, glueTo?: string) => {
+    if (!node) return null;
+    return flat ? <div style={{ gridColumn: '1 / -1', ...orderOf(key, glueTo) }}>{node}</div> : node;
+  };
+  // Order for a block that stands for several built-ins (the consent opt-ins): its earliest visible one.
+  const earliestOrder = (keys: string[]): { order: number } | undefined => {
+    if (!flat) return undefined;
+    const orders = keys.filter((k) => !fields.isHidden(k)).map((k) => fields.orderStyle(k)?.order ?? UNORDERED_LAST);
+    return { order: orders.length ? Math.min(...orders) : UNORDERED_LAST };
+  };
   // Business fields (company/title/industry) live on the B2B branch by
   // default. An admin can opt them onto B2C forms by explicitly un-hiding
   // the field in Settings → Custom Fields (which persists `hidden: false`).
@@ -838,7 +857,7 @@ export default function NewLeadPage() {
     const effRequired = fields.requiredFor(k as string, !!opts.required);
     const id = `lead-field-${k as string}`;
     return (
-      <Field label={effLabel} required={effRequired} htmlFor={id}>
+      <Field label={effLabel} required={effRequired} htmlFor={id} style={fields.orderStyle(k as string)}>
         <Input
           id={id}
           type={opts.phone ? 'tel' : (opts.type || 'text')}
@@ -865,7 +884,7 @@ export default function NewLeadPage() {
     const effRequired = opts.required === undefined ? undefined : fields.requiredFor(k as string, opts.required);
     const id = `lead-field-${k as string}`;
     return (
-      <Field label={effLabel} required={effRequired} htmlFor={id}>
+      <Field label={effLabel} required={effRequired} htmlFor={id} style={fields.orderStyle(k as string)}>
         <Select id={id} value={form[k] as string} required={effRequired} onChange={(e) => setForm({ ...form, [k]: e.target.value })}>
           <option value="">—</option>
           {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -881,7 +900,7 @@ export default function NewLeadPage() {
     if (fields.isHidden('industry')) return null;
     const effRequired = fields.requiredFor('industry', false);
     return (
-      <Field label={fields.labelFor('industry', 'Industry')} required={effRequired} htmlFor="lead-field-industry">
+      <Field label={fields.labelFor('industry', 'Industry')} required={effRequired} htmlFor="lead-field-industry" style={fields.orderStyle('industry')}>
         <IndustrySelect
           id="lead-field-industry"
           value={form.industry}
@@ -895,7 +914,11 @@ export default function NewLeadPage() {
   // Spark & Ray: the "Industry Category" custom field (field_key industry_category) is shown as "Sub-industry"
   // right after Industry instead of down in the generic custom-field block (which then skips it).
   const SUB_INDUSTRY_KEY = 'industry_category';
-  const subIndustryField = () => b2bAccounts ? (
+  // Ordered mode: the field is wrapped in a grid item carrying INDUSTRY's order (it follows Industry in DOM order, so the
+  // pair stays adjacent wherever the admin put Industry). The wrapper is hidden while there is no such field, so it
+  // never leaves an empty cell. Not ordered: the field renders bare, as before.
+  const hasSubIndustry = (customFieldDefsBySlot['sub-industry']?.length ?? 0) > 0;
+  const subIndustryNode = () => (
     <CustomFieldsSection
       entity="lead"
       values={form.custom_fields}
@@ -905,7 +928,10 @@ export default function NewLeadPage() {
       onlyKeys={[SUB_INDUSTRY_KEY]}
       labelOverrides={{ [SUB_INDUSTRY_KEY]: 'Sub-industry' }}
     />
-  ) : null;
+  );
+  const subIndustryField = () => !b2bAccounts ? null : flat
+    ? <div data-order-glue="industry" style={{ ...fields.orderStyle('industry'), display: hasSubIndustry ? undefined : 'none', minWidth: 0 }}>{subIndustryNode()}</div>
+    : subIndustryNode();
   const industryField = () => b2bAccounts
     ? <>{sparkIndustrySelect()}{subIndustryField()}</>
     : text('industry', 'Industry');
@@ -926,7 +952,7 @@ export default function NewLeadPage() {
     const effRequired = fields.requiredFor('company', true);
     const id = 'lead-field-company';
     return (
-      <Field label={effLabel} required={effRequired} htmlFor={id}>
+      <Field label={effLabel} required={effRequired} htmlFor={id} style={fields.orderStyle('company')}>
         <div style={{ position: 'relative' }}>
           <Input
             id={id}
@@ -1033,9 +1059,9 @@ export default function NewLeadPage() {
       {b2bAccounts ? (fields.isHidden('address_line1') ? null : (
         // Spark & Ray: the lead is pinned where the PICKED address is — not where the rep stands while filling
         // the form — so the device GPS never auto-fills here (and is ignored once an address is picked).
-        <GoogleAddressAutocomplete deviceFill={false} backend onSelect={onPickSparkAddress} />
+        fullRow('address_search', <GoogleAddressAutocomplete deviceFill={false} backend onSelect={onPickSparkAddress} />, 'address_line1')
       )) : (
-        <GoogleAddressAutocomplete onSelect={(p) => setForm((f) => ({
+        fullRow('address_search', <GoogleAddressAutocomplete onSelect={(p) => setForm((f) => ({
           ...f,
           address_line1: p.address_line1 || f.address_line1,
           city: p.city || f.city,
@@ -1043,13 +1069,16 @@ export default function NewLeadPage() {
           postal_code: p.postal_code || f.postal_code,
           latitude: p.latitude || f.latitude,
           longitude: p.longitude || f.longitude,
-        }))} />
+        }))} />, 'address_line1')
       )}
       {text('address_line1', 'Address line 1')}{text('address_line2', 'Address line 2')}
       {/* LocationPicker covers state + city. Hide it when the admin
           has hidden the city built-in (state alone has no value). */}
       {!fields.isHidden('city') && (
-        <div id="lead-field-city" style={{ display: 'contents' }}>
+        // Ordered mode: State + City travel together as one two-column row at City's place in the list.
+        <div id="lead-field-city" style={flat
+          ? { display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '16px 20px', gridColumn: '1 / -1', ...fields.orderStyle('city') }
+          : { display: 'contents' }}>
           <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
         </div>
       )}
@@ -1059,7 +1088,7 @@ export default function NewLeadPage() {
 
   // Optional "Schedule visit" (clients that enabled it for this lead type).
   const scheduleVisitSection = offersScheduleVisit(leadForm, scope) ? (
-    <Section title="Schedule visit" hint="Adds the visit to Activities and reminds the owner 30 minutes before.">
+    <Section title="Schedule visit" hint="Adds the visit to Activities and reminds the owner 30 minutes before." flatRow={flat ? { order: UNORDERED_LAST + 2 } : undefined}>
       <FormGrid narrow={narrow}>
         <Field label="Visit date & time" htmlFor="lead-field-visit_at">
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -1160,9 +1189,10 @@ export default function NewLeadPage() {
             per-person Contact section (name / mobile / email) is removed and the
             lead's name is taken from the Company on submit. Every other tenant
             keeps the full Contact section. */}
+        <FlatRegion flat={flat} narrow={narrow}>
         {!companyLead && (
         <Section title="Contact" hint="Who you’re talking to." first>
-          <FormGrid narrow={narrow}>
+          <Grid narrow={narrow}>
             {text('first_name', 'First name', { required: fields.requiredFor('first_name', true) })}
             {text('last_name',  'Last name',  { required: fields.requiredFor('last_name',  true) })}
             {text('phone',      'Primary mobile', { required: fields.requiredFor('phone', true), phone: true })}
@@ -1170,25 +1200,25 @@ export default function NewLeadPage() {
                 walk-in flow doesn't collect email, and prompting for it
                 just to skip it adds friction. */}
             {!isTata && text('email', 'Email', { type: 'email', required: fields.requiredFor('email', false), placeholder: 'name@company.com' })}
-          </FormGrid>
+          </Grid>
           {/* Built-in field — gate on its own key like every other built-in
               row (and like the Edit form + mobile apps) so hiding
               "alternate_mobiles" on the admin Settings page drops it here too. */}
-          {!fields.isHidden('alternate_mobiles') && (
+          {!fields.isHidden('alternate_mobiles') && fullRow('alternate_mobiles', (
             <AlternateMobiles
               values={form.alternate_mobiles}
               primary={form.phone}
               onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
             />
-          )}
+          ), 'phone')}
         </Section>
         )}
 
         {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked) || isBmw) && (
           <Section title="Assignment" hint={ownerLocked ? 'Stage and source.' : 'Stage, source and owner. The owner sees this lead in their queue.'}>
-            <FormGrid narrow={narrow}>
+            <Grid narrow={narrow}>
               {!fields.isHidden('status') && (
-                <Field label={fields.labelFor('status', 'Status')} htmlFor="lead-field-status">
+                <Field label={fields.labelFor('status', 'Status')} htmlFor="lead-field-status" style={fields.orderStyle('status')}>
                   <Select id="lead-field-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                     {leadStatuses
                       ? leadStatuses.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)
@@ -1204,7 +1234,7 @@ export default function NewLeadPage() {
                 </Field>
               )}
               {!fields.isHidden('source_id') && (
-                <Field label={fields.labelFor('source_id', 'Source')} htmlFor="lead-field-source_id">
+                <Field label={fields.labelFor('source_id', 'Source')} htmlFor="lead-field-source_id" style={fields.orderStyle('source_id')}>
                   <Select id="lead-field-source_id" value={form.source_id} onChange={(e) => setForm({ ...form, source_id: e.target.value })}>
                     <option value="">— Unspecified —</option>
                     {orderLeadSources(sources).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -1217,7 +1247,7 @@ export default function NewLeadPage() {
               {/* Admin-only assignment (lead_form.owner_assignment) takes the control away from everyone but
                   an admin; it also waits for the setting + identity so it never flashes up for them. */}
               {!fields.isHidden('owner_id') && !selfOnly && ownerAccess.canAssign && (
-                <Field label={fields.labelFor('owner_id', 'Owner')}>
+                <Field label={fields.labelFor('owner_id', 'Owner')} style={fields.orderStyle('owner_id')}>
                   <UserSearchSelect
                     options={users}
                     value={form.owner_id}
@@ -1233,7 +1263,7 @@ export default function NewLeadPage() {
                   is excluded from the generic CustomFieldsSection render below
                   for BMW so it isn't shown twice. */}
               {isBmw && (
-                <Field label="Follow-up date" htmlFor="lead-field-next_follow_up_date">
+                <Field label="Follow-up date" htmlFor="lead-field-next_follow_up_date" style={orderOf('next_follow_up_date', 'owner_id')}>
                   <Input
                     id="lead-field-next_follow_up_date"
                     type="date"
@@ -1249,7 +1279,7 @@ export default function NewLeadPage() {
                   />
                 </Field>
               )}
-            </FormGrid>
+            </Grid>
           </Section>
         )}
 
@@ -1260,7 +1290,7 @@ export default function NewLeadPage() {
                   defined fields look like part of the form, not a tacked-
                   on extension. CustomFieldsSection yields raw <label>
                   children with no wrapper of its own. */}
-              <FormGrid narrow={narrow}>
+              <Grid narrow={narrow}>
                 {b2bAccounts ? companyField() : text('company', 'Company', { required: true })}
                 {text('title', 'Job title')}
                 {/* Industry: a fixed dropdown for Spark & Ray, free text for
@@ -1276,7 +1306,7 @@ export default function NewLeadPage() {
                   // the Assignment section, so skip it here to avoid a double render.
                   excludeKeys={genericExcludeKeys(true)}
                 />
-              </FormGrid>
+              </Grid>
             </Section>
             {/* Connected-B2B (Spark & Ray): the people met at this company and
                 what each needs. Each row links to (or creates) a CRM contact
@@ -1284,7 +1314,7 @@ export default function NewLeadPage() {
                 sees it; the backend only resolves these when the lead carries a
                 company/account. */}
             {b2bAccounts && (
-              <Section title="Contacts & requirements" hint="People you met at the company and what each one needs. They’re linked to the company’s account.">
+              <Section title="Contacts & requirements" hint="People you met at the company and what each one needs. They’re linked to the company’s account." flatRow={flat ? { order: UNORDERED_LAST + 1 } : undefined}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {contactRows.map((row, i) => (
                     <ContactRow
@@ -1309,14 +1339,14 @@ export default function NewLeadPage() {
                 address block (search + fields) here, like the B2C form. */}
             {leadForm.addressOnB2b && (
               <Section title="Location" hint="Search an address to fill the pin, or type it in.">
-                <FormGrid narrow={narrow}>{addressFields()}</FormGrid>
+                <Grid narrow={narrow}>{addressFields()}</Grid>
               </Section>
             )}
             {/* City is required on B2B leads too — the per-user city-scope
                 filter applies to every lead row regardless of B2B/B2C. */}
             {!leadForm.addressOnB2b && !fields.isHidden('city') && (
               <Section title="Location" hint="Used for city scoping and route planning.">
-                <div id="lead-field-city" style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '16px 20px' }}>
+                <div id="lead-field-city" style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '16px 20px', ...(flat ? { gridColumn: '1 / -1', ...fields.orderStyle('city') } : null) }}>
                   <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
                 </div>
               </Section>
@@ -1329,25 +1359,25 @@ export default function NewLeadPage() {
                 hidden:false). Keeps the B2B-only default for untouched tenants. */}
             {anyBizOnB2C && (
               <Section title="Company" hint="Where they work.">
-                <FormGrid narrow={narrow}>
+                <Grid narrow={narrow}>
                   {explicitlyShownOnB2C('company')  && text('company', 'Company')}
                   {explicitlyShownOnB2C('title')    && text('title', 'Job title')}
                   {explicitlyShownOnB2C('industry') && industryField()}
-                </FormGrid>
+                </Grid>
               </Section>
             )}
             <Section title="Customer" hint="Personal details and the channel they prefer.">
-              <FormGrid narrow={narrow}>
+              <Grid narrow={narrow}>
                 {text('date_of_birth', 'Date of birth', { type: 'date' })}
                 {select('gender', 'Gender', [{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }])}
                 {select('preferred_contact_method', 'Preferred channel', [{ value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }])}
-              </FormGrid>
+              </Grid>
             </Section>
             <Section title="Address" hint="Search an address to fill the pin, or type it in.">
               {/* Custom fields are inlined into the B2C Address grid for
                   the same reason they're in the B2B grid above — they
                   read as part of the form, not a footnote. */}
-              <FormGrid narrow={narrow}>
+              <Grid narrow={narrow}>
                 {addressFields()}
                 <CustomFieldsSection
                   entity="lead"
@@ -1360,10 +1390,10 @@ export default function NewLeadPage() {
                   // The sub-industry field is only pulled out when Industry itself renders on this branch.
                   excludeKeys={genericExcludeKeys(explicitlyShownOnB2C('industry'))}
                 />
-              </FormGrid>
+              </Grid>
             </Section>
             {(!fields.isHidden('marketing_consent') || !fields.isHidden('whatsapp_consent')) && (
-              <Section title="Consent" hint="Marketing and WhatsApp opt-ins.">
+              <Section title="Consent" hint="Marketing and WhatsApp opt-ins." flatRow={earliestOrder(['marketing_consent', 'whatsapp_consent'])}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13.5, color: T.text }}>
                   {!fields.isHidden('marketing_consent') && (
                     <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.marketing_consent} onChange={(e) => setForm({ ...form, marketing_consent: e.target.checked })} style={{ width: 16, height: 16 }} />{fields.labelFor('marketing_consent', 'Customer agreed to receive marketing communications')}</label>
@@ -1384,10 +1414,11 @@ export default function NewLeadPage() {
             `data_consent` field; recorded in the consent ledger. Distinct from
             the marketing/WhatsApp opt-ins above. */}
         {showDataConsent && (
-          <Section title={fields.labelFor('data_consent', 'Data consent')} hint="Notice shown at collection, recorded in the consent ledger.">
+          <Section title={fields.labelFor('data_consent', 'Data consent')} hint="Notice shown at collection, recorded in the consent ledger." flatRow={fields.orderStyle('data_consent')}>
             <DataCollectionConsent checked={dataConsent} onChange={setDataConsent} required={dataConsentRequired} />
           </Section>
         )}
+        </FlatRegion>
 
         {/* Products of Interest is captured in the Convert dialog (deal_product_lines)
             for Kaiyo/Tata, not on the lead form — the rep picks products when the
@@ -1471,8 +1502,37 @@ export default function NewLeadPage() {
   );
 }
 
-function Section({ title, hint, first, children }: { title: string; hint?: string; first?: boolean; children: React.ReactNode }) {
-  return <FormSection eyebrow={title} hint={hint} first={first}>{children}</FormSection>;
+// Form order. When the admin has ordered the lead's fields, the field sections of the form are flattened into ONE grid
+// (FlatRegion) so built-in rows and custom fields can interleave through CSS `order`: section headings and grids
+// dissolve (`display: contents`) and every row becomes an item of that grid. Not ordered: FlatRegion renders its
+// children as they are and Section / Grid below are the plain section / FormGrid, i.e. the layout is unchanged.
+const FlatCtx = createContext(false);
+
+function FlatRegion({ flat, narrow, children }: { flat: boolean; narrow: boolean; children: React.ReactNode }) {
+  if (!flat) return <>{children}</>;
+  return (
+    <FlatCtx.Provider value>
+      <FormGrid narrow={narrow} style={{ padding: '0 0 22px' }}>{children}</FormGrid>
+    </FlatCtx.Provider>
+  );
+}
+
+function Grid({ narrow, children }: { narrow: boolean; children: React.ReactNode }) {
+  const flat = useContext(FlatCtx);
+  return flat ? <div style={{ display: 'contents' }}>{children}</div> : <FormGrid narrow={narrow}>{children}</FormGrid>;
+}
+
+// `flatRow` (ordered mode only): a block that keeps its own heading — it becomes one full-width grid item at that
+// order. Without it the section dissolves into the grid. Inside such a block the layout is the normal one again.
+function Section({ title, hint, first, flatRow, children }: { title: string; hint?: string; first?: boolean; flatRow?: React.CSSProperties; children: React.ReactNode }) {
+  const flat = useContext(FlatCtx);
+  if (!flat) return <FormSection eyebrow={title} hint={hint} first={first}>{children}</FormSection>;
+  if (!flatRow) return <div style={{ display: 'contents' }}>{children}</div>;
+  return (
+    <FlatCtx.Provider value={false}>
+      <FormSection eyebrow={title} hint={hint} style={{ padding: 0, borderTop: 0, gridColumn: '1 / -1', ...flatRow }}>{children}</FormSection>
+    </FlatCtx.Provider>
+  );
 }
 
 // One row of the B2B "Contacts & requirements" capture (Spark & Ray). Leads

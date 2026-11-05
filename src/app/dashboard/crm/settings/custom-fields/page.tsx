@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { crmCustomFields, crmPeopleDirectoryTypes, crmSettings, crmTargets, type KiniProposedField } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
@@ -7,6 +7,11 @@ import type { CustomField } from '../../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../../lib/auth';
 import { composeOptions, isProductSourceOptions, OPTION_SEARCHABLE, visibleOptions } from '../../../../../lib/customFieldOptions';
 import { extractLeadForm, segmentName } from '../../../../../lib/crmLeadForm';
+import { hasFormOrder, type FieldOverride, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
+import {
+  applyBuiltinOrder, canStep, mergeFieldOrder, moveStep, moveTo, nextPosition, renumber,
+  reorderIncomplete, resetFieldOverride, type FieldRow,
+} from '../../../../../lib/fieldOrder';
 import KiniFormBuilder from './KiniFormBuilder';
 import KiniMascot from './KiniMascot';
 
@@ -150,6 +155,7 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     // de-facto identifier for B2B reps too. Admins can flip it to
     // optional via the Edit dialog for tenants that don't collect it.
     { key: 'phone', label: 'Primary Mobile', type: 'text', required: true },
+    { key: 'alternate_mobiles', label: 'Alternate Mobiles', type: 'text' },
     { key: 'company', label: 'Company', type: 'text' },
     { key: 'title', label: 'Job Title', type: 'text' },
     { key: 'industry', label: 'Industry', type: 'text' },
@@ -181,6 +187,15 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'city', label: 'City', type: 'text', required: true },
     { key: 'title', label: 'Job Title', type: 'text' },
     { key: 'department', label: 'Department', type: 'text' },
+    { key: 'mobile', label: 'Mobile', type: 'text' },
+    { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+    { key: 'gender', label: 'Gender', type: 'select' },
+    { key: 'preferred_contact_method', label: 'Preferred Channel', type: 'select' },
+    { key: 'referral_source', label: 'Referral Source', type: 'text' },
+    { key: 'loyalty_tier', label: 'Loyalty Tier', type: 'select' },
+    { key: 'address_line1', label: 'Address Line 1', type: 'text' },
+    { key: 'address_line2', label: 'Address Line 2', type: 'text' },
+    { key: 'postal_code', label: 'Postal Code', type: 'text' },
     { key: 'account_id', label: 'Account / Company', type: 'select' },
     { key: 'owner_id', label: 'Assigned To', type: 'select' },
     { key: 'state', label: 'State', type: 'text' },
@@ -206,6 +221,9 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'country', label: 'Country', type: 'text' },
     { key: 'owner_id', label: 'Assigned To', type: 'select' },
     { key: 'tags', label: 'Tags', type: 'multiselect' },
+    // Shown on the account create/edit form (required there), so it must be listed here too.
+    { key: 'outcome', label: 'Outcome', type: 'text', required: true },
+    { key: 'description', label: 'Description', type: 'text' },
   ],
   deal: [
     // Keys MUST match the real deal columns the forms gate on
@@ -226,15 +244,12 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
   ],
 };
 
-type FieldOverride = { label?: string; required?: boolean; hidden?: boolean; position?: number };
-type FieldOverrides = Record<string, FieldOverride>; // key: `${entity}.${field_key}`
+// FieldOverride / FieldOverrides (key: `${entity}.${field_key}`) come from lib/crmFieldOverrides.
+// `order` = the field's place in the entity's ONE list shared with the custom fields.
 
 const overrideKey = (entity: string, key: string) => `${entity}.${key}`;
-// System rows share the same DnD state as custom rows, so we tag their
-// drag identifier with a prefix to avoid collisions with custom-field
-// UUIDs and to let the drop handler route to the right reorder function.
-const BUILTIN_DRAG_PREFIX = 'builtin:';
-const builtinDragId = (entity: string, key: string) => `${BUILTIN_DRAG_PREFIX}${entity}.${key}`;
+// Every row (system or custom) has a unique `rid` (see lib/fieldOrder.ts) that doubles as its drag identifier.
+// The entity of a row is looked up from the rendered groups, so a drop can never cross entities.
 
 export default function CustomFieldsPage() {
   const [items, setItems] = useState<CustomField[]>([]);
@@ -410,7 +425,8 @@ export default function CustomFieldsPage() {
     const payload: Record<string, unknown> = {
       entity_type: entity, field_key: fieldKey.trim(), label: label.trim(),
       field_type: fieldType, required,
-      position: items.filter((i) => i.entity_type === entity).length,
+      // Land at the END of the entity's unified (system + custom) list.
+      position: nextPosition(overrides, entity, items.filter((i) => i.entity_type === entity)),
     };
     if (parsedOptions !== undefined) payload.options = parsedOptions;
     if (fieldType === 'image') {
@@ -448,9 +464,9 @@ export default function CustomFieldsPage() {
 
   // KINI AI builder → create every accepted field for the current entity.
   // Reuses the same validated /custom-fields create path as the manual "+ Add
-  // Field" button; positions continue after the entity's existing fields.
+  // Field" button; positions continue after the end of the entity's merged list.
   const acceptBuilderFields = async (built: KiniProposedField[]) => {
-    const base = items.filter((i) => i.entity_type === entity).length;
+    const base = nextPosition(overrides, entity, items.filter((i) => i.entity_type === entity));
     let created = 0;
     const failures: string[] = [];
     for (const f of built) {
@@ -479,52 +495,53 @@ export default function CustomFieldsPage() {
     finally { setBusy((b) => ({ ...b, [cf.id]: false })); }
   };
 
-  // Drag-drop reorder. `targetId` is where dragId should land. Computes
-  // the new position list (re-numbered 0..n) for the affected entity
-  // group and POSTs the whole batch in one request.
-  const reorderTo = async (dragIdLocal: string, targetId: string) => {
-    if (!dragIdLocal || dragIdLocal === targetId) return;
-    const dragged = items.find((i) => i.id === dragIdLocal);
-    const target  = items.find((i) => i.id === targetId);
-    if (!dragged || !target) return;
-    if (dragged.entity_type !== target.entity_type) {
-      // Don't allow drag across entities — moving a "lead" field into
-      // the "contact" group would change its semantics. Block silently;
-      // visual cue happens at drop time.
-      return;
-    }
+  // Reorder one entity's merged list (system + custom rows together). `next` is the NEW full order of that entity.
+  // The whole list is renumbered 0..n and BOTH halves are saved: system rows -> field_overrides[..].order (one
+  // crmSettings.update), custom rows -> POST /custom-fields/reorder. Optimistic; on any failure we toast and reload
+  // the authoritative state.
+  const persistOrder = async (ent: string, next: FieldRow[]) => {
+    if (reordering) return;
+    const { builtin, customs } = renumber(next);
+    const hasBuiltins = Object.keys(builtin).length > 0;
+    const nextOverrides = hasBuiltins ? applyBuiltinOrder(overrides, ent, builtin) : overrides;
+    const posById = new Map(customs.map((c) => [c.id, c.position]));
 
-    // Build the new order within this entity group only. Other entities'
-    // positions stay untouched.
-    const group = items.filter((i) => i.entity_type === dragged.entity_type)
-      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-    const without = group.filter((i) => i.id !== dragIdLocal);
-    const targetIdx = without.findIndex((i) => i.id === targetId);
-    const reordered = [
-      ...without.slice(0, targetIdx),
-      dragged,
-      ...without.slice(targetIdx),
-    ];
-    // Re-number from 0 so positions stay tidy.
-    const payload = reordered.map((i, idx) => ({ id: i.id, position: idx }));
-
-    // Optimistic UI: stamp the new positions before the server roundtrip
-    // so the rows snap immediately instead of waiting for reload.
-    const lookup = new Map(payload.map((p) => [p.id, p.position]));
-    setItems((prev) => prev.map((i) =>
-      lookup.has(i.id) ? { ...i, position: lookup.get(i.id) as number } : i
-    ));
+    // Optimistic UI: the rows snap into place before the server round trip.
+    setOverrides(nextOverrides);
+    setItems((prev) => prev.map((i) => (i.entity_type === ent && posById.has(i.id) ? { ...i, position: posById.get(i.id) as number } : i)));
 
     setReordering(true);
     try {
-      await api.post('/api/v1/crm/custom-fields/reorder', { items: payload });
-      // Don't reload — the optimistic update already shows the right order.
+      if (hasBuiltins) {
+        await crmSettings.update({ config: { ...config, field_overrides: nextOverrides } });
+        setConfig((c) => ({ ...c, field_overrides: nextOverrides }));
+      }
+      if (customs.length > 0) {
+        const res = await api.post('/api/v1/crm/custom-fields/reorder', { items: customs });
+        if (reorderIncomplete(res)) throw new Error('Some fields could not be saved');
+      }
     } catch (e: any) {
-      toast.error(e?.message || 'Reorder failed');
-      reload(); // revert by refetching authoritative state
+      toast.error(e?.message ? `Reorder failed: ${e.message}` : 'Reorder failed');
+      await reload(); // revert by refetching authoritative state
     } finally {
       setReordering(false);
     }
+  };
+
+  // Drag and drop: `fromRid` takes the place of `toRid` (same entity only).
+  const reorderTo = (ent: string, fromRid: string, toRid: string) => {
+    const group = groups.find((g) => g.entity === ent);
+    if (!group || fromRid === toRid) return;
+    const next = moveTo(group.rows, fromRid, toRid);
+    if (next) void persistOrder(ent, next);
+  };
+
+  // Up / Down buttons: swap with the nearest row that is currently shown.
+  const stepRow = (ent: string, rid: string, dir: -1 | 1) => {
+    const group = groups.find((g) => g.entity === ent);
+    if (!group) return;
+    const next = moveStep(group.rows, rid, dir, isShown);
+    if (next) void persistOrder(ent, next);
   };
 
   const startEditCustom = (cf: CustomField) => {
@@ -686,10 +703,12 @@ export default function CustomFieldsPage() {
   };
 
   const resetOverride = async (entityName: string, key: string) => {
-    if (!window.confirm(`Reset this field to its ${scope === 'universal' ? 'system default' : `universal value (clears the ${scope.toUpperCase()} override only)`}?`)) return;
+    if (!window.confirm(scope === 'universal'
+      ? 'Reset this field\'s label, required and hidden settings to the system default? Its position in the form order is kept.'
+      : `Reset this field to its universal value (clears the ${scope.toUpperCase()} override only)? Its position in the form order is kept.`)) return;
     const k = writeKey(entityName, key);
-    const next = { ...overrides };
-    delete next[k];
+    // Clears label / required / hidden but KEEPS `order`, so a reset never silently moves the field.
+    const next = resetFieldOverride(overrides, entityName, key, scope);
     setSavingOverride(k);
     try {
       await crmSettings.update({ config: { ...config, field_overrides: next } });
@@ -703,72 +722,35 @@ export default function CustomFieldsPage() {
     }
   };
 
-  // Apply per-entity sort using override.position. Fields without an
-  // override fall back to their original BUILTIN_FIELDS index so the
-  // default order still wins until someone explicitly drags a row.
-  const sortBuiltinGroup = (ent: string, fields: BuiltinField[]) =>
-    fields
-      .map((f, i) => {
-        const ov = overrides[overrideKey(ent, f.key)] || {};
-        const pos = typeof ov.position === 'number' ? ov.position : i + 1000; // fallback bucket sits after explicit positions
-        return { f, pos, i };
-      })
-      .sort((a, b) => a.pos - b.pos || a.i - b.i)
-      .map(({ f }) => ({ ...f, entity: ent }));
-
-  const builtinVisible = useMemo(() => {
-    return filter === 'all'
-      ? Object.entries(BUILTIN_FIELDS).flatMap(([ent, fields]) => sortBuiltinGroup(ent, fields))
-      : sortBuiltinGroup(filter, BUILTIN_FIELDS[filter] || []);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, overrides]);
-
-  // Reorder a built-in row within its entity group. Writes a single
-  // crm_settings update with new position numbers for every field in
-  // the group, so the JSON column stays consistent and other entities
-  // are untouched.
-  const reorderBuiltinTo = async (dragKey: string, targetKey: string) => {
-    if (!dragKey || dragKey === targetKey) return;
-    const [dragEnt, dragField] = dragKey.split('.');
-    const [tgtEnt, tgtField]   = targetKey.split('.');
-    if (dragEnt !== tgtEnt) return; // never cross entity groups
-
-    const group = sortBuiltinGroup(dragEnt, BUILTIN_FIELDS[dragEnt] || []);
-    const without = group.filter((f) => f.key !== dragField);
-    const tgtIdx = without.findIndex((f) => f.key === tgtField);
-    if (tgtIdx < 0) return;
-    const dragged = group.find((f) => f.key === dragField);
-    if (!dragged) return;
-    const reordered = [
-      ...without.slice(0, tgtIdx),
-      dragged,
-      ...without.slice(tgtIdx),
-    ];
-
-    // Build the next overrides map: for every field in the group,
-    // upsert the new position while preserving label/required/hidden.
-    const nextOverrides: FieldOverrides = { ...overrides };
-    reordered.forEach((f, idx) => {
-      const k = overrideKey(dragEnt, f.key);
-      const existing = nextOverrides[k] || {};
-      nextOverrides[k] = { ...existing, position: idx };
+  // ONE merged, ordered list per entity (system + custom rows together). Until the admin reorders, this is exactly
+  // what the forms render today (system fields in BUILTIN_FIELDS order, then custom fields by position); once
+  // ordered it follows the saved numbers. See lib/fieldOrder.ts.
+  const groups = useMemo(() => {
+    const present = new Set<string>([...Object.keys(BUILTIN_FIELDS), ...items.map((i) => i.entity_type)]);
+    const known: string[] = [...ENTITIES];
+    const entities = filter === 'all'
+      ? [...known.filter((e) => present.has(e)), ...Array.from(present).filter((e) => !known.includes(e)).sort()]
+      : [filter as string];
+    return entities.map((ent) => {
+      const defs = BUILTIN_FIELDS[ent] || [];
+      const defByKey = new Map(defs.map((d) => [d.key, d]));
+      const customs = items.filter((i) => i.entity_type === ent);
+      const byId = new Map(customs.map((c) => [c.id, c]));
+      const rows = mergeFieldOrder(ent, defs.map((d) => d.key), customs, overrides);
+      return {
+        entity: ent,
+        rows,
+        defByKey,
+        byId,
+        nSystem: defs.length,
+        nCustom: customs.length,
+        ordered: hasFormOrder(overrides, ent),
+      };
     });
-
-    // Optimistic UI: reflect new positions immediately so the row snaps
-    // into place. Roll back on error.
-    const prevOverrides = overrides;
-    setOverrides(nextOverrides);
-    setReordering(true);
-    try {
-      await crmSettings.update({ config: { ...config, field_overrides: nextOverrides } });
-      setConfig({ ...config, field_overrides: nextOverrides });
-    } catch (e: any) {
-      toast.error(e?.message || 'Reorder failed');
-      setOverrides(prevOverrides);
-    } finally {
-      setReordering(false);
-    }
-  };
+  }, [filter, items, overrides]);
+  // The "System Fields" toggle hides system rows from the table; reordering still works on the full list.
+  const isShown = (r: FieldRow) => showBuiltin || r.kind === 'custom';
+  const entityOfRid = (rid: string) => groups.find((g) => g.rows.some((r) => r.rid === rid))?.entity;
 
   if (accessDenied) {
     return (
@@ -782,14 +764,8 @@ export default function CustomFieldsPage() {
     );
   }
 
-  // Render in saved order: group by entity, then by position. Without this
-  // sort, drag-to-reorder updated the position values but the list kept its
-  // original (API/insertion) order, so shuffling appeared to do nothing.
-  const visible = (filter === 'all' ? items : items.filter((i) => i.entity_type === filter))
-    .slice()
-    .sort((a, b) =>
-      (a.entity_type || '').localeCompare(b.entity_type || '')
-      || (a.position ?? 0) - (b.position ?? 0));
+  const totalSystem = groups.reduce((n, g) => n + g.nSystem, 0);
+  const totalCustom = groups.reduce((n, g) => n + g.nCustom, 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1043,7 +1019,7 @@ export default function CustomFieldsPage() {
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-            Fields ({builtinVisible.length + visible.length} total — {builtinVisible.length} system, {visible.length} custom)
+            Fields ({totalSystem + totalCustom} total — {totalSystem} system, {totalCustom} custom)
           </div>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -1052,7 +1028,7 @@ export default function CustomFieldsPage() {
             border: '1px solid var(--primary)', fontWeight: 600,
           }}>
             <GripIcon size={12} />
-            Drag the blue grip to reorder any field (system or custom — within its entity group)
+            Drag the grip or use the arrows to reorder any field (system or custom)
           </div>
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap', alignItems: 'center' }}>
             <button
@@ -1067,6 +1043,13 @@ export default function CustomFieldsPage() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12, lineHeight: 1.5 }}>
+          System and custom fields share <strong style={{ color: 'var(--text)' }}>one order per entity</strong>. Drag a row by its grip, or use the
+          {' '}<strong style={{ color: 'var(--text)' }}>▲ ▼ arrows</strong> (works on touch screens too), to put fields in any order — they can be mixed freely.
+          The order applies to the create and edit forms on the web dashboard, and the mobile apps show custom fields in this order.
+          Until you reorder an entity its forms look exactly as before. Ordering is the same for B2B and B2C.
         </div>
 
         {/* Scope selector — controls which override variant we're editing.
@@ -1108,7 +1091,7 @@ export default function CustomFieldsPage() {
           <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={{ ...th, width: 44, textAlign: 'center', fontSize: 9 }} title="Drag rows to reorder">SORT</th>
+                <th style={{ ...th, width: 96, textAlign: 'center', fontSize: 9 }} title="Drag rows, or use the arrows, to reorder">SORT</th>
                 <th style={th}>Entity</th>
                 <th style={th}>Key</th>
                 <th style={th}>Label</th>
@@ -1119,112 +1102,170 @@ export default function CustomFieldsPage() {
               </tr>
             </thead>
             <tbody>
-              {/* Built-in standard fields */}
-              {showBuiltin && builtinVisible.map((f) => {
-                const k = writeKey(f.entity, f.key);
-                const ov = effectiveOverride(f.entity, f.key);
-                const effLabel = ov.label ?? f.label;
-                const effRequired = ov.required ?? !!f.required;
-                const effHidden = ov.hidden ?? false;
-                const overridden = ov.label !== undefined || ov.required !== undefined || ov.hidden !== undefined || ov.position !== undefined;
-                const saving = savingOverride === k;
-                const dragKey = builtinDragId(f.entity, f.key);
-                const isDragging = dragId === dragKey;
-                const isOver     = overId === dragKey && dragId && dragId !== dragKey && dragId.startsWith(BUILTIN_DRAG_PREFIX);
+              {groups.map((g) => {
+                const shown = g.rows.filter(isShown);
                 return (
-                  <tr
-                    key={`builtin-${f.entity}-${f.key}`}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.effectAllowed = 'move';
-                      e.dataTransfer.setData('text/plain', dragKey);
-                      setDragId(dragKey);
-                    }}
-                    onDragOver={(e) => {
-                      // Only accept other system rows in the same entity group
-                      // as drop targets — block custom-row drops onto system rows.
-                      if (!dragId || !dragId.startsWith(BUILTIN_DRAG_PREFIX)) return;
-                      const draggedEnt = dragId.slice(BUILTIN_DRAG_PREFIX.length).split('.')[0];
-                      if (draggedEnt !== f.entity) return;
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = 'move';
-                      if (overId !== dragKey) setOverId(dragKey);
-                    }}
-                    onDragLeave={() => { if (overId === dragKey) setOverId(null); }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const id = e.dataTransfer.getData('text/plain') || dragId || '';
-                      setDragId(null); setOverId(null);
-                      if (id.startsWith(BUILTIN_DRAG_PREFIX)) {
-                        reorderBuiltinTo(id.slice(BUILTIN_DRAG_PREFIX.length), `${f.entity}.${f.key}`);
-                      }
-                    }}
-                    onDragEnd={() => { setDragId(null); setOverId(null); }}
-                    style={{
-                      opacity: isDragging ? 0.4 : (effHidden ? 0.55 : 1),
-                      borderTop: isOver ? '2px solid var(--primary)' : undefined,
-                      background: isOver ? 'rgba(0,102,255,0.05)' : undefined,
-                      cursor: reordering ? 'wait' : 'grab',
-                    }}
-                  >
-                    <td
-                      style={{
-                        ...td, width: 44, textAlign: 'center', verticalAlign: 'middle',
-                        userSelect: 'none',
-                        cursor: reordering ? 'wait' : 'grab',
-                        background: isOver ? 'rgba(0,102,255,0.28)' : 'rgba(99,102,241,0.12)',
-                        borderRight: '1px solid var(--border)',
-                        padding: 0,
-                      }}
-                      title="Drag to reorder this system field within its entity group"
-                    >
-                      <div style={{
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        width: 28, height: 28, borderRadius: 6,
-                        background: '#6366f1', color: '#fff',
-                      }}>
-                        <GripIcon size={14} />
-                      </div>
-                    </td>
-                    <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{f.entity}</span></td>
-                    <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{f.key}</code></td>
-                    <td style={td}>
-                      {effLabel}
-                      {overridden && <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px', background: '#f59e0b15', color: '#f59e0b', borderRadius: 4, fontWeight: 700, textTransform: 'uppercase' }}>edited</span>}
-                      {effHidden && <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px', background: 'var(--s3)', color: 'var(--text-dim)', borderRadius: 4, fontWeight: 700, textTransform: 'uppercase' }}>hidden</span>}
-                    </td>
-                    <td style={td}>{f.type}</td>
-                    <td style={td}>{effRequired ? '✓' : ''}</td>
-                    <td style={td}>
-                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: '#6366f115', color: '#6366f1' }}>System</span>
-                    </td>
-                    <td style={td}>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          onClick={() => setEditing({ entity: f.entity, key: f.key, label: effLabel, required: effRequired, hidden: effHidden })}
-                          disabled={saving}
-                          style={btnSmall}
+                  <Fragment key={`group-${g.entity}`}>
+                    {filter === 'all' && (
+                      <tr>
+                        <td colSpan={8} style={{ ...td, background: 'var(--s3)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                          {g.entity}
+                          <span style={{ marginLeft: 8, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'none', letterSpacing: 0 }}>
+                            {g.ordered ? 'custom order' : 'default order'}
+                          </span>
+                        </td>
+                      </tr>
+                    )}
+                    {shown.map((row) => {
+                      const isDragging = dragId === row.rid;
+                      // Only rows of the SAME entity are valid drop targets.
+                      const isOver = overId === row.rid && !!dragId && dragId !== row.rid && entityOfRid(dragId) === g.entity;
+                      const canUp = canStep(g.rows, row.rid, -1, isShown);
+                      const canDown = canStep(g.rows, row.rid, 1, isShown);
+                      const isBuiltin = row.kind === 'builtin';
+                      const f = isBuiltin ? g.defByKey.get(row.ref) : undefined;
+                      const c = !isBuiltin ? g.byId.get(row.ref) : undefined;
+                      if (!f && !c) return null;
+
+                      // Built-in row facts (override-aware) or custom row facts.
+                      const ov = f ? effectiveOverride(g.entity, f.key) : {};
+                      const effLabel = f ? (ov.label ?? f.label) : (c as CustomField).label;
+                      const effRequired = f ? (ov.required ?? !!f.required) : !!(c as CustomField).required;
+                      const effHidden = f ? (ov.hidden ?? false) : false;
+                      // Only label / required / hidden count as "edited": the position in the order is not an edit.
+                      const overridden = !!f && (ov.label !== undefined || ov.required !== undefined || ov.hidden !== undefined);
+                      const saving = !!f && savingOverride === writeKey(g.entity, f.key);
+                      const accent = isBuiltin ? '#6366f1' : 'var(--primary)';
+                      const arrowBtn = (disabled: boolean): React.CSSProperties => ({
+                        width: 22, height: 22, padding: 0, lineHeight: 1, fontSize: 11, borderRadius: 5,
+                        border: '1px solid var(--border)', background: 'var(--s3)', color: 'var(--text)',
+                        cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.35 : 1,
+                      });
+                      return (
+                        <tr
+                          key={row.rid}
+                          data-testid={`field-row-${g.entity}-${isBuiltin ? f!.key : c!.field_key}`}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = 'move';
+                            e.dataTransfer.setData('text/plain', row.rid);
+                            setDragId(row.rid);
+                          }}
+                          onDragOver={(e) => {
+                            // Accept only rows of the same entity (system and custom rows mix freely).
+                            if (!dragId || entityOfRid(dragId) !== g.entity) return;
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                            if (overId !== row.rid) setOverId(row.rid);
+                          }}
+                          onDragLeave={() => { if (overId === row.rid) setOverId(null); }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const id = e.dataTransfer.getData('text/plain') || dragId || '';
+                            setDragId(null); setOverId(null);
+                            if (id && entityOfRid(id) === g.entity) reorderTo(g.entity, id, row.rid);
+                          }}
+                          onDragEnd={() => { setDragId(null); setOverId(null); }}
+                          style={{
+                            opacity: isDragging ? 0.4 : (effHidden ? 0.55 : 1),
+                            // Soft top border on the hovered row so the drop target is obvious.
+                            borderTop: isOver ? '2px solid var(--primary)' : undefined,
+                            background: isOver ? 'rgba(0,102,255,0.05)' : undefined,
+                            cursor: reordering ? 'wait' : 'grab',
+                          }}
                         >
-                          {saving ? '…' : 'Edit'}
-                        </button>
-                        {overridden && (
-                          <button
-                            onClick={() => resetOverride(f.entity, f.key)}
-                            disabled={saving}
-                            style={btnSmallGhost}
-                            title="Reset to system default"
+                          <td
+                            style={{
+                              ...td, width: 96, textAlign: 'center', verticalAlign: 'middle',
+                              userSelect: 'none',
+                              cursor: reordering ? 'wait' : 'grab',
+                              background: isOver ? 'rgba(0,102,255,0.28)' : (isBuiltin ? 'rgba(99,102,241,0.12)' : 'rgba(0,102,255,0.12)'),
+                              borderRight: '1px solid var(--border)',
+                              padding: 0,
+                            }}
+                            title="Drag to reorder this field, or use the arrows"
                           >
-                            ↺
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                              <div style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: 28, height: 28, borderRadius: 6,
+                                background: accent, color: '#fff',
+                              }}>
+                                <GripIcon size={14} />
+                              </div>
+                              <button
+                                type="button"
+                                aria-label="Move up"
+                                title="Move up"
+                                disabled={!canUp || reordering}
+                                onClick={() => stepRow(g.entity, row.rid, -1)}
+                                style={arrowBtn(!canUp || reordering)}
+                              >▲</button>
+                              <button
+                                type="button"
+                                aria-label="Move down"
+                                title="Move down"
+                                disabled={!canDown || reordering}
+                                onClick={() => stepRow(g.entity, row.rid, 1)}
+                                style={arrowBtn(!canDown || reordering)}
+                              >▼</button>
+                            </div>
+                          </td>
+                          <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{g.entity}</span></td>
+                          <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{f ? f.key : c!.field_key}</code></td>
+                          <td style={td}>
+                            {effLabel}
+                            {f && overridden && <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px', background: '#f59e0b15', color: '#f59e0b', borderRadius: 4, fontWeight: 700, textTransform: 'uppercase' }}>edited</span>}
+                            {f && effHidden && <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px', background: 'var(--s3)', color: 'var(--text-dim)', borderRadius: 4, fontWeight: 700, textTransform: 'uppercase' }}>hidden</span>}
+                            {c && c.entity_type === 'lead' && (c.applies_to === 'b2b' || c.applies_to === 'b2c') && (
+                              <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: 'var(--s3)', color: 'var(--text-dim)' }}>
+                                {segmentName(leadFormCfg, c.applies_to)} only
+                              </span>
+                            )}
+                          </td>
+                          <td style={td}>{f ? f.type : (TYPE_LABELS[c!.field_type] ?? c!.field_type)}</td>
+                          <td style={td}>{effRequired ? '✓' : ''}</td>
+                          <td style={td}>
+                            {f
+                              ? <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: '#6366f115', color: '#6366f1' }}>System</span>
+                              : <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: '#f59e0b15', color: '#f59e0b' }}>Custom</span>}
+                          </td>
+                          <td style={td}>
+                            {f ? (
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button
+                                  onClick={() => setEditing({ entity: g.entity, key: f.key, label: effLabel, required: effRequired, hidden: effHidden })}
+                                  disabled={saving}
+                                  style={btnSmall}
+                                >
+                                  {saving ? '…' : 'Edit'}
+                                </button>
+                                {overridden && (
+                                  <button
+                                    onClick={() => resetOverride(g.entity, f.key)}
+                                    disabled={saving}
+                                    style={btnSmallGhost}
+                                    title="Reset label / required / hidden to the system default (keeps its position)"
+                                  >
+                                    ↺
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <>
+                                <button onClick={() => startEditCustom(c!)} disabled={!!busy[c!.id]} style={{ ...btnSmall, marginRight: 6 }}>Edit</button>
+                                <button onClick={() => remove(c!)} disabled={!!busy[c!.id]} style={{ ...btnSmallDanger, opacity: busy[c!.id] ? 0.5 : 1 }}>{busy[c!.id] ? '...' : 'Delete'}</button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
                 );
               })}
 
-              {/* Custom fields */}
-              {visible.length === 0 && (
+              {totalCustom === 0 && (
                 <tr>
                   <td colSpan={8} style={{ ...td, color: 'var(--text-dim)', textAlign: 'center', padding: 24, background: 'rgba(0,102,255,0.04)', borderTop: '2px dashed var(--primary)' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexDirection: 'column' }}>
@@ -1235,93 +1276,12 @@ export default function CustomFieldsPage() {
                         No custom fields yet
                       </div>
                       <div style={{ fontSize: 12, maxWidth: 420 }}>
-                        Custom fields you add appear here with a <strong style={{ color: 'var(--primary)' }}>blue drag handle</strong> in the SORT column. System fields can also be reordered using the indigo grip on each system row.
+                        Custom fields you add appear here and can be dragged (or moved with the arrows) between the system fields.
                       </div>
                     </div>
                   </td>
                 </tr>
               )}
-              {visible.map((c) => {
-                const isDragging = dragId === c.id;
-                const isOver     = overId === c.id && dragId && dragId !== c.id;
-                return (
-                <tr
-                  key={c.id}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', c.id);
-                    setDragId(c.id);
-                  }}
-                  onDragOver={(e) => {
-                    // Refuse drops coming from system rows — they live
-                    // in a different group with a different reorder path.
-                    if (dragId && dragId.startsWith(BUILTIN_DRAG_PREFIX)) return;
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    if (overId !== c.id) setOverId(c.id);
-                  }}
-                  onDragLeave={() => { if (overId === c.id) setOverId(null); }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const id = e.dataTransfer.getData('text/plain') || dragId || '';
-                    setDragId(null); setOverId(null);
-                    if (id && !id.startsWith(BUILTIN_DRAG_PREFIX)) reorderTo(id, c.id);
-                  }}
-                  onDragEnd={() => { setDragId(null); setOverId(null); }}
-                  style={{
-                    opacity: isDragging ? 0.4 : 1,
-                    // Soft top border on the row being hovered so the
-                    // drop target is obvious without a separate ghost
-                    // element.
-                    borderTop: isOver ? '2px solid var(--primary)' : undefined,
-                    background: isOver ? 'rgba(0,102,255,0.05)' : undefined,
-                    cursor: reordering ? 'wait' : 'grab',
-                  }}
-                >
-                  <td
-                    style={{
-                      ...td, width: 44, textAlign: 'center', verticalAlign: 'middle',
-                      userSelect: 'none',
-                      cursor: reordering ? 'wait' : 'grab',
-                      // Strong primary tint so the grip cell is unmistakable
-                      // as a drag handle, not an empty column.
-                      background: isOver ? 'rgba(0,102,255,0.28)' : 'rgba(0,102,255,0.12)',
-                      borderRight: '1px solid var(--border)',
-                      padding: 0,
-                    }}
-                    title="Drag to reorder this field"
-                  >
-                    <div style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      width: 28, height: 28, borderRadius: 6,
-                      background: 'var(--primary)', color: '#fff',
-                    }}>
-                      <GripIcon size={14} />
-                    </div>
-                  </td>
-                  <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{c.entity_type}</span></td>
-                  <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{c.field_key}</code></td>
-                  <td style={td}>
-                    {c.label}
-                    {c.entity_type === 'lead' && (c.applies_to === 'b2b' || c.applies_to === 'b2c') && (
-                      <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: 'var(--s3)', color: 'var(--text-dim)' }}>
-                        {segmentName(leadFormCfg, c.applies_to)} only
-                      </span>
-                    )}
-                  </td>
-                  <td style={td}>{TYPE_LABELS[c.field_type] ?? c.field_type}</td>
-                  <td style={td}>{c.required ? '✓' : ''}</td>
-                  <td style={td}>
-                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: '#f59e0b15', color: '#f59e0b' }}>Custom</span>
-                  </td>
-                  <td style={td}>
-                    <button onClick={() => startEditCustom(c)} disabled={!!busy[c.id]} style={{ ...btnSmall, marginRight: 6 }}>Edit</button>
-                    <button onClick={() => remove(c)} disabled={!!busy[c.id]} style={{ ...btnSmallDanger, opacity: busy[c.id] ? 0.5 : 1 }}>{busy[c.id] ? '...' : 'Delete'}</button>
-                  </td>
-                </tr>
-                );
-              })}
             </tbody>
           </table>
         )}
@@ -1367,7 +1327,7 @@ export default function CustomFieldsPage() {
             </div>
 
             <div style={{ background: 'var(--s3)', borderRadius: 8, padding: 10, fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
-              Three things about this system field are configurable here: the <strong style={{ color: 'var(--text)' }}>display label</strong> (rename without changing the API contract), whether it's <strong style={{ color: 'var(--text)' }}>required</strong> in forms, and whether the field is <strong style={{ color: 'var(--text)' }}>visible at all</strong>. The underlying database column, field key, and type stay unchanged — existing data is preserved either way.
+              Three things about this system field are configurable here: the <strong style={{ color: 'var(--text)' }}>display label</strong> (rename without changing the API contract), whether it's <strong style={{ color: 'var(--text)' }}>required</strong> in forms, and whether the field is <strong style={{ color: 'var(--text)' }}>visible at all</strong>. The underlying database column, field key, and type stay unchanged — existing data is preserved either way. Its position on the form is set by dragging it (or using the arrows) in the list, and is not affected by this dialog.
             </div>
 
             <div style={{ marginBottom: 12 }}>

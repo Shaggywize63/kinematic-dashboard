@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import SignedImage from '@/components/shared/SignedImage';
 import { toast } from 'sonner';
-import { crmCustomFields, crmLookup, crmProducts, type LookupHit } from '../../lib/crmApi';
+import { crmCustomFields, crmLookup, crmProducts, crmSettings, type LookupHit } from '../../lib/crmApi';
+import { customOrder, extractFieldOverrides, hasFormOrder } from '../../lib/crmFieldOverrides';
 import api from '../../lib/api';
 import { getStoredToken } from '../../lib/auth';
 import { API_BASE_URL } from '../../lib/api';
@@ -64,9 +65,20 @@ interface Props {
   labelOverrides?: Record<string, string>;
 }
 
+// Form order: when the admin has ordered this entity's fields (Settings → Custom Fields), each custom field's outer
+// element gets CSS `order` = its position in the shared list, so it interleaves with the form's built-in fields.
+// null = never reordered: no `order` is set and the layout is unchanged.
+const FieldOrderContext = createContext<Record<string, number> | null>(null);
+const useFieldOrderStyle = (fieldKey: string): React.CSSProperties | undefined => {
+  const m = useContext(FieldOrderContext);
+  return m && fieldKey in m ? { order: m[fieldKey] } : undefined;
+};
+
 export default function CustomFieldsSection({ entity, values, onChange, onFieldsChange, isB2c, excludeKeys, onlyKeys, labelOverrides }: Props) {
   const [fields, setFields] = useState<CustomField[]>([]);
   const [loading, setLoading] = useState(true);
+  // key -> order, only when the admin has ordered this entity (see FieldOrderContext).
+  const [orderMap, setOrderMap] = useState<Record<string, number> | null>(null);
   // Keep the latest callback in a ref so the load effect can stay keyed on
   // [entity] only — an inline arrow passed by the parent won't retrigger the
   // fetch.
@@ -85,9 +97,10 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
       try {
         // Resolve the current user's org role so we can show only the custom
         // fields targeted at their role (plus universal/untagged fields).
-        const [r, meRes] = await Promise.allSettled([
+        const [r, meRes, settingsRes] = await Promise.allSettled([
           crmCustomFields.list(),
           api.get<{ data?: { org_role_id?: string | null } }>('/api/v1/auth/me'),
+          crmSettings.get(),
         ]);
         if (cancel) return;
         const myRoleId = meRes.status === 'fulfilled'
@@ -131,6 +144,11 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
           })
           .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
         setFields(visible);
+        // Interleave with the built-in fields only when the admin has ordered this entity.
+        const overrides = settingsRes.status === 'fulfilled' ? extractFieldOverrides(settingsRes.value.data) : undefined;
+        setOrderMap(hasFormOrder(overrides, entity)
+          ? Object.fromEntries(visible.map((f) => [f.field_key, customOrder(f.position)]))
+          : null);
         onFieldsChangeRef.current?.(visible);
       } catch {
         setFields([]);
@@ -157,7 +175,7 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
   };
 
   return (
-    <>
+    <FieldOrderContext.Provider value={orderMap}>
       {fields.map((f) => {
         // Formula fields are read-only and computed live from the
         // current values map. The computed result isn't persisted from
@@ -177,7 +195,7 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
           />
         );
       })}
-    </>
+    </FieldOrderContext.Provider>
   );
 }
 
@@ -579,6 +597,7 @@ function FileUploader({ field, value, onChange }: { field: CustomField; value: u
 }
 
 function Wrap({ field, children, fullWidth, as: Tag = 'label' }: { field: CustomField; children: React.ReactNode; fullWidth?: boolean; as?: 'label' | 'div' }) {
+  const orderStyle = useFieldOrderStyle(field.field_key);
   return (
     <Tag
       // Stable id so the parent form's required-field validation can
@@ -589,6 +608,7 @@ function Wrap({ field, children, fullWidth, as: Tag = 'label' }: { field: Custom
       // Long-form / file rows span the whole grid row so they aren't
       // squeezed into a 220px column with the other inputs.
       gridColumn: fullWidth ? '1 / -1' : undefined,
+      ...orderStyle,
     }}>
       <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text-dim)', display: 'flex', gap: 4, alignItems: 'center' }}>
         {field.label}
@@ -754,8 +774,9 @@ const LOOKUP_TARGET_LABELS: Record<string, string> = {
  * subtitle so the admin remembers what they configured.
  */
 function FormulaPreview({ field, computed }: { field: CustomField; computed: string }) {
+  const orderStyle = useFieldOrderStyle(field.field_key);
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div style={{ marginBottom: 12, ...orderStyle }}>
       <label style={{ display: 'block', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
         {field.label} <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'var(--s3)', color: 'var(--text-dim)', marginLeft: 4 }}>FORMULA</span>
       </label>

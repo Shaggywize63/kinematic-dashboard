@@ -322,18 +322,18 @@ function NewDealPageInner() {
       )}
       <ClientScopeField value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id })} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        {!fields.isHidden('name') && <Field label={fields.labelFor('name', 'Name')}><input value={form.name} onChange={(e) => { nameTouched.current = true; setForm({ ...form, name: e.target.value }); }} required={fields.requiredFor('name', true)} style={input} /></Field>}
+        {!fields.isHidden('name') && <Field label={fields.labelFor('name', 'Name')} ord={fields.orderStyle('name')}><input value={form.name} onChange={(e) => { nameTouched.current = true; setForm({ ...form, name: e.target.value }); }} required={fields.requiredFor('name', true)} style={input} /></Field>}
 
         {!steelDealer && !spark && (
           <>
-            <Field label="Product (optional)">
+            <Field label="Product (optional)" ord={fields.orderStyle('amount')}>
               <select value={form.product_id} onChange={(e) => onProductChange(e.target.value)} style={input}>
                 <option value="">— None —</option>
                 {products.map((p) => <option key={p.id} value={p.id}>{p.name} (₹{Number(p.price).toFixed(0)}/unit · {p.weight_kg} kg)</option>)}
               </select>
             </Field>
             {selectedProduct && (
-              <Field label="Volume (kg)">
+              <Field label="Volume (kg)" ord={fields.orderStyle('amount')}>
                 <input type="number" step="0.01" value={form.volume_kg} onChange={(e) => onVolumeChange(e.target.value)} placeholder="e.g. 12500" style={input} />
               </Field>
             )}
@@ -341,10 +341,10 @@ function NewDealPageInner() {
         )}
 
         {!fields.isHidden('amount') && (quotationOn && sparkItems.length > 0
-          ? <Field label={fields.labelFor('amount', 'Amount (INR)')}><input type="number" value={sparkItems.reduce((t, i) => t + i.quantity * i.unit_price, 0)} readOnly aria-label="Amount (from product lines)" title="Computed from the product lines" style={{ ...input, opacity: 0.8 }} /></Field>
-          : <Field label={fields.labelFor('amount', 'Amount (INR)')}><input type="number" step="0.01" value={form.amount} onChange={(e) => onAmountChange(e.target.value)} style={input} /></Field>)}
+          ? <Field label={fields.labelFor('amount', 'Amount (INR)')} ord={fields.orderStyle('amount')}><input type="number" value={sparkItems.reduce((t, i) => t + i.quantity * i.unit_price, 0)} readOnly aria-label="Amount (from product lines)" title="Computed from the product lines" style={{ ...input, opacity: 0.8 }} /></Field>
+          : <Field label={fields.labelFor('amount', 'Amount (INR)')} ord={fields.orderStyle('amount')}><input type="number" step="0.01" value={form.amount} onChange={(e) => onAmountChange(e.target.value)} style={input} /></Field>)}
         {!fields.isHidden('pipeline_id') && (
-        <Field label={fields.labelFor('pipeline_id', 'Pipeline')}>
+        <Field label={fields.labelFor('pipeline_id', 'Pipeline')} ord={fields.orderStyle('pipeline_id')}>
           {singlePipeline ? (
             <div style={{ ...input, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
               {currentPipeline?.name || 'Default pipeline'}
@@ -355,15 +355,15 @@ function NewDealPageInner() {
           )}
         </Field>
         )}
-        {!fields.isHidden('stage_id') && <Field label={fields.labelFor('stage_id', 'Stage')}><select value={form.stage_id} onChange={(e) => setForm({ ...form, stage_id: e.target.value })} style={input}>{stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>}
+        {!fields.isHidden('stage_id') && <Field label={fields.labelFor('stage_id', 'Stage')} ord={fields.orderStyle('stage_id')}><select value={form.stage_id} onChange={(e) => setForm({ ...form, stage_id: e.target.value })} style={input}>{stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>}
         {/* Expected close date is required — without it the Forecast
             and Sales-cycle reports show nothing. */}
-        {!fields.isHidden('expected_close_date') && <Field label={fields.labelFor('expected_close_date', 'Expected Close Date') + (fields.requiredFor('expected_close_date', true) ? ' *' : '')}><input type="date" value={form.expected_close_date} onChange={(e) => setForm({ ...form, expected_close_date: e.target.value })} required={fields.requiredFor('expected_close_date', true)} style={input} /></Field>}
+        {!fields.isHidden('expected_close_date') && <Field label={fields.labelFor('expected_close_date', 'Expected Close Date') + (fields.requiredFor('expected_close_date', true) ? ' *' : '')} ord={fields.orderStyle('expected_close_date')}><input type="date" value={form.expected_close_date} onChange={(e) => setForm({ ...form, expected_close_date: e.target.value })} required={fields.requiredFor('expected_close_date', true)} style={input} /></Field>}
         {/* Optional source lead — search by name / phone and pick one to
             stamp lead_id on the new deal. Lets a rep create a SECOND deal
             for a lead whose conversion already produced one. */}
         {!fields.isHidden('lead_id') && (
-        <Field label={fields.labelFor('lead_id', 'Source Lead (optional)')}>
+        <Field label={fields.labelFor('lead_id', 'Source Lead (optional)')} ord={fields.orderStyle('lead_id')}>
           {selectedLead ? (
             <div style={{ ...input, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -415,19 +415,19 @@ function NewDealPageInner() {
         </Field>
         )}
         {spark && convertPending && (
-          <Field label="Customer (account)">
+          <Field label="Customer (account)" ord={fields.orderStyle('account_id')}>
             <div data-testid="convert-account-note" style={{ ...input, color: 'var(--text-dim)' }}>Created from the lead when you submit</div>
           </Field>
         )}
         {spark && !convertPending && !fields.isHidden('account_id') && (
-          <Field label={fields.labelFor('account_id', 'Customer (account)') + (fields.requiredFor('account_id', false) ? ' *' : '')}>
+          <Field label={fields.labelFor('account_id', 'Customer (account)') + (fields.requiredFor('account_id', false) ? ' *' : '')} ord={fields.orderStyle('account_id')}>
             <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} />
           </Field>
         )}
         {showLinks && !spark && (
           <>
             {!fields.isHidden('account_id') && (
-            <Field label={fields.labelFor('account_id', 'Account')}>
+            <Field label={fields.labelFor('account_id', 'Account')} ord={fields.orderStyle('account_id')}>
               <select value={form.account_id} onChange={(e) => setForm({ ...form, account_id: e.target.value, primary_contact_id: '' })} style={input}>
                 <option value="">— No account —</option>
                 {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -435,7 +435,7 @@ function NewDealPageInner() {
             </Field>
             )}
             {!fields.isHidden('primary_contact_id') && (
-            <Field label={fields.labelFor('primary_contact_id', 'Primary Contact')}>
+            <Field label={fields.labelFor('primary_contact_id', 'Primary Contact')} ord={fields.orderStyle('primary_contact_id')}>
               <select value={form.primary_contact_id} onChange={(e) => setForm({ ...form, primary_contact_id: e.target.value })} style={input} disabled={!form.account_id}>
                 <option value="">{form.account_id ? '— No primary contact —' : 'Pick account first'}</option>
                 {contacts.map((c) => <option key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(' ') || c.email || 'Unnamed'}</option>)}
@@ -519,9 +519,9 @@ function convertDealName(l: Lead): string {
   return company || person || l.email || '';
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, ord }: { label: string; children: React.ReactNode; ord?: React.CSSProperties }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...ord }}>
       <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
       {children}
     </label>

@@ -66,54 +66,74 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
     } finally { setBusy(false); }
   };
 
+  // The admin has put this entity's fields in a custom order (Settings -> Custom Fields): one shared grid, CSS order.
+  const ordered = fields.orderStyle('name') !== undefined;
+  const outcomeBlock = (
+    <>
+      <span style={lbl}>{fields.labelFor('outcome', 'Outcome')}<span style={{ color: '#ef4444', marginLeft: 3 }}>*</span></span>
+      <textarea
+        aria-label="Outcome"
+        aria-invalid={outcomeError ? true : undefined}
+        rows={3}
+        maxLength={500}
+        value={form.outcome}
+        onChange={(e) => { setForm({ ...form, outcome: e.target.value }); setOutcomeError(null); }}
+        style={{ ...input, width: '100%', marginTop: 4, resize: 'vertical', fontFamily: 'inherit', borderColor: outcomeError ? '#ef4444' : 'var(--border)' }}
+      />
+      {outcomeError && <div role="alert" style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{outcomeError}</div>}
+    </>
+  );
+  const descriptionBlock = (
+    <>
+      <span style={lbl}>Description</span>
+      <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={4} style={{ ...input, width: '100%', marginTop: 4, resize: 'vertical', fontFamily: 'inherit' }} />
+    </>
+  );
+
   return (
     <Modal open={open} onClose={onClose} title="Edit Account"
       footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <Grid>
-        {!fields.isHidden('name') && <div data-field="name" style={{ display: 'contents' }}><Field label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} /></div>}
-        {!fields.isHidden('industry') && <IndustryField label={fields.labelFor('industry', 'Industry')} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />}
-        {!fields.isHidden('website') && <div data-field="website" style={{ display: 'contents' }}><Field label={fields.labelFor('website', 'Website')} value={form.website} onChange={(v) => setForm({ ...form, website: v })} /></div>}
-        {!fields.isHidden('phone') && <div data-field="phone" style={{ display: 'contents' }}><Field label={fields.labelFor('phone', 'Phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} /></div>}
-        {!fields.isHidden('annual_revenue') && <Field label={fields.labelFor('annual_revenue', 'Annual Revenue (₹)')} type="number" value={form.annual_revenue} onChange={(v) => setForm({ ...form, annual_revenue: v })} />}
-        {!fields.isHidden('employees') && <Field label={fields.labelFor('employees', 'Employees')} type="number" value={form.employees} onChange={(v) => setForm({ ...form, employees: v })} />}
+        {!fields.isHidden('name') && <div data-field="name" style={{ display: 'contents' }}><Field label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} ord={fields.orderStyle('name')} /></div>}
+        {!fields.isHidden('industry') && <IndustryField label={fields.labelFor('industry', 'Industry')} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} ord={fields.orderStyle('industry')} />}
+        {!fields.isHidden('website') && <div data-field="website" style={{ display: 'contents' }}><Field label={fields.labelFor('website', 'Website')} value={form.website} onChange={(v) => setForm({ ...form, website: v })} ord={fields.orderStyle('website')} /></div>}
+        {!fields.isHidden('phone') && <div data-field="phone" style={{ display: 'contents' }}><Field label={fields.labelFor('phone', 'Phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} ord={fields.orderStyle('phone')} /></div>}
+        {!fields.isHidden('annual_revenue') && <Field label={fields.labelFor('annual_revenue', 'Annual Revenue (₹)')} type="number" value={form.annual_revenue} onChange={(v) => setForm({ ...form, annual_revenue: v })} ord={fields.orderStyle('annual_revenue')} />}
+        {!fields.isHidden('employees') && <Field label={fields.labelFor('employees', 'Employees')} type="number" value={form.employees} onChange={(v) => setForm({ ...form, employees: v })} ord={fields.orderStyle('employees')} />}
         {/* Owner — admins / managers can reassign the account after it was assigned. */}
         {!fields.isHidden('owner_id') && ownerPicker.canChange && ownerPicker.users.length > 0 && (
-          <label data-field="owner_id" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+          <label data-field="owner_id" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, ...fields.orderStyle('owner_id') }}>
             <span style={lbl}>{fields.labelFor('owner_id', 'Owner')}</span>
             <UserSearchSelect options={ownerPicker.users} value={form.owner_id} onChange={(id) => setForm({ ...form, owner_id: id })} placeholder="Search team member…" emptyLabel="Unassigned" />
           </label>
         )}
-      </Grid>
-      {spark && (
-        <div style={{ marginTop: 14 }}>
-          <span style={lbl}>{fields.labelFor('outcome', 'Outcome')}<span style={{ color: '#ef4444', marginLeft: 3 }}>*</span></span>
-          <textarea
-            aria-label="Outcome"
-            aria-invalid={outcomeError ? true : undefined}
-            rows={3}
-            maxLength={500}
-            value={form.outcome}
-            onChange={(e) => { setForm({ ...form, outcome: e.target.value }); setOutcomeError(null); }}
-            style={{ ...input, width: '100%', marginTop: 4, resize: 'vertical', fontFamily: 'inherit', borderColor: outcomeError ? '#ef4444' : 'var(--border)' }}
-          />
-          {outcomeError && <div role="alert" style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{outcomeError}</div>}
-        </div>
-      )}
-      <div style={{ marginTop: 14 }}>
-        <span style={lbl}>Description</span>
-        <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={4} style={{ ...input, width: '100%', marginTop: 4, resize: 'vertical', fontFamily: 'inherit' }} />
-      </div>
-      {/* Admin-defined custom fields render type-aware — same pattern as
-          LeadEditModal. Backend PATCH merges custom_fields server-side. */}
-      <div style={{ marginTop: 14 }}>
-        <Grid>
+        {/* Ordered form: Outcome, Description and the custom fields join this grid so the admin's order applies to
+            all of them (CSS order). Otherwise they keep their separate blocks below. */}
+        {ordered && spark && <div style={{ gridColumn: '1 / -1', ...fields.orderStyle('outcome') }}>{outcomeBlock}</div>}
+        {ordered && <div style={{ gridColumn: '1 / -1', ...fields.orderStyle('description') }}>{descriptionBlock}</div>}
+        {ordered && (
           <CustomFieldsSection
             entity="account"
             values={customFields}
             onChange={setCustomFields}
           />
-        </Grid>
-      </div>
+        )}
+      </Grid>
+      {!ordered && spark && <div style={{ marginTop: 14 }}>{outcomeBlock}</div>}
+      {!ordered && <div style={{ marginTop: 14 }}>{descriptionBlock}</div>}
+      {/* Admin-defined custom fields render type-aware — same pattern as
+          LeadEditModal. Backend PATCH merges custom_fields server-side. */}
+      {!ordered && (
+        <div style={{ marginTop: 14 }}>
+          <Grid>
+            <CustomFieldsSection
+              entity="account"
+              values={customFields}
+              onChange={setCustomFields}
+            />
+          </Grid>
+        </div>
+      )}
     </Modal>
   );
 }
@@ -128,11 +148,11 @@ function seedCustomFields(a: Account): Record<string, unknown> {
 
 function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', website: a.website || '', phone: a.phone || '', annual_revenue: a.annual_revenue ? String(a.annual_revenue) : '', employees: a.employees ? String(a.employees) : '', description: a.description || '', outcome: a.outcome || '', owner_id: a.owner_id || '' }; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
-function Field(p: { label: string; value: string; onChange: (v: string) => void; type?: string }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input} /></label>; }
-function IndustryField(p: { value: string; onChange: (v: string) => void; label?: string }) {
+function Field(p: { label: string; value: string; onChange: (v: string) => void; type?: string; ord?: React.CSSProperties }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...p.ord }}><span style={lbl}>{p.label}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input} /></label>; }
+function IndustryField(p: { value: string; onChange: (v: string) => void; label?: string; ord?: React.CSSProperties }) {
   const hasLegacy = p.value && !CRM_INDUSTRIES.includes(p.value);
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...p.ord }}>
       <span style={lbl}>{p.label ?? 'Industry'}</span>
       <select value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input}>
         <option value="">Select industry…</option>

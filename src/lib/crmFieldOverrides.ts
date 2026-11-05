@@ -25,7 +25,14 @@ export type FieldOverride = {
   label?: string;
   required?: boolean;
   hidden?: boolean;
+  /** Legacy built-in-only sort key (settings table). Forms never read it; see `order`. */
   position?: number;
+  /**
+   * Place of this field in the entity's ONE form order, shared with the custom fields (their `position`).
+   * Written by Settings → Custom Fields whenever an admin reorders; every built-in and custom field of the entity
+   * is renumbered together, so the numbers are comparable. Only universal keys carry it.
+   */
+  order?: number;
 };
 
 export type FieldOverrides = Record<string, FieldOverride>;
@@ -43,7 +50,40 @@ export function extractFieldOverrides(settingsData: unknown): FieldOverrides {
   return fo && typeof fo === 'object' ? fo : {};
 }
 
+/** Order given to a form field the settings list does not know about: after everything the admin placed. */
+export const UNORDERED_LAST = 100000;
+
+/**
+ * Has the admin put this entity's fields in a custom order? True once any built-in field of the entity carries a
+ * numeric `order`. Until then forms render exactly as before (built-ins in their fixed layout, custom fields after),
+ * so a tenant that never reorders sees no change.
+ */
+export function hasFormOrder(overrides: FieldOverrides | undefined, entity: string): boolean {
+  if (!overrides) return false;
+  const prefix = `${entity}.`;
+  for (const k of Object.keys(overrides)) {
+    if (k.startsWith(prefix) && !k.includes('@') && typeof overrides[k]?.order === 'number') return true;
+  }
+  return false;
+}
+
+/** Order of one built-in field: its saved number, or the end of the list when it was never placed. */
+export function builtinOrder(overrides: FieldOverrides | undefined, entity: string, key: string): number {
+  const o = overrides?.[fieldOverrideKey(entity, key)]?.order;
+  return typeof o === 'number' ? o : UNORDERED_LAST;
+}
+
+/**
+ * Where a custom field sits in the same list. A custom field's `position` was numbered together with the built-ins
+ * only if the admin has reordered since it was created, hence the entity-level check by the caller.
+ */
+export function customOrder(position: number | null | undefined): number {
+  return typeof position === 'number' ? position : UNORDERED_LAST;
+}
+
 export type FieldHelpers = {
+  /** CSS for a built-in field's outer element: `{ order }` once the admin has ordered this entity, else undefined. */
+  orderStyle: (key: string) => { order: number } | undefined;
   isHidden: (key: string) => boolean;
   labelFor: (key: string, defaultLabel: string) => string;
   requiredFor: (key: string, defaultRequired?: boolean) => boolean;
@@ -61,6 +101,7 @@ export function buildFieldHelpers(
   scope?: FieldScope | null,
 ): FieldHelpers {
   const map = overrides ?? {};
+  const ordered = hasFormOrder(overrides, entity);
   const lookup = (key: string): FieldOverride | undefined => {
     const uni = map[fieldOverrideKey(entity, key)];
     if (!scope) return uni;
@@ -72,6 +113,7 @@ export function buildFieldHelpers(
     return { ...(uni ?? {}), ...(scoped ?? {}) };
   };
   return {
+    orderStyle: (key) => (ordered ? { order: builtinOrder(overrides, entity, key) } : undefined),
     isHidden: (key) => !!lookup(key)?.hidden,
     labelFor: (key, defaultLabel) => lookup(key)?.label ?? defaultLabel,
     requiredFor: (key, defaultRequired = false) => lookup(key)?.required ?? defaultRequired,

@@ -63,7 +63,7 @@ export default function NewAccountPage() {
     const effLabel = fields.labelFor(k, label);
     const effRequired = fields.requiredFor(k, false);
     return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle(k) }}>
       <span style={labelStyle}>{effLabel}{effRequired && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}</span>
       <input type={type} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} required={effRequired} style={inputStyle} />
     </label>
@@ -71,7 +71,7 @@ export default function NewAccountPage() {
   };
 
   const industryFld = fields.isHidden('industry') ? null : (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle('industry') }}>
       <span style={labelStyle}>{fields.labelFor('industry', 'Industry')}</span>
       <select value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} style={inputStyle}>
         <option value="">Select industry…</option>
@@ -86,7 +86,7 @@ export default function NewAccountPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         {fld('name', 'Name')}{industryFld}{fld('website', 'Website')}{fld('phone', 'Phone')}{fld('annual_revenue', 'Annual Revenue', 'number')}{fld('employees', 'Employees', 'number')}
         {spark && (
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: '1 / -1' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: '1 / -1', ...fields.orderStyle('outcome') }}>
             <span style={labelStyle}>{fields.labelFor('outcome', 'Outcome')}<span style={{ color: '#ef4444', marginLeft: 3 }}>*</span></span>
             <textarea
               aria-label="Outcome"
