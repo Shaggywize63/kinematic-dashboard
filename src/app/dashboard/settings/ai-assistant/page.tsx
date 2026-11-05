@@ -8,8 +8,12 @@
  * ChatGPT to their CRM.
  */
 import { useEffect, useState, useCallback } from 'react';
-import api from '../../../../lib/api';
+import api, { API_BASE_URL } from '../../../../lib/api';
 import { getStoredUser } from '../../../../lib/auth';
+
+// The MCP endpoint users paste into Claude / ChatGPT, derived from the API base
+// so it's correct per environment (prod → https://api.kinematicapp.com/mcp).
+const MCP_URL = `${(API_BASE_URL || '').replace(/\/+$/, '')}/mcp`;
 
 type ConnectorOrg = {
   org_id: string;
@@ -47,6 +51,15 @@ export default function AiAssistantAccessPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({ org_id: '', label: '', project_key: 'default', enabled: true });
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyUrl = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(MCP_URL);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch { /* clipboard blocked — the URL is shown for manual copy */ }
+  }, []);
 
   const user = typeof window !== 'undefined' ? getStoredUser() : null;
   const isSuperAdmin = (user?.role || '').toLowerCase() === 'super_admin';
@@ -115,6 +128,28 @@ export default function AiAssistantAccessPage() {
         <button onClick={() => setShowAdd((v) => !v)} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
           {showAdd ? 'Close' : '+ Add organisation'}
         </button>
+      </div>
+
+      <div style={{ ...card, marginBottom: 16 }}>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 4 }}>How to connect Claude or ChatGPT</div>
+        <div style={{ fontSize: 12.5, color: C.gray, marginBottom: 14, maxWidth: 640, lineHeight: 1.6 }}>
+          Add Kinematic as a <b style={{ color: C.white }}>custom connector</b> in the assistant, using the URL below. It must be this exact address — the <code>api.</code> host with the <code>/mcp</code> path. The marketing site or dashboard URL will not work.
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+          <code style={{ flex: '1 1 320px', minWidth: 0, background: 'var(--s4)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'monospace', color: C.white, overflowX: 'auto', whiteSpace: 'nowrap' }}>{MCP_URL}</code>
+          <button onClick={copyUrl} style={{ background: copied ? C.green : C.s3, border: `1px solid ${copied ? C.green : C.border}`, color: copied ? '#04150d' : C.white, padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', flex: '0 0 auto', transition: 'background .15s' }}>
+            {copied ? 'Copied ✓' : 'Copy URL'}
+          </button>
+        </div>
+        <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.gray, lineHeight: 1.7 }}>
+          <li>In Claude: <b style={{ color: C.white }}>Settings → Connectors → Add custom connector</b>. In ChatGPT: a custom / remote MCP connector.</li>
+          <li>Paste the URL above as the server address and continue.</li>
+          <li>A <b style={{ color: C.white }}>Kinematic</b> sign-in page opens (check the address bar shows <code>api.kinematicapp.com</code>). Sign in with your Kinematic email and password, then <b style={{ color: C.white }}>Allow access</b>.</li>
+          <li>The assistant acts <b style={{ color: C.white }}>as you</b> — scoped to your role and tenant; read-only accounts can view but not change anything.</li>
+        </ol>
+        <div style={{ fontSize: 12, color: C.grayd, marginTop: 12, lineHeight: 1.6 }}>
+          The organisation must be <b style={{ color: C.gray }}>enabled below</b> for its users to connect. If sign-in says access isn&apos;t enabled, toggle the org on in the list.
+        </div>
       </div>
 
       {showAdd && (
