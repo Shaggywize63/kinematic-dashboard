@@ -8,6 +8,7 @@ import { formatINR } from '../../../lib/formatCurrency';
 import { inferGrade } from '../leads/ScoreMeter';
 import { T, eyebrowStyle } from '../../ui';
 import ScoreRing, { GRADE_COLORS } from './ScoreRing';
+import { prettifySlug } from '../../../lib/activityTypes';
 import { activityState, dueInfo, fmtIST, isActionable, relTime, TYPE_LABEL, type DetailActivity } from './format';
 import type { LeadTab, LifecycleLead } from './types';
 
@@ -106,7 +107,7 @@ export default function KpiStrip({
       <Tile key="next" label="Next follow-up" onClick={() => onOpenTab('timeline')}>
         <div style={{ fontSize: 17, fontWeight: 700, fontFamily: T.heading, letterSpacing: '-0.01em', color: due.overdue ? T.red : T.text }}>{due.label}</div>
         <div style={{ fontSize: 12, color: T.dim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={next.subject || undefined}>
-          {TYPE_LABEL[next.type] || next.type}{next.subject ? ` · ${next.subject}` : ''}
+          {TYPE_LABEL[next.type] || prettifySlug(next.type)}{next.subject ? ` · ${next.subject}` : ''}
         </div>
       </Tile>
     ) : (

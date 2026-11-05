@@ -12,13 +12,14 @@ import { ActivityFields } from '../ActivityTimeline';
 import { SparkActivityMeta } from '../spark/SparkActivityFields';
 import { Button, T } from '../../ui';
 import RowMenu, { type RowMenuItem } from './RowMenu';
-import { activityCampaign, activityState, activityWhen, dueInfo, fmtIST, relTime, TYPE_LABEL, type DetailActivity } from './format';
+import { useActivityTypes } from '../../../lib/activityTypes';
+import { activityCampaign, activityState, activityWhen, dueInfo, fmtIST, relTime, type DetailActivity } from './format';
 
 const TYPE_TINT: Record<string, string> = {
   call: 'var(--ok)', email: 'var(--info)', meeting: '#7B61FF', task: 'var(--warn)', note: 'var(--dim)', sms: 'var(--info)', whatsapp: '#25D366', insight: 'var(--red)',
 };
 
-function TypeIcon({ type, size = 15 }: { type: string; size?: number }) {
+function TypeIcon({ type, size = 15, customIcon }: { type: string; size?: number; customIcon?: string | null }) {
   const p = { size, strokeWidth: 1.9, 'aria-hidden': true } as const;
   switch (type) {
     case 'call': return <Phone {...p} />;
@@ -28,20 +29,24 @@ function TypeIcon({ type, size = 15 }: { type: string; size?: number }) {
     case 'sms': return <MessageSquare {...p} />;
     case 'whatsapp': return <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d={WA_PATH} /></svg>;
     case 'insight': return <AudioLines {...p} />;
-    default: return <StickyNote {...p} />;
+    case 'note': return <StickyNote {...p} />;
+    // A custom type (Settings -> Activity Types) shows its own emoji.
+    default: return customIcon ? <span style={{ fontSize: size, lineHeight: 1 }}>{customIcon}</span> : <StickyNote {...p} />;
   }
 }
 
 /** One timeline entry: a type bubble on the left, a connector down to the next entry, content on the right. */
 export function FeedFrame({ type, last, dim, avatar, children }: { type: string; last: boolean; dim?: boolean; avatar?: ReactNode; children: ReactNode }) {
-  const tint = TYPE_TINT[type] || T.dim;
+  const types = useActivityTypes();
+  const meta = types.meta(type);
+  const tint = TYPE_TINT[type] || meta?.color || T.dim;
   return (
     // Flex, not grid: the app's phone stylesheet collapses any inline `grid-template-columns` to one column.
     <li style={{ display: 'flex', alignItems: 'flex-start', gap: 12, position: 'relative', paddingBottom: last ? 0 : 16, listStyle: 'none' }}>
       {!last && <span aria-hidden style={{ position: 'absolute', left: 14, top: 32, bottom: 0, width: 2, borderRadius: 2, background: T.border }} />}
       {avatar ?? (
         <span aria-hidden style={{ width: 30, height: 30, borderRadius: 999, background: `color-mix(in srgb, ${tint} 14%, var(--card))`, color: tint, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: dim ? 0.55 : 1, position: 'relative', zIndex: 1 }}>
-          <TypeIcon type={type} />
+          <TypeIcon type={type} customIcon={meta?.icon} />
         </span>
       )}
       <div style={{ minWidth: 0, flex: 1 }}>{children}</div>
@@ -175,6 +180,7 @@ export function ActivityRow({
   /** Rendered in the "Up next" group: the due date leads, not the history timestamp. */
   upcoming?: boolean;
 }) {
+  const typeName = useActivityTypes().labelFor(a.type);
   const state = activityState(a);
   const badge = STATE_BADGE[state];
   const actionable = state === 'open' || state === 'in_progress';
@@ -196,13 +202,13 @@ export function ActivityRow({
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minHeight: 30 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13.5, fontWeight: 650, color: state === 'cancelled' ? T.mute : T.text, overflowWrap: 'anywhere', textDecoration: state === 'cancelled' ? 'line-through' : 'none' }}>{a.subject || TYPE_LABEL[a.type] || a.type}</span>
+            <span style={{ fontSize: 13.5, fontWeight: 650, color: state === 'cancelled' ? T.mute : T.text, overflowWrap: 'anywhere', textDecoration: state === 'cancelled' ? 'line-through' : 'none' }}>{a.subject || typeName}</span>
             {/* "Open" is the default — only the states that say something get a badge. */}
             {state !== 'open' && <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 999, color: badge.fg, background: badge.bg }}>{badge.label}</span>}
             {due && <span style={{ fontSize: 12, fontWeight: 650, color: accent ?? T.dim }}>{due.label}</span>}
           </div>
           <div style={{ ...metaStyle, marginTop: 1 }} title={fmtIST(when)}>
-            {TYPE_LABEL[a.type] || a.type}
+            {typeName}
             {a.owner_name ? ` · ${a.owner_name}` : ''}
             {!upcoming || !due ? ` · ${actionable && a.due_at ? 'due ' : ''}${relTime(when)}` : ` · due ${fmtIST(a.due_at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`}
           </div>

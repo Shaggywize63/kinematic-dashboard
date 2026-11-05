@@ -9,8 +9,10 @@ import SectionCard from './SectionCard';
 import { useActivityActions } from './useActivityActions';
 import { activityWhen, dayKey, dayLabel, isActionable, type DetailActivity } from './format';
 
-type Filter = 'all' | 'notes' | 'calls' | 'meetings' | 'tasks' | 'messages';
-const FILTER_LABEL: Record<Filter, string> = { all: 'All', notes: 'Notes', calls: 'Calls', meetings: 'Meetings', tasks: 'Tasks', messages: 'Messages' };
+type Filter = 'all' | 'notes' | 'calls' | 'meetings' | 'tasks' | 'messages' | 'other';
+const FILTER_LABEL: Record<Filter, string> = { all: 'All', notes: 'Notes', calls: 'Calls', meetings: 'Meetings', tasks: 'Tasks', messages: 'Messages', other: 'Other' };
+// Custom activity types (Settings -> Activity Types) fall in "Other" so they stay filterable.
+const KNOWN_TYPES = new Set(['note', 'call', 'meeting', 'task', 'email', 'sms', 'whatsapp']);
 const PAGE = 25;
 
 type HistoryItem =
@@ -29,6 +31,7 @@ function matches(f: Filter, it: HistoryItem | { kind: 'activity'; activity: Deta
     case 'meetings': return t === 'meeting';
     case 'tasks': return t === 'task';
     case 'messages': return t === 'email' || t === 'sms' || t === 'whatsapp';
+    case 'other': return !!t && !KNOWN_TYPES.has(t);
     default: return true;
   }
 }
@@ -68,10 +71,10 @@ export default function TimelineTab({
   }, [updates, activities, conversations]);
 
   const counts = useMemo(() => {
-    const c: Record<Filter, number> = { all: 0, notes: 0, calls: 0, meetings: 0, tasks: 0, messages: 0 };
+    const c: Record<Filter, number> = { all: 0, notes: 0, calls: 0, meetings: 0, tasks: 0, messages: 0, other: 0 };
     const bump = (it: HistoryItem | { kind: 'activity'; activity: DetailActivity }) => {
       c.all += 1;
-      (['notes', 'calls', 'meetings', 'tasks', 'messages'] as const).forEach((f) => { if (matches(f, it)) c[f] += 1; });
+      (['notes', 'calls', 'meetings', 'tasks', 'messages', 'other'] as const).forEach((f) => { if (matches(f, it)) c[f] += 1; });
     };
     upcomingAll.forEach((a) => bump({ kind: 'activity', activity: a }));
     historyAll.forEach(bump);
