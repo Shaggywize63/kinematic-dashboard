@@ -23,6 +23,7 @@
  *     accept text (e.g. native <option> tags inside <select>).
  */
 import WhatsAppLogo from '../../icons/WhatsAppLogo';
+import { useActivityTypes } from '../../../lib/activityTypes';
 
 const EMOJI_BY_TYPE: Record<string, string> = {
   call:    '📞',
@@ -81,8 +82,8 @@ export function CalendarDateIcon({ date, size = 18, completed }: CalendarDatePro
 }
 
 /** Text-only emoji fallback. Use inside native <option> elements. */
-export function activityTypeEmoji(type: string): string {
-  return EMOJI_BY_TYPE[type] || '📌';
+export function activityTypeEmoji(type: string, customIcon?: string | null): string {
+  return EMOJI_BY_TYPE[type] || customIcon || '📌';
 }
 
 /** Render the right visual for an activity type. Use this anywhere except
@@ -97,11 +98,13 @@ export function ActivityTypeIcon({
   date?: string | Date | null;
   completed?: boolean;
 }) {
+  // A custom type (Settings -> Activity Types) carries its own emoji; built-ins keep the stock glyphs.
+  const { meta } = useActivityTypes();
   if (type === 'whatsapp') return <WhatsAppLogo size={size} />;
   if (date && DATE_TYPES.has(type)) {
     return <CalendarDateIcon date={date} size={size} completed={completed} />;
   }
-  return <span style={{ fontSize: size, lineHeight: 1 }}>{activityTypeEmoji(type)}</span>;
+  return <span style={{ fontSize: size, lineHeight: 1 }}>{activityTypeEmoji(type, meta(type)?.icon)}</span>;
 }
 
 export default ActivityTypeIcon;

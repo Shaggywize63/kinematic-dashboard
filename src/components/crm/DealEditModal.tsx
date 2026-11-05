@@ -13,6 +13,9 @@ import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '.
 import { useAuth } from '../../hooks/useAuth';
 import { isHorizonOrg } from '../../lib/crmFeatureGates';
 import { isTataTiscanActive, isBmwActive } from '../../lib/clientFeatures';
+import { isB2bClientActive } from '../../lib/b2bClient';
+import DealSections, { useAssignableUsers, useDealSections } from './spark/DealSections';
+import { buildDealSectionPayload, seedDealSectionValues, validateDealSections, type DealSectionErrors } from '../../lib/sparkDealSections';
 
 interface Props { deal: Deal; stages: Stage[]; open: boolean; onClose: () => void; onSaved: (updated: Deal) => void; }
 
@@ -38,6 +41,18 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
   // the backend PATCH merges custom_fields server-side so this is safe.
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(deal));
   const [busy, setBusy] = useState(false);
+  // Spark & Ray: quotation / pricing / product trial / approvals sections (admin-configurable under Settings ->
+  // Deal sections). Every other tenant's modal is unchanged.
+  const spark = isB2bClientActive();
+  const { sections } = useDealSections(spark && open);
+  const [sectionValues, setSectionValues] = useState(() => seedDealSectionValues(deal));
+  const [sectionErrors, setSectionErrors] = useState<DealSectionErrors>({});
+  const knownPeople = useMemo(() => {
+    const d = deal as unknown as Record<string, string | null | undefined>;
+    return (['technical_approval_by', 'prepared_by', 'checked_by', 'supervisor_id'] as const)
+      .filter((k) => d[k]).map((k) => ({ id: String(d[k]), name: String(d[`${k}_name`] || 'User') }));
+  }, [deal]);
+  const sectionUsers = useAssignableUsers(spark && open, knownPeople);
   // Built-in field overrides (hide / relabel / require) for deal columns,
   // configured under Settings → Custom Fields. Deals aren't B2B/B2C-scoped.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
@@ -71,6 +86,8 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
     if (open) {
       setForm(seed(deal));
       setCustomFields(seedCustomFields(deal));
+      setSectionValues(seedDealSectionValues(deal));
+      setSectionErrors({});
     }
   }, [open, deal]);
 
@@ -135,6 +152,11 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
 
   const submit = async () => {
     if (fields.requiredFor('name', true) && !form.name.trim()) { toast.error('Deal name is required'); return; }
+    if (spark) {
+      const errs = validateDealSections(sectionValues, sections);
+      setSectionErrors(errs);
+      if (Object.keys(errs).length) { toast.error(Object.values(errs)[0] as string); return; }
+    }
     setBusy(true);
     try {
       // Follow-up → deal.custom_fields { next_action_type, next_action_at }.
@@ -165,6 +187,8 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
         // clearing a follow-up still sends the nulls. The products basket
         // (product_lines) rides in this same custom_fields map.
         custom_fields: { ...customFields, ...followUp },
+        // Spark: only the enabled sections' fields (blank = cleared).
+        ...(spark ? buildDealSectionPayload(sectionValues, sections, 'patch') : {}),
         // Only when an admin / manager actually picked someone else.
         ...ownerPatch(ownerPicker.canChange, deal.owner_id, form.owner_id),
       } as unknown as Partial<Deal>);
@@ -250,6 +274,19 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
           />
         </Grid>
       </div>
+
+      {spark && (
+        <div style={{ marginTop: 14 }}>
+          <DealSections
+            sections={sections}
+            values={sectionValues}
+            onChange={(patch) => { setSectionValues((v) => ({ ...v, ...patch })); setSectionErrors({}); }}
+            users={sectionUsers}
+            errors={sectionErrors}
+            fields={fields}
+          />
+        </div>
+      )}
 
       {/* Steel-dealer multi-product basket — parity with the create form.
           Writes product_lines (+ the legacy single-field mirrors + basket

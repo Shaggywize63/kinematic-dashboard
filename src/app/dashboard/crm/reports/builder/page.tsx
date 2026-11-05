@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmLeads, crmContacts, crmAccounts, crmDeals, crmActivities, crmCustomFields } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
+import { useActivityTypes } from '../../../../../lib/activityTypes';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 
 type Entity = 'leads' | 'contacts' | 'accounts' | 'deals' | 'activities';
@@ -165,9 +166,11 @@ export default function ReportBuilderPage() {
   // appending an empty list on every render.
   const [customDefsByEntity, setCustomDefsByEntity] = useState<Partial<Record<Entity, FieldDef[]>>>({});
 
+  // The Activities "Type" filter lists the built-ins plus the admin's custom types.
+  const activityTypeSlugs = useActivityTypes().all.map((t) => t.slug).join('|');
   const fields = useMemo(
-    () => [...ENTITY_FIELDS[entity], ...(customDefsByEntity[entity] ?? [])],
-    [entity, customDefsByEntity],
+    () => [...ENTITY_FIELDS[entity].map((f) => (entity === 'activities' && f.key === 'type' ? { ...f, enumOptions: activityTypeSlugs.split('|').filter(Boolean) } : f)), ...(customDefsByEntity[entity] ?? [])],
+    [entity, customDefsByEntity, activityTypeSlugs],
   );
 
   // Fetch the entity's custom field definitions (lazy, cached). Maps each

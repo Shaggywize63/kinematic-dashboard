@@ -10,6 +10,7 @@ import { useRecordOwnerPicker } from '../../hooks/useRecordOwnerPicker';
 import { ownerPatch } from '../../lib/recordOwnerAccess';
 import CustomFieldsSection from './CustomFieldsSection';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
+import { isB2bClientActive } from '../../lib/b2bClient';
 
 interface Props {
   account: Account;
@@ -25,13 +26,16 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
   // the whole edited map back is safe.
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(account));
   const [busy, setBusy] = useState(false);
+  // Spark & Ray: the REQUIRED Outcome (it can never be blank on an update either).
+  const spark = isB2bClientActive();
+  const [outcomeError, setOutcomeError] = useState<string | null>(null);
   // Owner reassignment: offered to the roles the backend lets assign owners (admins / managers).
   const ownerPicker = useRecordOwnerPicker(open);
   // Built-in field overrides (hide / relabel / require) for account columns.
   // Accounts aren't B2B/B2C-scoped.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
   const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'account'), [fieldOverrides]);
-  useEffect(() => { if (open) { setForm(seed(account)); setCustomFields(seedCustomFields(account)); } }, [open, account]);
+  useEffect(() => { if (open) { setForm(seed(account)); setCustomFields(seedCustomFields(account)); setOutcomeError(null); } }, [open, account]);
   useEffect(() => {
     if (!open) return;
     crmSettings.get()
@@ -41,6 +45,7 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
 
   const submit = async () => {
     if (fields.requiredFor('name', true) && !form.name.trim()) { toast.error('Name is required'); return; }
+    if (spark && !form.outcome.trim()) { setOutcomeError('Outcome is required'); return; }
     setBusy(true);
     try {
       const r = await crmAccounts.update(account.id, {
@@ -49,12 +54,16 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
         annual_revenue: form.annual_revenue ? Number(form.annual_revenue) : null,
         employees: form.employees ? Number(form.employees) : null,
         description: form.description || null,
+        ...(spark ? { outcome: form.outcome.trim() } : {}),
         custom_fields: customFields,
         // Only when an admin / manager actually picked someone else.
         ...ownerPatch(ownerPicker.canChange, account.owner_id, form.owner_id),
       });
       toast.success('Account updated'); onSaved(r.data); onClose();
-    } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
+    } catch (e: any) {
+      const msg = e?.message || 'Update failed';
+      if (spark && /outcome/i.test(msg)) setOutcomeError(msg); else toast.error(msg);
+    } finally { setBusy(false); }
   };
 
   return (
@@ -75,6 +84,21 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
           </label>
         )}
       </Grid>
+      {spark && (
+        <div style={{ marginTop: 14 }}>
+          <span style={lbl}>{fields.labelFor('outcome', 'Outcome')}<span style={{ color: '#ef4444', marginLeft: 3 }}>*</span></span>
+          <textarea
+            aria-label="Outcome"
+            aria-invalid={outcomeError ? true : undefined}
+            rows={3}
+            maxLength={500}
+            value={form.outcome}
+            onChange={(e) => { setForm({ ...form, outcome: e.target.value }); setOutcomeError(null); }}
+            style={{ ...input, width: '100%', marginTop: 4, resize: 'vertical', fontFamily: 'inherit', borderColor: outcomeError ? '#ef4444' : 'var(--border)' }}
+          />
+          {outcomeError && <div role="alert" style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{outcomeError}</div>}
+        </div>
+      )}
       <div style={{ marginTop: 14 }}>
         <span style={lbl}>Description</span>
         <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={4} style={{ ...input, width: '100%', marginTop: 4, resize: 'vertical', fontFamily: 'inherit' }} />
@@ -102,7 +126,7 @@ function seedCustomFields(a: Account): Record<string, unknown> {
     : {};
 }
 
-function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', website: a.website || '', phone: a.phone || '', annual_revenue: a.annual_revenue ? String(a.annual_revenue) : '', employees: a.employees ? String(a.employees) : '', description: a.description || '', owner_id: a.owner_id || '' }; }
+function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', website: a.website || '', phone: a.phone || '', annual_revenue: a.annual_revenue ? String(a.annual_revenue) : '', employees: a.employees ? String(a.employees) : '', description: a.description || '', outcome: a.outcome || '', owner_id: a.owner_id || '' }; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function Field(p: { label: string; value: string; onChange: (v: string) => void; type?: string }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input} /></label>; }
 function IndustryField(p: { value: string; onChange: (v: string) => void; label?: string }) {

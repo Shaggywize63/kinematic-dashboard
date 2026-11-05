@@ -10,7 +10,8 @@ import { useClient } from '../../../../../context/ClientContext';
 import type { BusinessType, LeadSource, Product, CustomField } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
-import GoogleAddressAutocomplete from '../../../../../components/crm/GoogleAddressAutocomplete';
+import GoogleAddressAutocomplete, { type PlaceResult } from '../../../../../components/crm/GoogleAddressAutocomplete';
+import IndustrySelect from '../../../../../components/crm/spark/IndustrySelect';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
 import { InlineLeadVoiceCapture } from '../../../../../components/crm/VoiceCaptureOverlay';
@@ -141,7 +142,16 @@ export default function NewLeadPage() {
   // from CustomFieldsSection. Used to enforce required custom fields on
   // submit — the same rule the backend now enforces (enforceRequired) —
   // so a blank mandatory field is caught inline instead of via a 400.
-  const [customFieldDefs, setCustomFieldDefs] = useState<CustomField[]>([]);
+  // Two CustomFieldsSection instances can be mounted at once on Spark (the Sub-industry field next to Industry,
+  // and the generic block), so each reports under its own slot and the required-field check reads the union.
+  const [customFieldDefsBySlot, setCustomFieldDefsBySlot] = useState<Record<string, CustomField[]>>({});
+  const customFieldDefs = useMemo(() => Object.values(customFieldDefsBySlot).flat(), [customFieldDefsBySlot]);
+  const reportCustomFieldDefs = useCallback((slot: string) => (defs: CustomField[]) => {
+    setCustomFieldDefsBySlot((m) => ({ ...m, [slot]: defs }));
+  }, []);
+  // Spark & Ray: once the rep PICKS an address, that address's coordinates are the lead's pin. Device
+  // geolocation (auto-capture on load, a late GPS fix, the GPS reverse-geocode) must never overwrite them.
+  const addressPinnedRef = useRef(false);
 
   // Capture the device's current position. Coordinates are mandatory and
   // non-editable: the lead is geo-tagged with the rep's actual location at
@@ -167,6 +177,8 @@ export default function NewLeadPage() {
     setGeoError('');
 
     const accept = (pos: GeolocationPosition) => {
+      // A picked address owns the pin (Spark & Ray) — ignore the device fix entirely.
+      if (addressPinnedRef.current) { setGeoBusy(false); setGeoError(''); return; }
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
       setForm((f) => ({
@@ -182,7 +194,7 @@ export default function NewLeadPage() {
       // wins over the geocode. Silent on failure — the autocomplete
       // dropdown is the manual fallback.
       void reverseGeocode(lat, lng).then((addr) => {
-        if (!addr) return;
+        if (!addr || addressPinnedRef.current) return;
         setForm((f) => ({
           ...f,
           address_line1: f.address_line1 || addr.address_line1 || '',
@@ -280,7 +292,12 @@ export default function NewLeadPage() {
   // "Schedule visit" control (crm_settings.config.lead_form). Defaults to the
   // legacy behaviour until the settings fetch resolves — and for any tenant
   // that never configured it.
-  const [leadForm, setLeadForm] = useState<LeadFormConfig>(DEFAULT_LEAD_FORM);
+  const [leadFormRaw, setLeadFormRaw] = useState<LeadFormConfig>(DEFAULT_LEAD_FORM);
+  // Spark & Ray capture an address (Google picker) on B2B leads too, whatever lead_form.address_on_b2b says.
+  const leadForm = useMemo<LeadFormConfig>(
+    () => (isB2bClientActive() ? { ...leadFormRaw, addressOnB2b: true } : leadFormRaw),
+    [leadFormRaw],
+  );
   // datetime-local value ("2026-10-12T10:30") for the optional scheduled visit.
   const [visitAt, setVisitAt] = useState('');
   // DPDP §6 consent captured at collection. `consentRequired` mirrors the
@@ -426,7 +443,7 @@ export default function NewLeadPage() {
         if (t !== 'both') setForm((f) => ({ ...f, is_b2c: t === 'b2c' }));
         setFieldOverrides(extractFieldOverrides(s.value.data));
         setLeadStatuses(extractLeadStatuses(s.value.data));
-        setLeadForm(extractLeadForm(s.value.data));
+        setLeadFormRaw(extractLeadForm(s.value.data));
         const cfg = (s.value.data as { config?: { consent?: { lead_pii?: { required?: boolean } } } } | undefined)?.config;
         setConsentRequired(cfg?.consent?.lead_pii?.required === true);
       }
@@ -860,9 +877,43 @@ export default function NewLeadPage() {
   // Industry: Spark & Ray picks from a fixed list (sparkIndustryOptions keeps a legacy / free-text value
   // selectable); every other tenant keeps today's free-text field. Same admin gate (hidden / label / required)
   // either way, via select() / text().
+  const sparkIndustrySelect = () => {
+    if (fields.isHidden('industry')) return null;
+    const effRequired = fields.requiredFor('industry', false);
+    return (
+      <Field label={fields.labelFor('industry', 'Industry')} required={effRequired} htmlFor="lead-field-industry">
+        <IndustrySelect
+          id="lead-field-industry"
+          value={form.industry}
+          options={sparkIndustryOptions(form.industry)}
+          required={effRequired}
+          onChange={(v) => setForm((f) => ({ ...f, industry: v }))}
+        />
+      </Field>
+    );
+  };
+  // Spark & Ray: the "Industry Category" custom field (field_key industry_category) is shown as "Sub-industry"
+  // right after Industry instead of down in the generic custom-field block (which then skips it).
+  const SUB_INDUSTRY_KEY = 'industry_category';
+  const subIndustryField = () => b2bAccounts ? (
+    <CustomFieldsSection
+      entity="lead"
+      values={form.custom_fields}
+      onChange={(cf) => setForm((f) => ({ ...f, custom_fields: cf }))}
+      onFieldsChange={reportCustomFieldDefs('sub-industry')}
+      isB2c={form.is_b2c}
+      onlyKeys={[SUB_INDUSTRY_KEY]}
+      labelOverrides={{ [SUB_INDUSTRY_KEY]: 'Sub-industry' }}
+    />
+  ) : null;
   const industryField = () => b2bAccounts
-    ? select('industry', 'Industry', sparkIndustryOptions(form.industry).map((v) => ({ value: v, label: v })), { required: false })
+    ? <>{sparkIndustrySelect()}{subIndustryField()}</>
     : text('industry', 'Industry');
+  // The generic custom-field block skips the sub-industry key wherever it is rendered inline next to Industry.
+  const genericExcludeKeys = (inlineSubIndustry: boolean): string[] | undefined => {
+    const keys = [...(isBmw ? ['next_follow_up_date'] : []), ...(inlineSubIndustry && b2bAccounts ? [SUB_INDUSTRY_KEY] : [])];
+    return keys.length ? keys : undefined;
+  };
 
   // The Company field for connected-B2B (Spark & Ray): the same admin-gated
   // built-in `company` row as text(), but with a CRM-account typeahead layered
@@ -959,19 +1010,41 @@ export default function NewLeadPage() {
           ? 'Individual consumer lead — capture contact details and preferences.'
           : 'Business lead — capture company and decision-maker info.');
 
+  // Spark & Ray: a picked address REPLACES the address parts and sets the pin from its coordinates. City / state /
+  // postal code are replaced (not merged) so a stale value from an earlier pick or GPS guess cannot linger.
+  const onPickSparkAddress = (p: PlaceResult) => {
+    const hasPin = !!(p.latitude && p.longitude);
+    if (hasPin) addressPinnedRef.current = true;
+    setForm((f) => ({
+      ...f,
+      address_line1: p.address_line1 || f.address_line1,
+      city: p.city || '',
+      state: p.state || '',
+      postal_code: p.postal_code || '',
+      latitude: hasPin ? (p.latitude as string) : f.latitude,
+      longitude: hasPin ? (p.longitude as string) : f.longitude,
+    }));
+  };
+
   // Address search + fields, shared by the B2C branch and (when the client turned
   // it on) the B2B branch. Every row is gated through the field overrides.
   const addressFields = () => (
     <>
-      <GoogleAddressAutocomplete onSelect={(p) => setForm((f) => ({
-        ...f,
-        address_line1: p.address_line1 || f.address_line1,
-        city: p.city || f.city,
-        state: p.state || f.state,
-        postal_code: p.postal_code || f.postal_code,
-        latitude: p.latitude || f.latitude,
-        longitude: p.longitude || f.longitude,
-      }))} />
+      {b2bAccounts ? (fields.isHidden('address_line1') ? null : (
+        // Spark & Ray: the lead is pinned where the PICKED address is — not where the rep stands while filling
+        // the form — so the device GPS never auto-fills here (and is ignored once an address is picked).
+        <GoogleAddressAutocomplete deviceFill={false} backend onSelect={onPickSparkAddress} />
+      )) : (
+        <GoogleAddressAutocomplete onSelect={(p) => setForm((f) => ({
+          ...f,
+          address_line1: p.address_line1 || f.address_line1,
+          city: p.city || f.city,
+          state: p.state || f.state,
+          postal_code: p.postal_code || f.postal_code,
+          latitude: p.latitude || f.latitude,
+          longitude: p.longitude || f.longitude,
+        }))} />
+      )}
       {text('address_line1', 'Address line 1')}{text('address_line2', 'Address line 2')}
       {/* LocationPicker covers state + city. Hide it when the admin
           has hidden the city built-in (state alone has no value). */}
@@ -1197,11 +1270,11 @@ export default function NewLeadPage() {
                   entity="lead"
                   values={form.custom_fields}
                   onChange={(cf) => setForm({ ...form, custom_fields: cf })}
-                  onFieldsChange={setCustomFieldDefs}
+                  onFieldsChange={reportCustomFieldDefs('main')}
                   isB2c={form.is_b2c}
                   // BMW renders next_follow_up_date as a dedicated control in
                   // the Assignment section, so skip it here to avoid a double render.
-                  excludeKeys={isBmw ? ['next_follow_up_date'] : undefined}
+                  excludeKeys={genericExcludeKeys(true)}
                 />
               </FormGrid>
             </Section>
@@ -1280,11 +1353,12 @@ export default function NewLeadPage() {
                   entity="lead"
                   values={form.custom_fields}
                   onChange={(cf) => setForm({ ...form, custom_fields: cf })}
-                  onFieldsChange={setCustomFieldDefs}
+                  onFieldsChange={reportCustomFieldDefs('main')}
                   isB2c={form.is_b2c}
                   // BMW renders next_follow_up_date as a dedicated control in
                   // the Assignment section, so skip it here to avoid a double render.
-                  excludeKeys={isBmw ? ['next_follow_up_date'] : undefined}
+                  // The sub-industry field is only pulled out when Industry itself renders on this branch.
+                  excludeKeys={genericExcludeKeys(explicitlyShownOnB2C('industry'))}
                 />
               </FormGrid>
             </Section>
@@ -1320,19 +1394,22 @@ export default function NewLeadPage() {
             lead becomes a deal, so the picker no longer renders here. */}
 
         {!skipLocation && (
-          <Section title="Pin location" hint="The lead is geo-tagged with your current location — captured automatically and required to add a lead.">
+          <Section title="Pin location" hint={b2bAccounts ? 'The lead is pinned where its address is — search and pick the address above. Without one, your current location is used.' : 'The lead is geo-tagged with your current location — captured automatically and required to add a lead.'}>
             <div id="lead-field-location">
               {form.latitude && form.longitude ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: T.okWash, border: `1px solid ${T.ok}`, borderRadius: 8 }}>
                   <MapPin size={18} strokeWidth={1.6} style={{ color: T.ok, flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Location captured</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{b2bAccounts && addressPinnedRef.current ? 'Pinned to the selected address' : 'Location captured'}</div>
                     {/* Read-only — coordinates can't be edited by hand. */}
                     <div style={{ fontSize: 12, color: T.dim, fontFamily: T.mono, marginTop: 2 }}>
                       {form.latitude}, {form.longitude}
                     </div>
                   </div>
-                  <Button type="button" size="sm" onClick={captureLocation} disabled={geoBusy}>{geoBusy ? 'Updating…' : 'Update'}</Button>
+                  {/* A Spark lead whose address was picked keeps that pin — re-pick the address to move it. */}
+                  {!(b2bAccounts && addressPinnedRef.current) && (
+                    <Button type="button" size="sm" onClick={captureLocation} disabled={geoBusy}>{geoBusy ? 'Updating…' : 'Update'}</Button>
+                  )}
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: geoError ? T.redWash : 'var(--s3)', border: `1px solid ${geoError ? T.red : T.border}`, borderRadius: 8, flexWrap: 'wrap' }}>

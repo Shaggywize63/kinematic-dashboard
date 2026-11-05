@@ -10,6 +10,8 @@ import { callComposerUrl, dialableNumber } from '../shared/CallButton';
 import { WA_PATH } from '../shared/WhatsAppButton';
 import InlineEditText from '../InlineEditText';
 import LeadAvatar from '../leads/LeadAvatar';
+import { IndustryBadge } from '../spark/IndustrySelect';
+import { isB2bClientActive } from '../../../lib/b2bClient';
 import { Avatar, Badge, Button, Card, IconButton, T, buttonStyle } from '../../ui';
 import StatusControl from './StatusControl';
 import { fmtDate, fmtIST } from './format';
@@ -75,6 +77,8 @@ export default function LeadHero(p: LeadHeroProps) {
                 onSave={p.onRename}
               />
               <Badge tone={p.isB2C ? 'neutral' : 'info'}>{p.segment}</Badge>
+              {/* Spark & Ray: the lead's industry, in the same colour the dashboard map uses. */}
+              {isB2bClientActive() && !fields.isHidden('industry') && <IndustryBadge name={lead.industry} />}
               {p.closed.converted && <Badge tone="ok" dot>Converted</Badge>}
               {p.closed.unqualified && <Badge tone="warn" dot>Unqualified</Badge>}
               {p.closed.lost && <Badge tone="red" dot>Lost</Badge>}

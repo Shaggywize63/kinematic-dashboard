@@ -17,6 +17,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { crmAutomations, crmFlows, crmFlowSteps, crmPipelines, crmEmailTemplates, crmWhatsappTemplates } from '../../../lib/crmApi';
 import api from '../../../lib/api';
+import { useActivityTypes } from '../../../lib/activityTypes';
 import type { Automation, AutomationCondition, Pipeline, EmailTemplate, WhatsappTemplate } from '../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../shared/UserSearchSelect';
 
@@ -810,6 +811,10 @@ function ActionConfig({ action, cfg, setCfg, users, pipelines, emailTemplates, w
 }) {
   const col: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8 };
   const full = { ...input, width: '100%' };
+  const typeCatalogue = useActivityTypes();
+  const automationTypes = typeCatalogue.active.filter((t) => t.slug !== 'sms').map((t) => ({ slug: t.slug, name: t.name }));
+  const pickedType = String(cfg.activity_type ?? 'note');
+  if (!automationTypes.some((t) => t.slug === pickedType)) automationTypes.push({ slug: pickedType, name: typeCatalogue.labelFor(pickedType) });
   switch (action) {
     case 'create_task':
       return (
@@ -824,7 +829,7 @@ function ActionConfig({ action, cfg, setCfg, users, pipelines, emailTemplates, w
       return (
         <div style={col}>
           <select value={cfg.activity_type ?? 'note'} onChange={(e) => setCfg({ activity_type: e.target.value })} style={full}>
-            {['note', 'call', 'meeting', 'email', 'whatsapp', 'task'].map((t) => <option key={t} value={t}>{t}</option>)}
+            {automationTypes.map((t) => <option key={t.slug} value={t.slug}>{t.name}</option>)}
           </select>
           <input value={cfg.subject ?? ''} onChange={(e) => setCfg({ subject: e.target.value })} placeholder="Subject" style={full} />
           <input value={cfg.body ?? ''} onChange={(e) => setCfg({ body: e.target.value })} placeholder="Body" style={full} />

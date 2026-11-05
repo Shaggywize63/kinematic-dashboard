@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import type { Activity } from '../../types/crm';
 import { format, formatDistanceToNow } from 'date-fns';
 import { crmActivities } from '../../lib/crmApi';
+import { prettifySlug } from '../../lib/activityTypes';
 import { ActivityTypeIcon } from './shared/ActivityTypeIcon';
 import { SparkActivityMeta } from './spark/SparkActivityFields';
 
@@ -151,7 +152,7 @@ export default function ActivityTimeline({ activities, onChange, addHref, leadCa
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
-                    {a.subject || a.type}
+                    {a.subject || prettifySlug(a.type)}
                     {status && (
                       <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--s2)', color: statusColor, textTransform: 'uppercase' }}>
                         {status}

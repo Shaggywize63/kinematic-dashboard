@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import api from '../../../../../lib/api';
+import { invalidateActivityTypes } from '../../../../../lib/activityTypes';
 import { useClient } from '../../../../../context/ClientContext';
 
 // Settings → Activity Types — manage the dropdown choices on
@@ -55,6 +56,7 @@ export default function ActivityTypesSettingsPage() {
     try {
       await api.delete(`/api/v1/crm/activity-types/${row.id}`);
       toast.success('Deleted');
+      invalidateActivityTypes();
       load();
     } catch (e: any) { toast.error(e.message || 'Delete failed'); }
   };
@@ -63,6 +65,7 @@ export default function ActivityTypesSettingsPage() {
     if (row.is_system) { toast.error('Built-in types are always active'); return; }
     try {
       await api.patch(`/api/v1/crm/activity-types/${row.id}`, { is_active: !row.is_active });
+      invalidateActivityTypes();
       load();
     } catch (e: any) { toast.error(e.message || 'Update failed'); }
   };
@@ -138,6 +141,7 @@ function AddTypeModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
     try {
       await api.post('/api/v1/crm/activity-types', { name: name.trim(), slug, icon: icon || undefined, color: color || undefined });
       toast.success('Type added');
+      invalidateActivityTypes();
       onSaved();
     } catch (e: any) {
       toast.error(e.message?.includes('409') ? 'A type with this slug already exists' : (e.message || 'Save failed'));

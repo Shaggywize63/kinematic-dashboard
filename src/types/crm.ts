@@ -2,7 +2,8 @@
 
 export type LeadStatus = 'new' | 'working' | 'qualified' | 'unqualified' | 'converted' | 'lost';
 export type DealStatus = 'open' | 'won' | 'lost';
-export type ActivityType = 'call' | 'email' | 'meeting' | 'task' | 'note' | 'sms' | 'whatsapp';
+// Built-ins plus any custom slug an admin adds in Settings -> Activity Types (e.g. 'industry_visit').
+export type ActivityType = 'call' | 'email' | 'meeting' | 'task' | 'note' | 'sms' | 'whatsapp' | (string & {});
 export type WhatsappStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'received' | 'replied';
 export type WhatsappDirection = 'outbound' | 'inbound';
 export type BusinessType = 'b2b' | 'b2c' | 'both';
@@ -128,6 +129,8 @@ export interface Account {
   billing_address?: string | null;
   shipping_address?: string | null;
   description?: string | null;
+  // Spark & Ray only: the account's outcome (required there).
+  outcome?: string | null;
   tags?: string[] | null;
   ai_summary?: string | null;
   // Admin-defined custom fields (crm_custom_fields defs) stored on the
@@ -181,6 +184,14 @@ export interface Deal {
   tags?: string[] | null;
   // Spark & Ray only (connected-B2B): the quotation number typed on the deal.
   quotation_no?: string | null;
+  // Spark & Ray only: pricing / product-trial / approval sections (see lib/sparkDealSections.ts).
+  pricing_quoted?: number | null; pricing_discount_pct?: number | null; pricing_final?: number | null; pricing_valid_till?: string | null;
+  trial_required?: boolean | null; trial_start?: string | null; trial_end?: string | null;
+  trial_result?: 'pending' | 'successful' | 'failed' | null; trial_notes?: string | null;
+  technical_approval_by?: string | null; technical_approval_by_name?: string | null;
+  prepared_by?: string | null; prepared_by_name?: string | null;
+  checked_by?: string | null; checked_by_name?: string | null;
+  supervisor_id?: string | null; supervisor_id_name?: string | null;
   // Stamped by the deals list + detail endpoints (not real columns):
   // dealer_name is resolved server-side; lead_name / lead_phone come
   // from the linked source lead.

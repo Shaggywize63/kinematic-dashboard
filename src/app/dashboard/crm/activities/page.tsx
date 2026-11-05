@@ -20,6 +20,8 @@ import { useCityScope } from '../../../../context/CityScopeContext';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
 import { useRecordOwnerPicker } from '../../../../hooks/useRecordOwnerPicker';
+import ActivityPhotoField from '../../../../components/crm/shared/ActivityPhotoField';
+import { prettifySlug, useActivityTypes } from '../../../../lib/activityTypes';
 import { apiErrorText, arr, sparkActivityFields } from '../../../../lib/sparkAccounts';
 import { AssigneeChips, FormSerialInput, ProductChips, SparkActivityMeta, useProductCatalogue } from '../../../../components/crm/spark/SparkActivityFields';
 
@@ -37,9 +39,8 @@ const ACTIVITY_CARD_FIELDS = [
   { key: 'created', label: 'Created date' },
 ] as const;
 
-// Meeting first: in field-force usage it's the most common activity type
-// reps filter for, so it sits at the top of the picker.
-const TYPE_OPTIONS = ['', 'meeting', 'call', 'email', 'task', 'note', 'sms', 'whatsapp'];
+// The type filter / edit dropdown come from GET /crm/activity-types (built-ins + the custom types admins add in
+// Settings -> Activity Types) via useActivityTypes(); the built-ins are only the fallback while it loads.
 // Activity statuses surfaced on the filter — the same values the row actions
 // can flip activities into (open / completed / in_progress / cancelled).
 // `unset` is a synthetic value the backend translates to
@@ -69,6 +70,12 @@ function ActivitiesPageInner() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [type, setType] = useState(initialType);
+  const activityTypes = useActivityTypes();
+  // Active types, plus the currently selected one even if it was since deactivated / is unknown (deep link ?type=).
+  const typeFilterOptions = activityTypes.active.map((t) => ({ slug: t.slug, name: t.name, icon: t.icon }));
+  if (type && !typeFilterOptions.some((t) => t.slug === type)) {
+    typeFilterOptions.push({ slug: type, name: activityTypes.labelFor(type), icon: activityTypes.meta(type)?.icon ?? null });
+  }
   const [statusFilter, setStatusFilter] = useState(initialStatus);
   // KPI-tile filter: clicking a tile (Overdue / Upcoming / Completed)
   // sets this; the server applies the right date predicates.
@@ -157,7 +164,7 @@ function ActivitiesPageInner() {
       })();
       if (demoEmail === 'demo@kinematic.com') {
         const rows = filtered;
-        const header = ['Type','Subject','Body','Status','Due At','Completed At','Owner','Linked Entity','Created At'];
+        const header = ['Type','Subject','Body','Status','Due At','Completed At','Owner','Linked Entity','Photo URL','Created At'];
         const escape = (v: unknown): string => {
           if (v === null || v === undefined) return '';
           const s = String(v);
@@ -166,7 +173,10 @@ function ActivitiesPageInner() {
         const body = rows.map((a: any) => {
           const linkedEntity = a.lead_id ? 'Lead' : a.contact_id ? 'Contact' : a.deal_id ? 'Deal' : a.account_id ? 'Account' : '';
           const status = (a.status as string) || (a.completed_at ? 'completed' : 'open');
-          return [a.type, a.subject, a.body || a.description, status, a.due_at, a.completed_at, a.assigned_to_name || a.owner_name || '', linkedEntity, a.created_at].map(escape).join(',');
+          // Same fallback the backend export uses: the activity's own photo, else the first photo link in a custom field.
+          const cf = a.custom_fields && typeof a.custom_fields === 'object' ? Object.values(a.custom_fields as Record<string, unknown>).flatMap((x) => (Array.isArray(x) ? x : [x])) : [];
+          const photoUrl = a.image_url || cf.find((x): x is string => typeof x === 'string' && /^https?:\/\//i.test(x)) || '';
+          return [a.type, a.subject, a.body || a.description, status, a.due_at, a.completed_at, a.assigned_to_name || a.owner_name || '', linkedEntity, photoUrl, a.created_at].map(escape).join(',');
         }).join('\n');
         const csv = `${header.join(',')}\n${body}\n`;
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -531,8 +541,9 @@ function ActivitiesPageInner() {
               circle 🟢 so the option at least colour-signals the brand even
               without the real logo. */}
           <select value={type} onChange={(e) => setType(e.target.value)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
-            {TYPE_OPTIONS.map((t) => (
-              <option key={t} value={t}>{t ? `${activityTypeEmoji(t)} ${t[0].toUpperCase() + t.slice(1)}s` : 'All Activities'}</option>
+            <option value="">All Activities</option>
+            {typeFilterOptions.map((t) => (
+              <option key={t.slug} value={t.slug}>{`${activityTypeEmoji(t.slug, t.icon)} ${t.name}`}</option>
             ))}
           </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} title="Filter by status" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
@@ -683,7 +694,7 @@ function ActivitiesPageInner() {
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
-                        {a.subject || a.type}
+                        {a.subject || activityTypes.labelFor(a.type)}
                         <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--s3)', color: statusColor, textTransform: 'uppercase', letterSpacing: 0.4 }}>
                           {status.replace('_', ' ')}
                         </span>
@@ -702,7 +713,7 @@ function ActivitiesPageInner() {
                       )}
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                         {!cardHidden.has('type_tag') && (
-                          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '1px 6px', borderRadius: 4, background: 'var(--s3)', color: 'var(--text-dim)' }}>{a.type}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '1px 6px', borderRadius: 4, background: 'var(--s3)', color: 'var(--text-dim)' }}>{activityTypes.labelFor(a.type)}</span>
                         )}
                         {!cardHidden.has('due_date') && a.due_at && (
                           <span style={{ fontSize: 11, color: isOverdue ? '#ef4444' : 'var(--text-dim)' }}>
@@ -1101,7 +1112,7 @@ function ActivityCalendar({
                   <Link
                     key={a.id}
                     href={href}
-                    title={`${a.subject || a.type}${a.body ? ` — ${a.body}` : ''}`}
+                    title={`${a.subject || prettifySlug(a.type)}${a.body ? ` — ${a.body}` : ''}`}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 4,
                       fontSize: 10, fontWeight: 700,
@@ -1122,7 +1133,7 @@ function ActivityCalendar({
                       completed={!!a.completed_at}
                     />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {a.subject || a.type}
+                      {a.subject || prettifySlug(a.type)}
                     </span>
                   </Link>
                 );
@@ -1146,6 +1157,13 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
   const [outcome, setOutcome] = useState(activity.outcome || '');
   const [dueAt, setDueAt] = useState(activity.due_at ? toLocalDateTime(activity.due_at) : '');
   const [type, setType] = useState<string>(activity.type);
+  // Built-ins + custom types from GET /crm/activity-types; the row's own type is always offered so editing an
+  // old / deactivated / unknown type never silently re-types it.
+  const typeCatalogue = useActivityTypes();
+  const editTypeOptions = typeCatalogue.active.map((t) => ({ slug: t.slug, name: t.name }));
+  if (activity.type && !editTypeOptions.some((t) => t.slug === activity.type)) editTypeOptions.push({ slug: activity.type, name: typeCatalogue.labelFor(activity.type) });
+  // Photo: the existing one is shown / replaceable / removable; an untouched photo is not re-sent.
+  const [imageUrl, setImageUrl] = useState<string>(activity.image_url || '');
   // Admin-defined custom fields (entity=activity) — seeded from the row's
   // existing custom_fields; the backend PATCH merges server-side so sending
   // the whole edited map back is safe.
@@ -1202,6 +1220,7 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
         due_at: dueAt ? new Date(dueAt).toISOString() : null,
         custom_fields: customFields,
       };
+      if (imageUrl !== (activity.image_url || '')) payload.image_url = imageUrl || null;
       if (spark) {
         const f = sparkActivityFields({ assigneeIds, productIds, formSerial }, 'patch');
         // An untouched serial is not re-sent (the row shows the resolved ref, which is what the box starts with).
@@ -1237,15 +1256,15 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, display: 'flex', flexDirection: 'column', gap: 12, ...(spark ? { maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' as const } : {}) }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' as const }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 16, fontWeight: 800 }}>Edit activity</div>
           <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 22 }}>×</button>
         </div>
         <Field label="Type">
           <select value={type} onChange={(e) => setType(e.target.value)} style={editInput}>
-            {['meeting', 'call', 'email', 'task', 'note', 'whatsapp', 'sms', 'other'].map((t) => (
-              <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>
+            {editTypeOptions.map((t) => (
+              <option key={t.slug} value={t.slug}>{t.name}</option>
             ))}
           </select>
         </Field>
@@ -1254,6 +1273,7 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} style={{ ...editInput, fontFamily: 'inherit', resize: 'vertical' }} />
         </Field>
         <Field label="Outcome (optional)"><input value={outcome} onChange={(e) => setOutcome(e.target.value)} style={editInput} /></Field>
+        <ActivityPhotoField value={imageUrl} onChange={setImageUrl} label="Photo" />
         <Field label="Due / scheduled for"><input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={editInput} /></Field>
         {/* Admins / managers can reassign an activity after it was assigned (other tenants: one assignee). */}
         {!spark && ownerPicker.canChange && ownerPicker.users.length > 0 && (
@@ -1378,7 +1398,7 @@ function AgendaRow({ a }: { a: Activity }) {
       />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {a.subject || a.type}
+          {a.subject || prettifySlug(a.type)}
         </div>
         {(a.body || a.description) && (
           <div style={{ fontSize: 11, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

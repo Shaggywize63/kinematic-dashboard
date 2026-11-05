@@ -101,7 +101,9 @@ export const crmLeads = {
   contacts: (id: string) => api.get<Wrapped<Contact[]>>(`${BASE}/leads/${id}/contacts`),
   // All geo-tagged leads (up to 5000) for the dashboard map — bypasses the
   // 200-row list cap. City is auto-attached by the api client.
-  geo: () => api.get<Wrapped<Array<{ id: string; first_name?: string | null; last_name?: string | null; city?: string | null; state?: string | null; status?: string | null; latitude?: number | null; longitude?: number | null; score?: number | null; score_grade?: 'A' | 'B' | 'C' | 'D' | null }>>>(`${BASE}/leads/geo`),
+  // Spark & Ray: `industry` filters by exact (case-insensitive) industry, `__none__` = leads without one; each row
+  // also carries `industry` + `company`.
+  geo: (params?: { industry?: string | null }) => api.get<Wrapped<Array<{ id: string; first_name?: string | null; last_name?: string | null; city?: string | null; state?: string | null; status?: string | null; latitude?: number | null; longitude?: number | null; score?: number | null; score_grade?: 'A' | 'B' | 'C' | 'D' | null; industry?: string | null; company?: string | null }>>>(`${BASE}/leads/geo${qs({ industry: params?.industry || undefined })}`),
   convert: (
     id: string,
     body: { create_account?: boolean; create_deal?: boolean; deal_name?: string; deal_amount?: number; account_id?: string }
@@ -722,7 +724,14 @@ export const crmProducts = crud<Product>(`${BASE}/products`);
 // same { place_id, description } shape, powering the "Show more suggestions"
 // affordance. lat/lng bias toward the rep's current location when available.
 export interface PlaceSuggestion { place_id: string; description: string }
+export interface PlaceDetails { address_line1: string; city?: string; state?: string; postal_code?: string; latitude?: number; longitude?: number }
 export const crmPlaces = {
+  // Backend Google Places proxy (used when the page has no Maps JS key): up to 5 predictions…
+  autocomplete: (q: string, lat?: number | null, lng?: number | null) =>
+    api.get<Wrapped<PlaceSuggestion[]>>(`${BASE}/places/autocomplete${qs({ q, lat: lat ?? undefined, lng: lng ?? undefined })}`),
+  // …and the parsed address + coordinates for one of them.
+  details: (placeId: string) =>
+    api.get<Wrapped<PlaceDetails | null>>(`${BASE}/places/details${qs({ place_id: placeId })}`),
   search: (q: string, lat?: number | null, lng?: number | null) =>
     api.get<Wrapped<PlaceSuggestion[]>>(`${BASE}/places/search${qs({ q, lat: lat ?? undefined, lng: lng ?? undefined })}`),
 };

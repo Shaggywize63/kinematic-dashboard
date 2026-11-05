@@ -6,6 +6,8 @@ import type { Lead } from '../../types/crm';
 import type { LeadStatusOption } from '../../lib/crmLeadStatuses';
 import type { FieldHelpers } from '../../lib/crmFieldOverrides';
 import OwnerAvatar from './shared/OwnerAvatar';
+import { IndustryBadge } from './spark/IndustrySelect';
+import { isB2bClientActive } from '../../lib/b2bClient';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
 import WhatsAppButton from './shared/WhatsAppButton';
 import LeadAvatar, { leadDisplayName } from './leads/LeadAvatar';
@@ -153,6 +155,8 @@ export default function LeadsTable({
   // Stable value→option lookup for the status cell. Null when no custom set is
   // configured, so LeadRow keeps the built-in tone/label path. Memoised so the
   // memo()'d rows don't re-render on unrelated parent updates.
+  // Spark & Ray only (read once per render of the table, not per row).
+  const showIndustry = isB2bClientActive();
   const statusLookup = useMemo(() => {
     if (!statusOptions || statusOptions.length === 0) return null;
     const m = new Map<string, LeadStatusOption>();
@@ -228,6 +232,7 @@ export default function LeadsTable({
               hidden={hidden}
               statusLookup={statusLookup}
               fieldHelpers={fieldHelpers}
+              showIndustry={showIndustry}
             />
           ))}
         </tbody>
@@ -253,10 +258,12 @@ interface LeadRowProps {
   hidden: Set<string>;
   statusLookup: Map<string, LeadStatusOption> | null;
   fieldHelpers?: FieldHelpers;
+  /** Spark & Ray: show the lead's coloured industry badge beside its name. */
+  showIndustry?: boolean;
 }
 
 const LeadRow = memo(function LeadRow({
-  lead: l, isSelected, isOpen, dim, onToggle, onPreview, onScoreClick, onAssign, onEdit, onApprove, onToggleImportant, isB2C, hidden, statusLookup, fieldHelpers,
+  lead: l, isSelected, isOpen, dim, onToggle, onPreview, onScoreClick, onAssign, onEdit, onApprove, onToggleImportant, isB2C, hidden, statusLookup, fieldHelpers, showIndustry,
 }: LeadRowProps) {
   const fullName = leadDisplayName(l);
   const handleToggle = useCallback(() => onToggle(l.id), [onToggle, l.id]);
@@ -322,6 +329,7 @@ const LeadRow = memo(function LeadRow({
                   <Star size={14} strokeWidth={1.8} fill={important ? '#f5a623' : 'none'} />
                 </button>
               )}
+              {showIndustry && !hid('industry') && <IndustryBadge name={l.industry} style={{ flexShrink: 0 }} />}
               {isPending && <Badge tone="warn" style={{ gap: 4, height: 20, fontSize: 11, flexShrink: 0 }}><Hourglass size={11} strokeWidth={1.8} />Pending approval</Badge>}
               {l.approval_status === 'rejected' && <Badge tone="red" style={{ height: 20, fontSize: 11, flexShrink: 0 }}>Rejected</Badge>}
             </div>

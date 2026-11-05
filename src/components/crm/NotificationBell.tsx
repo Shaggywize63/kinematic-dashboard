@@ -4,6 +4,7 @@ import Link from 'next/link';
 import api from '../../lib/api';
 import { crmActivities } from '../../lib/crmApi';
 import type { Activity } from '../../types/crm';
+import { prettifySlug } from '../../lib/activityTypes';
 import { ActivityTypeIcon } from './shared/ActivityTypeIcon';
 
 // Bell-icon dropdown. Surfaces TWO sources so the web matches the mobile
@@ -444,7 +445,7 @@ export default function NotificationBell() {
                           completed={!!a.completed_at}
                         />
                       </span>
-                      {a.subject || a.type}
+                      {a.subject || prettifySlug(a.type)}
                     </span>
                     <span style={{ fontSize: 10, fontWeight: 700, color: r.overdue ? '#E01E2C' : 'var(--text-dim)', whiteSpace: 'nowrap' }}>
                       {r.label}

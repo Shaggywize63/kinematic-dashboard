@@ -58,11 +58,14 @@ export function DealItemsEditor({ lines, onChange, products, narrow }: {
 }
 
 /** Searchable single-select over the account list (type to filter; pick to set; × to clear). */
-export function AccountPicker({ accounts, value, onChange, placeholder = 'Search customers…' }: {
+export function AccountPicker({ accounts, value, onChange, placeholder = 'Search customers…', ariaLabel = 'Customer', disabled }: {
   accounts: Account[];
   value: string;
   onChange: (id: string) => void;
   placeholder?: string;
+  /** Accessible name of the box and its clear button ("Customer" on deals, "Account" on contacts). */
+  ariaLabel?: string;
+  disabled?: boolean;
 }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
@@ -78,7 +81,8 @@ export function AccountPicker({ accounts, value, onChange, placeholder = 'Search
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <input
-        aria-label="Customer"
+        aria-label={ariaLabel}
+        disabled={disabled}
         value={open ? q : (selected?.name || '')}
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
         onFocus={() => { setQ(''); setOpen(true); }}
@@ -87,8 +91,8 @@ export function AccountPicker({ accounts, value, onChange, placeholder = 'Search
         className="km-input"
         style={{ ...inputStyle, paddingRight: selected ? 30 : 11 }}
       />
-      {selected && !open && (
-        <button type="button" onClick={() => onChange('')} aria-label="Clear customer" title="Clear" style={{ position: 'absolute', right: 6, top: 6, background: 'transparent', border: 0, color: T.dim, cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+      {selected && !open && !disabled && (
+        <button type="button" onClick={() => onChange('')} aria-label={`Clear ${ariaLabel.toLowerCase()}`} title="Clear" style={{ position: 'absolute', right: 6, top: 6, background: 'transparent', border: 0, color: T.dim, cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
       )}
       {open && (
         <div role="listbox" style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30, background: 'var(--card)', border: `1px solid ${T.border}`, borderRadius: 8, maxHeight: 220, overflowY: 'auto', boxShadow: 'var(--shadow-pop)', padding: 4 }}>

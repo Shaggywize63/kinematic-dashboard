@@ -57,9 +57,14 @@ interface Props {
   // date input on the create form). Excluded keys are also dropped from the
   // reported field defs so they don't trip required-field validation twice.
   excludeKeys?: string[];
+  // Render ONLY these field keys (the parent places them elsewhere in the form — e.g. Spark & Ray's
+  // sub-industry right after Industry). Combine with excludeKeys on the generic block so nothing renders twice.
+  onlyKeys?: string[];
+  // Display-label overrides by field_key (e.g. industry_category → "Sub-industry" for Spark & Ray).
+  labelOverrides?: Record<string, string>;
 }
 
-export default function CustomFieldsSection({ entity, values, onChange, onFieldsChange, isB2c, excludeKeys }: Props) {
+export default function CustomFieldsSection({ entity, values, onChange, onFieldsChange, isB2c, excludeKeys, onlyKeys, labelOverrides }: Props) {
   const [fields, setFields] = useState<CustomField[]>([]);
   const [loading, setLoading] = useState(true);
   // Keep the latest callback in a ref so the load effect can stay keyed on
@@ -71,6 +76,8 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
   // [entity, isB2c] — passing a fresh array inline must not retrigger the fetch.
   const excludeRef = useRef<Set<string>>(new Set(excludeKeys));
   excludeRef.current = new Set(excludeKeys);
+  const onlyRef = useRef<Set<string> | null>(null);
+  onlyRef.current = onlyKeys ? new Set(onlyKeys) : null;
 
   useEffect(() => {
     let cancel = false;
@@ -103,6 +110,7 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
           // Keys the parent renders as a dedicated control (e.g. BMW's
           // next_follow_up_date) are skipped here to avoid a double render.
           .filter((f) => !excludeRef.current.has(f.field_key))
+          .filter((f) => !onlyRef.current || onlyRef.current.has(f.field_key))
           // A field with no org_role_ids is universal; otherwise it must list
           // the user's role. Admins/users with no resolved role see universal
           // fields only (role-scoped fields stay with their roles).
@@ -163,7 +171,7 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
         return (
           <FieldInput
             key={f.id}
-            field={f}
+            field={labelOverrides?.[f.field_key] ? { ...f, label: labelOverrides[f.field_key] } : f}
             value={values[f.field_key]}
             onChange={(v) => set(f.field_key, v)}
           />

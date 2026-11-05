@@ -14,6 +14,8 @@ import LeadAvatar, { leadDisplayName } from './LeadAvatar';
 import { inferGrade } from './ScoreMeter';
 import { LeadsSkeleton } from './LeadsStates';
 import { Badge, T, type Tone } from '../../ui';
+import { IndustryBadge } from '../spark/IndustrySelect';
+import { isB2bClientActive } from '../../../lib/b2bClient';
 
 const GRADE_COLORS: Record<string, string> = { A: '#28B463', B: '#7B61FF', C: '#F7B538', D: '#E01E2C' };
 
@@ -48,6 +50,7 @@ export default function LeadCardStack({
 }) {
   const router = useRouter();
   const hid = (k: string) => !!fieldHelpers?.isHidden(k);
+  const showIndustry = isB2bClientActive() && !hid('industry');
 
   if (loading && leads.length === 0) return <LeadsSkeleton rows={5} />;
   if (!loading && leads.length === 0) return <>{emptyState}</>;
@@ -94,6 +97,7 @@ export default function LeadCardStack({
                     {[company, phone].filter(Boolean).join(' · ')}
                   </div>
                 )}
+                {showIndustry && l.industry?.trim() && <div style={{ marginTop: 3 }}><IndustryBadge name={l.industry} /></div>}
               </div>
               {!hid('score') && g && (
                 <span title={l.score != null ? `Score ${Math.round(l.score)}` : undefined} style={{ minWidth: 24, height: 24, padding: '0 7px', borderRadius: 7, background: `${gc}1F`, color: gc, fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{g}</span>
