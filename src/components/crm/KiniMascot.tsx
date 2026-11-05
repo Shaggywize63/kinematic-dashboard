@@ -24,20 +24,32 @@ export default function KiniMascot({ size = 40 }: { size?: number }) {
 
   useEffect(() => {
     injectKeyframes();
+    // Respect reduced-motion: leave the pupils at rest, no listeners, no work.
+    if (typeof window !== 'undefined'
+        && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
     let raf = 0;
     let mx = -1, my = -1;
+    // Cache the SVG→screen matrix. getScreenCTM() forces a synchronous layout
+    // reflow, and the matrix only changes when the mascot itself moves on screen
+    // (scroll / resize / layout) — NOT when the mouse moves. Recomputing it every
+    // mouse frame made Safari (far more reflow-sensitive than Blink) jank/freeze,
+    // multiplied by the several mascots mounted at once (FAB, search, panel). So
+    // we read it at most once per frame and only when marked dirty.
+    let ctm: DOMMatrix | null = null;
+    let dirty = true;
     const MAX_X = 2.6, MAX_Y = 2.1, REACH = 260;
     const update = () => {
       raf = 0;
       const svg = ref.current;
       if (!svg || mx < 0 || !svg.getScreenCTM) return;
-      const ctm = svg.getScreenCTM();
+      if (dirty || !ctm) { ctm = svg.getScreenCTM(); dirty = false; }
       if (!ctm) return;
       const pupils = svg.querySelectorAll('.kini-pupil');
       pupils.forEach((p, i) => {
         const rest = PUPIL_REST[i] || PUPIL_REST[0];
-        const sx = ctm.a * rest.x + ctm.c * rest.y + ctm.e;
-        const sy = ctm.b * rest.x + ctm.d * rest.y + ctm.f;
+        const sx = ctm!.a * rest.x + ctm!.c * rest.y + ctm!.e;
+        const sy = ctm!.b * rest.x + ctm!.d * rest.y + ctm!.f;
         const dx = mx - sx, dy = my - sy;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
         const t = Math.min(dist / REACH, 1);
@@ -47,12 +59,21 @@ export default function KiniMascot({ size = 40 }: { size?: number }) {
         );
       });
     };
-    const onMove = (e: MouseEvent) => {
-      mx = e.clientX; my = e.clientY;
-      if (!raf) raf = requestAnimationFrame(update);
-    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(update); };
+    const onMove = (e: MouseEvent) => { mx = e.clientX; my = e.clientY; schedule(); };
+    // The mascot moved on screen → the cached matrix is stale. Recompute lazily
+    // in the next frame, not synchronously here.
+    const onShift = () => { dirty = true; schedule(); };
+    const scrollOpts = { passive: true, capture: true } as const;
     window.addEventListener('mousemove', onMove, { passive: true });
-    return () => { window.removeEventListener('mousemove', onMove); if (raf) cancelAnimationFrame(raf); };
+    window.addEventListener('scroll', onShift, scrollOpts);
+    window.addEventListener('resize', onShift);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('scroll', onShift, scrollOpts);
+      window.removeEventListener('resize', onShift);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, []);
 
   return (
