@@ -7,6 +7,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { isRajkamalActive } from '../../../lib/clientFeatures';
 import { extractImageUrls } from '../../../lib/utils';
 import { toast } from 'sonner';
+import { collectPhotoUrls, photoCell, REPORT_PHOTO_TTL_SECONDS, responsePhotoUrls, signPhotoUrls } from '../../../lib/reportPhotos';
 import { csvStamp, fmtMinutes, fmtStamp, gpsText, sumMinutes, visitMinutes } from '../../../lib/visitTime';
 import SignedImage, { openSignedUrl, resolveSignedUrl } from '../../../components/shared/SignedImage';
 import { Badge, Button, Card, EmptyState, Eyebrow, IconButton, Input, PageHeader, Segmented, Select, T, labelStyle, useIsCompact } from '../../../components/ui';
@@ -377,7 +378,13 @@ export default function WorkActivitiesPage() {
         }
         const headers = [...metaHeaders, ...questionCols];
 
+        // Photo answers carry their URL in photo_url, not value_text. The buckets are private, so every photo is
+        // exchanged for a signed link that lasts a week; if signing fails the stored URL is still written.
+        const signedPhotos = await signPhotoUrls(collectPhotoUrls(fullData), (batch) => api.signMediaBatch(batch, REPORT_PHOTO_TTL_SECONDS));
+
         const respValue = (r: any): string => {
+            const photos = responsePhotoUrls(r);
+            if (photos.length) return photoCell(photos, signedPhotos);
             if (r.value_text != null && r.value_text !== '') return String(r.value_text);
             if (r.value_number != null) return String(r.value_number);
             if (typeof r.value_bool === 'boolean') return r.value_bool ? 'Yes' : 'No';
@@ -393,7 +400,7 @@ export default function WorkActivitiesPage() {
                 const label = r.builder_questions?.label;
                 if (!label) continue;
                 const v = respValue(r);
-                answerByLabel[label] = answerByLabel[label] ? `${answerByLabel[label]}, ${v}` : v;
+                if (v) answerByLabel[label] = answerByLabel[label] ? `${answerByLabel[label]}, ${v}` : v;
             }
 
             const meta = [
