@@ -47,6 +47,9 @@ const UPDATE_ADMIN_ROLES = new Set(['super_admin', 'admin', 'org_admin']);
 const TENANT_ADMIN_ROLES = ['super_admin', 'admin', 'main_admin', 'sub_admin', 'client', 'city_manager'];
 const TAB_IDS: LeadTab[] = ['overview', 'timeline', 'deals', 'insights'];
 
+/** Spark & Ray: the deal form in conversion mode for a lead (it reads the lead itself to prefill name / account). */
+const sparkConvertHref = (leadId: string) => `/dashboard/crm/deals/new?lead_id=${encodeURIComponent(leadId)}&convert=1`;
+
 const tabFromHash = (): LeadTab => {
   if (typeof window === 'undefined') return 'overview';
   const h = window.location.hash.replace('#', '') as LeadTab;
@@ -131,7 +134,11 @@ export default function LeadDetailPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const sp = new URLSearchParams(window.location.search);
-    if (sp.get('convert') === '1') setConvertOpen(true);
+    if (sp.get('convert') !== '1') return;
+    // Spark & Ray: conversion happens on our deal form, not the old convert modal.
+    if (isB2bClientActive()) { router.replace(sparkConvertHref(id)); return; }
+    setConvertOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [editOpen, setEditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -348,6 +355,9 @@ export default function LeadDetailPage() {
   })();
 
   const onConvert = async () => {
+    // Spark & Ray: open OUR deal form (quotation / pricing / trial / people sections) prefilled from this lead; the
+    // POST carries convert_lead so the server creates / links the customer account. Others keep the modal below.
+    if (isB2bClientActive()) { router.push(sparkConvertHref(id)); return; }
     // Tata Tiscon / PASA: bypass the create-account / create-deal popup entirely. Their flow records the deal
     // directly (with line items managed on the deal page), so we call convert with account=false and route
     // straight to the new deal. BMW is EXCLUDED — it must open the modal so the rep enters booked volume and

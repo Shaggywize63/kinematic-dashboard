@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useClient } from '../../../context/ClientContext';
 import { isConsumerChampion, isTataTiscon, isKinematicActive, canViewFieldVisits, canManageAfterSales, isWalkInExecutive } from '../../../lib/clientFeatures';
+import { getActingAs, getImpersonateUser } from '../../../lib/api';
 
 type CrmLink = {
   href: string;
@@ -16,6 +17,8 @@ type CrmLink = {
   kinematicHidden?: boolean;
   /** Visible ONLY to the Kinematic super admin (role super_admin). */
   superAdminOnly?: boolean;
+  /** Platform-operator surface: hidden while a super admin is viewing AS a client / user. */
+  hideWhenViewingAsClient?: boolean;
   /** Visible ONLY to tenants running the ad-hoc Marketing Visit flow
    *  (canViewFieldVisits — Rajkamal today). */
   fieldVisitsOnly?: boolean;
@@ -56,7 +59,7 @@ const LINKS: CrmLink[] = [
   // KINI website-chatbot conversations + the leads they capture. This is the
   // Kinematic platform's own website funnel, so it's visible only to the
   // Kinematic super admin — not client tenants or their admins.
-  { href: '/dashboard/crm/website-chats', label: 'Conversations', superAdminOnly: true },
+  { href: '/dashboard/crm/website-chats', label: 'Conversations', superAdminOnly: true, hideWhenViewingAsClient: true },
   { href: '/dashboard/crm/reports', label: 'Reports' },
   { href: '/dashboard/crm/settings', label: 'Settings' },
   // Help & lifecycle — same screen as iOS / Android so reps get the same
@@ -94,8 +97,12 @@ export default function CrmSubNav() {
   // SSR-safe pattern as the gates above.
   const [walkIn, setWalkIn] = useState(false);
   useEffect(() => { setWalkIn(isWalkInExecutive(user as any)); }, [user, selectedClientId]);
+  // Resolved after mount (localStorage) so SSR and the first client render agree.
+  const [viewingAsClient, setViewingAsClient] = useState(false);
+  useEffect(() => { setViewingAsClient(!!getActingAs() || !!getImpersonateUser()); }, []);
   const visibleLinks = LINKS.filter((l) => {
     if (l.superAdminOnly && !superAdmin) return false;
+    if (l.hideWhenViewingAsClient && viewingAsClient) return false;
     if (l.championHidden && champion) return false;
     if (l.tataTisconHidden && tataTiscon) return false;
     if (l.kinematicHidden && kinematic) return false;

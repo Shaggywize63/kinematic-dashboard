@@ -64,6 +64,9 @@ export function ActivityFields({ cf }: { cf: unknown }) {
 interface Props {
   activities: Activity[];
   onChange?: () => void;
+  // When set, every row gets an Edit button that hands the activity to the caller (which opens the shared
+  // EditActivityModal). Independent of `onChange`, so a page can offer Edit without the status / delete controls.
+  onEdit?: (a: Activity) => void;
   // When set, an "+ Add activity" button links to the Log-Activity form
   // prefilled for this record (e.g. /dashboard/crm/activities/new?lead_id=X).
   // Lets users log an activity straight from the timeline.
@@ -83,7 +86,7 @@ function activityCampaign(a: Activity, leadCampaign?: string | null): string | n
   return own || (leadCampaign ? String(leadCampaign) : null);
 }
 
-export default function ActivityTimeline({ activities, onChange, addHref, leadCampaign }: Props) {
+export default function ActivityTimeline({ activities, onChange, onEdit, addHref, leadCampaign }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const addBtn = addHref ? (
@@ -205,24 +208,29 @@ export default function ActivityTimeline({ activities, onChange, addHref, leadCa
                 </div>
               </div>
 
-              {showActions && (
+              {(showActions || onEdit) && (
                 <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                  {!isCompleted && (
+                  {onEdit && (
+                    <button onClick={() => onEdit(a)} title="Edit activity" aria-label={`Edit activity: ${a.subject || prettifySlug(a.type)}`} style={btnGhost}>
+                      ✎ Edit
+                    </button>
+                  )}
+                  {showActions && !isCompleted && (
                     <button onClick={() => updateStatus(a, 'completed')} disabled={busyId === a.id} style={btnGreen}>
                       ✓ Mark Complete
                     </button>
                   )}
-                  {status !== 'in_progress' && !isCompleted && (
+                  {showActions && status !== 'in_progress' && !isCompleted && (
                     <button onClick={() => updateStatus(a, 'in_progress')} disabled={busyId === a.id} style={btnAmber}>
                       ▶ In Progress
                     </button>
                   )}
-                  {isCompleted && (
+                  {showActions && isCompleted && (
                     <button onClick={() => updateStatus(a, 'open')} disabled={busyId === a.id} style={btnGhost}>
                       ↺ Reopen
                     </button>
                   )}
-                  {status !== 'cancelled' && !isCompleted && (
+                  {showActions && status !== 'cancelled' && !isCompleted && (
                     <button onClick={() => updateStatus(a, 'cancelled')} disabled={busyId === a.id} style={btnGray}>
                       ✕ Cancel
                     </button>

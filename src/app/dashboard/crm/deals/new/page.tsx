@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmDeals, crmPipelines, crmProducts, crmAccounts, crmContacts, crmLeads, crmSettings } from '../../../../../lib/crmApi';
@@ -51,6 +51,9 @@ function NewDealPageInner() {
   const initialAccountId = sp.get('account_id') ?? '';
   const initialContactId = sp.get('contact_id') ?? '';
   const initialLeadId = sp.get('lead_id') ?? '';
+  // Spark: "Convert to deal" on a lead lands here (?lead_id=&convert=1). The deal is created from this form and the
+  // server converts the lead (customer account + contact) in the same request via `convert_lead: true`.
+  const convertMode = spark && sp.get('convert') === '1' && !!initialLeadId;
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -85,6 +88,12 @@ function NewDealPageInner() {
   const [leadOptions, setLeadOptions] = useState<LeadPick[]>([]);
   const [leadSearching, setLeadSearching] = useState(false);
   const [selectedLead, setSelectedLead] = useState<LeadPick | null>(null);
+  // Conversion mode: the full source lead (converted state / account / company), and inline status for it.
+  const [sourceLead, setSourceLead] = useState<Lead | null>(null);
+  const [leadLoadFailed, setLeadLoadFailed] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  // Once the rep edits the name we stop overwriting it with the lead-derived default.
+  const nameTouched = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -110,10 +119,23 @@ function NewDealPageInner() {
     if (!initialLeadId) return;
     let cancelled = false;
     crmLeads.get(initialLeadId)
-      .then((r) => { if (!cancelled && r?.data) setSelectedLead(toLeadPick(r.data)); })
-      .catch(() => { /* keep the raw id in form.lead_id — chip just won't show */ });
+      .then((r) => {
+        if (cancelled || !r?.data) return;
+        setSelectedLead(toLeadPick(r.data));
+        setSourceLead(r.data);
+        if (!convertMode) return;
+        // Prefill from the lead: a sensible name (company — contact) and, when the lead is already converted,
+        // its customer account. Nothing the rep already typed is overwritten.
+        if (!nameTouched.current) {
+          const nm = convertDealName(r.data);
+          if (nm) setForm((f) => (f.name ? f : { ...f, name: nm }));
+        }
+        const acc = r.data.converted_account_id;
+        if (acc) setForm((f) => (f.account_id ? f : { ...f, account_id: acc }));
+      })
+      .catch(() => { if (!cancelled) setLeadLoadFailed(true); /* keep the raw id in form.lead_id — chip just won't show */ });
     return () => { cancelled = true; };
-  }, [initialLeadId]);
+  }, [initialLeadId, convertMode]);
 
   // Debounced lead search — mirrors the activities page's lead picker.
   useEffect(() => {
@@ -214,8 +236,17 @@ function NewDealPageInner() {
 
   const quotationOn = spark && isDealSectionOn(sections, 'quotation');
   const sparkItems = useMemo(() => (quotationOn ? buildDealItems(lines) : []), [quotationOn, lines]);
+  // A lead that already has its customer account (converted earlier) just gets an additional deal on it; an
+  // unconverted one is converted by the server as part of creating this deal.
+  const leadAlreadyConverted = !!sourceLead && (sourceLead.status === 'converted' || !!sourceLead.converted_at || !!sourceLead.converted_account_id);
+  const convertPending = convertMode && !!sourceLead && !leadAlreadyConverted;
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
+    if (convertMode && !sourceLead) {
+      const m = leadLoadFailed ? 'Could not load the lead to convert. Go back and try again.' : 'Still loading the lead…';
+      setSubmitError(m); toast.error(m); return;
+    }
     if (spark) {
       const errs = validateDealSections(sectionValues, sections);
       setSectionErrors(errs);
@@ -235,11 +266,13 @@ function NewDealPageInner() {
         client_id: form.client_id || undefined,
         // Account / contact links — only sent for Horizon users.
         // Tata Tiscon's form doesn't expose those pickers so they stay null.
-        account_id: (showLinks || spark) && form.account_id ? form.account_id : undefined,
-        primary_contact_id: showLinks && form.primary_contact_id ? form.primary_contact_id : undefined,
+        // (A lead being converted brings its own account: the server creates / reuses it, so none is sent.)
+        account_id: (showLinks || spark) && form.account_id && !convertPending ? form.account_id : undefined,
+        primary_contact_id: (showLinks || spark) && form.primary_contact_id ? form.primary_contact_id : undefined,
         // Source lead — every tenant can attach one via the picker below,
         // enabling additional deals for a lead that already converted.
         lead_id: form.lead_id || undefined,
+        ...(convertPending ? { convert_lead: true } : {}),
         // Spark only: the quotation number and the product lines (amount is computed from them server-side).
         ...(spark ? {
           ...buildDealSectionPayload(sectionValues, sections, 'create'),
@@ -247,9 +280,14 @@ function NewDealPageInner() {
         } : {}),
         custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
       } as any);
-      toast.success('Deal created');
+      toast.success(convertPending ? 'Lead converted and deal created' : 'Deal created');
       router.push(`/dashboard/crm/deals/${r.data.id}`);
-    } catch (err: any) { toast.error(err.message || 'Create failed'); setBusy(false); }
+    } catch (err: any) {
+      const msg = err?.message || (convertMode ? 'Conversion failed' : 'Create failed');
+      toast.error(msg);
+      if (convertMode) setSubmitError(msg);
+      setBusy(false);
+    }
   };
 
   const currentPipeline = pipelines.find((p) => p.id === form.pipeline_id);
@@ -274,10 +312,17 @@ function NewDealPageInner() {
 
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 760 }}>
-      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Deal</h2>
+      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>{convertMode ? 'Convert Lead to Deal' : 'New Deal'}</h2>
+      {convertMode && (
+        <div data-testid="convert-banner" role="status" style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 10, background: 'var(--s3)', border: '1px solid var(--primary)', color: 'var(--text)', fontSize: 13 }}>
+          {leadLoadFailed
+            ? 'Could not load the lead to convert. Go back and try again.'
+            : <>Converting <strong>{selectedLead?.name || 'lead'}</strong> — {leadAlreadyConverted ? 'this adds a deal to the lead’s existing customer account.' : 'this will create/link the customer account.'}</>}
+        </div>
+      )}
       <ClientScopeField value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id })} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        {!fields.isHidden('name') && <Field label={fields.labelFor('name', 'Name')}><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required={fields.requiredFor('name', true)} style={input} /></Field>}
+        {!fields.isHidden('name') && <Field label={fields.labelFor('name', 'Name')}><input value={form.name} onChange={(e) => { nameTouched.current = true; setForm({ ...form, name: e.target.value }); }} required={fields.requiredFor('name', true)} style={input} /></Field>}
 
         {!steelDealer && !spark && (
           <>
@@ -324,12 +369,12 @@ function NewDealPageInner() {
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {selectedLead.name}{selectedLead.phone ? ` · ${selectedLead.phone}` : ''}
               </span>
-              <button
+              {!convertMode && <button
                 type="button"
                 onClick={clearLead}
                 title="Remove the source lead"
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}
-              >×</button>
+              >×</button>}
             </div>
           ) : (
             <div style={{ position: 'relative' }}>
@@ -369,7 +414,12 @@ function NewDealPageInner() {
           )}
         </Field>
         )}
-        {spark && !fields.isHidden('account_id') && (
+        {spark && convertPending && (
+          <Field label="Customer (account)">
+            <div data-testid="convert-account-note" style={{ ...input, color: 'var(--text-dim)' }}>Created from the lead when you submit</div>
+          </Field>
+        )}
+        {spark && !convertPending && !fields.isHidden('account_id') && (
           <Field label={fields.labelFor('account_id', 'Customer (account)') + (fields.requiredFor('account_id', false) ? ' *' : '')}>
             <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} />
           </Field>
@@ -440,9 +490,12 @@ function NewDealPageInner() {
         </div>
       )}
 
+      {submitError && (
+        <div role="alert" data-testid="deal-submit-error" style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: 'rgba(239,68,68,0.12)', border: '1px solid #ef4444', color: '#ef4444', fontSize: 13 }}>{submitError}</div>
+      )}
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end' }}>
         <button type="button" onClick={() => router.back()} style={btnGhost}>Cancel</button>
-        <button type="submit" disabled={busy} style={btnPrimary}>{busy ? 'Saving...' : 'Create'}</button>
+        <button type="submit" disabled={busy || (convertMode && !sourceLead && !leadLoadFailed)} style={btnPrimary}>{busy ? 'Saving...' : convertMode ? 'Convert & create deal' : 'Create'}</button>
       </div>
     </form>
   );
@@ -456,6 +509,14 @@ function toLeadPick(l: Lead): LeadPick {
   const name = [l.first_name, l.last_name].filter(Boolean).join(' ').trim()
     || l.full_name || l.email || l.phone || `Lead ${String(l.id).slice(0, 8)}`;
   return { id: l.id, name, phone: l.phone || '' };
+}
+
+/** Default name for a deal created from a lead: "Company — Contact", or whichever of the two exists. Editable. */
+function convertDealName(l: Lead): string {
+  const person = [l.first_name, l.last_name].filter(Boolean).join(' ').trim() || l.full_name || '';
+  const company = (l.company || '').trim();
+  if (company && person && company.toLowerCase() !== person.toLowerCase()) return `${company} — ${person}`;
+  return company || person || l.email || '';
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

@@ -7,6 +7,7 @@ import { crmAccounts, type AccountTimeline } from '../../../../../lib/crmApi';
 import type { Account, Contact, Deal, Activity, Note } from '../../../../../types/crm';
 import AccountSummaryCard from '../../../../../components/crm/AccountSummaryCard';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
+import EditActivityModal from '../../../../../components/crm/EditActivityModal';
 import AccountEditModal from '../../../../../components/crm/AccountEditModal';
 import CustomFieldsDetailCard from '../../../../../components/crm/CustomFieldsDetailCard';
 import CallButton from '../../../../../components/crm/shared/CallButton';
@@ -28,6 +29,8 @@ export default function AccountDetailPage() {
   const [timeline, setTimeline] = useState<AccountTimeline | null>(null);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  // The activity being edited from the Activities card (shared with the Activities page).
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   // Spark & Ray (connected-B2B) only: Recent updates, task / deal shortcuts and the journey page.
@@ -55,6 +58,15 @@ export default function AccountDetailPage() {
   };
 
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [id]);
+
+  // After an activity is saved or deleted in the edit modal, refresh just the activity list (no full-page reload).
+  const refreshActivities = async () => {
+    if (!id) return;
+    try {
+      const r = await crmAccounts.activities(id);
+      setActivities(r.data || []);
+    } catch (e: any) { toast.error(e?.message || 'Could not refresh activities'); }
+  };
 
   const handleDelete = async () => {
     if (!a) return;
@@ -192,7 +204,7 @@ export default function AccountDetailPage() {
           )}
         </Card>
 
-        <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?account_id=${id}`} /></Card>
+        <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} onEdit={setEditingActivity} addHref={`/dashboard/crm/activities/new?account_id=${id}`} /></Card>
 
         {notes.length > 0 && (
           <Card title={`Notes (${notes.length})`}>
@@ -219,6 +231,14 @@ export default function AccountDetailPage() {
         </Card>
         <AccountSummaryCard accountId={a.id} initial={a.ai_summary} />
       </div>
+
+      {editingActivity && (
+        <EditActivityModal
+          activity={editingActivity}
+          onClose={() => setEditingActivity(null)}
+          onSaved={() => { setEditingActivity(null); void refreshActivities(); }}
+        />
+      )}
 
       <AccountEditModal
         account={a}
