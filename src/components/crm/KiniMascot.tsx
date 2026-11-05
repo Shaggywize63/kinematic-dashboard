@@ -6,6 +6,20 @@ import { useEffect, useRef } from 'react';
 // SVG so it's crisp at any size. Keyframes for the antenna are injected once.
 const PUPIL_REST = [{ x: 42, y: 57 }, { x: 58, y: 57 }];
 
+// Safari/WebKit is far more sensitive to forced layout reflow than Blink, and the
+// eye-tracking (getScreenCTM on mouse move) made the dashboard freeze there — so we
+// turn cursor tracking OFF on Safari entirely (the eyes simply rest centered). The
+// regex matches Safari (desktop + iOS) but not Chrome/Chromium/Firefox/Edge/Opera
+// on any platform. Computed once, client-side only.
+let _isSafari: boolean | null = null;
+function isSafari(): boolean {
+  if (_isSafari !== null) return _isSafari;
+  if (typeof navigator === 'undefined') return false; // SSR — don't cache
+  _isSafari = /^((?!chrome|android|crios|fxios|edg|opr|samsungbrowser).)*safari/i
+    .test(navigator.userAgent);
+  return _isSafari;
+}
+
 let injected = false;
 function injectKeyframes() {
   if (injected || typeof document === 'undefined') return;
@@ -24,20 +38,33 @@ export default function KiniMascot({ size = 40 }: { size?: number }) {
 
   useEffect(() => {
     injectKeyframes();
+    // On Safari, turn cursor tracking OFF (it caused the freeze); also respect
+    // reduced-motion. Either way: pupils rest centered, no listeners, no work.
+    if (typeof window === 'undefined') return;
+    if (isSafari() || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
     let raf = 0;
     let mx = -1, my = -1;
+    // Cache the SVG→screen matrix. getScreenCTM() forces a synchronous layout
+    // reflow, and the matrix only changes when the mascot itself moves on screen
+    // (scroll / resize / layout) — NOT when the mouse moves. Recomputing it every
+    // mouse frame made Safari (far more reflow-sensitive than Blink) jank/freeze,
+    // multiplied by the several mascots mounted at once (FAB, search, panel). So
+    // we read it at most once per frame and only when marked dirty.
+    let ctm: DOMMatrix | null = null;
+    let dirty = true;
     const MAX_X = 2.6, MAX_Y = 2.1, REACH = 260;
     const update = () => {
       raf = 0;
       const svg = ref.current;
       if (!svg || mx < 0 || !svg.getScreenCTM) return;
-      const ctm = svg.getScreenCTM();
+      if (dirty || !ctm) { ctm = svg.getScreenCTM(); dirty = false; }
       if (!ctm) return;
       const pupils = svg.querySelectorAll('.kini-pupil');
       pupils.forEach((p, i) => {
         const rest = PUPIL_REST[i] || PUPIL_REST[0];
-        const sx = ctm.a * rest.x + ctm.c * rest.y + ctm.e;
-        const sy = ctm.b * rest.x + ctm.d * rest.y + ctm.f;
+        const sx = ctm!.a * rest.x + ctm!.c * rest.y + ctm!.e;
+        const sy = ctm!.b * rest.x + ctm!.d * rest.y + ctm!.f;
         const dx = mx - sx, dy = my - sy;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
         const t = Math.min(dist / REACH, 1);
@@ -47,12 +74,21 @@ export default function KiniMascot({ size = 40 }: { size?: number }) {
         );
       });
     };
-    const onMove = (e: MouseEvent) => {
-      mx = e.clientX; my = e.clientY;
-      if (!raf) raf = requestAnimationFrame(update);
-    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(update); };
+    const onMove = (e: MouseEvent) => { mx = e.clientX; my = e.clientY; schedule(); };
+    // The mascot moved on screen → the cached matrix is stale. Recompute lazily
+    // in the next frame, not synchronously here.
+    const onShift = () => { dirty = true; schedule(); };
+    const scrollOpts = { passive: true, capture: true } as const;
     window.addEventListener('mousemove', onMove, { passive: true });
-    return () => { window.removeEventListener('mousemove', onMove); if (raf) cancelAnimationFrame(raf); };
+    window.addEventListener('scroll', onShift, scrollOpts);
+    window.addEventListener('resize', onShift);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('scroll', onShift, scrollOpts);
+      window.removeEventListener('resize', onShift);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, []);
 
   return (
