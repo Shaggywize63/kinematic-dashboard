@@ -15,12 +15,21 @@ import { Button, Card, EmptyState, Eyebrow, Field, IconButton, Input, T } from '
 import { shareInflight } from './shareInflight';
 import { alertBox, td, tdNum, tdTime, th } from './styles';
 
+// Parse a timestamp that may be space-separated ("2026-11-05 11:43:00"); Safari's
+// Date only accepts the ISO "T" form and returns NaN otherwise, which would make
+// these columns sort randomly in Safari. Returns null for an unparseable value.
+const parseTs = (v?: string | null): number | null => {
+  if (!v) return null;
+  const t = Date.parse(v.replace(' ', 'T'));
+  return Number.isNaN(t) ? null : t;
+};
+
 // What each sortable column compares. Times sort by the instant, the mode by what is shown.
 const sortValue = (r: DailyReportTeamRow, key: string): unknown => {
   switch (key) {
     case 'name': return r.name;
-    case 'checkin_at': return r.checkin_at ? Date.parse(r.checkin_at) : null;
-    case 'checkout_at': return r.checkout_at ? Date.parse(r.checkout_at) : null;
+    case 'checkin_at': return parseTs(r.checkin_at);
+    case 'checkout_at': return parseTs(r.checkout_at);
     case 'mode': return r.mode || r.label ? modeText(r.mode, r.label) : null;
     case 'total_km': return r.total_km;
     case 'visits': return r.visits;
