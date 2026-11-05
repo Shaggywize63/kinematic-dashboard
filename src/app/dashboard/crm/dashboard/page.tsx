@@ -8,6 +8,8 @@ import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
 import { fmtValue, fmtValueCompact, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { useCityScope } from '../../../../context/CityScopeContext';
+import { isB2bClientActive } from '../../../../lib/b2bClient';
+import { INDUSTRY_LEGEND } from '../../../../lib/sparkIndustries';
 import { useClient } from '../../../../context/ClientContext';
 import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
 import TelecallerOverviewStrip from '../../../../components/crm/analytics/TelecallerOverviewStrip';
@@ -16,7 +18,7 @@ import { DEFAULT_LEAD_FORM, extractLeadForm, segmentPlural, type LeadFormConfig 
 import { isItemVisible } from '../../../../lib/appCustomization';
 import { useAppUiConfig } from '../../../../lib/useAppUiConfig';
 import { ChartCard, ChartEmpty } from '../../../../lib/chartTheme';
-import { Button, Card, EmptyState, Eyebrow, IconButton, PageHeader, Segmented, T, useIsCompact } from '../../../../components/ui';
+import { Button, Card, EmptyState, Eyebrow, IconButton, PageHeader, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
 
 // Weight/INR toggle is bespoke for Tata Tiscon — they bill in metric
@@ -111,7 +113,10 @@ export default function CrmDashboardPage() {
   const [winRate, setWinRate] = useState<WinRatePoint[]>([]);
   const [forecast, setForecast] = useState<ForecastPoint[]>([]);
   const [scoreDist, setScoreDist] = useState<ScoreDistributionPoint[]>([]);
-  const [geoLeads, setGeoLeads] = useState<Array<{ id: string; first_name?: string|null; last_name?: string|null; city?: string|null; state?: string|null; status?: string|null; latitude?: number|null; longitude?: number|null; score?: number|null; score_grade?: 'A'|'B'|'C'|'D'|null; score_breakdown?: Record<string, unknown>|null }>>([]);
+  const [geoLeads, setGeoLeads] = useState<Array<{ id: string; first_name?: string|null; last_name?: string|null; city?: string|null; state?: string|null; status?: string|null; latitude?: number|null; longitude?: number|null; score?: number|null; score_grade?: 'A'|'B'|'C'|'D'|null; score_breakdown?: Record<string, unknown>|null; industry?: string|null; company?: string|null }>>([]);
+  // Spark & Ray: filter the "Leads on Map" by industry ('' = all, '__none__' = leads without one) and colour the pins by it.
+  const sparkActive = isB2bClientActive();
+  const [industryFilter, setIndustryFilter] = useState('');
   // BMW-only "Follow-ups due" list (leads whose next_follow_up_date has come
   // due — the backend leads list supports ?followup_due=true).
   const [followupLeads, setFollowupLeads] = useState<Array<{ id: string; name: string }>>([]);
@@ -215,10 +220,7 @@ export default function CrmDashboardPage() {
     setLoading(true);
     (async () => {
       try {
-        const [r, leadsRes] = await Promise.all([
-          crmAnalytics.dashboardComplete(range, unit),
-          crmLeads.geo(),
-        ]);
+        const r = await crmAnalytics.dashboardComplete(range, unit);
         if (cancel) return;
         const d = r.data;
         setSummary(d.summary);
@@ -227,12 +229,6 @@ export default function CrmDashboardPage() {
         setWinRate(d.winRate);
         setForecast(d.forecast);
         setScoreDist(d.leadScoreDistribution);
-        setGeoLeads(((leadsRes as any)?.data ?? []).map((l: any) => ({
-          id: l.id, first_name: l.first_name, last_name: l.last_name,
-          city: l.city, state: l.state, status: l.status,
-          latitude: l.latitude, longitude: l.longitude,
-          score: l.score, score_grade: l.score_grade, score_breakdown: (l as any).score_breakdown ?? null,
-        })));
       } catch (e: any) {
         toast.error(e.message || 'Failed to load CRM analytics');
       } finally {
@@ -241,6 +237,25 @@ export default function CrmDashboardPage() {
     })();
     return () => { cancel = true; };
   }, [range.from, range.to, unit, selectedCity]);
+
+  // "Leads on Map" points. Separate from the analytics load so changing the industry filter refetches only the
+  // map (Spark & Ray; other tenants never send `industry`). Pins sit at each lead's latitude / longitude.
+  useEffect(() => {
+    let cancel = false;
+    crmLeads.geo(sparkActive && industryFilter ? { industry: industryFilter } : undefined)
+      .then((res) => {
+        if (cancel) return;
+        setGeoLeads(((res as any)?.data ?? []).map((l: any) => ({
+          id: l.id, first_name: l.first_name, last_name: l.last_name,
+          city: l.city, state: l.state, status: l.status,
+          latitude: l.latitude, longitude: l.longitude,
+          score: l.score, score_grade: l.score_grade, score_breakdown: (l as any).score_breakdown ?? null,
+          industry: l.industry ?? null, company: l.company ?? null,
+        })));
+      })
+      .catch((e: any) => { if (!cancel) toast.error(e.message || 'Failed to load the leads map'); });
+    return () => { cancel = true; };
+  }, [selectedCity, sparkActive, industryFilter]);
 
   // BMW: load the leads whose follow-up date is due for the home card. Scoped
   // + city-aware via the api client; refetches when the city scope changes.
@@ -402,8 +417,20 @@ export default function CrmDashboardPage() {
 
       {/* Map gets full width so the bubbles + legend + side panel fit cleanly. */}
       {!kinematicActive && !bmwActive && isVisible('chart_geo_map') && (
-        <ChartCard title="Leads on Map" subtitle="Hover or click a city to drill in">
-          {geoLeads.length === 0 ? emptyChart : <LeadsGeoMap leads={geoLeads} />}
+        <ChartCard
+          title="Leads on Map"
+          subtitle={sparkActive ? 'Pins are coloured by industry · click a pin to open the lead' : 'Hover or click a city to drill in'}
+          right={sparkActive ? (
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-dim)', flexShrink: 0 }}>
+              <span>Industry</span>
+              <Select aria-label="Filter map by industry" data-testid="map-industry-filter" value={industryFilter} onChange={(e) => setIndustryFilter(e.target.value)} style={{ width: 210, height: 32, fontSize: 13 }}>
+                <option value="">All industries</option>
+                {INDUSTRY_LEGEND.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </Select>
+            </label>
+          ) : undefined}
+        >
+          {geoLeads.length === 0 ? emptyChart : <LeadsGeoMap leads={geoLeads} colorBy={sparkActive ? 'industry' : 'status'} />}
         </ChartCard>
       )}
 

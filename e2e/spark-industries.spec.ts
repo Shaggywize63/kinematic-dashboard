@@ -71,3 +71,51 @@ test.describe('sparkIndustryOptions', () => {
     expect(sparkIndustryOptions(42 as unknown as string)).toEqual(SEVEN);
   });
 });
+
+// ── Industry colours ──
+import { INDUSTRY_PALETTE, INDUSTRY_UNKNOWN_COLOR, INDUSTRY_LEGEND, NO_INDUSTRY, industryColor } from '../src/lib/sparkIndustries';
+
+test.describe('industryColor / palette', () => {
+  const EXPECTED: Record<string, string> = {
+    'Manufacturing': '#2563EB',
+    'Automotive': '#DC2626',
+    'Pharma & Healthcare': '#16A34A',
+    'Food & Beverage': '#F59E0B',
+    'Construction & Infrastructure': '#7C3AED',
+    'Power & Energy': '#0891B2',
+  };
+
+  test('each of the six industries has its contract colour', () => {
+    for (const [name, hex] of Object.entries(EXPECTED)) expect(industryColor(name)).toBe(hex);
+    expect({ ...INDUSTRY_PALETTE }).toEqual(EXPECTED);
+  });
+
+  test('the six colours are distinct and none is the unknown grey', () => {
+    const colours = Object.values(EXPECTED);
+    expect(new Set(colours).size).toBe(6);
+    expect(colours).not.toContain(INDUSTRY_UNKNOWN_COLOR);
+    expect(INDUSTRY_UNKNOWN_COLOR).toBe('#6B7280');
+  });
+
+  test('matching is case- and whitespace-insensitive', () => {
+    expect(industryColor('manufacturing')).toBe('#2563EB');
+    expect(industryColor('AUTOMOTIVE')).toBe('#DC2626');
+    expect(industryColor('  pharma & healthcare ')).toBe('#16A34A');
+    expect(industryColor('food  &  beverage')).toBe('#F59E0B');
+    expect(industryColor('POWER & ENERGY')).toBe('#0891B2');
+  });
+
+  test('"Other", blank, null, undefined, junk and non-strings are grey', () => {
+    for (const v of ['Other', 'other', '', '   ', null, undefined, 'Textiles', 'Manufacturing Co', 42 as unknown as string, {} as unknown as string]) {
+      expect(industryColor(v as string | null | undefined)).toBe('#6B7280');
+    }
+  });
+
+  test('every dropdown option has a colour and the legend covers the seven + "No industry"', () => {
+    for (const o of SPARK_INDUSTRIES) expect(industryColor(o)).toMatch(/^#[0-9A-F]{6}$/);
+    expect(INDUSTRY_LEGEND.map((r) => r.value)).toEqual([...SEVEN, NO_INDUSTRY]);
+    expect(INDUSTRY_LEGEND.map((r) => r.label).at(-1)).toBe('No industry');
+    expect(INDUSTRY_LEGEND.at(-1)?.color).toBe('#6B7280');
+    expect(INDUSTRY_LEGEND.find((r) => r.value === 'Other')?.color).toBe('#6B7280');
+  });
+});
