@@ -467,7 +467,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const filterNav = (items: any[]) => {
     const visibleAfterRole = items
       .filter((i) => !i.financeOnly || financeAllowed)
-      .filter((i) => !i.superAdminOnly || isSuperAdmin);
+      .filter((i) => !i.superAdminOnly || isSuperAdmin)
+      // A platform-operator surface (Website Chats): not shown while a super admin is viewing AS a client / user.
+      .filter((i) => !i.hideWhenViewingAsClient || !(actingAs || impersonate));
     // Hide demo-only nav items (e.g. the Nurturing module preview) for
     // every account except demo@kinematic.com. Real customers shouldn't
     // see a half-built feature surfaced as if it's ready.
@@ -638,7 +640,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // subsumes the old `hiddenForTata` gate (no super admin is on Tata).
       // Also explicitly hidden for BMW (no chat UI) — belt-and-suspenders on top
       // of superAdminOnly, matching how Pipeline is hidden for BMW.
-      { href: '/dashboard/crm/website-chats',    label: 'Website Chats',  icon: 'chatText', module: 'crm_dashboard', superAdminOnly: true, hiddenForBmw: true },
+      { href: '/dashboard/crm/website-chats',    label: 'Website Chats',  icon: 'chatText', module: 'crm_dashboard', superAdminOnly: true, hideWhenViewingAsClient: true, hiddenForBmw: true },
       // Email alerts + verified senders — the marketing-side email surface.
       // Templates live at the existing /crm/email-templates page; alerts
       // composes them with a verified From + scheduler.
