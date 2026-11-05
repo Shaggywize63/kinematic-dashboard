@@ -10,7 +10,14 @@
  *
  * Key: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY (Vercel env, then REDEPLOY). Needs
  * "Places API (New)" + "Maps JavaScript API" enabled, and this domain in the
- * key's HTTP-referrer allowlist. No key → renders nothing.
+ * key's HTTP-referrer allowlist. No key → renders nothing, unless `backend`
+ * is set (see below).
+ *
+ * Props (both opt-in; the default is the long-standing lead-form behaviour):
+ *  - `deviceFill={false}`: never auto-fill the address from the device's GPS fix on mount. Used for
+ *    Spark & Ray, where the lead's pin must be the PICKED address, not wherever the rep happens to be.
+ *  - `backend`: when there is no Maps key, drive suggestions + the pick through the backend's Google Places
+ *    proxy (/crm/places/autocomplete + /crm/places/details) instead of rendering nothing.
  */
 import { useEffect, useRef, useState } from 'react';
 import { crmPlaces, type PlaceSuggestion } from '../../lib/crmApi';
@@ -35,7 +42,9 @@ export interface PlaceResult {
   longitude?: string;
 }
 
-export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: PlaceResult) => void }) {
+export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true, backend = false }: { onSelect: (p: PlaceResult) => void; deviceFill?: boolean; backend?: boolean }) {
+  // No Maps key but the caller opted in: use the backend Places proxy.
+  const backendMode = !KEY && backend;
   const [query, setQuery] = useState('');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -61,22 +70,24 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
   const biasRef = useRef<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    if (!KEY) return;
+    if (!KEY && !backend) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
-    if (!w.google?.maps?.importLibrary) bootstrapMaps(KEY);
-    w.gm_authFailure = () => setErr('Google rejected this API key. Check the key, billing, and the domain’s referrer allowlist.');
-    (async () => {
-      try {
-        const places = await w.google.maps.importLibrary('places');
-        placesRef.current = places;
-        if (!places?.AutocompleteSuggestion) {
-          setErr('Enable “Places API (New)” for this key in Google Cloud (programmatic autocomplete needs it).');
+    if (KEY) {
+      if (!w.google?.maps?.importLibrary) bootstrapMaps(KEY);
+      w.gm_authFailure = () => setErr('Google rejected this API key. Check the key, billing, and the domain’s referrer allowlist.');
+      (async () => {
+        try {
+          const places = await w.google.maps.importLibrary('places');
+          placesRef.current = places;
+          if (!places?.AutocompleteSuggestion) {
+            setErr('Enable “Places API (New)” for this key in Google Cloud (programmatic autocomplete needs it).');
+          }
+        } catch (e) {
+          setErr('Could not load Google Places: ' + ((e as Error)?.message || 'unknown error') + '.');
         }
-      } catch (e) {
-        setErr('Could not load Google Places: ' + ((e as Error)?.message || 'unknown error') + '.');
-      }
-    })();
+      })();
+    }
 
     // Best-effort browser geolocation for the nearest-first bias AND
     // for the one-shot reverse geocode below. The user is asked only
@@ -95,7 +106,7 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
           // dropped them at the wrong gate / building. Best-effort:
           // a Geocoder failure just leaves the form blank for manual
           // entry, no toast or banner.
-          void autoFillFromCoords(lat, lng);
+          if (deviceFill && KEY) void autoFillFromCoords(lat, lng);
         },
         () => { /* permission denied / timeout — fall through to no bias */ },
         { enableHighAccuracy: false, maximumAge: 5 * 60_000, timeout: 4_000 },
@@ -146,6 +157,22 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
     setWideResults([]);
     setShowedMore(false);
     const q = query.trim();
+    if (backendMode) {
+      // Backend Places proxy: the autocomplete rows land in `wideResults` (same { place_id, description }
+      // shape) and are picked through /places/details.
+      if (q.length < 3) { setSuggestions([]); return; }
+      let live = true;
+      const t = setTimeout(async () => {
+        try {
+          const bias = biasRef.current;
+          const resp = await crmPlaces.autocomplete(q, bias?.lat ?? null, bias?.lng ?? null);
+          if (live) { setWideResults(resp?.data ?? []); setShowedMore(true); setOpen(true); }
+        } catch {
+          if (live) { setWideResults([]); setShowedMore(true); }
+        }
+      }, 300);
+      return () => { live = false; clearTimeout(t); };
+    }
     const places = placesRef.current;
     if (q.length < 3 || !places?.AutocompleteSuggestion) { setSuggestions([]); return; }
     let active = true;
@@ -220,6 +247,20 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
   // build a Place from the id (New Places API) and resolve it exactly like a
   // normal pick — same address parsing, same billing-session teardown.
   const pickWide = async (r: PlaceSuggestion) => {
+    if (backendMode) {
+      try {
+        const d = (await crmPlaces.details(r.place_id))?.data;
+        if (!d) return;
+        const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v.toFixed(6) : undefined);
+        onSelect({
+          address_line1: d.address_line1 || r.description,
+          city: d.city, state: d.state, postal_code: d.postal_code,
+          latitude: num(d.latitude), longitude: num(d.longitude),
+        });
+        setQuery(''); setSuggestions([]); setWideResults([]); setShowedMore(false); setOpen(false);
+      } catch { /* ignore a single bad selection */ }
+      return;
+    }
     try {
       const places = placesRef.current;
       if (!places?.Place) return;
@@ -246,12 +287,13 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
     }
   };
 
-  if (!KEY) return null;
+  if (!KEY && !backend) return null;
 
   return (
     <div style={{ gridColumn: '1 / -1', position: 'relative', display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label style={{ fontSize: 12.5, color: 'var(--text-dim)', fontWeight: 500 }}>Search address</label>
+      <label htmlFor="lead-address-search" style={{ fontSize: 12.5, color: 'var(--text-dim)', fontWeight: 500 }}>Search address</label>
       <input
+        id="lead-address-search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
@@ -285,7 +327,7 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
             const seen = new Set(suggestions.map((s) => (s.placePrediction?.text?.text || '').trim()).filter(Boolean));
             const extra = wideResults.filter((r) => r.description && !seen.has(r.description.trim()));
             if (extra.length === 0) {
-              return <div style={{ padding: '7px 8px', fontSize: 12, color: 'var(--text-mute)' }}>No more suggestions.</div>;
+              return <div style={{ padding: '7px 8px', fontSize: 12, color: 'var(--text-mute)' }}>{backendMode ? 'No matching addresses.' : 'No more suggestions.'}</div>;
             }
             return extra.map((r) => (
               <div

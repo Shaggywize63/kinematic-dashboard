@@ -9,6 +9,8 @@ import { orderLeadSources } from '../../lib/leadSourceOrder';
 import type { BusinessType, Lead, LeadStatus, LeadSource } from '../../types/crm';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
+import GoogleAddressAutocomplete, { type PlaceResult } from './GoogleAddressAutocomplete';
+import IndustrySelect from './spark/IndustrySelect';
 import CustomFieldsSection from './CustomFieldsSection';
 import AlternateMobiles from './AlternateMobiles';
 import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
@@ -29,6 +31,8 @@ interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (upda
 // canonical STEEL_DEALER_CLIENT_IDS in clientFeatures.ts so a newly onboarded
 // steel-dealer tenant (e.g. PASA) is never missed on this form.
 const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
+// Spark & Ray: the lead custom field shown as "Sub-industry" right after Industry.
+const SUB_INDUSTRY_KEY = 'industry_category';
 
 // True when ANY custom field on the lead matches the "first site visit"
 // shape and carries a truthy value. Admins name the field differently
@@ -86,6 +90,23 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const [busy, setBusy] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
 
+  // Spark & Ray: a picked address REPLACES the address parts and moves the pin to its coordinates (city / state /
+  // postal code are replaced, not merged, so nothing stale from the old address lingers). The device GPS never
+  // touches a Spark lead that has an address — see the Pin location section below.
+  const onPickSparkAddress = (p: PlaceResult) => {
+    const hasPin = !!(p.latitude && p.longitude);
+    setForm((f) => ({
+      ...f,
+      address_line1: p.address_line1 || f.address_line1,
+      city: p.city || '',
+      state: p.state || '',
+      postal_code: p.postal_code || '',
+      latitude: hasPin ? (p.latitude as string) : f.latitude,
+      longitude: hasPin ? (p.longitude as string) : f.longitude,
+    }));
+  };
+  const sparkAddressSearch = <GoogleAddressAutocomplete deviceFill={false} backend onSelect={onPickSparkAddress} />;
+
   const captureLocation = () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       toast.error('Location is not available on this device/browser.');
@@ -117,7 +138,13 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // from the same settings round-trip as fieldOverrides.
   const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
   // Per-client lead-type names + B2B address block (crm_settings.config.lead_form).
-  const [leadForm, setLeadForm] = useState<LeadFormConfig>(DEFAULT_LEAD_FORM);
+  const [leadFormRaw, setLeadForm] = useState<LeadFormConfig>(DEFAULT_LEAD_FORM);
+  // Spark & Ray edit the address (Google picker) on B2B leads too, whatever lead_form.address_on_b2b says.
+  const sparkLead = isB2bClientActive();
+  const leadForm = useMemo<LeadFormConfig>(
+    () => (sparkLead ? { ...leadFormRaw, addressOnB2b: true } : leadFormRaw),
+    [leadFormRaw, sparkLead],
+  );
   // Pass the active business-type scope so a B2B-only / B2C-only
   // override on the same key wins over the universal entry.
   const fields = useMemo(
@@ -400,7 +427,13 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                 const req  = (k: string, d: boolean) => fields.requiredFor(k, d);
                 // Industry for Spark & Ray: a fixed dropdown (a legacy / free-text value stays selectable). Every
                 // other tenant keeps the free-text <F> at each site below. Callers wrap it in show('industry', …).
-                const sparkIndustry = <SF label={lbl('industry', 'Industry')} required={req('industry', false)} value={form.industry} options={[{ value: '', label: '—' }, ...sparkIndustryOptions(form.industry).map((v) => ({ value: v, label: v }))]} onChange={(v) => setForm({ ...form, industry: v })} />;
+                const sparkIndustry = <Field label={lbl('industry', 'Industry')} required={req('industry', false)} htmlFor="lead-edit-industry"><IndustrySelect id="lead-edit-industry" value={form.industry} options={sparkIndustryOptions(form.industry)} required={req('industry', false)} onChange={(v) => setForm((f) => ({ ...f, industry: v }))} /></Field>;
+                // Spark & Ray: the "Industry Category" custom field is the Sub-industry, shown right after Industry
+                // (same grid) and skipped by the generic Additional-details block below.
+                const sparkSubIndustry = b2bAccounts ? (
+                  <CustomFieldsSection entity="lead" values={form.custom_fields} onChange={(cf) => setForm((f) => ({ ...f, custom_fields: cf }))} isB2c={form.is_b2c} onlyKeys={[SUB_INDUSTRY_KEY]} labelOverrides={{ [SUB_INDUSTRY_KEY]: 'Sub-industry' }} />
+                ) : null;
+                const inlineSubIndustry = !form.is_b2c || explicitlyShownOnB2C('industry');
                 const anyBizOnB2C = explicitlyShownOnB2C('company') || explicitlyShownOnB2C('title') || explicitlyShownOnB2C('industry');
       return (
         <>
@@ -529,6 +562,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               {show('title',    <F label={lbl('title',    'Job Title')} value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
               {/* Industry: dropdown for Spark & Ray, free text for every other tenant. */}
               {show('industry', b2bAccounts ? sparkIndustry : <F label={lbl('industry', 'Industry')}  value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
+              {sparkSubIndustry}
             </Grid></>
           )}
           {/* Location on a B2B lead too. Inbound leads (Google Ads / web form)
@@ -536,6 +570,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               could never be set. Gated on the same city override as B2C. */}
           {(leadForm.addressOnB2b || !fields.isHidden('city')) && (
             <><SL>Location</SL><Grid>
+              {b2bAccounts && !fields.isHidden('address_line1') && sparkAddressSearch}
               {leadForm.addressOnB2b && show('address_line1', <F label={lbl('address_line1', 'Address Line 1')} required={req('address_line1', false)} value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />)}
               {leadForm.addressOnB2b && show('address_line2', <F label={lbl('address_line2', 'Address Line 2')} value={form.address_line2} onChange={(v) => setForm({ ...form, address_line2: v })} />)}
               {!fields.isHidden('city') && (
@@ -578,6 +613,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               {explicitlyShownOnB2C('company')  && show('company',  <F label={lbl('company',  'Company')}   required={req('company', false)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
               {explicitlyShownOnB2C('title')    && show('title',    <F label={lbl('title',    'Job Title')} required={req('title', false)}   value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
               {explicitlyShownOnB2C('industry') && show('industry', b2bAccounts ? sparkIndustry : <F label={lbl('industry', 'Industry')}  required={req('industry', false)} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
+              {explicitlyShownOnB2C('industry') && sparkSubIndustry}
             </Grid></>
           )}
           <SL>Customer</SL><Grid>
@@ -586,6 +622,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             {show('preferred_contact_method', <SF label={lbl('preferred_contact_method', 'Preferred Channel')} value={form.preferred_contact_method} options={[{ value: '', label: '—' }, { value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }]} onChange={(v) => setForm({ ...form, preferred_contact_method: v })} />)}
           </Grid>
           <SL>Address</SL><Grid>
+            {b2bAccounts && !fields.isHidden('address_line1') && sparkAddressSearch}
             {show('address_line1', <F label={lbl('address_line1', 'Address Line 1')} required={req('address_line1', false)} value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />)}
             {show('address_line2', <F label={lbl('address_line2', 'Address Line 2')} value={form.address_line2} onChange={(v) => setForm({ ...form, address_line2: v })} />)}
             {/* LocationPicker bundles state + city — gated on city since
@@ -620,6 +657,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             values={form.custom_fields}
             onChange={(cf) => setForm({ ...form, custom_fields: cf })}
             isB2c={form.is_b2c}
+            // Spark & Ray render the sub-industry next to Industry (above); skip it here so it shows once.
+            excludeKeys={b2bAccounts && inlineSubIndustry ? [SUB_INDUSTRY_KEY] : undefined}
           />
         </Grid>
         {/* Products of Interest moved to the Convert dialog for Kaiyo/Tata. */}
@@ -682,7 +721,10 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         {!isKinematic && <>
         <SL>Pin location</SL>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-          <Button type="button" size="sm" onClick={captureLocation} disabled={geoBusy} icon={<LocateFixed size={14} strokeWidth={2} />}>{geoBusy ? 'Locating…' : 'Use current location'}</Button>
+          {/* Spark & Ray: the pin follows the address (pick one above); the device GPS is only offered for a lead that has no address yet. */}
+          {!(b2bAccounts && form.address_line1.trim()) && (
+            <Button type="button" size="sm" onClick={captureLocation} disabled={geoBusy} icon={<LocateFixed size={14} strokeWidth={2} />}>{geoBusy ? 'Locating…' : 'Use current location'}</Button>
+          )}
           {(form.latitude || form.longitude) && (
             <Button type="button" size="sm" variant="ghost" onClick={() => setForm({ ...form, latitude: '', longitude: '' })}>Clear</Button>
           )}
