@@ -1,12 +1,12 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmSettings, crmLeadSources, crmAccounts, crmContacts } from '../../lib/crmApi';
 import api from '../../lib/api';
 import { isB2bClientActive } from '../../lib/b2bClient';
 import { orderLeadSources } from '../../lib/leadSourceOrder';
-import type { BusinessType, Lead, LeadStatus, LeadSource } from '../../types/crm';
+import type { BusinessType, CustomField, Lead, LeadStatus, LeadSource } from '../../types/crm';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
 import GoogleAddressAutocomplete, { type PlaceResult } from './GoogleAddressAutocomplete';
@@ -14,7 +14,7 @@ import IndustrySelect from './spark/IndustrySelect';
 import CustomFieldsSection from './CustomFieldsSection';
 import AlternateMobiles from './AlternateMobiles';
 import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
-import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
+import { UNORDERED_LAST, buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../lib/crmLeadStatuses';
 import { DEFAULT_LEAD_FORM, extractLeadForm, segmentName, segmentToggleLabel, showsAddress, type LeadFormConfig } from '../../lib/crmLeadForm';
 import { sparkIndustryOptions } from '../../lib/sparkIndustries';
@@ -151,6 +151,10 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     () => buildFieldHelpers(fieldOverrides, 'lead', form.is_b2c ? 'b2c' : 'b2b'),
     [fieldOverrides, form.is_b2c],
   );
+  // Whether the Spark & Ray Sub-industry custom field exists for this lead (reported by its CustomFieldsSection) — in
+  // ordered mode its grid item is hidden while there is none, so it never leaves an empty cell.
+  const [hasSubIndustry, setHasSubIndustry] = useState(false);
+  const reportSubIndustry = useCallback((defs: CustomField[]) => setHasSubIndustry(defs.length > 0), []);
   // Business fields (company/title/industry) live on the B2B branch by
   // default. An admin can opt them onto B2C forms by explicitly un-hiding
   // the field in Settings → Custom Fields (which persists `hidden: false`).
@@ -425,24 +429,49 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       {(() => { const show = (k: string, node: React.ReactNode) => fields.isHidden(k) ? null : node;
                 const lbl  = (k: string, d: string) => fields.labelFor(k, d);
                 const req  = (k: string, d: boolean) => fields.requiredFor(k, d);
+                // Form order (Settings → Custom Fields): once the admin has ordered the lead's fields, every field row —
+                // built-in and custom — becomes an item of ONE grid (FlatRegion) and takes its CSS `order`. Until then
+                // `flat` is false, `os()` is undefined and the section-by-section layout below is unchanged.
+                const flat = fields.orderStyle('first_name') !== undefined;
+                const os = (k: string) => fields.orderStyle(k);
+                const hasOwnOrder = (k: string) => typeof fieldOverrides[`lead.${k}`]?.order === 'number';
+                // Rows with no settings entry of their own (alternate mobiles, the address search) take their own order if
+                // the admin placed them, else their neighbour's: equal orders keep DOM order, so they stay glued to it.
+                const orderOf = (k: string, glueTo?: string) => fields.orderStyle(glueTo && !hasOwnOrder(k) ? glueTo : k);
+                const fullRow = (k: string, node: React.ReactNode, glueTo?: string) => (!node ? null : flat ? <div style={{ gridColumn: '1 / -1', ...orderOf(k, glueTo) }}>{node}</div> : node);
+                const earliestOrder = (keys: string[]): { order: number } | undefined => {
+                  if (!flat) return undefined;
+                  const orders = keys.filter((k) => !fields.isHidden(k)).map((k) => fields.orderStyle(k)?.order ?? UNORDERED_LAST);
+                  return { order: orders.length ? Math.min(...orders) : UNORDERED_LAST };
+                };
                 // Industry for Spark & Ray: a fixed dropdown (a legacy / free-text value stays selectable). Every
                 // other tenant keeps the free-text <F> at each site below. Callers wrap it in show('industry', …).
-                const sparkIndustry = <Field label={lbl('industry', 'Industry')} required={req('industry', false)} htmlFor="lead-edit-industry"><IndustrySelect id="lead-edit-industry" value={form.industry} options={sparkIndustryOptions(form.industry)} required={req('industry', false)} onChange={(v) => setForm((f) => ({ ...f, industry: v }))} /></Field>;
+                const sparkIndustry = <Field label={lbl('industry', 'Industry')} required={req('industry', false)} htmlFor="lead-edit-industry" style={os('industry')}><IndustrySelect id="lead-edit-industry" value={form.industry} options={sparkIndustryOptions(form.industry)} required={req('industry', false)} onChange={(v) => setForm((f) => ({ ...f, industry: v }))} /></Field>;
                 // Spark & Ray: the "Industry Category" custom field is the Sub-industry, shown right after Industry
                 // (same grid) and skipped by the generic Additional-details block below.
-                const sparkSubIndustry = b2bAccounts ? (
-                  <CustomFieldsSection entity="lead" values={form.custom_fields} onChange={(cf) => setForm((f) => ({ ...f, custom_fields: cf }))} isB2c={form.is_b2c} onlyKeys={[SUB_INDUSTRY_KEY]} labelOverrides={{ [SUB_INDUSTRY_KEY]: 'Sub-industry' }} />
-                ) : null;
+                // Ordered mode: wrapped in a grid item carrying INDUSTRY's order (it follows Industry in DOM order, so the
+                // pair stays adjacent wherever the admin put Industry); not ordered: rendered bare, as before.
+                const subIndustryNode = <CustomFieldsSection entity="lead" values={form.custom_fields} onChange={(cf) => setForm((f) => ({ ...f, custom_fields: cf }))} onFieldsChange={reportSubIndustry} isB2c={form.is_b2c} onlyKeys={[SUB_INDUSTRY_KEY]} labelOverrides={{ [SUB_INDUSTRY_KEY]: 'Sub-industry' }} />;
+                const sparkSubIndustry = !b2bAccounts ? null : flat
+                  ? <div data-order-glue="industry" style={{ ...os('industry'), display: hasSubIndustry ? undefined : 'none', minWidth: 0 }}>{subIndustryNode}</div>
+                  : subIndustryNode;
+                // State + City travel together; ordered mode makes them one two-column row at City's place in the list.
+                const cityPicker = flat ? (
+                  <div data-field="city" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px 20px', gridColumn: '1 / -1', ...os('city') }}>
+                    <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+                  </div>
+                ) : <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />;
                 const inlineSubIndustry = !form.is_b2c || explicitlyShownOnB2C('industry');
                 const anyBizOnB2C = explicitlyShownOnB2C('company') || explicitlyShownOnB2C('title') || explicitlyShownOnB2C('industry');
       return (
         <>
+        <FlatRegion flat={flat}>
         {/* Company-centric Spark lead: person Contact fields are dropped (people
             live in Contacts & requirements); the lead's name is the Company. */}
         {!companyLead && (<>
         <SL first>Contact</SL><Grid>
-          {show('first_name', <F label={lbl('first_name', 'First Name')} required={req('first_name', true)} value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />)}
-          {show('last_name',  <F label={lbl('last_name',  'Last Name')}  required={req('last_name',  false)} value={form.last_name}  onChange={(v) => setForm({ ...form, last_name:  v })} />)}
+          {show('first_name', <F label={lbl('first_name', 'First Name')} required={req('first_name', true)} style={os('first_name')} value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />)}
+          {show('last_name',  <F label={lbl('last_name',  'Last Name')}  required={req('last_name',  false)} style={os('last_name')} value={form.last_name}  onChange={(v) => setForm({ ...form, last_name:  v })} />)}
           {/* Phone / email default to optional — the form honours the
               admin's Settings → Custom Fields override (lead.email /
               lead.phone) instead of guessing based on is_b2c, so the
@@ -450,8 +479,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           {/* Email entirely hidden for Tata Tiscon — their FE intake
               doesn't capture email and we don't want the field showing
               up in the edit form for legacy leads either. */}
-          {!isTata && show('email', <F label={lbl('email', 'Email')} type="email" required={req('email', false)} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
-          {show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', true)} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
+          {!isTata && show('email', <F label={lbl('email', 'Email')} type="email" required={req('email', false)} style={os('email')} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
+          {show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', true)} style={os('phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
         </Grid>
 
         {/* Alternate mobile numbers — chip list, same component the
@@ -460,18 +489,18 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             new-lead form and the mobile apps (previously this rode the phone
             gate, so hiding alternate_mobiles did nothing and hiding phone
             unexpectedly also removed this editor). */}
-        {!fields.isHidden('alternate_mobiles') && (
+        {!fields.isHidden('alternate_mobiles') && fullRow('alternate_mobiles', (
           <AlternateMobiles
             values={form.alternate_mobiles}
             primary={form.phone}
             onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
           />
-        )}
+        ), 'phone')}
         </>)}
 
         {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked)) && (
           <><SL>Assignment</SL><Grid>
-            {show('status', <div data-field="status" style={{ display: 'contents' }}><SF label={lbl('status', 'Status')} value={form.status} options={leadStatuses ? leadStatuses.map((s) => ({ value: s.value, label: s.label })) : [{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }, { value: 'lost', label: 'Lost' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} /></div>)}
+            {show('status', <div data-field="status" style={{ display: 'contents' }}><SF label={lbl('status', 'Status')} style={os('status')} value={form.status} options={leadStatuses ? leadStatuses.map((s) => ({ value: s.value, label: s.label })) : [{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }, { value: 'lost', label: 'Lost' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} /></div>)}
             {/* Lost-reason capture — appears only when the rep is
                 moving the lead into a terminal status that needs an
                 explanation. Free-text for now; analytics rolls up by
@@ -498,12 +527,12 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             {/* Source — list comes from the active lead-sources catalogue. Empty
                 value clears the FK back to NULL; reps can manage the list under
                 CRM Settings → Lead Sources. */}
-            {show('source_id', <div data-field="source_id" style={{ display: 'contents' }}><SF label={lbl('source_id', 'Source')} value={form.source_id} options={[{ value: '', label: '— Unspecified —' }, ...orderLeadSources(sources).map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, source_id: v })} /></div>)}
+            {show('source_id', <div data-field="source_id" style={{ display: 'contents' }}><SF label={lbl('source_id', 'Source')} style={os('source_id')} value={form.source_id} options={[{ value: '', label: '— Unspecified —' }, ...orderLeadSources(sources).map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, source_id: v })} /></div>)}
             {/* Owner reassignment — was previously absent from the modal
                 entirely. Hidden when the /users endpoint comes back empty
                 (e.g. client-role users without manpower read access). */}
             {!fields.isHidden('owner_id') && users.length > 0 && canReassign && ownerAccess.canAssign && (
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, ...os('owner_id') }}>
                 <span style={labelStyle}>
                   {fields.labelFor('owner_id', 'Owner')}
                 </span>
@@ -525,7 +554,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             <><SL>Company</SL><Grid>
               {b2bAccounts
                 ? (!fields.isHidden('company') && (
-                    <Field label={lbl('company', 'Company')} required={req('company', true)}>
+                    <Field label={lbl('company', 'Company')} required={req('company', true)} style={os('company')}>
                       <Input
                         type="text"
                         autoComplete="off"
@@ -558,10 +587,10 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                       )}
                     </Field>
                   ))
-                : show('company',  <F label={lbl('company',  'Company')}   required={req('company', true)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
-              {show('title',    <F label={lbl('title',    'Job Title')} value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
+                : show('company',  <F label={lbl('company',  'Company')}   required={req('company', true)} style={os('company')} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
+              {show('title',    <F label={lbl('title',    'Job Title')} style={os('title')} value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
               {/* Industry: dropdown for Spark & Ray, free text for every other tenant. */}
-              {show('industry', b2bAccounts ? sparkIndustry : <F label={lbl('industry', 'Industry')}  value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
+              {show('industry', b2bAccounts ? sparkIndustry : <F label={lbl('industry', 'Industry')} style={os('industry')} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
               {sparkSubIndustry}
             </Grid></>
           )}
@@ -570,20 +599,18 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               could never be set. Gated on the same city override as B2C. */}
           {(leadForm.addressOnB2b || !fields.isHidden('city')) && (
             <><SL>Location</SL><Grid>
-              {b2bAccounts && !fields.isHidden('address_line1') && sparkAddressSearch}
-              {leadForm.addressOnB2b && show('address_line1', <F label={lbl('address_line1', 'Address Line 1')} required={req('address_line1', false)} value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />)}
-              {leadForm.addressOnB2b && show('address_line2', <F label={lbl('address_line2', 'Address Line 2')} value={form.address_line2} onChange={(v) => setForm({ ...form, address_line2: v })} />)}
-              {!fields.isHidden('city') && (
-                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
-              )}
-              {leadForm.addressOnB2b && show('postal_code', <F label={lbl('postal_code', 'Postal Code')} value={form.postal_code} onChange={(v) => setForm({ ...form, postal_code: v })} />)}
-              {show('country', <F label={lbl('country', 'Country')} value={form.country} onChange={(v) => setForm({ ...form, country: v })} />)}
+              {b2bAccounts && !fields.isHidden('address_line1') && fullRow('address_search', sparkAddressSearch, 'address_line1')}
+              {leadForm.addressOnB2b && show('address_line1', <F label={lbl('address_line1', 'Address Line 1')} required={req('address_line1', false)} style={os('address_line1')} value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />)}
+              {leadForm.addressOnB2b && show('address_line2', <F label={lbl('address_line2', 'Address Line 2')} style={os('address_line2')} value={form.address_line2} onChange={(v) => setForm({ ...form, address_line2: v })} />)}
+              {!fields.isHidden('city') && cityPicker}
+              {leadForm.addressOnB2b && show('postal_code', <F label={lbl('postal_code', 'Postal Code')} style={os('postal_code')} value={form.postal_code} onChange={(v) => setForm({ ...form, postal_code: v })} />)}
+              {show('country', <F label={lbl('country', 'Country')} style={os('country')} value={form.country} onChange={(v) => setForm({ ...form, country: v })} />)}
             </Grid></>
           )}
           {/* Connected-B2B (Spark & Ray): add people met on this revisit. Each
               becomes/links a CRM contact under the lead's account on save. */}
           {b2bAccounts && (
-            <><SL>Contacts &amp; requirements</SL>
+            <FlatBlock flat={flat} style={{ order: UNORDERED_LAST + 1 }}><SL>Contacts &amp; requirements</SL>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {contactRows.length === 0 && (
                 <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
@@ -600,7 +627,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                 />
               ))}
               <div><Button type="button" onClick={() => setContactRows((rows) => [...rows, newContactRow()])}>+ Add a person</Button></div>
-            </div></>
+            </div></FlatBlock>
           )}
           </>
         ) : (
@@ -610,38 +637,36 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               hidden:false). Keeps the B2B-only default for untouched tenants. */}
           {anyBizOnB2C && (
             <><SL>Company</SL><Grid>
-              {explicitlyShownOnB2C('company')  && show('company',  <F label={lbl('company',  'Company')}   required={req('company', false)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
-              {explicitlyShownOnB2C('title')    && show('title',    <F label={lbl('title',    'Job Title')} required={req('title', false)}   value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
-              {explicitlyShownOnB2C('industry') && show('industry', b2bAccounts ? sparkIndustry : <F label={lbl('industry', 'Industry')}  required={req('industry', false)} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
+              {explicitlyShownOnB2C('company')  && show('company',  <F label={lbl('company',  'Company')}   required={req('company', false)} style={os('company')} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
+              {explicitlyShownOnB2C('title')    && show('title',    <F label={lbl('title',    'Job Title')} required={req('title', false)} style={os('title')} value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
+              {explicitlyShownOnB2C('industry') && show('industry', b2bAccounts ? sparkIndustry : <F label={lbl('industry', 'Industry')} required={req('industry', false)} style={os('industry')} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
               {explicitlyShownOnB2C('industry') && sparkSubIndustry}
             </Grid></>
           )}
           <SL>Customer</SL><Grid>
-            {show('date_of_birth', <F label={lbl('date_of_birth', 'Date of Birth')} type="date" value={form.date_of_birth} onChange={(v) => setForm({ ...form, date_of_birth: v })} />)}
-            {show('gender', <SF label={lbl('gender', 'Gender')} value={form.gender} options={[{ value: '', label: '—' }, { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }]} onChange={(v) => setForm({ ...form, gender: v })} />)}
-            {show('preferred_contact_method', <SF label={lbl('preferred_contact_method', 'Preferred Channel')} value={form.preferred_contact_method} options={[{ value: '', label: '—' }, { value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }]} onChange={(v) => setForm({ ...form, preferred_contact_method: v })} />)}
+            {show('date_of_birth', <F label={lbl('date_of_birth', 'Date of Birth')} type="date" style={os('date_of_birth')} value={form.date_of_birth} onChange={(v) => setForm({ ...form, date_of_birth: v })} />)}
+            {show('gender', <SF label={lbl('gender', 'Gender')} style={os('gender')} value={form.gender} options={[{ value: '', label: '—' }, { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }]} onChange={(v) => setForm({ ...form, gender: v })} />)}
+            {show('preferred_contact_method', <SF label={lbl('preferred_contact_method', 'Preferred Channel')} style={os('preferred_contact_method')} value={form.preferred_contact_method} options={[{ value: '', label: '—' }, { value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }]} onChange={(v) => setForm({ ...form, preferred_contact_method: v })} />)}
           </Grid>
           <SL>Address</SL><Grid>
-            {b2bAccounts && !fields.isHidden('address_line1') && sparkAddressSearch}
-            {show('address_line1', <F label={lbl('address_line1', 'Address Line 1')} required={req('address_line1', false)} value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />)}
-            {show('address_line2', <F label={lbl('address_line2', 'Address Line 2')} value={form.address_line2} onChange={(v) => setForm({ ...form, address_line2: v })} />)}
+            {b2bAccounts && !fields.isHidden('address_line1') && fullRow('address_search', sparkAddressSearch, 'address_line1')}
+            {show('address_line1', <F label={lbl('address_line1', 'Address Line 1')} required={req('address_line1', false)} style={os('address_line1')} value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />)}
+            {show('address_line2', <F label={lbl('address_line2', 'Address Line 2')} style={os('address_line2')} value={form.address_line2} onChange={(v) => setForm({ ...form, address_line2: v })} />)}
             {/* LocationPicker bundles state + city — gated on city since
                 state alone has no meaningful UI without a city picker. */}
-            {!fields.isHidden('city') && (
-              <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
-            )}
-            {show('postal_code', <F label={lbl('postal_code', 'Postal Code')} value={form.postal_code} onChange={(v) => setForm({ ...form, postal_code: v })} />)}
-            {show('country', <F label={lbl('country', 'Country')} value={form.country} onChange={(v) => setForm({ ...form, country: v })} />)}
+            {!fields.isHidden('city') && cityPicker}
+            {show('postal_code', <F label={lbl('postal_code', 'Postal Code')} style={os('postal_code')} value={form.postal_code} onChange={(v) => setForm({ ...form, postal_code: v })} />)}
+            {show('country', <F label={lbl('country', 'Country')} style={os('country')} value={form.country} onChange={(v) => setForm({ ...form, country: v })} />)}
           </Grid>
           {(!fields.isHidden('marketing_consent') || !fields.isHidden('whatsapp_consent')) && (
-            <><SL>Consent</SL>
+            <FlatBlock flat={flat} style={earliestOrder(['marketing_consent', 'whatsapp_consent'])}><SL>Consent</SL>
               {!fields.isHidden('marketing_consent') && (
                 <CB checked={form.marketing_consent} onChange={(v) => setForm({ ...form, marketing_consent: v })}>{lbl('marketing_consent', 'Customer agreed to marketing communications')}</CB>
               )}
               {!fields.isHidden('whatsapp_consent') && (
                 <CB checked={form.whatsapp_consent} onChange={(v) => setForm({ ...form, whatsapp_consent: v })}>{lbl('whatsapp_consent', 'Customer agreed to WhatsApp contact')}</CB>
               )}
-            </>
+            </FlatBlock>
           )}
           </>
         )}
@@ -661,6 +686,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             excludeKeys={b2bAccounts && inlineSubIndustry ? [SUB_INDUSTRY_KEY] : undefined}
           />
         </Grid>
+        </FlatRegion>
         {/* Products of Interest moved to the Convert dialog for Kaiyo/Tata. */}
 
         {/* Notes + Tags — previously only renderable on the detail page;
@@ -883,6 +909,8 @@ const SECTION_HINTS: Record<string, string> = {
 // every section but the first) + the keyed hint, so the edit modal groups
 // fields into clear sections the same way the create form does.
 function SL({ children, first }: { children: React.ReactNode; first?: boolean }) {
+  // Ordered mode: the field sections are flattened into one grid, so their headings dissolve (see FlatRegion).
+  if (useContext(FlatCtx)) return null;
   const hint = typeof children === 'string' ? SECTION_HINTS[children] : undefined;
   return (
     <div style={{ margin: first ? '2px 0 12px' : '22px 0 12px', paddingTop: first ? 0 : 18, borderTop: first ? 0 : '1px solid var(--border)' }}>
@@ -891,8 +919,29 @@ function SL({ children, first }: { children: React.ReactNode; first?: boolean })
     </div>
   );
 }
-function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px 20px' }}>{children}</div>; }
-function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; phone?: boolean }) {
+function Grid({ children }: { children: React.ReactNode }) {
+  if (useContext(FlatCtx)) return <div style={{ display: 'contents' }}>{children}</div>;
+  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px 20px' }}>{children}</div>;
+}
+// Form order. When the admin has ordered the lead's fields, the field sections of the modal are flattened into ONE
+// grid (FlatRegion) so built-in rows and custom fields can interleave through CSS `order`: section headings and
+// grids dissolve (`display: contents`) and every row becomes an item of that grid. Not ordered: FlatRegion and
+// FlatBlock render their children as they are and the layout is unchanged.
+const FlatCtx = createContext(false);
+function FlatRegion({ flat, children }: { flat: boolean; children: React.ReactNode }) {
+  if (!flat) return <>{children}</>;
+  return (
+    <FlatCtx.Provider value>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px 20px' }}>{children}</div>
+    </FlatCtx.Provider>
+  );
+}
+// A block that keeps its own heading (consent, contacts & requirements): one full-width item of the flat grid.
+function FlatBlock({ flat, style, children }: { flat: boolean; style?: React.CSSProperties; children: React.ReactNode }) {
+  if (!flat) return <>{children}</>;
+  return <FlatCtx.Provider value={false}><div style={{ gridColumn: '1 / -1', ...style }}>{children}</div></FlatCtx.Provider>;
+}
+function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; phone?: boolean; style?: React.CSSProperties }) {
   // Phone fields strip non-digit characters on input and cap at 10 so the
   // value held in form state is always a clean 10-digit mobile (or empty).
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -900,7 +949,7 @@ function F(p: { label: string; value: string; onChange: (v: string) => void; typ
     p.onChange(v);
   };
   return (
-    <Field label={p.label} required={p.required}>
+    <Field label={p.label} required={p.required} style={p.style}>
       <Input
         type={p.phone ? 'tel' : (p.type || 'text')}
         inputMode={p.phone ? 'numeric' : undefined}
@@ -915,9 +964,9 @@ function F(p: { label: string; value: string; onChange: (v: string) => void; typ
     </Field>
   );
 }
-function SF(p: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void; required?: boolean }) {
+function SF(p: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void; required?: boolean; style?: React.CSSProperties }) {
   return (
-    <Field label={p.label} required={p.required}>
+    <Field label={p.label} required={p.required} style={p.style}>
       <Select value={p.value} required={p.required} onChange={(e) => p.onChange(e.target.value)}>{p.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
     </Field>
   );

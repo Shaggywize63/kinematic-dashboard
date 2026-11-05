@@ -169,12 +169,15 @@ export default function NewContactPage() {
   // omit the field, label override ⇒ new label, required override ⇒ flip
   // the asterisk + browser-level required attr. Non-override keys (e.g.
   // address_line1) fall through to the passed defaults untouched.
-  const text = (k: keyof Form, label: string, opts: { type?: string; required?: boolean; phone?: boolean } = {}) => {
+  const text = (k: keyof Form, label: string, opts: { type?: string; required?: boolean; phone?: boolean; after?: React.ReactNode } = {}) => {
     if (fields.isHidden(k as string)) return null;
     const effLabel = fields.labelFor(k as string, label);
     const effRequired = fields.requiredFor(k as string, !!opts.required);
-    return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    // `after` (Alternate mobiles) travels with its field once the admin has ordered the form: the field and its
+    // trailing block share one grid cell that carries the order.
+    const wrapAfter = !!opts.after && fields.orderStyle(k as string) !== undefined;
+    const field = (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...(wrapAfter ? null : fields.orderStyle(k as string)) }}>
       <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
         {effLabel}{effRequired && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
       </span>
@@ -195,12 +198,15 @@ export default function NewContactPage() {
       />
     </label>
     );
+    return wrapAfter
+      ? <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, ...fields.orderStyle(k as string) }}>{field}{opts.after}</div>
+      : field;
   };
   const select = (k: keyof Form, label: string, options: Array<{ value: string; label: string }>) => {
     if (fields.isHidden(k as string)) return null;
     const effLabel = fields.labelFor(k as string, label);
     return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle(k as string) }}>
       <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{effLabel}</span>
       <select value={form[k] as string} onChange={(e) => setForm({ ...form, [k]: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
         <option value="">—</option>
@@ -211,6 +217,86 @@ export default function NewContactPage() {
   };
 
   const showToggle = businessType === 'both';
+
+  // The admin has put this entity's fields in a custom order (Settings -> Custom Fields): every built-in row and the
+  // custom fields then share ONE grid so CSS `order` interleaves them. Otherwise the sectioned layout is unchanged.
+  const o = fields.orderStyle;
+  const ordered = o('first_name') !== undefined;
+  const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 };
+  const smallLabel: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 };
+  const alternateMobiles = (
+    <AlternateMobiles
+      values={form.alternate_mobiles}
+      primary={form.phone}
+      onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
+    />
+  );
+  const personalRows = (
+    <>
+      {text('first_name', 'First Name', { required: true })}
+      {text('last_name', 'Last Name')}
+      {text('email', 'Email', { type: 'email', required: !form.is_b2c })}
+      {text('phone', 'Primary Mobile', { required: form.is_b2c, phone: true, after: alternateMobiles })}
+    </>
+  );
+  const sparkAccountInner = lockedAccount ? (
+    <>
+      <input aria-label="Account" readOnly disabled value={lockedAccount.name || 'Loading…'} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box', opacity: 0.85 }} />
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>This contact will be added to this account.</div>
+    </>
+  ) : (
+    <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} ariaLabel="Account" placeholder="Search accounts… (optional)" />
+  );
+  const locationPicker = <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />;
+  const b2bLocationInner = (
+    <>
+      <span style={smallLabel}>
+        {fields.labelFor('city', 'City')} {fields.requiredFor('city', true) && <span style={{ color: '#ef4444' }}>*</span>}
+      </span>
+      <div style={{ marginTop: 4 }}>
+        {locationPicker}
+      </div>
+    </>
+  );
+  const horizonAccountSelect = showAccountLink && !spark && !fields.isHidden('account_id') && (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...o('account_id') }}>
+      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('account_id', 'Account')}</span>
+      <select
+        value={form.account_id}
+        onChange={(e) => setForm({ ...form, account_id: e.target.value })}
+        style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
+      >
+        <option value="">— No account —</option>
+        {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+      </select>
+    </label>
+  );
+  const customerRows = (
+    <>
+      {text('date_of_birth', 'Date of Birth', { type: 'date' })}
+      {select('gender', 'Gender', [{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }])}
+      {select('preferred_contact_method', 'Preferred Channel', [{ value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }])}
+      {text('referral_source', 'How did they find you?')}
+    </>
+  );
+  const consentChecks = (
+    <>
+      {!fields.isHidden('marketing_consent') && <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', ...o('marketing_consent') }}><input type="checkbox" checked={form.marketing_consent} onChange={(e) => setForm({ ...form, marketing_consent: e.target.checked })} />{fields.labelFor('marketing_consent', 'Customer agreed to receive marketing communications')}</label>}
+      {!fields.isHidden('whatsapp_consent') && <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', ...o('whatsapp_consent') }}><input type="checkbox" checked={form.whatsapp_consent} onChange={(e) => setForm({ ...form, whatsapp_consent: e.target.checked })} />{fields.labelFor('whatsapp_consent', 'Customer agreed to be contacted via WhatsApp')}</label>}
+    </>
+  );
+  const customFieldsSection = (
+    <CustomFieldsSection
+      entity="contact"
+      values={customFields}
+      onChange={setCustomFields}
+    />
+  );
+  const dataConsentBlock = showDataConsent && (
+    <Section title={fields.labelFor('data_consent', 'Data Collection & Consent')}>
+      <DataCollectionConsent checked={dataConsent} onChange={setDataConsent} required={dataConsentRequired} />
+    </Section>
+  );
 
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 820 }}>
@@ -227,32 +313,50 @@ export default function NewContactPage() {
         </div>
       )}
 
+      {ordered ? (
+        <Section title="Details">
+          <div style={gridStyle}>
+            {personalRows}
+            {spark && !fields.isHidden('account_id') && (
+              <div style={{ minWidth: 0, ...o('account_id') }}>
+                <span style={smallLabel}>{fields.labelFor('account_id', 'Account')}</span>
+                <div style={{ marginTop: 4 }}>{sparkAccountInner}</div>
+              </div>
+            )}
+            {!form.is_b2c && !fields.isHidden('city') && <div style={{ minWidth: 0, ...o('city') }}>{b2bLocationInner}</div>}
+            {!form.is_b2c ? (
+              <>
+                {text('title', 'Job Title')}
+                {horizonAccountSelect}
+              </>
+            ) : (
+              <>
+                {customerRows}
+                {text('address_line1', 'Address Line 1')}{text('address_line2', 'Address Line 2')}
+                {/* LocationPicker renders two controls (State + City): one wrapper carries the City order. */}
+                {!fields.isHidden('city') && <div style={{ gridColumn: '1 / -1', ...gridStyle, ...o('city') }}>{locationPicker}</div>}
+                {text('postal_code', 'Postal Code')}{text('country', 'Country')}
+                {consentChecks}
+              </>
+            )}
+            {showDataConsent && <div style={{ gridColumn: '1 / -1', ...o('data_consent') }}>{dataConsentBlock}</div>}
+            {customFieldsSection}
+          </div>
+        </Section>
+      ) : (
+      <>
       <Section title="Personal">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-          {text('first_name', 'First Name', { required: true })}
-          {text('last_name', 'Last Name')}
-          {text('email', 'Email', { type: 'email', required: !form.is_b2c })}
-          {text('phone', 'Primary Mobile', { required: form.is_b2c, phone: true })}
+        <div style={gridStyle}>
+          {personalRows}
         </div>
-        <AlternateMobiles
-          values={form.alternate_mobiles}
-          primary={form.phone}
-          onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
-        />
+        {alternateMobiles}
       </Section>
 
       {spark && !fields.isHidden('account_id') && (
         <Section title={fields.labelFor('account_id', 'Account')}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+          <div style={gridStyle}>
             <div>
-              {lockedAccount ? (
-                <>
-                  <input aria-label="Account" readOnly disabled value={lockedAccount.name || 'Loading…'} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box', opacity: 0.85 }} />
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>This contact will be added to this account.</div>
-                </>
-              ) : (
-                <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} ariaLabel="Account" placeholder="Search accounts… (optional)" />
-              )}
+              {sparkAccountInner}
             </div>
           </div>
         </Section>
@@ -264,14 +368,9 @@ export default function NewContactPage() {
           this lighter version only shows for B2B. */}
       {!form.is_b2c && !fields.isHidden('city') && (
         <Section title="Location">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+          <div style={gridStyle}>
             <div>
-              <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
-                {fields.labelFor('city', 'City')} {fields.requiredFor('city', true) && <span style={{ color: '#ef4444' }}>*</span>}
-              </span>
-              <div style={{ marginTop: 4 }}>
-                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
-              </div>
+              {b2bLocationInner}
             </div>
           </div>
         </Section>
@@ -279,62 +378,36 @@ export default function NewContactPage() {
 
       {!form.is_b2c ? (
         <Section title="Work">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+          <div style={gridStyle}>
             {text('title', 'Job Title')}
-            {showAccountLink && !spark && !fields.isHidden('account_id') && (
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('account_id', 'Account')}</span>
-                <select
-                  value={form.account_id}
-                  onChange={(e) => setForm({ ...form, account_id: e.target.value })}
-                  style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
-                >
-                  <option value="">— No account —</option>
-                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-              </label>
-            )}
+            {horizonAccountSelect}
             {/* Custom fields render inline inside this grid so admin-defined
                 fields look like part of the form (same as the lead form). */}
-            <CustomFieldsSection
-              entity="contact"
-              values={customFields}
-              onChange={setCustomFields}
-            />
+            {customFieldsSection}
           </div>
         </Section>
       ) : (
         <>
           <Section title="Customer Details">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-              {text('date_of_birth', 'Date of Birth', { type: 'date' })}
-              {select('gender', 'Gender', [{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }])}
-              {select('preferred_contact_method', 'Preferred Channel', [{ value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }])}
-              {text('referral_source', 'How did they find you?')}
+            <div style={gridStyle}>
+              {customerRows}
             </div>
           </Section>
           <Section title="Address">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+            <div style={gridStyle}>
               {text('address_line1', 'Address Line 1')}{text('address_line2', 'Address Line 2')}
-              {!fields.isHidden('city') && (
-                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
-              )}
+              {!fields.isHidden('city') && locationPicker}
               {text('postal_code', 'Postal Code')}{text('country', 'Country')}
               {/* Custom fields are inlined into the B2C Address grid for the
                   same reason they're in the B2B grid above — they read as
                   part of the form, not a footnote. */}
-              <CustomFieldsSection
-                entity="contact"
-                values={customFields}
-                onChange={setCustomFields}
-              />
+              {customFieldsSection}
             </div>
           </Section>
           {(!fields.isHidden('marketing_consent') || !fields.isHidden('whatsapp_consent')) && (
           <Section title="Consent">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: 'var(--text)' }}>
-              {!fields.isHidden('marketing_consent') && <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.marketing_consent} onChange={(e) => setForm({ ...form, marketing_consent: e.target.checked })} />{fields.labelFor('marketing_consent', 'Customer agreed to receive marketing communications')}</label>}
-              {!fields.isHidden('whatsapp_consent') && <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.whatsapp_consent} onChange={(e) => setForm({ ...form, whatsapp_consent: e.target.checked })} />{fields.labelFor('whatsapp_consent', 'Customer agreed to be contacted via WhatsApp')}</label>}
+              {consentChecks}
             </div>
           </Section>
           )}
@@ -342,10 +415,8 @@ export default function NewContactPage() {
       )}
 
       {/* DPDP §5/§6 — at-collection notice + primary consent (B2B + B2C). */}
-      {showDataConsent && (
-        <Section title={fields.labelFor('data_consent', 'Data Collection & Consent')}>
-          <DataCollectionConsent checked={dataConsent} onChange={setDataConsent} required={dataConsentRequired} />
-        </Section>
+      {dataConsentBlock}
+      </>
       )}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end', flexWrap: 'wrap' }}>

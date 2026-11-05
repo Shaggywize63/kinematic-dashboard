@@ -196,23 +196,26 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
   };
 
+  // The admin has put this entity's fields in a custom order (Settings -> Custom Fields): one shared grid, CSS order.
+  const ordered = fields.orderStyle('name') !== undefined;
+
   return (
     <Modal open={open} onClose={onClose} title="Edit Deal"
       footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <Grid>
-        {!fields.isHidden('name') && <div data-field="name" style={{ display: 'contents' }}><F label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} /></div>}
+        {!fields.isHidden('name') && <div data-field="name" style={{ display: 'contents' }}><F label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} ord={fields.orderStyle('name')} /></div>}
         {/* Amount is never typed directly. On a closed deal it's fixed at
             creation; on an open steel deal it follows the products basket
             below (the backend re-sizes it from the basket total on save). */}
         {/* Owner — admins / managers can reassign the deal after it was assigned. */}
         {!fields.isHidden('owner_id') && ownerPicker.canChange && ownerPicker.users.length > 0 && (
-          <label data-field="owner_id" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+          <label data-field="owner_id" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, ...fields.orderStyle('owner_id') }}>
             <span style={lbl}>{fields.labelFor('owner_id', 'Owner')}</span>
             <UserSearchSelect options={ownerPicker.users} value={form.owner_id} onChange={(id) => setForm({ ...form, owner_id: id })} placeholder="Search team member…" emptyLabel="Unassigned" />
           </label>
         )}
         {!fields.isHidden('amount') && (
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle('amount') }}>
             <span style={lbl}>{fields.labelFor('amount', 'Amount (₹)')}{steelDealer && !dealClosed ? ' — follows the products basket' : ' — fixed at creation'}</span>
             <input type="text" value={form.amount ? `₹${Number(form.amount).toLocaleString('en-IN')}` : '—'} readOnly disabled style={{ ...inp, opacity: 0.65, cursor: 'not-allowed' }} />
           </label>
@@ -222,7 +225,7 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
             pipeline list has loaded (single-pipeline clients see a static
             label, matching the create form). */}
         {!fields.isHidden('pipeline_id') && pipelines.length > 0 && (
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle('pipeline_id') }}>
             <span style={lbl}>{fields.labelFor('pipeline_id', 'Pipeline')}</span>
             {singlePipeline ? (
               <div style={{ ...inp, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -236,13 +239,13 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
             )}
           </label>
         )}
-        {!fields.isHidden('stage_id') && <div data-field="stage_id" style={{ display: 'contents' }}><SF label={fields.labelFor('stage_id', 'Stage')} value={form.stage_id} options={[{ value: '', label: '—' }, ...stageOptions.map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, stage_id: v })} /></div>}
-        {!fields.isHidden('probability') && <div data-field="probability" style={{ display: 'contents' }}><F label={fields.labelFor('probability', 'Probability (%)')} type="number" value={form.probability} onChange={(v) => setForm({ ...form, probability: v })} /></div>}
-        {!fields.isHidden('expected_close_date') && <F label={fields.labelFor('expected_close_date', 'Expected Close')} type="date" value={form.expected_close_date} onChange={(v) => setForm({ ...form, expected_close_date: v })} />}
+        {!fields.isHidden('stage_id') && <div data-field="stage_id" style={{ display: 'contents' }}><SF label={fields.labelFor('stage_id', 'Stage')} value={form.stage_id} options={[{ value: '', label: '—' }, ...stageOptions.map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, stage_id: v })} ord={fields.orderStyle('stage_id')} /></div>}
+        {!fields.isHidden('probability') && <div data-field="probability" style={{ display: 'contents' }}><F label={fields.labelFor('probability', 'Probability (%)')} type="number" value={form.probability} onChange={(v) => setForm({ ...form, probability: v })} ord={fields.orderStyle('probability')} /></div>}
+        {!fields.isHidden('expected_close_date') && <F label={fields.labelFor('expected_close_date', 'Expected Close')} type="date" value={form.expected_close_date} onChange={(v) => setForm({ ...form, expected_close_date: v })} ord={fields.orderStyle('expected_close_date')} />}
         {/* Account + primary contact — Horizon only, gated identically to the
             create form. Contacts are scoped to the chosen account. */}
         {showLinks && !fields.isHidden('account_id') && (
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle('account_id') }}>
             <span style={lbl}>{fields.labelFor('account_id', 'Account')}</span>
             <select value={form.account_id} onChange={(e) => setForm({ ...form, account_id: e.target.value, primary_contact_id: '' })} style={inp}>
               <option value="">— No account —</option>
@@ -251,7 +254,7 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
           </label>
         )}
         {showLinks && !fields.isHidden('primary_contact_id') && (
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle('primary_contact_id') }}>
             <span style={lbl}>{fields.labelFor('primary_contact_id', 'Primary Contact')}</span>
             <select value={form.primary_contact_id} onChange={(e) => setForm({ ...form, primary_contact_id: e.target.value })} style={inp} disabled={!form.account_id}>
               <option value="">{form.account_id ? '— No primary contact —' : 'Pick account first'}</option>
@@ -259,21 +262,31 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
             </select>
           </label>
         )}
+        {/* Ordered form: the custom fields join this grid so the admin's order interleaves them with the built-ins. */}
+        {ordered && (
+          <CustomFieldsSection
+            entity="deal"
+            values={customFields}
+            onChange={setCustomFields}
+          />
+        )}
       </Grid>
 
       {/* Admin-defined custom fields (e.g. dealer, site type) render
           type-aware — same pattern as LeadEditModal. Was previously absent
           from the deal edit modal entirely so reps couldn't change
           custom-field values after creation. */}
-      <div style={{ marginTop: 14 }}>
-        <Grid>
-          <CustomFieldsSection
-            entity="deal"
-            values={customFields}
-            onChange={setCustomFields}
-          />
-        </Grid>
-      </div>
+      {!ordered && (
+        <div style={{ marginTop: 14 }}>
+          <Grid>
+            <CustomFieldsSection
+              entity="deal"
+              values={customFields}
+              onChange={setCustomFields}
+            />
+          </Grid>
+        </div>
+      )}
 
       {spark && (
         <div style={{ marginTop: 14 }}>
@@ -356,8 +369,8 @@ function seed(d: Deal) {
   };
 }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
-function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} style={inp} /></label>; }
-function SF(p: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}</span><select value={p.value} onChange={(e) => p.onChange(e.target.value)} style={inp}>{p.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>; }
+function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string; ord?: React.CSSProperties }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...p.ord }}><span style={lbl}>{p.label}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} style={inp} /></label>; }
+function SF(p: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void; ord?: React.CSSProperties }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...p.ord }}><span style={lbl}>{p.label}</span><select value={p.value} onChange={(e) => p.onChange(e.target.value)} style={inp}>{p.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>; }
 const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 };
 const inp: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
 const btn = {
