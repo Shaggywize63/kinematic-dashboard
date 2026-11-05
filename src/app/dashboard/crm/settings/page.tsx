@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
-  Blocks, Boxes, ChevronRight, Database, GitBranch, Layers, ListChecks, MapPinned, Moon, Network, Phone, Plug, Shuffle,
+  Blocks, Boxes, ChevronRight, ClipboardList, Database, GitBranch, Layers, ListChecks, MapPinned, Moon, Network, Phone, Plug, Shuffle,
   Sparkles, Sun, Target, UserCircle, Users, Workflow, Zap,
 } from 'lucide-react';
 import { crmSettings } from '../../../../lib/crmApi';
@@ -13,6 +13,7 @@ import { rolesApi, type OrgRole } from '../../../../lib/rolesApi';
 import type { BusinessType } from '../../../../types/crm';
 import { useAuth } from '../../../../hooks/useAuth';
 import { isTataTiscanActive } from '../../../../lib/clientFeatures';
+import { isB2bClientActive } from '../../../../lib/b2bClient';
 import { Button, Card, Eyebrow, Field, PageHeader, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
 
@@ -62,6 +63,9 @@ export default function SettingsIndex() {
   // Weight-based Pricing card is hidden for Kinematic and every other tenant.
   const { user } = useAuth();
   const steel = isTataTiscanActive(user as any);
+  // Spark & Ray only: the Deal sections card (read after mount — it looks at localStorage).
+  const [spark, setSpark] = useState(false);
+  useEffect(() => { setSpark(isB2bClientActive()); }, []);
   // `null` until the first fetch resolves so the active-card highlight
   // doesn't flicker from a default ('both') to the saved value ('b2c').
   // Once loaded the value is sticky — the saveType handler reads the
@@ -297,6 +301,14 @@ export default function SettingsIndex() {
           {SECTIONS.map((s) => (
             <SettingCard key={s.href} href={s.href} title={s.title} desc={s.desc} icon={s.icon} />
           ))}
+          {spark && (
+            <SettingCard
+              href="/dashboard/crm/settings/deal-sections"
+              title="Deal sections"
+              desc="Choose which deal sections show (Quotation, Pricing, Product trial, Approvals & people), rename them and set their order."
+              icon={<ClipboardList {...ICON_PROPS} />}
+            />
+          )}
           {hierarchyEnabled && (
             <SettingCard
               href="/dashboard/crm/settings/hierarchy"

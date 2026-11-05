@@ -20,6 +20,8 @@ import LogoSpinner from '../../../../../components/shared/LogoSpinner';
 import { formatINR, formatKg, type DashboardUnit } from '../../../../../lib/formatCurrency';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { isConsumerChampion, isBmwActive } from '../../../../../lib/clientFeatures';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import { DealSectionsView, useDealSections } from '../../../../../components/crm/spark/DealSections';
 
 const LOST_REASONS = [
   'Price too high',
@@ -132,6 +134,9 @@ export default function DealDetailPage() {
   const isBmw = isBmwActive(authUser as Parameters<typeof isBmwActive>[0]);
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  // Spark & Ray: Quotation / Pricing / Product trial / Approvals sections, as configured under Settings -> Deal sections.
+  const spark = isB2bClientActive();
+  const dealSections = useDealSections(spark);
   const [deal, setDeal] = useState<Deal | null>(null);
   // INR ↔ Weight toggle for the Amount field. Reads / writes the same
   // localStorage key the dashboard analytics page uses so flipping the
@@ -620,7 +625,7 @@ export default function DealDetailPage() {
               {deal.dealer_name && <Field label="Dealer" value={deal.dealer_name} />}
               <Field label="Stage" value={deal.stage_name} />
               {/* Spark & Ray: only their deal rows carry a quotation number. */}
-              {deal.quotation_no && <Field label="Quotation no." value={deal.quotation_no} />}
+              {deal.quotation_no && !spark && <Field label="Quotation no." value={deal.quotation_no} />}
               <Field label="Status" value={deal.status} />
               {/* Win probability is hidden for BMW — their steel-dealer flow
                   tracks booked volume, not a forecast likelihood. */}
@@ -704,6 +709,13 @@ export default function DealDetailPage() {
               )}
             </Card>
           </SafeRender>
+
+          {/* Spark & Ray: the enabled sections, in the admin's order, read-only (people by name). */}
+          {spark && (
+            <SafeRender label="deal sections">
+              <DealSectionsView deal={deal as unknown as Record<string, unknown>} sections={dealSections.sections} fields={dealSections.fields} />
+            </SafeRender>
+          )}
 
           <SafeRender label="products">
             <DealProductsCard deal={deal} />

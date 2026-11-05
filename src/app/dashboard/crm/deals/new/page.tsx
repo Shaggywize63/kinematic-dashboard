@@ -15,6 +15,8 @@ import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import { buildDealItems, type DealLineDraft } from '../../../../../lib/sparkAccounts';
 import { AccountPicker, DealItemsEditor } from '../../../../../components/crm/spark/DealItemsEditor';
 import { useIsCompact } from '../../../../../components/ui';
+import DealSections, { useAssignableUsers, useDealSections } from '../../../../../components/crm/spark/DealSections';
+import { buildDealSectionPayload, emptyDealSectionValues, isDealSectionOn, validateDealSections, type DealSectionErrors, type DealSectionValues } from '../../../../../lib/sparkDealSections';
 
 // useSearchParams() forces a Suspense boundary on Next 14. The inner
 // component reads ?pipeline_id= so the Pipeline page's "+ New Deal" CTA
@@ -37,7 +39,12 @@ function NewDealPageInner() {
   // server computes the deal amount from the lines. Every other tenant's form is unchanged.
   const spark = isB2bClientActive();
   const narrow = useIsCompact(700);
-  const [quotationNo, setQuotationNo] = useState('');
+  // Deal sections (Quotation / Pricing / Product trial / Approvals): which are on, their labels and order come from
+  // Settings -> Deal sections; a disabled section is hidden and none of its fields are sent.
+  const { sections } = useDealSections(spark);
+  const sectionUsers = useAssignableUsers(spark);
+  const [sectionValues, setSectionValues] = useState<DealSectionValues>(emptyDealSectionValues);
+  const [sectionErrors, setSectionErrors] = useState<DealSectionErrors>({});
   const [lines, setLines] = useState<DealLineDraft[]>([]);
   const [catalogue, setCatalogue] = useState<Product[]>([]);
   const initialPipelineId = sp.get('pipeline_id') ?? '';
@@ -205,14 +212,20 @@ function NewDealPageInner() {
     });
   };
 
-  const sparkItems = useMemo(() => (spark ? buildDealItems(lines) : []), [spark, lines]);
+  const quotationOn = spark && isDealSectionOn(sections, 'quotation');
+  const sparkItems = useMemo(() => (quotationOn ? buildDealItems(lines) : []), [quotationOn, lines]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (spark) {
+      const errs = validateDealSections(sectionValues, sections);
+      setSectionErrors(errs);
+      if (Object.keys(errs).length) { toast.error(Object.values(errs)[0] as string); return; }
+    }
     setBusy(true);
     try {
       const r = await crmDeals.create({
         name: form.name,
-        amount: spark && sparkItems.length ? undefined : (form.amount ? Number(form.amount) : null),
+        amount: quotationOn && sparkItems.length ? undefined : (form.amount ? Number(form.amount) : null),
         // Backend auto-resolves the org/client's default pipeline +
         // opening stage when these are blank, so single-pipeline clients
         // and lead-conversion flows work without forcing a UI choice.
@@ -229,7 +242,7 @@ function NewDealPageInner() {
         lead_id: form.lead_id || undefined,
         // Spark only: the quotation number and the product lines (amount is computed from them server-side).
         ...(spark ? {
-          ...(quotationNo.trim() ? { quotation_no: quotationNo.trim() } : {}),
+          ...buildDealSectionPayload(sectionValues, sections, 'create'),
           ...(sparkItems.length ? { items: sparkItems } : {}),
         } : {}),
         custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
@@ -282,7 +295,7 @@ function NewDealPageInner() {
           </>
         )}
 
-        {!fields.isHidden('amount') && (spark && sparkItems.length > 0
+        {!fields.isHidden('amount') && (quotationOn && sparkItems.length > 0
           ? <Field label={fields.labelFor('amount', 'Amount (INR)')}><input type="number" value={sparkItems.reduce((t, i) => t + i.quantity * i.unit_price, 0)} readOnly aria-label="Amount (from product lines)" title="Computed from the product lines" style={{ ...input, opacity: 0.8 }} /></Field>
           : <Field label={fields.labelFor('amount', 'Amount (INR)')}><input type="number" step="0.01" value={form.amount} onChange={(e) => onAmountChange(e.target.value)} style={input} /></Field>)}
         {!fields.isHidden('pipeline_id') && (
@@ -361,11 +374,6 @@ function NewDealPageInner() {
             <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} />
           </Field>
         )}
-        {spark && !fields.isHidden('quotation_no') && (
-          <Field label={fields.labelFor('quotation_no', 'Quotation number')}>
-            <input value={quotationNo} onChange={(e) => setQuotationNo(e.target.value)} placeholder="e.g. QT-2026-014" maxLength={60} aria-label="Quotation number" style={input} />
-          </Field>
-        )}
         {showLinks && !spark && (
           <>
             {!fields.isHidden('account_id') && (
@@ -397,10 +405,23 @@ function NewDealPageInner() {
         />
       </div>
 
+      {/* Spark & Ray: the deal sections in the admin's order. The product lines live inside Quotation. */}
       {spark && (
         <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>Products</div>
-          <DealItemsEditor lines={lines} onChange={setLines} products={catalogue} narrow={narrow} />
+          <DealSections
+            sections={sections}
+            values={sectionValues}
+            onChange={(patch) => { setSectionValues((v) => ({ ...v, ...patch })); setSectionErrors({}); }}
+            users={sectionUsers}
+            errors={sectionErrors}
+            fields={fields}
+            quotationExtra={(
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>Products</div>
+                <DealItemsEditor lines={lines} onChange={setLines} products={catalogue} narrow={narrow} />
+              </div>
+            )}
+          />
         </div>
       )}
 
