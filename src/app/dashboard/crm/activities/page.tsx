@@ -19,6 +19,7 @@ import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
+import { useRecordOwnerPicker } from '../../../../hooks/useRecordOwnerPicker';
 import { apiErrorText, arr, sparkActivityFields } from '../../../../lib/sparkAccounts';
 import { AssigneeChips, FormSerialInput, ProductChips, SparkActivityMeta, useProductCatalogue } from '../../../../components/crm/spark/SparkActivityFields';
 
@@ -1157,6 +1158,11 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
 
   // Spark & Ray only: assignees (first = primary), products and the form serial.
   const spark = isB2bClientActive();
+  // Who may change the assignee after it was set: admins / managers (the same roles the backend lets
+  // reassign owners). Everyone else sees the assignee but cannot change it. Spark loads its own people list.
+  const ownerPicker = useRecordOwnerPicker(!spark);
+  const currentAssignedTo = (activity as Activity & { assigned_to?: string | null }).assigned_to ?? '';
+  const [assignedTo, setAssignedTo] = useState<string>(currentAssignedTo);
   const [assigneeIds, setAssigneeIds] = useState<string[]>(() => {
     const ids = arr<{ id: string }>(activity.assignees).map((u) => u.id).filter(Boolean);
     const legacy = (activity as Activity & { assigned_to?: string | null }).assigned_to;
@@ -1202,6 +1208,10 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
         if (formSerial.trim() === (activity.form_ref_no || '')) delete f.form_serial;
         Object.assign(payload, f);
         if (assigneeIds[0]) payload.assigned_to = assigneeIds[0];
+        // Not allowed to change assignees: leave them exactly as they are.
+        if (!ownerPicker.canChange) { delete payload.assignee_ids; delete payload.assigned_to; }
+      } else if (ownerPicker.canChange && assignedTo !== currentAssignedTo) {
+        payload.assigned_to = assignedTo || null;
       }
       await crmActivities.update(activity.id, payload as any);
       toast.success('Activity updated');
@@ -1245,11 +1255,25 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
         </Field>
         <Field label="Outcome (optional)"><input value={outcome} onChange={(e) => setOutcome(e.target.value)} style={editInput} /></Field>
         <Field label="Due / scheduled for"><input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={editInput} /></Field>
+        {/* Admins / managers can reassign an activity after it was assigned (other tenants: one assignee). */}
+        {!spark && ownerPicker.canChange && ownerPicker.users.length > 0 && (
+          <Field label="Assigned to">
+            <UserSearchSelect options={ownerPicker.users} value={assignedTo} onChange={setAssignedTo} placeholder="Search team member…" emptyLabel="Unassigned" />
+          </Field>
+        )}
         {spark && (
           <>
             <div role="group" aria-label="Assign to (multiple)">
               <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Assign to (multiple)</label>
-              <AssigneeChips users={userOptions} value={assigneeIds} onChange={setAssigneeIds} />
+              {ownerPicker.canChange ? (
+                <AssigneeChips users={userOptions} value={assigneeIds} onChange={setAssigneeIds} />
+              ) : (
+                <div data-testid="assignee-readonly" style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+                  {assigneeIds.length
+                    ? assigneeIds.map((id, i) => `${userOptions.find((u) => u.id === id)?.name || 'User'}${i === 0 ? ' (primary)' : ''}`).join(', ')
+                    : 'Unassigned'} · only an admin or manager can change who is assigned
+                </div>
+              )}
             </div>
             <div role="group" aria-label="Product interested">
               <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Product interested</label>
