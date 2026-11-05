@@ -6,6 +6,20 @@ import { useEffect, useRef } from 'react';
 // SVG so it's crisp at any size. Keyframes for the antenna are injected once.
 const PUPIL_REST = [{ x: 42, y: 57 }, { x: 58, y: 57 }];
 
+// Safari/WebKit is far more sensitive to forced layout reflow than Blink, and the
+// eye-tracking (getScreenCTM on mouse move) made the dashboard freeze there — so we
+// turn cursor tracking OFF on Safari entirely (the eyes simply rest centered). The
+// regex matches Safari (desktop + iOS) but not Chrome/Chromium/Firefox/Edge/Opera
+// on any platform. Computed once, client-side only.
+let _isSafari: boolean | null = null;
+function isSafari(): boolean {
+  if (_isSafari !== null) return _isSafari;
+  if (typeof navigator === 'undefined') return false; // SSR — don't cache
+  _isSafari = /^((?!chrome|android|crios|fxios|edg|opr|samsungbrowser).)*safari/i
+    .test(navigator.userAgent);
+  return _isSafari;
+}
+
 let injected = false;
 function injectKeyframes() {
   if (injected || typeof document === 'undefined') return;
@@ -24,9 +38,10 @@ export default function KiniMascot({ size = 40 }: { size?: number }) {
 
   useEffect(() => {
     injectKeyframes();
-    // Respect reduced-motion: leave the pupils at rest, no listeners, no work.
-    if (typeof window !== 'undefined'
-        && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    // On Safari, turn cursor tracking OFF (it caused the freeze); also respect
+    // reduced-motion. Either way: pupils rest centered, no listeners, no work.
+    if (typeof window === 'undefined') return;
+    if (isSafari() || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
 
     let raf = 0;
     let mx = -1, my = -1;
