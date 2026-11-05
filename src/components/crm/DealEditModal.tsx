@@ -6,6 +6,9 @@ import type { Deal, Stage, Pipeline, Account, Contact } from '../../types/crm';
 import CustomFieldsSection from './CustomFieldsSection';
 import ProductLinesSection from './ProductLinesSection';
 import Modal from './shared/Modal';
+import UserSearchSelect from './shared/UserSearchSelect';
+import { useRecordOwnerPicker } from '../../hooks/useRecordOwnerPicker';
+import { ownerPatch } from '../../lib/recordOwnerAccess';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 import { useAuth } from '../../hooks/useAuth';
 import { isHorizonOrg } from '../../lib/crmFeatureGates';
@@ -41,6 +44,8 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
   const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'deal'), [fieldOverrides]);
 
   const { user } = useAuth();
+  // Owner reassignment: offered to the roles the backend lets assign owners (admins / managers).
+  const ownerPicker = useRecordOwnerPicker(open);
   // Account + primary-contact pickers are Horizon-only — parity with the deal
   // CREATE form, which only exposes them for that org. Other tenants keep the
   // legacy unlinked deal flow.
@@ -160,6 +165,8 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
         // clearing a follow-up still sends the nulls. The products basket
         // (product_lines) rides in this same custom_fields map.
         custom_fields: { ...customFields, ...followUp },
+        // Only when an admin / manager actually picked someone else.
+        ...ownerPatch(ownerPicker.canChange, deal.owner_id, form.owner_id),
       } as unknown as Partial<Deal>);
       toast.success('Deal updated'); onSaved(r.data); onClose();
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
@@ -173,6 +180,13 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
         {/* Amount is never typed directly. On a closed deal it's fixed at
             creation; on an open steel deal it follows the products basket
             below (the backend re-sizes it from the basket total on save). */}
+        {/* Owner — admins / managers can reassign the deal after it was assigned. */}
+        {!fields.isHidden('owner_id') && ownerPicker.canChange && ownerPicker.users.length > 0 && (
+          <label data-field="owner_id" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+            <span style={lbl}>{fields.labelFor('owner_id', 'Owner')}</span>
+            <UserSearchSelect options={ownerPicker.users} value={form.owner_id} onChange={(id) => setForm({ ...form, owner_id: id })} placeholder="Search team member…" emptyLabel="Unassigned" />
+          </label>
+        )}
         {!fields.isHidden('amount') && (
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={lbl}>{fields.labelFor('amount', 'Amount (₹)')}{steelDealer && !dealClosed ? ' — follows the products basket' : ' — fixed at creation'}</span>
@@ -292,6 +306,7 @@ function seed(d: Deal) {
   const naAt = typeof cf.next_action_at === 'string' ? cf.next_action_at.slice(0, 10) : '';
   return {
     name: d.name || '',
+    owner_id: d.owner_id || '',
     amount: d.amount ? String(d.amount) : '',
     pipeline_id: d.pipeline_id || '',
     stage_id: d.stage_id || '',

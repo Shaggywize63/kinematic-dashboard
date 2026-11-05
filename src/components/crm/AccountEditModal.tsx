@@ -5,6 +5,9 @@ import { crmAccounts, crmSettings } from '../../lib/crmApi';
 import { CRM_INDUSTRIES } from '../../lib/crmIndustries';
 import type { Account } from '../../types/crm';
 import Modal from './shared/Modal';
+import UserSearchSelect from './shared/UserSearchSelect';
+import { useRecordOwnerPicker } from '../../hooks/useRecordOwnerPicker';
+import { ownerPatch } from '../../lib/recordOwnerAccess';
 import CustomFieldsSection from './CustomFieldsSection';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 
@@ -22,6 +25,8 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
   // the whole edited map back is safe.
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(account));
   const [busy, setBusy] = useState(false);
+  // Owner reassignment: offered to the roles the backend lets assign owners (admins / managers).
+  const ownerPicker = useRecordOwnerPicker(open);
   // Built-in field overrides (hide / relabel / require) for account columns.
   // Accounts aren't B2B/B2C-scoped.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
@@ -45,6 +50,8 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
         employees: form.employees ? Number(form.employees) : null,
         description: form.description || null,
         custom_fields: customFields,
+        // Only when an admin / manager actually picked someone else.
+        ...ownerPatch(ownerPicker.canChange, account.owner_id, form.owner_id),
       });
       toast.success('Account updated'); onSaved(r.data); onClose();
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
@@ -60,6 +67,13 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
         {!fields.isHidden('phone') && <div data-field="phone" style={{ display: 'contents' }}><Field label={fields.labelFor('phone', 'Phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} /></div>}
         {!fields.isHidden('annual_revenue') && <Field label={fields.labelFor('annual_revenue', 'Annual Revenue (₹)')} type="number" value={form.annual_revenue} onChange={(v) => setForm({ ...form, annual_revenue: v })} />}
         {!fields.isHidden('employees') && <Field label={fields.labelFor('employees', 'Employees')} type="number" value={form.employees} onChange={(v) => setForm({ ...form, employees: v })} />}
+        {/* Owner — admins / managers can reassign the account after it was assigned. */}
+        {!fields.isHidden('owner_id') && ownerPicker.canChange && ownerPicker.users.length > 0 && (
+          <label data-field="owner_id" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+            <span style={lbl}>{fields.labelFor('owner_id', 'Owner')}</span>
+            <UserSearchSelect options={ownerPicker.users} value={form.owner_id} onChange={(id) => setForm({ ...form, owner_id: id })} placeholder="Search team member…" emptyLabel="Unassigned" />
+          </label>
+        )}
       </Grid>
       <div style={{ marginTop: 14 }}>
         <span style={lbl}>Description</span>
@@ -88,7 +102,7 @@ function seedCustomFields(a: Account): Record<string, unknown> {
     : {};
 }
 
-function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', website: a.website || '', phone: a.phone || '', annual_revenue: a.annual_revenue ? String(a.annual_revenue) : '', employees: a.employees ? String(a.employees) : '', description: a.description || '' }; }
+function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', website: a.website || '', phone: a.phone || '', annual_revenue: a.annual_revenue ? String(a.annual_revenue) : '', employees: a.employees ? String(a.employees) : '', description: a.description || '', owner_id: a.owner_id || '' }; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function Field(p: { label: string; value: string; onChange: (v: string) => void; type?: string }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input} /></label>; }
 function IndustryField(p: { value: string; onChange: (v: string) => void; label?: string }) {
