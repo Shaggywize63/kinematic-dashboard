@@ -11,6 +11,8 @@ import { useAuth } from '../../../../../hooks/useAuth';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { DataCollectionConsent, NOTICE_VERSION } from '../../../../../components/crm/DataConsent';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import { AccountPicker } from '../../../../../components/crm/spark/DealItemsEditor';
 
 type Form = {
   first_name: string; last_name: string; email: string; phone: string; title: string;
@@ -44,6 +46,10 @@ export default function NewContactPage() {
   const [busy, setBusy] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
   const [accounts, setAccounts] = useState<Account[]>([]);
+  // Spark & Ray: an Account picker on every contact; opened from an account's "Add contact" (?account_id=) the
+  // account is pre-linked and locked.
+  const spark = isB2bClientActive();
+  const [lockedAccount, setLockedAccount] = useState<{ id: string; name: string } | null>(null);
   // Built-in field overrides (hide / relabel / require) for contact columns,
   // scoped by the contact's B2B/B2C mode like the lead form.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
@@ -73,6 +79,25 @@ export default function NewContactPage() {
       finally { setSettingsLoaded(true); }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!spark) return;
+    const sp = new URLSearchParams(window.location.search);
+    const accountId = sp.get('account_id') || '';
+    if (!accountId) return;
+    // A contact attached to an account is a business contact.
+    setForm((f) => ({ ...f, account_id: accountId, is_b2c: false }));
+    setLockedAccount({ id: accountId, name: sp.get('account_name') || '' });
+    if (!sp.get('account_name')) {
+      crmAccounts.get(accountId).then((r) => setLockedAccount({ id: accountId, name: r.data?.name || '' })).catch(() => { /* keep the id; the name just stays blank */ });
+    }
+  }, [spark]);
+
+  // Spark: every account, for the picker.
+  useEffect(() => {
+    if (!spark) return;
+    crmAccounts.list({ limit: 500 } as any).then((r) => setAccounts(r.data || [])).catch(() => setAccounts([]));
+  }, [spark]);
 
   // Horizon-only: pull the org's accounts so reps can attach the contact
   // to a company at create-time. Tata Tiscon keeps the legacy unlinked flow.
@@ -118,6 +143,8 @@ export default function NewContactPage() {
           marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent,
         });
       }
+      // Spark & Ray: the account link applies to every contact.
+      if (spark && form.account_id) payload.account_id = form.account_id;
       if (Object.keys(customFields).length > 0) payload.custom_fields = customFields;
       // DPDP §6 — capture consent at collection. Always recorded; blocks only
       // when the tenant requires it.
@@ -131,7 +158,7 @@ export default function NewContactPage() {
       }
       const r = await crmContacts.create(payload);
       toast.success('Contact created');
-      router.push(`/dashboard/crm/contacts/${r.data.id}`);
+      router.push(lockedAccount ? `/dashboard/crm/accounts/${lockedAccount.id}` : `/dashboard/crm/contacts/${r.data.id}`);
     } catch (err: any) { toast.error(err.message || 'Create failed'); setBusy(false); }
   };
 
@@ -214,6 +241,23 @@ export default function NewContactPage() {
         />
       </Section>
 
+      {spark && !fields.isHidden('account_id') && (
+        <Section title={fields.labelFor('account_id', 'Account')}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+            <div>
+              {lockedAccount ? (
+                <>
+                  <input aria-label="Account" readOnly disabled value={lockedAccount.name || 'Loading…'} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box', opacity: 0.85 }} />
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>This contact will be added to this account.</div>
+                </>
+              ) : (
+                <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} ariaLabel="Account" placeholder="Search accounts… (optional)" />
+              )}
+            </div>
+          </div>
+        </Section>
+      )}
+
       {/* City is required on B2B contacts too — the per-user city-scope
           filter on reads needs every contact to have one. The B2C branch
           below renders the full address section with the same picker, so
@@ -237,7 +281,7 @@ export default function NewContactPage() {
         <Section title="Work">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
             {text('title', 'Job Title')}
-            {showAccountLink && !fields.isHidden('account_id') && (
+            {showAccountLink && !spark && !fields.isHidden('account_id') && (
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('account_id', 'Account')}</span>
                 <select

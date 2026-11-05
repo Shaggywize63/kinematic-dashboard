@@ -10,6 +10,8 @@ import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { Badge, Button, Input, PageHeader, T, useIsCompact } from '../../../../components/ui';
+import { isB2bClientActive } from '../../../../lib/b2bClient';
+import ContactAccountModal from '../../../../components/crm/spark/ContactAccountModal';
 
 export default function ContactsListPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -25,6 +27,9 @@ export default function ContactsListPage() {
   // layout remount; the date range is applied here as created_at from/to.
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
   const narrow = useIsCompact(760);
+  // Spark & Ray: attach an existing contact to an account (or move it) from the list.
+  const spark = isB2bClientActive();
+  const [accountFor, setAccountFor] = useState<Contact | null>(null);
 
   const reload = async () => {
     setLoading(true);
@@ -106,6 +111,7 @@ export default function ContactsListPage() {
         viewMode={view.prefs.mode}
         sort={sort}
         onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
+        onChangeAccount={spark ? setAccountFor : undefined}
         onAssign={async (contactId, userId) => {
           await crmContacts.update(contactId, { owner_id: userId } as any);
           toast.success(userId ? 'Contact reassigned' : 'Contact unassigned');
@@ -113,6 +119,9 @@ export default function ContactsListPage() {
         }}
       />
       {bar}
+      {spark && accountFor && (
+        <ContactAccountModal contact={accountFor} open onClose={() => setAccountFor(null)} onSaved={() => reload()} />
+      )}
     </div>
   );
 }

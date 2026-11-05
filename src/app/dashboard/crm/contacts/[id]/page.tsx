@@ -15,6 +15,8 @@ import ContactEditModal from '../../../../../components/crm/ContactEditModal';
 import CustomFieldsDetailCard from '../../../../../components/crm/CustomFieldsDetailCard';
 import { ConsentCard } from '../../../../../components/crm/DataConsent';
 import { formatINR } from '../../../../../lib/formatCurrency';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import ContactAccountModal from '../../../../../components/crm/spark/ContactAccountModal';
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -26,6 +28,9 @@ export default function ContactDetailPage() {
   const [emails, setEmails] = useState<EmailLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  // Spark & Ray: add the contact to an account / change it.
+  const spark = isB2bClientActive();
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const reload = async () => {
     if (!id) return;
@@ -94,6 +99,9 @@ export default function ContactDetailPage() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
+              {spark && (
+                <button onClick={() => setAccountOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>{c.account_id ? 'Change account' : 'Add to an account'}</button>
+              )}
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
@@ -219,6 +227,7 @@ export default function ContactDetailPage() {
         onClose={() => setEditOpen(false)}
         onSaved={(updated) => { setC(updated); reload(); }}
       />
+      {spark && <ContactAccountModal contact={c} open={accountOpen} onClose={() => setAccountOpen(false)} onSaved={() => reload()} />}
       </div>
     </div>
   );

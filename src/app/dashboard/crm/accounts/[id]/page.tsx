@@ -113,6 +113,7 @@ export default function AccountDetailPage() {
                   <Button variant="primary" href={`/dashboard/crm/accounts/${a.id}/journey`}>View journey</Button>
                   <Button href={`/dashboard/crm/activities/new?account_id=${a.id}&account_name=${encodeURIComponent(a.name || '')}`}>Assign task / activity</Button>
                   <Button href={`/dashboard/crm/deals/new?account_id=${a.id}`}>New deal</Button>
+                  <Button href={`/dashboard/crm/contacts/new?account_id=${a.id}&account_name=${encodeURIComponent(a.name || '')}`}>Add contact</Button>
                 </>
               )}
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
@@ -129,6 +130,13 @@ export default function AccountDetailPage() {
             <Field label="Owner" value={a.owner_name} />
             <Field label="Created" value={new Date(a.created_at).toLocaleDateString()} />
           </div>
+          {/* Spark & Ray: the account's outcome. */}
+          {spark && (
+            <div data-testid="account-outcome" style={{ marginTop: 14, fontSize: 13 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Outcome</div>
+              <div style={{ color: 'var(--text)', marginTop: 2, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{a.outcome || '—'}</div>
+            </div>
+          )}
         </div>
 
         {spark && (

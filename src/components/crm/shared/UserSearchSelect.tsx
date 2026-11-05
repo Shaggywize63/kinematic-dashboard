@@ -10,6 +10,8 @@ interface Props {
   placeholder?: string;
   emptyLabel?: string;
   style?: React.CSSProperties;
+  /** Accessible name of the text box (forms that label the picker with a separate heading). */
+  ariaLabel?: string;
 }
 
 export default function UserSearchSelect({
@@ -17,6 +19,7 @@ export default function UserSearchSelect({
   placeholder = 'Search user…',
   emptyLabel = 'Unassigned',
   style,
+  ariaLabel,
 }: Props) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -52,6 +55,7 @@ export default function UserSearchSelect({
         onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
         onFocus={() => { setQuery(''); setOpen(true); }}
         placeholder={placeholder}
+        aria-label={ariaLabel}
         autoComplete="off"
         className="km-input"
         style={inputStyle}

@@ -12,6 +12,8 @@ interface Props {
   loading?: boolean;
   isB2C?: boolean;
   onAssign?: (contactId: string, userId: string | null) => Promise<void>;
+  /** Spark & Ray: adds an "Add to an account" / "Change account" action under the Account cell. */
+  onChangeAccount?: (contact: Contact) => void;
   hiddenColumns?: Set<string>;
   viewMode?: 'table' | 'cards';
   // Server-side sort. `sort.key` is a real crm_contacts column; `onSort(key)`
@@ -38,7 +40,7 @@ export const CONTACT_COLUMNS = [
  * every table that opts in (just add `responsive-cards` + data-label)
  * gets the same treatment.
  */
-export default function ContactsTable({ contacts, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort }: Props) {
+export default function ContactsTable({ contacts, loading, isB2C = false, onAssign, onChangeAccount, hiddenColumns, viewMode = 'table', sort, onSort }: Props) {
   const hidden = hiddenColumns ?? new Set<string>();
   const showAccount = !isB2C && !hidden.has('account');
   const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
@@ -91,6 +93,18 @@ export default function ContactsTable({ contacts, loading, isB2C = false, onAssi
                       {c.account_id && c.account_name
                         ? <Link href={`/dashboard/crm/accounts/${c.account_id}`} className="km-entity-link" title="Open account detail">{c.account_name}</Link>
                         : <span style={{ color: c.account_name ? T.text : T.mute }}>{c.account_name || '—'}</span>}
+                      {onChangeAccount && (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => onChangeAccount(c)}
+                            aria-label={`${c.account_id ? 'Change account' : 'Add to an account'} for ${name}`}
+                            style={{ background: 'transparent', border: 0, padding: 0, marginTop: 2, fontSize: 11.5, fontWeight: 600, color: T.red, cursor: 'pointer' }}
+                          >
+                            {c.account_id ? 'Change account' : 'Add to an account'}
+                          </button>
+                        </div>
+                      )}
                     </td>
                   )}
                   {!hidden.has('email') && (
