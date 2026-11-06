@@ -62,10 +62,11 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
     setBusy(true);
     try {
       const body: Record<string, unknown> = { first_name: form.first_name || null, last_name: form.last_name || null, email: form.email || null, phone: form.phone || null, mobile: form.mobile || null, is_b2c: form.is_b2c };
-      if (!form.is_b2c) { body.title = form.title || null; body.department = form.department || null; }
-      // Spark: only a changed Company is sent (null = unlink).
-      if (spark && !form.is_b2c && form.account_id !== (contact.account_id || '')) body.account_id = form.account_id || null;
-      else { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, loyalty_tier: form.loyalty_tier || null, referral_source: form.referral_source || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
+      if (!form.is_b2c) {
+        body.title = form.title || null; body.department = form.department || null;
+        // Spark: only a changed Company is sent (null = unlink).
+        if (spark && form.account_id !== (contact.account_id || '')) body.account_id = form.account_id || null;
+      } else { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, loyalty_tier: form.loyalty_tier || null, referral_source: form.referral_source || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
       body.custom_fields = customFields;
       const r = await crmContacts.update(contact.id, body);
       toast.success('Contact updated'); onSaved(r.data); onClose();

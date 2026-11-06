@@ -21,6 +21,7 @@ import ContactAccountModal from '../../../../../components/crm/spark/ContactAcco
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
   const [c, setC] = useState<Contact | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -103,6 +104,25 @@ export default function ContactDetailPage() {
                 <button onClick={() => setAccountOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>{c.account_id ? 'Change company' : 'Add to a company'}</button>
               )}
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
+              <button
+                onClick={async () => {
+                  if (!window.confirm(`Delete ${fullName}? This removes the contact from your CRM and cannot be undone from here.`)) return;
+                  setDeleting(true);
+                  try {
+                    await crmContacts.remove(c.id);
+                    toast.success('Contact deleted');
+                    router.push('/dashboard/crm/contacts');
+                  } catch (e: unknown) {
+                    toast.error((e as { message?: string })?.message || 'Could not delete the contact');
+                    setDeleting(false);
+                  }
+                }}
+                disabled={deleting}
+                aria-label={`Delete ${fullName}`}
+                style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: deleting ? 'wait' : 'pointer', opacity: deleting ? 0.6 : 1 }}
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>
