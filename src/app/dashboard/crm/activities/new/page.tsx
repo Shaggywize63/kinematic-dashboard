@@ -26,6 +26,12 @@ const ENTITY_TYPES = [
 
 type EntityOption = { id: string; label: string };
 
+// <input type="datetime-local"> reads and writes local time as "YYYY-MM-DDTHH:mm".
+const toLocalInput = (d: Date): string => {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
 // Next.js 14 bails out of static rendering for any page that calls
 // useSearchParams() unless the call site is wrapped in <Suspense>.
 export default function NewActivityPage() {
@@ -75,6 +81,11 @@ function NewActivityPageInner() {
   // one like "Meeting — Acme"); manual entries fall back to the type's name.
   const [body, setBody] = useState(prefillBody);
   const [dueAt, setDueAt] = useState(prefillDueAt);
+  // "Activity Date" is when a PAST activity actually happened. It is not the schedule (`dueAt`, for something still to
+  // do): it is saved as completed_at with status completed, so a call made last Tuesday lands on last Tuesday in every
+  // timeline and report instead of "now". Blank means right now, the old behaviour.
+  const [doneAt, setDoneAt] = useState('');
+  const [showDoneAt, setShowDoneAt] = useState(false);
   // Visit composer state. The rep can do BOTH on one screen / one
   // save:
   //   - `markFirstVisit` → log a completed "First Site Visit"
@@ -281,7 +292,8 @@ function NewActivityPageInner() {
     : entityOptions;
 
   // Does this save log a COMPLETED activity? (from a lead: the "first visit done" box; otherwise: no schedule and not a task)
-  const completingNow = cameFromLead && type === 'meeting' ? markFirstVisit : (!dueAt && type !== 'task');
+  // An Activity Date also means it is already done, even for a task.
+  const completingNow = cameFromLead && type === 'meeting' ? markFirstVisit : (!!doneAt || (!dueAt && type !== 'task'));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -295,6 +307,18 @@ function NewActivityPageInner() {
     // already a valid save.
     if (cameFromLead && type === 'meeting' && !markFirstVisit && !dueAt) {
       return toast.error('Mark first visit or schedule the next one.');
+    }
+
+    // Activity Date: must be a real moment that has already passed. A future one is what "Scheduled At" is for. Only
+    // checked when this save actually uses it (the from-lead card only uses it while "first visit done" is ticked).
+    let doneAtIso: string | undefined;
+    if (doneAt && (!(cameFromLead && type === 'meeting') || markFirstVisit)) {
+      const t = new Date(doneAt);
+      if (Number.isNaN(t.getTime())) return toast.error('Enter a valid activity date.');
+      if (t.getTime() > Date.now() + 60_000) {
+        return toast.error('Activity date can’t be in the future. Use “Scheduled At” to plan a future activity.');
+      }
+      doneAtIso = t.toISOString();
     }
 
     if (spark) {
@@ -371,7 +395,7 @@ function NewActivityPageInner() {
           requests.push(crmActivities.create(buildPayload({
             subject: baseSubject,
             status: 'completed',
-            completedAt: nowIso,
+            completedAt: doneAtIso ?? nowIso,
             visitKind: 'completed',
             isFirstVisit: true,
             withOutcome: true,
@@ -391,14 +415,18 @@ function NewActivityPageInner() {
       } else {
         // Legacy single-activity path for call/email/note/task.
         const noSchedule = !dueAt;
+        // A date the rep gave for something that already happened wins: logged as completed at that moment, with no
+        // schedule. Otherwise the old rules: no schedule and not a task = done right now, else planned.
+        const loggedPast = !!doneAtIso;
+        const doneNow = noSchedule && type !== 'task';
         const cf: Record<string, unknown> = { ...customFields };
         requests.push(crmActivities.create({
           type,
           subject: baseSubject,
           body: body.trim() || undefined,
-          due_at: dueAt ? new Date(dueAt).toISOString() : undefined,
-          completed_at: noSchedule && type !== 'task' ? nowIso : undefined,
-          status: noSchedule && type !== 'task' ? 'completed' : 'planned',
+          due_at: !loggedPast && dueAt ? new Date(dueAt).toISOString() : undefined,
+          completed_at: loggedPast ? doneAtIso : (doneNow ? nowIso : undefined),
+          status: loggedPast || doneNow ? 'completed' : 'planned',
           assigned_to: primaryAssignee || undefined,
           ...sparkFields,
           ...(spark ? outcomeForCreate(outcome) : {}),
@@ -501,9 +529,44 @@ function NewActivityPageInner() {
                 style={{ width: 18, height: 18 }}
               />
               <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-                Mark first visit done · today
+                Mark first visit done · {doneAt ? 'on the date below' : 'today'}
               </span>
             </label>
+
+            {/* The visit may not have been today. Collapsed by default so the one-tap save stays quiet. */}
+            {markFirstVisit && (!showDoneAt ? (
+              <button
+                type="button"
+                onClick={() => setShowDoneAt(true)}
+                style={{
+                  marginTop: 12, background: 'transparent', border: 'none',
+                  color: 'var(--primary)', fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', padding: 0, textDecoration: 'underline',
+                }}
+              >
+                Visited earlier? Set the date
+              </button>
+            ) : (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 6 }}>Visit happened on…</div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    type="datetime-local"
+                    data-testid="first-visit-date"
+                    aria-label="Date and time the visit happened"
+                    value={doneAt}
+                    max={toLocalInput(new Date())}
+                    onChange={(e) => setDoneAt(e.target.value)}
+                    style={input}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { setDoneAt(''); setShowDoneAt(false); }}
+                    style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}
+                  >Today</button>
+                </div>
+              </div>
+            ))}
 
             {/* Secondary action: schedule next. Collapsed behind a
                 link by default — keeps the screen quiet for the
@@ -542,14 +605,39 @@ function NewActivityPageInner() {
               above). One source of truth for the schedule input,
               zero overlap. */}
           {!(cameFromLead && type === 'meeting') && (
+            <Field label="Activity Date & Time (optional)">
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input
+                  type="datetime-local"
+                  data-testid="activity-date"
+                  value={doneAt}
+                  max={toLocalInput(new Date())}
+                  // It already happened, so it cannot also be scheduled: picking one clears the other.
+                  onChange={(e) => { setDoneAt(e.target.value); if (e.target.value) setDueAt(''); }}
+                  style={input}
+                />
+                {doneAt && (
+                  <button type="button" onClick={() => setDoneAt('')} title="Clear the date — log it for right now" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}>Now</button>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Already happened? Pick when, to log a past activity. Leave blank for right now.</div>
+            </Field>
+          )}
+          {!(cameFromLead && type === 'meeting') && (
             <Field label={`${type === 'task' ? 'Due Date & Time' : 'Scheduled At'} (optional)`}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={input} />
+                <input
+                  type="datetime-local"
+                  data-testid="activity-scheduled"
+                  value={dueAt}
+                  onChange={(e) => { setDueAt(e.target.value); if (e.target.value) setDoneAt(''); }}
+                  style={input}
+                />
                 {dueAt && (
                   <button type="button" onClick={() => setDueAt('')} title="Clear schedule — log it for right now" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}>Now</button>
                 )}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Leave blank to log it as happening right now.</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>For something still to do. To log one that already happened, use Activity Date.</div>
             </Field>
           )}
           {!spark && (
