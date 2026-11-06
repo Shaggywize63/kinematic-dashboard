@@ -124,7 +124,7 @@ export default function NewContactPage() {
         first_name: form.first_name || undefined, last_name: form.last_name || undefined,
         email: form.email || undefined, phone: form.phone || undefined, is_b2c: form.is_b2c,
         alternate_mobiles: form.alternate_mobiles.length ? form.alternate_mobiles : undefined,
-        city: form.city.trim(),
+        city: form.city.trim() || undefined,
         state: form.state || undefined,
       };
       if (!form.is_b2c) {
