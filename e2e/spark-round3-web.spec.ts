@@ -154,7 +154,8 @@ test.describe('2. activity Outcome', () => {
     await setup(page, reqs);
     await page.goto('/dashboard/crm/activities/new');
     await expect(page.getByRole('heading', { name: 'Log Activity' })).toBeVisible({ timeout: 30_000 });
-    await page.locator('input[type="datetime-local"]').fill('2030-01-15T10:30');
+    // The form now has two date fields (Activity Date for the past, Scheduled At for the future): this is the schedule.
+    await page.getByTestId('activity-scheduled').fill('2030-01-15T10:30');
     await logBtn(page).click();
     await expect.poll(() => writes(reqs, 'POST', /\/crm\/activities$/).length).toBe(1);
     const body = writes(reqs, 'POST', /\/crm\/activities$/)[0].body!;
