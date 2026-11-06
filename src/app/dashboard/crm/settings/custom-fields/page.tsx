@@ -218,7 +218,6 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'email', label: 'Email', type: 'text' },
     { key: 'address_line1', label: 'Address Line 1', type: 'text' },
     { key: 'address_line2', label: 'Address Line 2', type: 'text' },
-    { key: 'city', label: 'City', type: 'text' },
     { key: 'state', label: 'State', type: 'text' },
     { key: 'postal_code', label: 'PIN Code', type: 'text' },
     { key: 'country', label: 'Country', type: 'text' },

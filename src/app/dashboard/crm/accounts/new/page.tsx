@@ -13,7 +13,7 @@ import { accountLocationPayload, emptyAccountLocation, type AccountLocationKey }
 export default function NewAccountPage() {
   const router = useRouter();
   const [form, setForm] = useState({ name: '', industry: '', website: '', phone: '', annual_revenue: '', employees: '' });
-  // Location: address, state, city, PIN code, country (default India). Each is a built-in field gated by its override.
+  // Location: address, state, PIN code, country (default India). Each is a built-in field gated by its override.
   const [loc, setLoc] = useState(emptyAccountLocation);
   // Admin-defined custom fields (entity=account) — bound as one map that
   // becomes the row's custom_fields jsonb (same pattern as the lead form).
@@ -31,11 +31,9 @@ export default function NewAccountPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     // State / City are pickers (no native `required`), so an admin's "required" override is checked here.
-    for (const k of ['state', 'city'] as const) {
-      if (!fields.isHidden(k) && fields.requiredFor(k, false) && !loc[k].trim()) {
-        toast.error(`${fields.labelFor(k, k === 'state' ? 'State' : 'City')} is required`);
-        return;
-      }
+    if (!fields.isHidden('state') && fields.requiredFor('state', false) && !loc.state.trim()) {
+      toast.error(`${fields.labelFor('state', 'State')} is required`);
+      return;
     }
     setBusy(true);
     try {
@@ -75,7 +73,7 @@ export default function NewAccountPage() {
   };
 
   const LOC_LABELS: Record<AccountLocationKey, string> = {
-    address_line1: 'Address', address_line2: 'Address line 2', city: 'City', state: 'State', postal_code: 'PIN code', country: 'Country',
+    address_line1: 'Address', address_line2: 'Address line 2', state: 'State', postal_code: 'PIN code', country: 'Country',
   };
   const locFld = (k: AccountLocationKey) => {
     if (fields.isHidden(k)) return null;
@@ -93,24 +91,19 @@ export default function NewAccountPage() {
       </label>
     );
   };
-  // State -> City cascade from the location master for everyone (not the field rep's assigned-city chip); a city that
-  // is not in the master can be typed. Each control is gated and ordered by its own override.
-  const locationPicker = (fields.isHidden('state') && fields.isHidden('city')) ? null : (
+  // State only (no City on accounts), chosen from the location master (everyone, not the rep's assigned-city chip);
+  // a saved state that is not in the master stays selectable. Gated and ordered by its own override.
+  const locationPicker = fields.isHidden('state') ? null : (
     <LocationPicker
       scope="any"
-      allowTypedCity
       dataFields
       stateValue={loc.state}
-      cityValue={loc.city}
-      onChange={({ state, city }) => setLoc((p) => ({ ...p, state, city }))}
-      hideState={fields.isHidden('state')}
-      hideCity={fields.isHidden('city')}
+      cityValue=""
+      onChange={({ state }) => setLoc((p) => ({ ...p, state }))}
+      hideCity
       stateLabel={fields.labelFor('state', 'State')}
-      cityLabel={fields.labelFor('city', 'City')}
       stateRequired={fields.requiredFor('state', false)}
-      required={fields.requiredFor('city', false)}
       stateStyle={fields.orderStyle('state')}
-      cityStyle={fields.orderStyle('city')}
     />
   );
 

@@ -112,6 +112,17 @@ export default function ContactsListPage() {
         sort={sort}
         onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
         onChangeAccount={spark ? setAccountFor : undefined}
+        onDelete={async (c) => {
+          const label = c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email || 'this contact';
+          if (!window.confirm(`Delete ${label}? This removes the contact from your CRM.`)) return;
+          try {
+            await crmContacts.remove(c.id);
+            toast.success('Contact deleted');
+            reload();
+          } catch (e: unknown) {
+            toast.error((e as { message?: string })?.message || 'Could not delete the contact');
+          }
+        }}
         onAssign={async (contactId, userId) => {
           await crmContacts.update(contactId, { owner_id: userId } as any);
           toast.success(userId ? 'Contact reassigned' : 'Contact unassigned');
