@@ -124,6 +124,26 @@ export function isTataTiscanActive(user: AnyUser): boolean {
 }
 
 /**
+ * Tenants that run the Tata "first site visit" flow: creating a lead hops the rep
+ * to Log Activity with that lead + Meeting pre-filled, and that screen shows the
+ * "Mark first visit done" card. Tata Tiscon and PASA (onboarded to match SRS).
+ * BMW is a steel-dealer tenant but opted out of the create-then-composer hop (lead
+ * create just lands on the lead), so it is left out here as well. Every other
+ * client gets the plain Log Activity form. Keep in step with the redirect in
+ * crm/leads/new (`isTata && !isBmw`), which sends reps into that screen.
+ */
+export const FIRST_VISIT_CLIENT_IDS = STEEL_DEALER_CLIENT_IDS.filter((id) => id !== BMW_CLIENT_ID);
+
+/**
+ * True when the active tenant runs the first-visit flow. The tenant is the user's bound client_id, else the
+ * saved client picker; `pickedClientId` is the live picker from ClientContext, passed by pages that have it,
+ * because it also reflects a super-admin's "Login as client" (which is deliberately not saved to the picker key).
+ */
+export function isFirstVisitTenant(user: AnyUser, pickedClientId?: string | null): boolean {
+  return FIRST_VISIT_CLIENT_IDS.includes(activeClientId(user) ?? pickedClientId ?? '');
+}
+
+/**
  * The SRS / Tata field reports (Reports → "SRS Lead Report" + Activity /
  * Test / Day-Wise) are operational exports for three org roles: the Area
  * Sales Officer (sees only their own leads), the CRM Admin (sees the whole
