@@ -128,7 +128,7 @@ export interface Account {
   owner_name?: string | null;
   billing_address?: string | null;
   shipping_address?: string | null;
-  // Location columns (persisted by POST/PATCH /crm/accounts). state / city come from the location master (or typed).
+  // Location columns (persisted by POST/PATCH /crm/accounts). state comes from the location master. Accounts have no city in the UI (a legacy stored value is kept, read-only).
   address_line1?: string | null;
   address_line2?: string | null;
   city?: string | null;

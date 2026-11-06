@@ -26,7 +26,7 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
   // existing custom_fields; the backend PATCH merges server-side so sending
   // the whole edited map back is safe.
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(account));
-  // Location (address, state, city, PIN code, country), preloaded from the saved account.
+  // Location (address, state, PIN code, country), preloaded from the saved account.
   const [loc, setLoc] = useState(() => seedAccountLocation(account));
   const [busy, setBusy] = useState(false);
   // Owner reassignment: offered to the roles the backend lets assign owners (admins / managers).
@@ -45,11 +45,9 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
 
   const submit = async () => {
     if (fields.requiredFor('name', true) && !form.name.trim()) { toast.error('Name is required'); return; }
-    for (const k of ['state', 'city'] as const) {
-      if (!fields.isHidden(k) && fields.requiredFor(k, false) && !loc[k].trim()) {
-        toast.error(`${fields.labelFor(k, k === 'state' ? 'State' : 'City')} is required`);
-        return;
-      }
+    if (!fields.isHidden('state') && fields.requiredFor('state', false) && !loc.state.trim()) {
+      toast.error(`${fields.labelFor('state', 'State')} is required`);
+      return;
     }
     setBusy(true);
     try {
@@ -81,7 +79,7 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
   );
 
   const locLabels: Record<AccountLocationKey, string> = {
-    address_line1: 'Address', address_line2: 'Address line 2', city: 'City', state: 'State', postal_code: 'PIN code', country: 'Country',
+    address_line1: 'Address', address_line2: 'Address line 2', state: 'State', postal_code: 'PIN code', country: 'Country',
   };
   const locField = (k: AccountLocationKey) => !fields.isHidden(k) && (
     <div data-field={k} style={{ display: 'contents' }}>
@@ -93,24 +91,19 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
       />
     </div>
   );
-  // State -> City cascade from the location master (everyone, not the rep's assigned-city chip); a saved or typed city
-  // that is not in the master stays editable. Each control is gated and ordered by its own override.
-  const locationPicker = (fields.isHidden('state') && fields.isHidden('city')) ? null : (
+  // State only (no City on accounts), chosen from the location master (everyone, not the rep's assigned-city chip);
+  // a saved state that is not in the master stays selectable. Gated and ordered by its own override.
+  const locationPicker = fields.isHidden('state') ? null : (
     <LocationPicker
       scope="any"
-      allowTypedCity
       dataFields
       stateValue={loc.state}
-      cityValue={loc.city}
-      onChange={({ state, city }) => setLoc((p) => ({ ...p, state, city }))}
-      hideState={fields.isHidden('state')}
-      hideCity={fields.isHidden('city')}
+      cityValue=""
+      onChange={({ state }) => setLoc((p) => ({ ...p, state }))}
+      hideCity
       stateLabel={fields.labelFor('state', 'State')}
-      cityLabel={fields.labelFor('city', 'City')}
       stateRequired={fields.requiredFor('state', false)}
-      required={fields.requiredFor('city', false)}
       stateStyle={fields.orderStyle('state')}
-      cityStyle={fields.orderStyle('city')}
     />
   );
 
