@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mockApi, seedSession, SEED_USER } from './utils';
 import { apiPath, ok } from './spark';
+import { TATA_TISCON_CLIENT_ID } from '../src/lib/clientFeatures';
 
 /**
  * "Activity Date" on the Log Activity form: the date something ALREADY happened on, separate from "Scheduled At"
@@ -10,9 +11,11 @@ import { apiPath, ok } from './spark';
 
 type Body = Record<string, any>;
 
-async function setup(page: Page, writes: Body[]) {
-  await seedSession(page, SEED_USER);
+async function setup(page: Page, writes: Body[], user: Record<string, unknown> = SEED_USER) {
+  await seedSession(page, user);
   await mockApi(page, {
+    // The layout writes /auth/me back into the stored user, so it must return the same user we seeded.
+    me: { success: true, data: user },
     onRequest: async (route, url, method) => {
       const p = apiPath(url);
       if (method === 'POST' && p === '/api/v1/crm/activities') {
@@ -136,10 +139,13 @@ test.describe('Log Activity: Activity Date', () => {
   });
 });
 
+// The first-visit card is only for Tata (see e2e/first-visit-card.spec.ts), so these sign in as a Tata Tiscon user.
+const TATA_USER = { ...SEED_USER, client_id: TATA_TISCON_CLIENT_ID };
+
 test.describe('Log Activity from a lead: first visit date', () => {
   test('"Visited earlier?" lets the first visit be logged on its real date', async ({ page }) => {
     const writes: Body[] = [];
-    await setup(page, writes);
+    await setup(page, writes, TATA_USER);
     await open(page, '?lead_id=lead-1');
     await expect(page.getByText(/Mark first visit done · today/)).toBeVisible();
     const past = await moment(page, -4, 11, 15);
@@ -158,7 +164,7 @@ test.describe('Log Activity from a lead: first visit date', () => {
 
   test('left alone, the first visit is still logged for right now', async ({ page }) => {
     const writes: Body[] = [];
-    await setup(page, writes);
+    await setup(page, writes, TATA_USER);
     await open(page, '?lead_id=lead-1');
 
     await save(page);

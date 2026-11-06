@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import { crmActivities, crmLeads, crmContacts, crmDeals, crmAccounts } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import { getStoredUser } from '../../../../../lib/auth';
+import { isFirstVisitTenant } from '../../../../../lib/clientFeatures';
+import { useClient } from '../../../../../context/ClientContext';
 import type { Lead } from '../../../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import { useActivityTypes } from '../../../../../lib/activityTypes';
@@ -103,14 +105,19 @@ function NewActivityPageInner() {
   // ticked; at least one must be active or we surface a friendly
   // toast. Falls back to the legacy single-activity behaviour for
   // call/email/note/task — only meeting wires the visit composer.
-  const cameFromLead = !!prefillLeadId;
+  // The first-visit card + its save path are a Tata flow. Arriving with a lead_id is not enough: any other client
+  // lands on the plain Log Activity form (still linked to that lead, with Activity Date / Scheduled At).
+  // selectedClientId is the live client picker, which also reflects a super-admin's "Login as client".
+  const { selectedClientId } = useClient();
+  const firstVisitFlow = !!prefillLeadId
+    && isFirstVisitTenant(getStoredUser() as Parameters<typeof isFirstVisitTenant>[0], selectedClientId);
   // When the rep arrives from a lead-save the markFirstVisit flag is
   // already true and the screen acts like a one-tap confirmation.
   // The schedule-next section starts collapsed behind a "+ Also
   // schedule next visit" link — most reps just want to confirm the
   // visit and return to the leads list; revealing the picker is a
   // deliberate opt-in.
-  const [markFirstVisit, setMarkFirstVisit] = useState<boolean>(cameFromLead);
+  const [markFirstVisit, setMarkFirstVisit] = useState<boolean>(firstVisitFlow);
   const [showScheduleNext, setShowScheduleNext] = useState<boolean>(false);
   // Default the assignee to the signed-in user so the most common case
   // ("log something I just did") needs zero extra clicks.
@@ -293,7 +300,7 @@ function NewActivityPageInner() {
 
   // Does this save log a COMPLETED activity? (from a lead: the "first visit done" box; otherwise: no schedule and not a task)
   // An Activity Date also means it is already done, even for a task.
-  const completingNow = cameFromLead && type === 'meeting' ? markFirstVisit : (!!doneAt || (!dueAt && type !== 'task'));
+  const completingNow = firstVisitFlow && type === 'meeting' ? markFirstVisit : (!!doneAt || (!dueAt && type !== 'task'));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,14 +312,14 @@ function NewActivityPageInner() {
     // POSTing nothing. The legacy path (any other entry) skips this
     // guard — its existing "blank date = log now" behaviour is
     // already a valid save.
-    if (cameFromLead && type === 'meeting' && !markFirstVisit && !dueAt) {
+    if (firstVisitFlow && type === 'meeting' && !markFirstVisit && !dueAt) {
       return toast.error('Mark first visit or schedule the next one.');
     }
 
     // Activity Date: must be a real moment that has already passed. A future one is what "Scheduled At" is for. Only
     // checked when this save actually uses it (the from-lead card only uses it while "first visit done" is ticked).
     let doneAtIso: string | undefined;
-    if (doneAt && (!(cameFromLead && type === 'meeting') || markFirstVisit)) {
+    if (doneAt && (!(firstVisitFlow && type === 'meeting') || markFirstVisit)) {
       const t = new Date(doneAt);
       if (Number.isNaN(t.getTime())) return toast.error('Enter a valid activity date.');
       if (t.getTime() > Date.now() + 60_000) {
@@ -389,7 +396,7 @@ function NewActivityPageInner() {
     try {
       const requests: Array<Promise<unknown>> = [];
 
-      if (cameFromLead && type === 'meeting') {
+      if (firstVisitFlow && type === 'meeting') {
         // From-lead branch — composer drives the activity shape.
         if (markFirstVisit) {
           requests.push(crmActivities.create(buildPayload({
@@ -515,7 +522,7 @@ function NewActivityPageInner() {
               meeting entry. Removing the composer's two-section box
               from the manual flow is what the user asked for: less
               cognitive load when it doesn't apply. */}
-        {cameFromLead && type === 'meeting' && (
+        {firstVisitFlow && type === 'meeting' && (
           <div style={{ marginTop: 12, padding: '14px 16px', background: 'rgba(208,30,44,0.06)', border: '1px solid rgba(208,30,44,0.25)', borderRadius: 10 }}>
             {/* Primary card: the rep just visited the lead, this is
                 today's first visit. Pre-checked, prominent, single
@@ -604,7 +611,7 @@ function NewActivityPageInner() {
               the from-lead meeting flow (which has its own composer
               above). One source of truth for the schedule input,
               zero overlap. */}
-          {!(cameFromLead && type === 'meeting') && (
+          {!(firstVisitFlow && type === 'meeting') && (
             <Field label="Activity Date & Time (optional)">
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input
@@ -623,7 +630,7 @@ function NewActivityPageInner() {
               <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Already happened? Pick when, to log a past activity. Leave blank for right now.</div>
             </Field>
           )}
-          {!(cameFromLead && type === 'meeting') && (
+          {!(firstVisitFlow && type === 'meeting') && (
             <Field label={`${type === 'task' ? 'Due Date & Time' : 'Scheduled At'} (optional)`}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input
