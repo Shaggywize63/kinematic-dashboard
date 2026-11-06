@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmAccounts, type AccountTimeline } from '../../../../../lib/crmApi';
+import { crmAccounts, crmSettings, type AccountTimeline } from '../../../../../lib/crmApi';
 import type { Account, Contact, Deal, Activity, Note } from '../../../../../types/crm';
 import AccountSummaryCard from '../../../../../components/crm/AccountSummaryCard';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
@@ -18,6 +18,8 @@ import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import AccountUpdatesCard from '../../../../../components/crm/spark/AccountUpdatesCard';
 import AccountAddresses from '../../../../../components/crm/spark/AccountAddresses';
 import { Button } from '../../../../../components/ui';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
+import { accountLocationLines } from '../../../../../lib/accountLocation';
 
 export default function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +38,14 @@ export default function AccountDetailPage() {
   const [deactivating, setDeactivating] = useState(false);
   // Spark & Ray (connected-B2B) only: Recent updates, task / deal shortcuts and the journey page.
   const spark = isB2bClientActive();
+  // Built-in field overrides (hide / relabel): a location field the admin hid is not shown here either.
+  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'account'), [fieldOverrides]);
+  useEffect(() => {
+    crmSettings.get()
+      .then((r) => setFieldOverrides(extractFieldOverrides(r.data)))
+      .catch(() => { /* keep defaults — every field shows */ });
+  }, []);
 
   const reload = async () => {
     if (!id) return;
@@ -103,6 +113,8 @@ export default function AccountDetailPage() {
   if (!a) return <div style={{ color: 'var(--text-dim)' }}>Account not found.</div>;
 
   const totalRevenue = deals.filter((d) => d.status === 'won').reduce((s, d) => s + Number(d.amount || 0), 0);
+  const loc = accountLocationLines(a, fields.isHidden);
+  const hasLocation = !!(loc.street || loc.place || loc.country);
   const openDealValue = deals.filter((d) => d.status === 'open').reduce((s, d) => s + Number(d.amount || 0), 0);
 
   return (
@@ -142,6 +154,14 @@ export default function AccountDetailPage() {
             <Field label="Owner" value={a.owner_name} />
             <Field label="Created" value={new Date(a.created_at).toLocaleDateString()} />
           </div>
+          {hasLocation && (
+            <div data-testid="account-location" style={{ marginTop: 14, fontSize: 13 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('address_line1', 'Address')}</div>
+              {loc.street && <div data-testid="account-location-street" style={{ color: 'var(--text)', marginTop: 2, overflowWrap: 'anywhere' }}>{loc.street}</div>}
+              {loc.place && <div data-testid="account-location-place" style={{ color: 'var(--text)', marginTop: 2 }}>{loc.place}</div>}
+              {loc.country && <div data-testid="account-location-country" style={{ color: 'var(--text-dim)', marginTop: 2 }}>{loc.country}</div>}
+            </div>
+          )}
           {/* Spark & Ray: accounts no longer ask for an Outcome (it moved to the activities); one stored earlier is shown read-only. */}
           {spark && (a.outcome || '').trim() !== '' && (
             <div data-testid="account-outcome" style={{ marginTop: 14, fontSize: 13 }}>

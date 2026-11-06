@@ -10,6 +10,8 @@ import { useRecordOwnerPicker } from '../../hooks/useRecordOwnerPicker';
 import { ownerPatch } from '../../lib/recordOwnerAccess';
 import CustomFieldsSection from './CustomFieldsSection';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
+import LocationPicker from './LocationPicker';
+import { accountLocationPayload, seedAccountLocation, type AccountLocationKey } from '../../lib/accountLocation';
 
 interface Props {
   account: Account;
@@ -24,6 +26,8 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
   // existing custom_fields; the backend PATCH merges server-side so sending
   // the whole edited map back is safe.
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(account));
+  // Location (address, state, city, PIN code, country), preloaded from the saved account.
+  const [loc, setLoc] = useState(() => seedAccountLocation(account));
   const [busy, setBusy] = useState(false);
   // Owner reassignment: offered to the roles the backend lets assign owners (admins / managers).
   const ownerPicker = useRecordOwnerPicker(open);
@@ -31,7 +35,7 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
   // Accounts aren't B2B/B2C-scoped.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
   const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'account'), [fieldOverrides]);
-  useEffect(() => { if (open) { setForm(seed(account)); setCustomFields(seedCustomFields(account)); } }, [open, account]);
+  useEffect(() => { if (open) { setForm(seed(account)); setLoc(seedAccountLocation(account)); setCustomFields(seedCustomFields(account)); } }, [open, account]);
   useEffect(() => {
     if (!open) return;
     crmSettings.get()
@@ -41,6 +45,12 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
 
   const submit = async () => {
     if (fields.requiredFor('name', true) && !form.name.trim()) { toast.error('Name is required'); return; }
+    for (const k of ['state', 'city'] as const) {
+      if (!fields.isHidden(k) && fields.requiredFor(k, false) && !loc[k].trim()) {
+        toast.error(`${fields.labelFor(k, k === 'state' ? 'State' : 'City')} is required`);
+        return;
+      }
+    }
     setBusy(true);
     try {
       const r = await crmAccounts.update(account.id, {
@@ -49,6 +59,8 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
         annual_revenue: form.annual_revenue ? Number(form.annual_revenue) : null,
         employees: form.employees ? Number(form.employees) : null,
         description: form.description || null,
+        // Blank -> null clears the column; a field the admin hid is not sent at all.
+        ...accountLocationPayload(loc, 'patch', fields.isHidden),
         custom_fields: customFields,
         // Only when an admin / manager actually picked someone else.
         ...ownerPatch(ownerPicker.canChange, account.owner_id, form.owner_id),
@@ -68,6 +80,40 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
     </>
   );
 
+  const locLabels: Record<AccountLocationKey, string> = {
+    address_line1: 'Address', address_line2: 'Address line 2', city: 'City', state: 'State', postal_code: 'PIN code', country: 'Country',
+  };
+  const locField = (k: AccountLocationKey) => !fields.isHidden(k) && (
+    <div data-field={k} style={{ display: 'contents' }}>
+      <Field
+        label={fields.labelFor(k, locLabels[k]) + (fields.requiredFor(k, false) ? ' *' : '')}
+        value={loc[k]}
+        onChange={(v) => setLoc({ ...loc, [k]: v })}
+        ord={fields.orderStyle(k)}
+      />
+    </div>
+  );
+  // State -> City cascade from the location master (everyone, not the rep's assigned-city chip); a saved or typed city
+  // that is not in the master stays editable. Each control is gated and ordered by its own override.
+  const locationPicker = (fields.isHidden('state') && fields.isHidden('city')) ? null : (
+    <LocationPicker
+      scope="any"
+      allowTypedCity
+      dataFields
+      stateValue={loc.state}
+      cityValue={loc.city}
+      onChange={({ state, city }) => setLoc((p) => ({ ...p, state, city }))}
+      hideState={fields.isHidden('state')}
+      hideCity={fields.isHidden('city')}
+      stateLabel={fields.labelFor('state', 'State')}
+      cityLabel={fields.labelFor('city', 'City')}
+      stateRequired={fields.requiredFor('state', false)}
+      required={fields.requiredFor('city', false)}
+      stateStyle={fields.orderStyle('state')}
+      cityStyle={fields.orderStyle('city')}
+    />
+  );
+
   return (
     <Modal open={open} onClose={onClose} title="Edit Account"
       footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
@@ -78,6 +124,7 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
         {!fields.isHidden('phone') && <div data-field="phone" style={{ display: 'contents' }}><Field label={fields.labelFor('phone', 'Phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} ord={fields.orderStyle('phone')} /></div>}
         {!fields.isHidden('annual_revenue') && <Field label={fields.labelFor('annual_revenue', 'Annual Revenue (₹)')} type="number" value={form.annual_revenue} onChange={(v) => setForm({ ...form, annual_revenue: v })} ord={fields.orderStyle('annual_revenue')} />}
         {!fields.isHidden('employees') && <Field label={fields.labelFor('employees', 'Employees')} type="number" value={form.employees} onChange={(v) => setForm({ ...form, employees: v })} ord={fields.orderStyle('employees')} />}
+        {locField('address_line1')}{locField('address_line2')}{locationPicker}{locField('postal_code')}{locField('country')}
         {/* Owner — admins / managers can reassign the account after it was assigned. */}
         {!fields.isHidden('owner_id') && ownerPicker.canChange && ownerPicker.users.length > 0 && (
           <label data-field="owner_id" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, ...fields.orderStyle('owner_id') }}>
