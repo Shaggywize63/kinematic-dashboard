@@ -1,25 +1,33 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
-import { industryColor } from '../../../lib/sparkIndustries';
+import { industryColor, useIndustries, type IndustryDef } from '../../../lib/industries';
 import { inputStyle, T } from '../../ui';
 
-/** A small coloured dot for an industry (decorative; the name is always rendered next to it). */
-export function IndustryDot({ name, size = 9 }: { name?: string | null; size?: number }) {
+/**
+ * A small coloured dot for an industry (decorative; the name is always rendered next to it). The colour comes from
+ * the admin-configured list (Settings -> Industries): pass `industries` when the caller already has it, else the
+ * shared cached list is used.
+ */
+export function IndustryDot({ name, size = 9, industries }: { name?: string | null; size?: number; industries?: readonly IndustryDef[] }) {
+  const fromHook = useIndustries(!industries).industries;
+  const c = industryColor(industries ?? fromHook, name);
   return (
     <span
       aria-hidden
       data-testid="industry-dot"
-      data-color={industryColor(name)}
-      style={{ display: 'inline-block', width: size, height: size, borderRadius: '50%', background: industryColor(name), flexShrink: 0 }}
+      data-color={c}
+      style={{ display: 'inline-block', width: size, height: size, borderRadius: '50%', background: c, flexShrink: 0 }}
     />
   );
 }
 
 /** A coloured industry pill for the lead header / table. Renders nothing for a blank industry. */
-export function IndustryBadge({ name, style }: { name?: string | null; style?: React.CSSProperties }) {
+export function IndustryBadge({ name, style, industries }: { name?: string | null; style?: React.CSSProperties; industries?: readonly IndustryDef[] }) {
+  const fromHook = useIndustries(!industries).industries;
+  const list = industries ?? fromHook;
   const label = typeof name === 'string' ? name.trim() : '';
   if (!label) return null;
-  const c = industryColor(label);
+  const c = industryColor(list, label);
   return (
     <span
       data-testid="industry-badge"
@@ -31,7 +39,7 @@ export function IndustryBadge({ name, style }: { name?: string | null; style?: R
         background: `color-mix(in srgb, ${c} 14%, transparent)`, border: `1px solid color-mix(in srgb, ${c} 38%, transparent)`, ...style,
       }}
     >
-      <IndustryDot name={label} size={7} />
+      <IndustryDot name={label} size={7} industries={list} />
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
     </span>
   );
@@ -41,9 +49,13 @@ export function IndustryBadge({ name, style }: { name?: string | null; style?: R
  * Industry dropdown with a coloured dot beside every option and the selected value (a native <select> cannot
  * colour its options). Keyboard: Enter / Space / ↓ open, ↑ ↓ move, Enter picks, Esc closes.
  */
-export default function IndustrySelect({ id, value, options, onChange, required, blankLabel = '—' }: {
+export default function IndustrySelect({ id, value, options, onChange, required, blankLabel = '—', industries }: {
   id?: string; value: string; options: string[]; onChange: (v: string) => void; required?: boolean; blankLabel?: string;
+  /** The configured industries (for the dot colours); defaults to the shared cached list. */
+  industries?: readonly IndustryDef[];
 }) {
+  const fromHook = useIndustries(!industries).industries;
+  const list = industries ?? fromHook;
   const [open, setOpen] = useState(false);
   const rows = ['', ...options];
   const [active, setActive] = useState(0);
@@ -81,7 +93,7 @@ export default function IndustrySelect({ id, value, options, onChange, required,
         onKeyDown={onKeyDown}
         style={{ ...inputStyle, display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', cursor: 'pointer', paddingRight: 32 }}
       >
-        {value ? <IndustryDot name={value} /> : null}
+        {value ? <IndustryDot name={value} industries={list} /> : null}
         <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? T.text : T.mute }}>{value || blankLabel}</span>
         <svg aria-hidden width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"
           style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: T.mute, pointerEvents: 'none' }}>
@@ -103,7 +115,7 @@ export default function IndustrySelect({ id, value, options, onChange, required,
               onMouseEnter={() => setActive(i)}
               style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', cursor: 'pointer', fontSize: 13.5, color: o ? T.text : T.mute, borderRadius: 6, background: i === active ? 'var(--s3)' : 'transparent', fontWeight: o === value ? 700 : 400 }}
             >
-              {o ? <IndustryDot name={o} /> : <span style={{ width: 9, flexShrink: 0 }} />}
+              {o ? <IndustryDot name={o} industries={list} /> : <span style={{ width: 9, flexShrink: 0 }} />}
               <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{o || blankLabel}</span>
             </li>
           ))}

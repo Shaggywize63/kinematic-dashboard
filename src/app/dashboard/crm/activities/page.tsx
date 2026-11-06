@@ -4,7 +4,7 @@ import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmActivities, crmLeads, type Pagination, type ActivityView, type ActivitySummary } from '../../../../lib/crmApi';
+import { crmAccounts, crmActivities, crmLeads, type Pagination, type ActivityView, type ActivitySummary } from '../../../../lib/crmApi';
 import api, { EXPORT_TIMEOUT_MS } from '../../../../lib/api';
 import { downloadBlob } from '../../../../lib/financeFormat';
 import type { Activity } from '../../../../types/crm';
@@ -18,7 +18,8 @@ import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { prettifySlug, useActivityTypes } from '../../../../lib/activityTypes';
-import { SparkActivityMeta } from '../../../../components/crm/spark/SparkActivityFields';
+import { CompleteActivityDialog, SparkActivityCompany, SparkActivityMeta, SparkActivityOutcome } from '../../../../components/crm/spark/SparkActivityFields';
+import { isB2bClientActive } from '../../../../lib/b2bClient';
 import EditActivityModal from '../../../../components/crm/EditActivityModal';
 
 // Activity cards are not a table, so the customizer toggles which
@@ -81,7 +82,12 @@ function ActivitiesPageInner() {
   // Clients that set lead_form.owner_assignment='admin_only' keep every owner control (the assignee filter
   // included) for an admin; a self-only user on an admin-tier role (data_scope 'own') gets none of them.
   const ownerAccess = useLeadOwnerAccess();
-  const showAssigneeFilter = isAdmin && ownerAccess.canAssign;
+  // Spark & Ray: the Account + User filters are shown to everyone who may open the Activities page (what each person
+  // may SEE is enforced server-side), so the client-admin role is no longer hidden behind the owner-assignment rule.
+  const spark = isB2bClientActive();
+  const showAssigneeFilter = spark || (isAdmin && ownerAccess.canAssign);
+  // Spark: marking an activity complete asks for its Outcome first.
+  const [completing, setCompleting] = useState<Activity | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [feFilter, setFeFilter] = useState('');
@@ -97,6 +103,13 @@ function ActivitiesPageInner() {
   const [leadOptions, setLeadOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [leadSearching, setLeadSearching] = useState(false);
   const [leadPickerOpen, setLeadPickerOpen] = useState(false);
+  // Spark: filter by the account the activity is on (or any of its leads). Same picker shape as the lead filter.
+  const [accountFilterId, setAccountFilterId] = useState('');
+  const [accountFilterLabel, setAccountFilterLabel] = useState('');
+  const [accountQuery, setAccountQuery] = useState('');
+  const [accountOptions, setAccountOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [accountSearching, setAccountSearching] = useState(false);
+  const [accountPickerOpen, setAccountPickerOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   // Global header city scope. Activities have no city column of their own —
   // the backend filters them via the linked lead — but the page must refetch
@@ -148,8 +161,9 @@ function ActivitiesPageInner() {
       const qs = new URLSearchParams();
       if (type) qs.set('type', type);
       if (statusFilter) qs.set('status', statusFilter);
-      if (feFilter) qs.set('owner_id', feFilter);
+      if (showAssigneeFilter && feFilter) qs.set('owner_id', feFilter);
       if (leadFilterId) qs.set('lead_id', leadFilterId);
+      if (spark && accountFilterId) qs.set('account_id', accountFilterId);
       if (selectedCity) qs.set('city', selectedCity);
       // Demo-account short-circuit — raw fetch() bypasses api.ts's demo
       // intercept, so we'd otherwise hit the real backend with a demo
@@ -212,10 +226,11 @@ function ActivitiesPageInner() {
       const params: Record<string, string | number> = { page, limit: pageSize };
       if (type) params.type = type;
       if (statusFilter) params.status = statusFilter;
-      if (isAdmin && feFilter) params.owner_id = feFilter;
+      if (showAssigneeFilter && feFilter) params.owner_id = feFilter;
       // Search by lead — backend's crud.list applies any non-reserved key
       // as .eq(), so `lead_id` filters crm_activities.lead_id directly.
       if (leadFilterId) params.lead_id = leadFilterId;
+      if (spark && accountFilterId) params.account_id = accountFilterId;
       if (selectedCity) params.city = selectedCity;
       if (dateRange.from) params.from = dateRange.from;
       if (dateRange.to) params.to = dateRange.to;
@@ -241,8 +256,9 @@ function ActivitiesPageInner() {
       const summaryParams: Record<string, string | number> = {};
       if (type) summaryParams.type = type;
       if (statusFilter) summaryParams.status = statusFilter;
-      if (isAdmin && feFilter) summaryParams.owner_id = feFilter;
+      if (showAssigneeFilter && feFilter) summaryParams.owner_id = feFilter;
       if (leadFilterId) summaryParams.lead_id = leadFilterId;
+      if (spark && accountFilterId) summaryParams.account_id = accountFilterId;
       if (selectedCity) summaryParams.city = selectedCity;
       if (dateRange.from) summaryParams.from = dateRange.from;
       if (dateRange.to) summaryParams.to = dateRange.to;
@@ -267,14 +283,14 @@ function ActivitiesPageInner() {
 
   // With the assignee filter gone for this viewer, a value left in it must not keep narrowing the list.
   useEffect(() => {
-    if (ownerAccess.ready && !ownerAccess.canAssign) setFeFilter('');
-  }, [ownerAccess.ready, ownerAccess.canAssign]);
+    if (!spark && ownerAccess.ready && !ownerAccess.canAssign) setFeFilter('');
+  }, [spark, ownerAccess.ready, ownerAccess.canAssign]);
 
   useEffect(() => {
     const user = getStoredUser();
     const admin = !!(user && canAccess(user.role, ['sub_admin']));
     if (admin) setIsAdmin(true);
-    if (admin) {
+    if (admin || spark) {
       (api.getUsers({ limit: '500', scope: 'assignable' }) as Promise<any>)
         .then((u) => {
           const list: UserOption[] = (u.data || u || []).map((x: any) => ({
@@ -284,20 +300,40 @@ function ActivitiesPageInner() {
         })
         .catch(() => {});
     }
-  }, []);
+  }, [spark]);
 
   // Reload on any filter / page / page-size change. Server-side filtering
   // means we don't need the client-side `filtered` array to re-filter on
   // the same dimensions.
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
-    type, statusFilter, feFilter, leadFilterId, view, page, pageSize, isAdmin, sort, selectedCity, dateRange.from, dateRange.to,
+    type, statusFilter, feFilter, leadFilterId, accountFilterId, view, page, pageSize, isAdmin, sort, selectedCity, dateRange.from, dateRange.to,
   ]);
 
   // Reset to page 1 whenever any server-side filter changes — otherwise
   // a stricter filter while on page 5 would land on an empty page.
   useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
-    type, statusFilter, feFilter, leadFilterId, view, pageSize, selectedCity,
+    type, statusFilter, feFilter, leadFilterId, accountFilterId, view, pageSize, selectedCity,
   ]);
+
+  // Debounced typeahead for the Spark account filter: GET /crm/accounts?q=… as the user types.
+  useEffect(() => {
+    if (!spark || !accountPickerOpen) return;
+    const q = accountQuery.trim();
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setAccountSearching(true);
+      try {
+        const r = await crmAccounts.list(q ? { q, limit: 25 } : { limit: 25 });
+        if (cancelled) return;
+        setAccountOptions((r.data || []).map((x: any) => ({ id: x.id, label: x.name || 'Account' })));
+      } catch {
+        if (!cancelled) setAccountOptions([]);
+      } finally {
+        if (!cancelled) setAccountSearching(false);
+      }
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [spark, accountQuery, accountPickerOpen]);
 
   // Debounced typeahead — query the leads list as the user types in the
   // lead-search picker. Server-side q= matches name/email/phone; the
@@ -329,6 +365,7 @@ function ActivitiesPageInner() {
   }, [leadQuery, leadPickerOpen]);
 
   const updateStatus = async (a: Activity, status: string) => {
+    if (spark && status === 'completed') { setCompleting(a); return; }
     setBusyId(a.id);
     try {
       const payload: Record<string, unknown> = { status };
@@ -373,7 +410,7 @@ function ActivitiesPageInner() {
   const overdue = filtered.filter((a) => a.due_at && !a.completed_at && new Date(a.due_at) < new Date());
   const upcoming = filtered.filter((a) => a.due_at && !a.completed_at && new Date(a.due_at) >= new Date());
   const completed = filtered.filter((a) => !!a.completed_at);
-  const filtersActive = !!feFilter;
+  const filtersActive = !!feFilter || !!accountFilterId;
 
   return (
     <div>
@@ -499,8 +536,8 @@ function ActivitiesPageInner() {
       )}
 
       {/* Admin filters: FE (assignee). State/City come from the global CRM location filter in the layout header. */}
-      {isAdmin && (
-        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      {(isAdmin || spark) && (
+        <div data-testid="activity-filters" style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {showAssigneeFilter && (
             <>
               <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Filters</span>
@@ -508,17 +545,33 @@ function ActivitiesPageInner() {
                 <UserSearchSelect
                   options={users}
                   value={feFilter}
-                  onChange={setFeFilter}
-                  placeholder="Filter by FE / assignee…"
-                  emptyLabel="All assignees"
+                  onChange={(id) => { setPage(1); setFeFilter(id); }}
+                  placeholder={spark ? 'Filter by user…' : 'Filter by FE / assignee…'}
+                  emptyLabel={spark ? 'All users' : 'All assignees'}
+                  ariaLabel={spark ? 'Filter by user' : undefined}
                 />
               </div>
+              {spark && (
+                <FilterPicker
+                  noun="account"
+                  value={accountFilterId}
+                  label={accountFilterLabel}
+                  open={accountPickerOpen}
+                  query={accountQuery}
+                  options={accountOptions}
+                  searching={accountSearching}
+                  onOpenChange={(o) => { setAccountPickerOpen(o); if (o) setAccountQuery(''); }}
+                  onQueryChange={setAccountQuery}
+                  onPick={(opt) => { setPage(1); setAccountFilterId(opt.id); setAccountFilterLabel(opt.label); setAccountPickerOpen(false); setAccountQuery(''); }}
+                  onClear={() => { setPage(1); setAccountFilterId(''); setAccountFilterLabel(''); setAccountQuery(''); }}
+                />
+              )}
               {filtersActive && (
                 <button
-                  onClick={() => setFeFilter('')}
+                  onClick={() => { setPage(1); setFeFilter(''); setAccountFilterId(''); setAccountFilterLabel(''); }}
                   style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
-                  title="Clear FE filter (state/city is in the header filter)"
-                >Clear FE</button>
+                  title={spark ? 'Clear the user and account filters' : 'Clear FE filter (state/city is in the header filter)'}
+                >{spark ? 'Clear filters' : 'Clear FE'}</button>
               )}
             </>
           )}
@@ -725,6 +778,8 @@ function ActivitiesPageInner() {
                       </div>
                       {/* Spark & Ray: assignees / products / form serial (absent on every other tenant's rows). */}
                       <SparkActivityMeta a={a} />
+                      <SparkActivityCompany a={a} />
+                      <SparkActivityOutcome a={a} />
                     </div>
                   </div>
                   <div style={{
@@ -826,6 +881,13 @@ function ActivitiesPageInner() {
         onPageSizeChange={setPageSize}
         loading={loading}
       />
+      {completing && (
+        <CompleteActivityDialog
+          activity={completing}
+          onClose={() => setCompleting(null)}
+          onDone={() => { setCompleting(null); toast.success('Marked completed'); reload(); }}
+        />
+      )}
       {editing && (
         <EditActivityModal
           activity={editing}
@@ -1214,10 +1276,16 @@ function AgendaRow({ a }: { a: Activity }) {
  * name. The 🔍 affordance is intentionally identical to the other
  * inline-styled selects in this header so the filters read as one row.
  */
-function LeadFilterPicker({
-  value, label, open, query, options, searching,
+function LeadFilterPicker(props: Omit<React.ComponentProps<typeof FilterPicker>, 'noun'>) {
+  return <FilterPicker noun="lead" {...props} />;
+}
+
+// Searchable single-pick filter (lead / account): a button that opens a search box + results, with a × to clear.
+function FilterPicker({
+  noun, value, label, open, query, options, searching,
   onOpenChange, onQueryChange, onPick, onClear,
 }: {
+  noun: 'lead' | 'account';
   value: string;
   label: string;
   open: boolean;
@@ -1234,7 +1302,7 @@ function LeadFilterPicker({
       <button
         type="button"
         onClick={() => onOpenChange(!open)}
-        title="Filter activities by linked lead"
+        title={`Filter activities by linked ${noun}`}
         style={{
           background: value ? 'var(--primary)' : 'var(--s3)',
           border: `1px solid ${value ? 'var(--primary)' : 'var(--border)'}`,
@@ -1251,14 +1319,14 @@ function LeadFilterPicker({
           display: 'inline-flex', alignItems: 'center', gap: 6,
         }}
       >
-        🔍 {value ? label : 'Search by lead'}
+        🔍 {value ? label : `Search by ${noun}`}
         {value && (
           <span
             role="button"
             tabIndex={0}
             onClick={(e) => { e.stopPropagation(); onClear(); }}
             style={{ marginLeft: 4, fontSize: 12, opacity: 0.85 }}
-            aria-label="Clear lead filter"
+            aria-label={`Clear ${noun} filter`}
           >×</span>
         )}
       </button>
@@ -1273,7 +1341,7 @@ function LeadFilterPicker({
             autoFocus
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Type a lead name, phone, email…"
+            placeholder={noun === 'lead' ? 'Type a lead name, phone, email…' : 'Type an account name…'}
             style={{
               width: '100%', boxSizing: 'border-box',
               background: 'var(--s3)', border: '1px solid var(--border)',
@@ -1286,7 +1354,7 @@ function LeadFilterPicker({
               <div style={{ padding: 10, fontSize: 12, color: 'var(--text-dim)' }}>Searching…</div>
             ) : options.length === 0 ? (
               <div style={{ padding: 10, fontSize: 12, color: 'var(--text-dim)' }}>
-                {query ? 'No leads match.' : 'Start typing to search.'}
+                {query ? `No ${noun}s match.` : 'Start typing to search.'}
               </div>
             ) : options.map((o) => (
               <button

@@ -129,7 +129,7 @@ export interface Account {
   billing_address?: string | null;
   shipping_address?: string | null;
   description?: string | null;
-  // Spark & Ray only: the account's outcome (required there).
+  // Spark & Ray only: a legacy outcome stored on the account earlier (no longer asked for; read-only).
   outcome?: string | null;
   tags?: string[] | null;
   ai_summary?: string | null;
@@ -231,6 +231,9 @@ export interface Activity {
   lead_id?: string | null; contact_id?: string | null; account_id?: string | null; deal_id?: string | null;
   owner_id?: string | null; owner_name?: string | null;
   image_url?: string | null;
+  // Spark & Ray only: the activity's company — its own account, else its lead's account (id set), else the lead's
+  // company text (id null). Absent on every other tenant.
+  company_id?: string | null; company_name?: string | null;
   // Spark & Ray only (connected-B2B). Absent on every other tenant.
   assignees?: Array<{ id: string; name: string }> | null;
   form_ref_no?: string | null;

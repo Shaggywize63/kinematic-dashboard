@@ -17,7 +17,7 @@ import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
 import { UNORDERED_LAST, buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../lib/crmLeadStatuses';
 import { DEFAULT_LEAD_FORM, extractLeadForm, segmentName, segmentToggleLabel, showsAddress, type LeadFormConfig } from '../../lib/crmLeadForm';
-import { sparkIndustryOptions } from '../../lib/sparkIndustries';
+import { clearSubIndustryOnChange, industryOptions, subIndustryOptions, useIndustries } from '../../lib/industries';
 import { isKinematicTenant, STEEL_DEALER_CLIENT_IDS } from '../../lib/clientFeatures';
 import { useAuth } from '../../hooks/useAuth';
 import { useLeadOwnerAccess } from '../../lib/leadOwnerAccess';
@@ -173,6 +173,9 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // other tenant's edit modal is unchanged. Results render inline (not an
   // overlay) so the modal's own scroll never clips the dropdown.
   const b2bAccounts = isB2bClientActive();
+  // Spark & Ray: the admin-configured industries (Settings -> Industries) drive the Industry dropdown + colours and
+  // the dependent Sub-industry dropdown; the built-in seven until/unless one is saved.
+  const { industries } = useIndustries(b2bAccounts);
   // Connected-B2B (Spark & Ray) B2B lead = company-centric: the person Contact
   // fields are dropped (people live in Contacts & requirements) and the lead's
   // name comes from the Company. Mirrors the new-lead form.
@@ -446,12 +449,17 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                 };
                 // Industry for Spark & Ray: a fixed dropdown (a legacy / free-text value stays selectable). Every
                 // other tenant keeps the free-text <F> at each site below. Callers wrap it in show('industry', …).
-                const sparkIndustry = <Field label={lbl('industry', 'Industry')} required={req('industry', false)} htmlFor="lead-edit-industry" style={os('industry')}><IndustrySelect id="lead-edit-industry" value={form.industry} options={sparkIndustryOptions(form.industry)} required={req('industry', false)} onChange={(v) => setForm((f) => ({ ...f, industry: v }))} /></Field>;
+                const sparkIndustry = <Field label={lbl('industry', 'Industry')} required={req('industry', false)} htmlFor="lead-edit-industry" style={os('industry')}><IndustrySelect id="lead-edit-industry" value={form.industry} options={industryOptions(industries, form.industry)} industries={industries} required={req('industry', false)} onChange={(v) => setForm((f) => {
+                  // Changing the industry clears a Sub-industry that no longer belongs to it.
+                  if (!clearSubIndustryOnChange(industries, f.industry, v, f.custom_fields?.[SUB_INDUSTRY_KEY])) return { ...f, industry: v };
+                  const { [SUB_INDUSTRY_KEY]: _drop, ...rest } = f.custom_fields ?? {};
+                  return { ...f, industry: v, custom_fields: rest };
+                })} /></Field>;
                 // Spark & Ray: the "Industry Category" custom field is the Sub-industry, shown right after Industry
                 // (same grid) and skipped by the generic Additional-details block below.
                 // Ordered mode: wrapped in a grid item carrying INDUSTRY's order (it follows Industry in DOM order, so the
                 // pair stays adjacent wherever the admin put Industry); not ordered: rendered bare, as before.
-                const subIndustryNode = <CustomFieldsSection entity="lead" values={form.custom_fields} onChange={(cf) => setForm((f) => ({ ...f, custom_fields: cf }))} onFieldsChange={reportSubIndustry} isB2c={form.is_b2c} onlyKeys={[SUB_INDUSTRY_KEY]} labelOverrides={{ [SUB_INDUSTRY_KEY]: 'Sub-industry' }} />;
+                const subIndustryNode = <CustomFieldsSection entity="lead" values={form.custom_fields} onChange={(cf) => setForm((f) => ({ ...f, custom_fields: cf }))} onFieldsChange={reportSubIndustry} isB2c={form.is_b2c} onlyKeys={[SUB_INDUSTRY_KEY]} labelOverrides={{ [SUB_INDUSTRY_KEY]: 'Sub-industry' }} optionsOverrides={{ [SUB_INDUSTRY_KEY]: subIndustryOptions(industries, form.industry, typeof form.custom_fields?.[SUB_INDUSTRY_KEY] === 'string' ? (form.custom_fields[SUB_INDUSTRY_KEY] as string) : '') }} />;
                 const sparkSubIndustry = !b2bAccounts ? null : flat
                   ? <div data-order-glue="industry" style={{ ...os('industry'), display: hasSubIndustry ? undefined : 'none', minWidth: 0 }}>{subIndustryNode}</div>
                   : subIndustryNode;

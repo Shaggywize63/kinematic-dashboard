@@ -32,15 +32,15 @@ export default function ContactAccountModal({ contact, open, onClose, onSaved }:
 
   const changing = !!contact.account_id;
   const save = async () => {
-    if (!accountId) { toast.error('Pick an account'); return; }
+    if (!accountId) { toast.error('Pick a company'); return; }
     setBusy(true);
     try {
       await crmContacts.update(contact.id, { account_id: accountId } as never);
-      toast.success(changing ? 'Account changed' : 'Added to the account');
+      toast.success(changing ? 'Company changed' : 'Added to the company');
       onSaved(accountId);
       onClose();
     } catch (e) {
-      toast.error(apiErrorText(e, 'Could not update the account'));
+      toast.error(apiErrorText(e, 'Could not update the company'));
     } finally { setBusy(false); }
   };
 
@@ -49,13 +49,13 @@ export default function ContactAccountModal({ contact, open, onClose, onSaved }:
       open={open}
       onClose={onClose}
       width={460}
-      title={changing ? 'Change account' : 'Add to an account'}
-      subtitle={changing ? `${name} currently belongs to ${contact.account_name || 'an account'}.` : `Link ${name} to an account.`}
+      title={changing ? 'Change company' : 'Add to a company'}
+      subtitle={changing ? `${name} currently belongs to ${contact.account_name || 'a company'}.` : `Link ${name} to a company.`}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={save} disabled={busy || !accountId || accountId === (contact.account_id || '')}>{busy ? 'Saving…' : 'Save'}</Button></>}
     >
       <div style={{ minHeight: 120 }}>
-        <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Account</div>
-        <AccountPicker accounts={accounts} value={accountId} onChange={setAccountId} ariaLabel="Account" placeholder="Search accounts…" />
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Company</div>
+        <AccountPicker accounts={accounts} value={accountId} onChange={setAccountId} ariaLabel="Company" placeholder="Search companies…" />
       </div>
     </Modal>
   );

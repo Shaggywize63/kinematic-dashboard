@@ -72,6 +72,8 @@ test.describe('Spark activities/new', () => {
     const serial = page.getByRole('textbox', { name: 'Form serial' });
     await serial.fill('srpr2627-99');
     await expect(serial).toHaveValue('SRPR2627-99');
+    // Logged now (no schedule) = completed, so Spark asks for an Outcome first.
+    await page.getByLabel('Outcome').fill('Spoke to purchase head');
     await page.getByRole('button', { name: 'Log Activity' }).click();
 
     await expect(page.getByTestId('form-serial-error')).toHaveText('Form serial SRPR2627-99 was not found');
@@ -83,6 +85,7 @@ test.describe('Spark activities/new', () => {
       assignee_ids: ['u-ravi', SEED_USER.id, 'u-asha'],
       product_ids: ['p-1'],
       form_serial: 'SRPR2627-99',
+      outcome: 'Spoke to purchase head',
     });
 
     // Fix the serial and save: no error, back on the list.

@@ -241,11 +241,11 @@ export default function NewContactPage() {
   );
   const sparkAccountInner = lockedAccount ? (
     <>
-      <input aria-label="Account" readOnly disabled value={lockedAccount.name || 'Loading…'} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box', opacity: 0.85 }} />
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>This contact will be added to this account.</div>
+      <input aria-label="Company" readOnly disabled value={lockedAccount.name || 'Loading…'} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box', opacity: 0.85 }} />
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>This contact will be added to this company.</div>
     </>
   ) : (
-    <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} ariaLabel="Account" placeholder="Search accounts… (optional)" />
+    <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} ariaLabel="Company" placeholder="Search companies… (optional)" />
   );
   const locationPicker = <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />;
   const b2bLocationInner = (
@@ -319,7 +319,7 @@ export default function NewContactPage() {
             {personalRows}
             {spark && !fields.isHidden('account_id') && (
               <div style={{ minWidth: 0, ...o('account_id') }}>
-                <span style={smallLabel}>{fields.labelFor('account_id', 'Account')}</span>
+                <span style={smallLabel}>{fields.labelFor('account_id', 'Company')}</span>
                 <div style={{ marginTop: 4 }}>{sparkAccountInner}</div>
               </div>
             )}
@@ -353,7 +353,7 @@ export default function NewContactPage() {
       </Section>
 
       {spark && !fields.isHidden('account_id') && (
-        <Section title={fields.labelFor('account_id', 'Account')}>
+        <Section title={fields.labelFor('account_id', 'Company')}>
           <div style={gridStyle}>
             <div>
               {sparkAccountInner}

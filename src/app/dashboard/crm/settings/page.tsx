@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
-  Blocks, Boxes, ChevronRight, ClipboardList, Database, GitBranch, Layers, ListChecks, MapPinned, Moon, Network, Phone, Plug, Shuffle,
+  Blocks, Boxes, ChevronRight, ClipboardList, Database, GitBranch, Layers, ListChecks, MapPinned, Moon, Network, Palette, Phone, Plug, Shuffle,
   Sparkles, Sun, Target, UserCircle, Users, Workflow, Zap,
 } from 'lucide-react';
 import { crmSettings } from '../../../../lib/crmApi';
@@ -307,6 +307,14 @@ export default function SettingsIndex() {
               title="Deal sections"
               desc="Choose which deal sections show (Quotation, Pricing, Product trial, Approvals & people), rename them and set their order."
               icon={<ClipboardList {...ICON_PROPS} />}
+            />
+          )}
+          {spark && (
+            <SettingCard
+              href="/dashboard/crm/settings/industries"
+              title="Industries"
+              desc="Add, rename, colour and reorder the industries on leads, and list the sub-industries under each. Colours drive the badges and map pins."
+              icon={<Palette {...ICON_PROPS} />}
             />
           )}
           {hierarchyEnabled && (

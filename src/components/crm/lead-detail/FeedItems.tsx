@@ -9,7 +9,7 @@ import MentionInput, { renderMentions } from '../../messaging/MentionInput';
 import OwnerAvatar from '../shared/OwnerAvatar';
 import { WA_PATH } from '../shared/WhatsAppButton';
 import { ActivityFields } from '../ActivityTimeline';
-import { SparkActivityMeta } from '../spark/SparkActivityFields';
+import { SparkActivityCompany, SparkActivityMeta } from '../spark/SparkActivityFields';
 import { Button, T } from '../../ui';
 import RowMenu, { type RowMenuItem } from './RowMenu';
 import { useActivityTypes } from '../../../lib/activityTypes';
@@ -229,6 +229,7 @@ export function ActivityRow({
         </div>
       )}
       {a.body && <div style={{ ...bodyStyle, color: T.dim, marginTop: 6 }}><Clamp lines={4}>{a.body}</Clamp></div>}
+      <SparkActivityCompany a={a} />
       <ActivityFields cf={a.custom_fields} />
       <SparkActivityMeta a={a} />
       {a.image_url && (

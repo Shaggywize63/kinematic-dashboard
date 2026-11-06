@@ -8,7 +8,8 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { crmActivities } from '../../lib/crmApi';
 import { prettifySlug } from '../../lib/activityTypes';
 import { ActivityTypeIcon } from './shared/ActivityTypeIcon';
-import { SparkActivityMeta } from './spark/SparkActivityFields';
+import { CompleteActivityDialog, SparkActivityCompany, SparkActivityMeta, SparkActivityOutcome } from './spark/SparkActivityFields';
+import { isB2bClientActive } from '../../lib/b2bClient';
 
 // Date + time in user-readable form. Falls back to '' on bad input so
 // the row still renders.
@@ -88,12 +89,15 @@ function activityCampaign(a: Activity, leadCampaign?: string | null): string | n
 
 export default function ActivityTimeline({ activities, onChange, onEdit, addHref, leadCampaign }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Spark: marking an activity complete first asks for its Outcome (required).
+  const [completing, setCompleting] = useState<Activity | null>(null);
 
   const addBtn = addHref ? (
     <Link href={addHref} style={addBtnStyle}>+ Add activity</Link>
   ) : null;
 
   const updateStatus = async (a: Activity, status: string) => {
+    if (status === 'completed' && isB2bClientActive()) { setCompleting(a); return; }
     setBusyId(a.id);
     try {
       const payload: Record<string, unknown> = { status };
@@ -135,6 +139,13 @@ export default function ActivityTimeline({ activities, onChange, onEdit, addHref
   );
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {completing && (
+        <CompleteActivityDialog
+          activity={completing}
+          onClose={() => setCompleting(null)}
+          onDone={() => { setCompleting(null); toast.success('Marked completed'); onChange?.(); }}
+        />
+      )}
       {addBtn && <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{addBtn}</div>}
       {activities.map((a) => {
         const status = (a as any).status as string | undefined;
@@ -177,6 +188,8 @@ export default function ActivityTimeline({ activities, onChange, onEdit, addHref
                     </div>
                   )}
                   {a.body && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{a.body}</div>}
+                  <SparkActivityCompany a={a} />
+                  <SparkActivityOutcome a={a} />
                   <ActivityFields cf={(a as any).custom_fields} />
                   <SparkActivityMeta a={a} />
                   {a.image_url && (

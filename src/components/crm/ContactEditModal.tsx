@@ -1,8 +1,10 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { crmContacts, crmSettings } from '../../lib/crmApi';
-import type { BusinessType, Contact } from '../../types/crm';
+import { crmAccounts, crmContacts, crmSettings } from '../../lib/crmApi';
+import type { Account, BusinessType, Contact } from '../../types/crm';
+import { isB2bClientActive } from '../../lib/b2bClient';
+import { AccountPicker } from './spark/DealItemsEditor';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
 import CustomFieldsSection from './CustomFieldsSection';
@@ -18,6 +20,9 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(contact));
   const [busy, setBusy] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
+  // Spark & Ray: a searchable, clearable Company (account) picker on business contacts.
+  const spark = isB2bClientActive();
+  const [accounts, setAccounts] = useState<Account[]>([]);
   // Built-in field overrides (hide / relabel / require) for contact columns,
   // scoped by the contact's B2B/B2C mode like the lead form.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
@@ -27,6 +32,12 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
   );
 
   useEffect(() => { if (open) { setForm(seed(contact)); setCustomFields(seedCustomFields(contact)); } }, [open, contact]);
+  useEffect(() => {
+    if (!open || !spark) return;
+    let off = false;
+    crmAccounts.list({ limit: 500 } as never).then((r) => { if (!off) setAccounts(r.data || []); }).catch(() => { if (!off) setAccounts([]); });
+    return () => { off = true; };
+  }, [open, spark]);
   // Mirror LeadEditModal: read org's B2B/B2C mode on open and pin
   // is_b2c for single-mode orgs so the toggle can't take the form into
   // an invalid combination.
@@ -52,6 +63,8 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
     try {
       const body: Record<string, unknown> = { first_name: form.first_name || null, last_name: form.last_name || null, email: form.email || null, phone: form.phone || null, mobile: form.mobile || null, is_b2c: form.is_b2c };
       if (!form.is_b2c) { body.title = form.title || null; body.department = form.department || null; }
+      // Spark: only a changed Company is sent (null = unlink).
+      if (spark && !form.is_b2c && form.account_id !== (contact.account_id || '')) body.account_id = form.account_id || null;
       else { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, loyalty_tier: form.loyalty_tier || null, referral_source: form.referral_source || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
       body.custom_fields = customFields;
       const r = await crmContacts.update(contact.id, body);
@@ -75,6 +88,12 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
     <>
       {!fields.isHidden('title') && <F field="title" label={fields.labelFor('title', 'Job Title')} required={fields.requiredFor('title', false)} value={form.title} onChange={(v) => setForm({ ...form, title: v })} ord={o('title')} />}
       {!fields.isHidden('department') && <F label={fields.labelFor('department', 'Department')} required={fields.requiredFor('department', false)} value={form.department} onChange={(v) => setForm({ ...form, department: v })} ord={o('department')} />}
+      {spark && !fields.isHidden('account_id') && (
+        <div data-field="account_id" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, ...o('account_id') }}>
+          <span style={lbl}>{fields.labelFor('account_id', 'Company')}</span>
+          <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} ariaLabel="Company" placeholder="Search companies… (optional)" />
+        </div>
+      )}
     </>
   );
   const customerRows = (
@@ -167,7 +186,7 @@ function seedCustomFields(c: Contact): Record<string, unknown> {
     : {};
 }
 
-function seed(c: Contact) { return { first_name: c.first_name || '', last_name: c.last_name || '', email: c.email || '', phone: c.phone || '', mobile: c.mobile || '', title: c.title || '', department: c.department || '', is_b2c: !!c.is_b2c, date_of_birth: c.date_of_birth || '', gender: c.gender || '', address_line1: c.address_line1 || '', city: c.city || '', state: c.state || '', postal_code: c.postal_code || '', country: c.country || 'India', preferred_contact_method: c.preferred_contact_method || '', loyalty_tier: c.loyalty_tier || '', referral_source: c.referral_source || '', marketing_consent: !!c.marketing_consent, whatsapp_consent: !!c.whatsapp_consent }; }
+function seed(c: Contact) { return { first_name: c.first_name || '', last_name: c.last_name || '', email: c.email || '', phone: c.phone || '', mobile: c.mobile || '', title: c.title || '', department: c.department || '', is_b2c: !!c.is_b2c, date_of_birth: c.date_of_birth || '', gender: c.gender || '', address_line1: c.address_line1 || '', city: c.city || '', state: c.state || '', postal_code: c.postal_code || '', country: c.country || 'India', preferred_contact_method: c.preferred_contact_method || '', loyalty_tier: c.loyalty_tier || '', account_id: c.account_id || '', referral_source: c.referral_source || '', marketing_consent: !!c.marketing_consent, whatsapp_consent: !!c.whatsapp_consent }; }
 function SL({ children }: { children: React.ReactNode }) { return <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, margin: '14px 0 8px' }}>{children}</div>; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; field?: string; ord?: React.CSSProperties }) { return <label data-field={p.field} style={{ display: 'flex', flexDirection: 'column', gap: 4, ...p.ord }}><span style={lbl}>{p.label}{p.required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} required={p.required} style={inp} /></label>; }

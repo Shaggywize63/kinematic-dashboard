@@ -100,7 +100,7 @@ export default function ContactDetailPage() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {spark && (
-                <button onClick={() => setAccountOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>{c.account_id ? 'Change account' : 'Add to an account'}</button>
+                <button onClick={() => setAccountOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>{c.account_id ? 'Change company' : 'Add to a company'}</button>
               )}
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
@@ -110,7 +110,7 @@ export default function ContactDetailPage() {
             <Field label="Email" value={c.email} />
             <PhoneField phone={c.phone} prefill={waPrefill} contactId={c.id} displayName={fullName} />
             {!isB2C && c.account_id ? (
-              <FieldLink label="Account" href={`/dashboard/crm/accounts/${c.account_id}`} value={c.account_name || 'View account'} />
+              <FieldLink label={spark ? 'Company' : 'Account'} href={`/dashboard/crm/accounts/${c.account_id}`} value={c.account_name || 'View account'} />
             ) : (
               <Field label="Owner" value={c.owner_name} />
             )}
@@ -215,7 +215,7 @@ export default function ContactDetailPage() {
         )}
 
         {!isB2C && c.account_id && (
-          <Card title="Linked Account">
+          <Card title={spark ? 'Linked Company' : 'Linked Account'}>
             <Link href={`/dashboard/crm/accounts/${c.account_id}`} style={chipLink}>→ {c.account_name || 'View account'}</Link>
           </Card>
         )}
