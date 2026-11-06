@@ -715,7 +715,7 @@ export default function NewLeadPage() {
         // City + state always sent (B2B + B2C). Backend schema enforces
         // city.min(1); state is optional but auto-inferred client-side
         // from the city catalog when the user picks an assigned city.
-        city: form.city.trim(),
+        city: form.city.trim() || undefined,
         state: form.state || undefined,
         // Geo coordinates — sent only when both are present and numeric.
         latitude:  form.latitude.trim()  !== '' && !Number.isNaN(Number(form.latitude))  ? Number(form.latitude)  : undefined,
