@@ -42,6 +42,81 @@ export function sparkActivityFields(
   return out;
 }
 
+// ── Activity outcome ────────────────────────────────────────────────────────
+
+/** The server accepts at most this many characters in crm_activities.outcome. */
+export const ACTIVITY_OUTCOME_MAX = 500;
+
+/** Spark: an activity that is being logged / marked completed needs an Outcome; a scheduled one does not. */
+export function activityOutcomeError(outcome: string | null | undefined, completing: boolean): string | null {
+  if (!completing) return null;
+  return (outcome ?? '').trim() ? null : 'Outcome is required when an activity is completed';
+}
+
+/** Create body piece: the trimmed outcome, or nothing when blank (so a non-Spark / blank payload is unchanged). */
+export function outcomeForCreate(outcome: string | null | undefined): { outcome?: string } {
+  const t = (outcome ?? '').trim().slice(0, ACTIVITY_OUTCOME_MAX);
+  return t ? { outcome: t } : {};
+}
+
+/** PATCH body value: the trimmed outcome, or null to clear it. */
+export function outcomeForPatch(outcome: string | null | undefined): string | null {
+  const t = (outcome ?? '').trim().slice(0, ACTIVITY_OUTCOME_MAX);
+  return t || null;
+}
+
+/** Is this activity row already completed (status completed / done, or a completion stamp)? */
+export function isActivityCompleted(a: { status?: string | null; completed_at?: string | null }): boolean {
+  return a.status === 'completed' || a.status === 'done' || !!a.completed_at;
+}
+
+// ── Account addresses (sites) ───────────────────────────────────────────────
+
+export interface SiteFormValues {
+  name: string; address_line1: string; address_line2: string; city: string; state: string; postal_code: string; country: string;
+  latitude: string; longitude: string; notes: string;
+}
+
+export const emptySiteForm = (): SiteFormValues => ({
+  name: '', address_line1: '', address_line2: '', city: '', state: '', postal_code: '', country: 'India', latitude: '', longitude: '', notes: '',
+});
+
+/** A coordinate in a text box -> a finite number in range, else null (never NaN, never out of range). */
+export function parseCoord(v: string | number | null | undefined, kind: 'lat' | 'lng'): number | null {
+  if (v === null || v === undefined || String(v).trim() === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  const max = kind === 'lat' ? 90 : 180;
+  return Math.abs(n) <= max ? n : null;
+}
+
+/** What is wrong with a site form, or null: the label is required and there must be some address to save. */
+export function siteFormError(f: SiteFormValues): string | null {
+  if (!f.name.trim()) return 'Label is required (e.g. Head office)';
+  if (!f.address_line1.trim() && !f.city.trim()) return 'Add an address (search for one, or fill the address line / city)';
+  return null;
+}
+
+/** The POST / PATCH body for a site form: trimmed text, blanks sent as null so an edit can clear a field. */
+export function siteFormToPayload(f: SiteFormValues): {
+  name: string; address_line1: string | null; address_line2: string | null; city: string | null; state: string | null;
+  postal_code: string | null; country: string | null; latitude: number | null; longitude: number | null; notes: string | null;
+} {
+  const t = (v: string) => v.trim() || null;
+  return {
+    name: f.name.trim(), address_line1: t(f.address_line1), address_line2: t(f.address_line2), city: t(f.city), state: t(f.state),
+    postal_code: t(f.postal_code), country: t(f.country), latitude: parseCoord(f.latitude, 'lat'), longitude: parseCoord(f.longitude, 'lng'), notes: t(f.notes),
+  };
+}
+
+/** Seed the edit form from a stored site. */
+export function siteToForm(s: { name?: string | null; address_line1?: string | null; address_line2?: string | null; city?: string | null; state?: string | null; postal_code?: string | null; country?: string | null; latitude?: number | string | null; longitude?: number | string | null; notes?: string | null }): SiteFormValues {
+  return {
+    name: s.name ?? '', address_line1: s.address_line1 ?? '', address_line2: s.address_line2 ?? '', city: s.city ?? '', state: s.state ?? '',
+    postal_code: s.postal_code ?? '', country: s.country ?? '', latitude: s.latitude == null ? '' : String(s.latitude), longitude: s.longitude == null ? '' : String(s.longitude), notes: s.notes ?? '',
+  };
+}
+
 /** A readable message out of whatever the API client threw (400 `message` / `error`). */
 export function apiErrorText(e: unknown, fallback = 'Something went wrong'): string {
   const m = (e as { message?: unknown } | null)?.message;

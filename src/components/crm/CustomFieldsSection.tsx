@@ -63,6 +63,9 @@ interface Props {
   onlyKeys?: string[];
   // Display-label overrides by field_key (e.g. industry_category → "Sub-industry" for Spark & Ray).
   labelOverrides?: Record<string, string>;
+  // Render these field keys as a dropdown of the given choices whatever their stored type (e.g. Spark & Ray's
+  // Sub-industry when the chosen industry lists sub-industries). An empty / missing list keeps the field as defined.
+  optionsOverrides?: Record<string, string[]>;
 }
 
 // Form order: when the admin has ordered this entity's fields (Settings → Custom Fields), each custom field's outer
@@ -74,7 +77,7 @@ const useFieldOrderStyle = (fieldKey: string): React.CSSProperties | undefined =
   return m && fieldKey in m ? { order: m[fieldKey] } : undefined;
 };
 
-export default function CustomFieldsSection({ entity, values, onChange, onFieldsChange, isB2c, excludeKeys, onlyKeys, labelOverrides }: Props) {
+export default function CustomFieldsSection({ entity, values, onChange, onFieldsChange, isB2c, excludeKeys, onlyKeys, labelOverrides, optionsOverrides }: Props) {
   const [fields, setFields] = useState<CustomField[]>([]);
   const [loading, setLoading] = useState(true);
   // key -> order, only when the admin has ordered this entity (see FieldOrderContext).
@@ -186,10 +189,13 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
           const computed = evaluateClientFormula(f.formula || '', values);
           return <FormulaPreview key={f.id} field={f} computed={computed} />;
         }
+        const choices = optionsOverrides?.[f.field_key];
+        let shown: CustomField = labelOverrides?.[f.field_key] ? { ...f, label: labelOverrides[f.field_key] } : f;
+        if (choices && choices.length > 0) shown = { ...shown, field_type: 'select', options: choices };
         return (
           <FieldInput
             key={f.id}
-            field={labelOverrides?.[f.field_key] ? { ...f, label: labelOverrides[f.field_key] } : f}
+            field={shown}
             value={values[f.field_key]}
             onChange={(v) => set(f.field_key, v)}
           />

@@ -21,7 +21,7 @@ import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/c
 import { STEEL_DEALER_CLIENT_IDS, BMW_CLIENT_ID, isWalkInExecutive } from '../../../../../lib/clientFeatures';
 import { getStoredUser } from '../../../../../lib/auth';
 import { orderLeadSources } from '../../../../../lib/leadSourceOrder';
-import { sparkIndustryOptions } from '../../../../../lib/sparkIndustries';
+import { clearSubIndustryOnChange, industryOptions, subIndustryOptions, useIndustries } from '../../../../../lib/industries';
 import {
   DEFAULT_LEAD_FORM, extractLeadForm, localDateTimeToIso, offersScheduleVisit, segmentName, segmentToggleLabel, showsAddress,
   type LeadFormConfig,
@@ -380,6 +380,9 @@ export default function NewLeadPage() {
   // (linkLeadToCompany → findOrCreateAccount, matched case-insensitively by name).
   // Gated to the connected-B2B client so every other tenant's form is unchanged.
   const b2bAccounts = isB2bClientActive();
+  // Spark & Ray: the admin-configured industries (Settings -> Industries) drive the Industry dropdown + colours and
+  // the dependent Sub-industry dropdown; the built-in seven until/unless one is saved.
+  const { industries } = useIndustries(b2bAccounts);
   const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
   const [accountSearching, setAccountSearching] = useState(false);
   // B2B "Contacts & requirements": the people met at the company, each linked
@@ -893,7 +896,7 @@ export default function NewLeadPage() {
     );
   };
 
-  // Industry: Spark & Ray picks from a fixed list (sparkIndustryOptions keeps a legacy / free-text value
+  // Industry: Spark & Ray picks from the configured list (industryOptions keeps a legacy / free-text value
   // selectable); every other tenant keeps today's free-text field. Same admin gate (hidden / label / required)
   // either way, via select() / text().
   const sparkIndustrySelect = () => {
@@ -904,9 +907,16 @@ export default function NewLeadPage() {
         <IndustrySelect
           id="lead-field-industry"
           value={form.industry}
-          options={sparkIndustryOptions(form.industry)}
+          options={industryOptions(industries, form.industry)}
+          industries={industries}
           required={effRequired}
-          onChange={(v) => setForm((f) => ({ ...f, industry: v }))}
+          onChange={(v) => setForm((f) => {
+            // Changing the industry clears a Sub-industry that no longer belongs to it.
+            const sub = f.custom_fields?.industry_category;
+            if (!clearSubIndustryOnChange(industries, f.industry, v, sub)) return { ...f, industry: v };
+            const { industry_category: _drop, ...rest } = f.custom_fields ?? {};
+            return { ...f, industry: v, custom_fields: rest };
+          })}
         />
       </Field>
     );
@@ -927,6 +937,7 @@ export default function NewLeadPage() {
       isB2c={form.is_b2c}
       onlyKeys={[SUB_INDUSTRY_KEY]}
       labelOverrides={{ [SUB_INDUSTRY_KEY]: 'Sub-industry' }}
+      optionsOverrides={{ [SUB_INDUSTRY_KEY]: subIndustryOptions(industries, form.industry, typeof form.custom_fields?.industry_category === 'string' ? form.custom_fields.industry_category : '') }}
     />
   );
   const subIndustryField = () => !b2bAccounts ? null : flat

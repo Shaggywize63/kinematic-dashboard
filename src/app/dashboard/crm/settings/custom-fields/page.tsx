@@ -222,7 +222,6 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'owner_id', label: 'Assigned To', type: 'select' },
     { key: 'tags', label: 'Tags', type: 'multiselect' },
     // Shown on the account create/edit form (required there), so it must be listed here too.
-    { key: 'outcome', label: 'Outcome', type: 'text', required: true },
     { key: 'description', label: 'Description', type: 'text' },
   ],
   deal: [

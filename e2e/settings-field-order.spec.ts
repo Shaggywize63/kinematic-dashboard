@@ -257,9 +257,10 @@ test.describe('Settings -> Custom Fields: one ordered list', () => {
     await expect.poll(() => spy.customFieldGets).toBeGreaterThan(before);
   });
 
-  test('account list has the Outcome system field', async ({ page }) => {
+  test('account list no longer has an Outcome system field (it moved to the activity)', async ({ page }) => {
     await openPage(page);
     await page.getByRole('button', { name: 'Account', exact: true }).click();
-    await expect(page.getByTestId('field-row-account-outcome')).toBeVisible();
+    await expect(page.getByTestId('field-row-account-name')).toBeVisible();
+    await expect(page.getByTestId('field-row-account-outcome')).toHaveCount(0);
   });
 });

@@ -59,7 +59,7 @@ export default function ContactsListPage() {
     <>
       <ViewCustomizer
         entityLabel="Contacts"
-        columns={CONTACT_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+        columns={(CONTACT_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]).map((c) => (spark && c.key === 'account' ? { ...c, label: 'Company' } : c))}
         hidden={view.prefs.hidden}
         mode={view.prefs.mode}
         onToggle={view.toggleHidden}
@@ -82,7 +82,7 @@ export default function ContactsListPage() {
         }
         description={isB2C
           ? 'Consumer profiles with loyalty tiers and consent flags, linked to their leads and deals.'
-          : 'People at the companies you sell to, with their role, account and owner.'}
+          : 'People at the companies you sell to, with their role, company and owner.'}
         actions={actions}
         compact={narrow}
       />

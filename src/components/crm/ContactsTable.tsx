@@ -6,6 +6,7 @@ import InlineOwnerAssign from './shared/InlineOwnerAssign';
 import OwnerAvatar from './shared/OwnerAvatar';
 import { EmptyRow, LoadingRow, SortTh, subStyle, tdStyle, thStyle, type SortState } from './shared/tableBits';
 import { Card, T } from '../ui';
+import { isB2bClientActive } from '../../lib/b2bClient';
 
 interface Props {
   contacts: Contact[];
@@ -41,6 +42,8 @@ export const CONTACT_COLUMNS = [
  * gets the same treatment.
  */
 export default function ContactsTable({ contacts, loading, isB2C = false, onAssign, onChangeAccount, hiddenColumns, viewMode = 'table', sort, onSort }: Props) {
+  // Spark & Ray call the linked account the contact's "Company".
+  const companyWord = isB2bClientActive() ? 'Company' : 'Account';
   const hidden = hiddenColumns ?? new Set<string>();
   const showAccount = !isB2C && !hidden.has('account');
   const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
@@ -59,7 +62,7 @@ export default function ContactsTable({ contacts, loading, isB2C = false, onAssi
               <SortTh label="Name" sortKey="first_name" sort={sort} onSort={onSort} />
               {/* Account shows the joined account_name (not a real crm_contacts
                   column) → non-sortable. */}
-              {showAccount         && <th style={thStyle}>Account</th>}
+              {showAccount         && <th style={thStyle}>{companyWord}</th>}
               {!hidden.has('email') && <SortTh label="Email" sortKey="email" sort={sort} onSort={onSort} />}
               {!hidden.has('phone') && <SortTh label="Phone" sortKey="phone" sort={sort} onSort={onSort} />}
               {/* Owner shows owner_name (stamped, not a real column) → non-sortable. */}
@@ -89,19 +92,19 @@ export default function ContactsTable({ contacts, loading, isB2C = false, onAssi
                     {c.title && <div style={subStyle}>{c.title}</div>}
                   </td>
                   {showAccount && (
-                    <td style={tdStyle} data-label="Account">
+                    <td style={tdStyle} data-label={companyWord}>
                       {c.account_id && c.account_name
-                        ? <Link href={`/dashboard/crm/accounts/${c.account_id}`} className="km-entity-link" title="Open account detail">{c.account_name}</Link>
+                        ? <Link href={`/dashboard/crm/accounts/${c.account_id}`} className="km-entity-link" title={`Open ${companyWord.toLowerCase()} detail`}>{c.account_name}</Link>
                         : <span style={{ color: c.account_name ? T.text : T.mute }}>{c.account_name || '—'}</span>}
                       {onChangeAccount && (
                         <div>
                           <button
                             type="button"
                             onClick={() => onChangeAccount(c)}
-                            aria-label={`${c.account_id ? 'Change account' : 'Add to an account'} for ${name}`}
+                            aria-label={`${c.account_id ? `Change ${companyWord.toLowerCase()}` : `Add to a ${companyWord.toLowerCase()}`} for ${name}`}
                             style={{ background: 'transparent', border: 0, padding: 0, marginTop: 2, fontSize: 11.5, fontWeight: 600, color: T.red, cursor: 'pointer' }}
                           >
-                            {c.account_id ? 'Change account' : 'Add to an account'}
+                            {c.account_id ? `Change ${companyWord.toLowerCase()}` : `Add to a ${companyWord.toLowerCase()}`}
                           </button>
                         </div>
                       )}

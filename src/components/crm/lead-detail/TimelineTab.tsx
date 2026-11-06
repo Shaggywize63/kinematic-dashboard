@@ -7,6 +7,7 @@ import Composer from './Composer';
 import { ActivityRow, InsightRow, NoteRow } from './FeedItems';
 import SectionCard from './SectionCard';
 import { useActivityActions } from './useActivityActions';
+import { CompleteActivityDialog } from '../spark/SparkActivityFields';
 import { activityWhen, dayKey, dayLabel, isActionable, type DetailActivity } from './format';
 
 type Filter = 'all' | 'notes' | 'calls' | 'meetings' | 'tasks' | 'messages' | 'other';
@@ -55,7 +56,7 @@ export default function TimelineTab({
 }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [shown, setShown] = useState(PAGE);
-  const { busyId, setStatus, remove } = useActivityActions(onActivitiesChanged);
+  const { busyId, setStatus, remove, completing, closeCompleting, completedWithOutcome } = useActivityActions(onActivitiesChanged);
 
   const upcomingAll = useMemo(() => {
     const t = (a: DetailActivity) => (a.due_at ? new Date(a.due_at).getTime() : Number.POSITIVE_INFINITY);
@@ -101,6 +102,7 @@ export default function TimelineTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {completing && <CompleteActivityDialog activity={completing} onClose={closeCompleting} onDone={completedWithOutcome} />}
       <Card padding={16}>
         <Composer leadId={leadId} latestUpdate={updates[0] ?? null} onSubmit={onAddNote} />
       </Card>

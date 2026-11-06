@@ -21,6 +21,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { crmPlaces, type PlaceSuggestion } from '../../lib/crmApi';
+import { addressSearchMode } from '../../lib/addressSearchMode';
 
 const KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -43,8 +44,11 @@ export interface PlaceResult {
 }
 
 export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true, backend = false }: { onSelect: (p: PlaceResult) => void; deviceFill?: boolean; backend?: boolean }) {
-  // No Maps key but the caller opted in: use the backend Places proxy.
-  const backendMode = !KEY && backend;
+  // The Maps SDK failed (rejected key, API not enabled, request error): fall back to the backend Places proxy.
+  const [sdkBroken, setSdkBroken] = useState(false);
+  const backendMode = addressSearchMode({ hasKey: !!KEY, backendOptIn: backend, sdkBroken }) === 'backend';
+  // The proxy itself failed (not "no results"): say so instead of an empty list that looks like "no such address".
+  const [searchFailed, setSearchFailed] = useState(false);
   const [query, setQuery] = useState('');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -75,16 +79,18 @@ export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true,
     const w = window as any;
     if (KEY) {
       if (!w.google?.maps?.importLibrary) bootstrapMaps(KEY);
-      w.gm_authFailure = () => setErr('Google rejected this API key. Check the key, billing, and the domain’s referrer allowlist.');
+      w.gm_authFailure = () => { setErr('Google rejected this API key. Check the key, billing, and the domain’s referrer allowlist.'); setSdkBroken(true); };
       (async () => {
         try {
           const places = await w.google.maps.importLibrary('places');
           placesRef.current = places;
           if (!places?.AutocompleteSuggestion) {
             setErr('Enable “Places API (New)” for this key in Google Cloud (programmatic autocomplete needs it).');
+            setSdkBroken(true);
           }
         } catch (e) {
           setErr('Could not load Google Places: ' + ((e as Error)?.message || 'unknown error') + '.');
+          setSdkBroken(true);
         }
       })();
     }
@@ -166,9 +172,9 @@ export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true,
         try {
           const bias = biasRef.current;
           const resp = await crmPlaces.autocomplete(q, bias?.lat ?? null, bias?.lng ?? null);
-          if (live) { setWideResults(resp?.data ?? []); setShowedMore(true); setOpen(true); }
+          if (live) { setSearchFailed(false); setWideResults(resp?.data ?? []); setShowedMore(true); setOpen(true); }
         } catch {
-          if (live) { setWideResults([]); setShowedMore(true); }
+          if (live) { setSearchFailed(true); setWideResults([]); setShowedMore(true); setOpen(true); }
         }
       }, 300);
       return () => { live = false; clearTimeout(t); };
@@ -200,11 +206,12 @@ export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true,
         const resp = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions(req);
         if (active) { setSuggestions(resp?.suggestions ?? []); setOpen(true); }
       } catch {
-        if (active) setSuggestions([]);
+        // The SDK request itself failed (key / API / quota): switch to the backend proxy; the effect re-runs for this query.
+        if (active) { setSuggestions([]); setSdkBroken(true); }
       }
     }, 300);
     return () => { active = false; clearTimeout(timer); };
-  }, [query]);
+  }, [query, backendMode]);
 
   // Resolve a Google Place object → fire onSelect with the parsed address.
   // Shared by both suggestion sources (the JS-SDK predictions and the wider
@@ -327,6 +334,7 @@ export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true,
             const seen = new Set(suggestions.map((s) => (s.placePrediction?.text?.text || '').trim()).filter(Boolean));
             const extra = wideResults.filter((r) => r.description && !seen.has(r.description.trim()));
             if (extra.length === 0) {
+              if (searchFailed) return <div role="alert" style={{ padding: '7px 8px', fontSize: 12, color: 'var(--red)' }}>Address search is unavailable right now — type the address in the fields below.</div>;
               return <div style={{ padding: '7px 8px', fontSize: 12, color: 'var(--text-mute)' }}>{backendMode ? 'No matching addresses.' : 'No more suggestions.'}</div>;
             }
             return extra.map((r) => (

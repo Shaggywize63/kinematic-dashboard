@@ -1,8 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import { crmProducts } from '../../../lib/crmApi';
-import { arr, normalizeFormSerialInput, rows } from '../../../lib/sparkAccounts';
+import Link from 'next/link';
+import { crmActivities, crmProducts } from '../../../lib/crmApi';
+import { isB2bClientActive } from '../../../lib/b2bClient';
+import { ACTIVITY_OUTCOME_MAX, activityOutcomeError, apiErrorText, arr, normalizeFormSerialInput, outcomeForPatch, rows } from '../../../lib/sparkAccounts';
 import type { Activity, Product } from '../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../shared/UserSearchSelect';
 import { Select, T } from '../../ui';
@@ -134,6 +136,102 @@ export function SparkActivityMeta({ a, style }: { a: Pick<Activity, 'assignees' 
       ))}
       {products.map((p, i) => <span key={p.id || i} style={pill(T.infoWash, T.info)} title="Product interested">{p.name}</span>)}
       {ref && <span style={{ ...pill(T.okWash, T.ok), fontFamily: T.mono }} title="Form serial">{ref}</span>}
+    </div>
+  );
+}
+
+
+// ── Activity Outcome (Spark) ────────────────────────────────────────────────
+
+/**
+ * The Outcome text area of the activity create / edit forms. Required (asterisk + inline error) only when the
+ * activity is being logged / marked completed; optional while it is just scheduled.
+ */
+export function OutcomeField({ value, onChange, required, error }: { value: string; onChange: (v: string) => void; required: boolean; error?: string | null }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <label htmlFor="activity-outcome" style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>
+        Outcome{required ? <span aria-hidden style={{ color: '#ef4444', marginLeft: 3 }}>*</span> : <span style={{ textTransform: 'none', fontWeight: 400 }}> (optional until completed)</span>}
+      </label>
+      <textarea
+        id="activity-outcome"
+        aria-label="Outcome"
+        aria-required={required || undefined}
+        aria-invalid={error ? true : undefined}
+        rows={3}
+        maxLength={ACTIVITY_OUTCOME_MAX}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="What came out of this activity?"
+        style={{ background: 'var(--s3)', border: `1px solid ${error ? '#ef4444' : 'var(--border)'}`, color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
+      />
+      {error && <span role="alert" style={{ fontSize: 12, color: '#ef4444' }}>{error}</span>}
+    </div>
+  );
+}
+
+/** "Outcome: …" on an activity row / card (Spark only; nothing when the row has none). */
+export function SparkActivityOutcome({ a, style }: { a: Pick<Activity, 'outcome'>; style?: React.CSSProperties }) {
+  const text = (a.outcome ?? '').toString().trim();
+  if (!text || !isB2bClientActive()) return null;
+  return (
+    <div data-testid="activity-outcome" style={{ fontSize: 12, color: 'var(--text)', marginTop: 4, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', ...style }}>
+      <span style={{ color: 'var(--text-dim)', fontWeight: 700 }}>Outcome: </span>{text}
+    </div>
+  );
+}
+
+/**
+ * "Company: <name>" on an activity row / card (Spark only). A link to the account when `company_id` is present,
+ * plain text when only the name is known (the lead's company text); nothing when there is neither.
+ */
+export function SparkActivityCompany({ a, style }: { a: Pick<Activity, 'company_id' | 'company_name'>; style?: React.CSSProperties }) {
+  const name = (a.company_name ?? '').toString().trim();
+  if (!name || !isB2bClientActive()) return null;
+  const id = (a.company_id ?? '').toString().trim();
+  return (
+    <div data-testid="activity-company" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, overflowWrap: 'anywhere', ...style }}>
+      Company:{' '}
+      {id ? (
+        <Link href={`/dashboard/crm/accounts/${id}`} onClick={(e) => e.stopPropagation()} style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }} title={`Open ${name}`}>{name}</Link>
+      ) : (
+        <span style={{ color: 'var(--text)', fontWeight: 600 }}>{name}</span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Spark: marking an activity completed asks for its Outcome first (required). Saves status + completed_at +
+ * outcome in one PATCH, then calls `onDone`.
+ */
+export function CompleteActivityDialog({ activity, onClose, onDone }: { activity: Pick<Activity, 'id' | 'subject' | 'outcome'>; onClose: () => void; onDone: () => void }) {
+  const [outcome, setOutcome] = useState(activity.outcome || '');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    const err = activityOutcomeError(outcome, true);
+    if (err) { setError(err); return; }
+    setBusy(true);
+    try {
+      await crmActivities.update(activity.id, { status: 'completed', completed_at: new Date().toISOString(), outcome: outcomeForPatch(outcome) } as never);
+      onDone();
+    } catch (e) {
+      setError(apiErrorText(e, 'Could not complete the activity'));
+      setBusy(false);
+    }
+  };
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 110 }}>
+      <div role="dialog" aria-label="Complete activity" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>Complete activity</div>
+        {activity.subject && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{activity.subject}</div>}
+        <OutcomeField value={outcome} onChange={(v) => { setOutcome(v); setError(null); }} required error={error} />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button type="button" onClick={onClose} disabled={busy} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer' }}>Cancel</button>
+          <button type="button" onClick={save} disabled={busy} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: '#10b981', border: 'none', color: '#fff', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Mark complete'}</button>
+        </div>
+      </div>
     </div>
   );
 }

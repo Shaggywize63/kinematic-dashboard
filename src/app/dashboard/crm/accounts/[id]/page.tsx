@@ -16,6 +16,7 @@ import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import { safeHref } from '../../../../../lib/safeUrl';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import AccountUpdatesCard from '../../../../../components/crm/spark/AccountUpdatesCard';
+import AccountAddresses from '../../../../../components/crm/spark/AccountAddresses';
 import { Button } from '../../../../../components/ui';
 
 export default function AccountDetailPage() {
@@ -125,7 +126,6 @@ export default function AccountDetailPage() {
                   <Button variant="primary" href={`/dashboard/crm/accounts/${a.id}/journey`}>View journey</Button>
                   <Button href={`/dashboard/crm/activities/new?account_id=${a.id}&account_name=${encodeURIComponent(a.name || '')}`}>Assign task / activity</Button>
                   <Button href={`/dashboard/crm/deals/new?account_id=${a.id}`}>New deal</Button>
-                  <Button href={`/dashboard/crm/contacts/new?account_id=${a.id}&account_name=${encodeURIComponent(a.name || '')}`}>Add contact</Button>
                 </>
               )}
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
@@ -142,11 +142,11 @@ export default function AccountDetailPage() {
             <Field label="Owner" value={a.owner_name} />
             <Field label="Created" value={new Date(a.created_at).toLocaleDateString()} />
           </div>
-          {/* Spark & Ray: the account's outcome. */}
-          {spark && (
+          {/* Spark & Ray: accounts no longer ask for an Outcome (it moved to the activities); one stored earlier is shown read-only. */}
+          {spark && (a.outcome || '').trim() !== '' && (
             <div data-testid="account-outcome" style={{ marginTop: 14, fontSize: 13 }}>
-              <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Outcome</div>
-              <div style={{ color: 'var(--text)', marginTop: 2, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{a.outcome || '—'}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Outcome (earlier)</div>
+              <div style={{ color: 'var(--text)', marginTop: 2, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{a.outcome}</div>
             </div>
           )}
         </div>
@@ -157,6 +157,8 @@ export default function AccountDetailPage() {
           </Card>
         )}
 
+        {spark && <AccountAddresses accountId={a.id} />}
+
         <TimelineCard data={timeline} />
 
         {a.description && (<Card title="About"><div style={{ fontSize: 13, color: 'var(--text)' }}>{a.description}</div></Card>)}
@@ -165,9 +167,17 @@ export default function AccountDetailPage() {
             the account has no stored values. */}
         <CustomFieldsDetailCard entity="account" customFields={a.custom_fields} />
 
-        <Card title={`Contacts (${contacts.length})`}>
+        <Card
+          title={`Contacts (${contacts.length})`}
+          action={spark ? (
+            <Link
+              href={`/dashboard/crm/contacts/new?account_id=${a.id}&account_name=${encodeURIComponent(a.name || '')}`}
+              style={{ background: 'var(--primary)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}
+            >+ Add contact</Link>
+          ) : undefined}
+        >
           {contacts.length === 0 ? (
-            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No contacts linked yet.</div>
+            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No contacts linked yet. Use + Add contact to add the first one.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {contacts.map((c) => {
@@ -317,10 +327,17 @@ function TimelineCard({ data }: { data: AccountTimeline | null }) {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{title}</div>
+      {action ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{title}</div>
+          {action}
+        </div>
+      ) : (
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{title}</div>
+      )}
       {children}
     </div>
   );

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { crmActivities } from '../../../lib/crmApi';
+import { isB2bClientActive } from '../../../lib/b2bClient';
 import type { DetailActivity } from './format';
 
 /**
@@ -11,8 +12,11 @@ import type { DetailActivity } from './format';
  */
 export function useActivityActions(onChanged: () => void) {
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Spark: completing an activity first asks for its Outcome (the caller renders <CompleteActivityDialog>).
+  const [completing, setCompleting] = useState<DetailActivity | null>(null);
 
   const setStatus = async (a: DetailActivity, status: 'open' | 'in_progress' | 'completed' | 'cancelled') => {
+    if (status === 'completed' && isB2bClientActive()) { setCompleting(a); return; }
     setBusyId(a.id);
     try {
       const payload: Record<string, unknown> = { status };
@@ -42,5 +46,8 @@ export function useActivityActions(onChanged: () => void) {
     }
   };
 
-  return { busyId, setStatus, remove };
+  const closeCompleting = () => setCompleting(null);
+  const completedWithOutcome = () => { setCompleting(null); toast.success('Marked complete'); onChanged(); };
+
+  return { busyId, setStatus, remove, completing, closeCompleting, completedWithOutcome };
 }

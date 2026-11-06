@@ -6,7 +6,6 @@ import { crmAccounts, crmSettings } from '../../../../../lib/crmApi';
 import { CRM_INDUSTRIES } from '../../../../../lib/crmIndustries';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
-import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import { apiErrorText } from '../../../../../lib/sparkAccounts';
 
 export default function NewAccountPage() {
@@ -16,10 +15,6 @@ export default function NewAccountPage() {
   // becomes the row's custom_fields jsonb (same pattern as the lead form).
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({});
   const [busy, setBusy] = useState(false);
-  // Spark & Ray: a REQUIRED Outcome (the server answers 400 "Outcome is required" without it).
-  const spark = isB2bClientActive();
-  const [outcome, setOutcome] = useState('');
-  const [outcomeError, setOutcomeError] = useState<string | null>(null);
   // Built-in field overrides (hide / relabel / require) for account columns.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
   const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'account'), [fieldOverrides]);
@@ -31,7 +26,6 @@ export default function NewAccountPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (spark && !outcome.trim()) { setOutcomeError('Outcome is required'); return; }
     setBusy(true);
     try {
       const r = await crmAccounts.create({
@@ -41,14 +35,12 @@ export default function NewAccountPage() {
         phone: form.phone || null,
         annual_revenue: form.annual_revenue ? Number(form.annual_revenue) : null,
         employees: form.employees ? Number(form.employees) : null,
-        ...(spark ? { outcome: outcome.trim() } : {}),
         custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
       } as any);
       toast.success('Account created');
       router.push(`/dashboard/crm/accounts/${r.data.id}`);
     } catch (err: any) {
-      const msg = apiErrorText(err, 'Create failed');
-      if (spark && /outcome/i.test(msg)) setOutcomeError(msg); else toast.error(msg);
+      toast.error(apiErrorText(err, 'Create failed'));
       setBusy(false);
     }
   };
@@ -85,22 +77,6 @@ export default function NewAccountPage() {
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Account</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         {fld('name', 'Name')}{industryFld}{fld('website', 'Website')}{fld('phone', 'Phone')}{fld('annual_revenue', 'Annual Revenue', 'number')}{fld('employees', 'Employees', 'number')}
-        {spark && (
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: '1 / -1', ...fields.orderStyle('outcome') }}>
-            <span style={labelStyle}>{fields.labelFor('outcome', 'Outcome')}<span style={{ color: '#ef4444', marginLeft: 3 }}>*</span></span>
-            <textarea
-              aria-label="Outcome"
-              aria-invalid={outcomeError ? true : undefined}
-              rows={3}
-              maxLength={500}
-              value={outcome}
-              onChange={(e) => { setOutcome(e.target.value); setOutcomeError(null); }}
-              placeholder="What came out of the engagement so far?"
-              style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical', borderColor: outcomeError ? '#ef4444' : 'var(--border)' }}
-            />
-            {outcomeError && <span role="alert" style={{ fontSize: 12, color: '#ef4444' }}>{outcomeError}</span>}
-          </label>
-        )}
         {/* Custom fields render inline inside this grid so admin-defined
             fields look like part of the form (same as the lead form). */}
         <CustomFieldsSection

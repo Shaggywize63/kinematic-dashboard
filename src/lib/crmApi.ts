@@ -735,6 +735,24 @@ export const crmPlaces = {
   search: (q: string, lat?: number | null, lng?: number | null) =>
     api.get<Wrapped<PlaceSuggestion[]>>(`${BASE}/places/search${qs({ q, lat: lat ?? undefined, lng: lng ?? undefined })}`),
 };
+// Account sites ("Addresses" on an account): GET /accounts/:id/sites, POST /sites, PATCH|DELETE /sites/:id.
+export interface AccountSite {
+  id: string; account_id: string;
+  name: string;                       // the label, e.g. "Head office"
+  site_type?: string | null;
+  address_line1?: string | null; address_line2?: string | null;
+  city?: string | null; state?: string | null; postal_code?: string | null; country?: string | null;
+  latitude?: number | null; longitude?: number | null;
+  phone?: string | null; notes?: string | null;
+  created_at?: string; updated_at?: string;
+}
+export type AccountSiteInput = Partial<Omit<AccountSite, 'id' | 'created_at' | 'updated_at'>>;
+export const crmSites = {
+  forAccount: (accountId: string) => api.get<Wrapped<AccountSite[]>>(`${BASE}/accounts/${accountId}/sites`),
+  create: (body: AccountSiteInput & { account_id: string; name: string }) => api.post<Wrapped<AccountSite>>(`${BASE}/sites`, body),
+  update: (id: string, body: AccountSiteInput) => api.patch<Wrapped<AccountSite>>(`${BASE}/sites/${id}`, body),
+  remove: (id: string) => api.delete<unknown>(`${BASE}/sites/${id}`),
+};
 export const crmWhatsappTemplates = crud<WhatsappTemplate>(`${BASE}/whatsapp-templates`);
 
 export const crmWhatsapp = {

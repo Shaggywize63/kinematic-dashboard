@@ -9,7 +9,7 @@ import { fmtValue, fmtValueCompact, type DashboardUnit } from '../../../../lib/f
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
-import { INDUSTRY_LEGEND } from '../../../../lib/sparkIndustries';
+import { industryLegend, useIndustries } from '../../../../lib/industries';
 import { useClient } from '../../../../context/ClientContext';
 import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
 import TelecallerOverviewStrip from '../../../../components/crm/analytics/TelecallerOverviewStrip';
@@ -117,6 +117,9 @@ export default function CrmDashboardPage() {
   // Spark & Ray: filter the "Leads on Map" by industry ('' = all, '__none__' = leads without one) and colour the pins by it.
   const sparkActive = isB2bClientActive();
   const [industryFilter, setIndustryFilter] = useState('');
+  // The admin-configured industries (Settings -> Industries) drive the filter options; defaults until saved.
+  const { industries: mapIndustries } = useIndustries(sparkActive);
+  const mapIndustryRows = useMemo(() => industryLegend(mapIndustries), [mapIndustries]);
   // BMW-only "Follow-ups due" list (leads whose next_follow_up_date has come
   // due — the backend leads list supports ?followup_due=true).
   const [followupLeads, setFollowupLeads] = useState<Array<{ id: string; name: string }>>([]);
@@ -425,7 +428,7 @@ export default function CrmDashboardPage() {
               <span>Industry</span>
               <Select aria-label="Filter map by industry" data-testid="map-industry-filter" value={industryFilter} onChange={(e) => setIndustryFilter(e.target.value)} style={{ width: 210, height: 32, fontSize: 13 }}>
                 <option value="">All industries</option>
-                {INDUSTRY_LEGEND.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                {mapIndustryRows.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </Select>
             </label>
           ) : undefined}

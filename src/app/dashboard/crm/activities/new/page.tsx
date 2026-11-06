@@ -12,8 +12,8 @@ import ActivityTypePicker from '../../../../../components/crm/shared/ActivityTyp
 import ActivityPhotoField from '../../../../../components/crm/shared/ActivityPhotoField';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
-import { apiErrorText, sparkActivityFields } from '../../../../../lib/sparkAccounts';
-import { AssigneeChips, FormSerialInput, ProductChips, useProductCatalogue } from '../../../../../components/crm/spark/SparkActivityFields';
+import { activityOutcomeError, apiErrorText, outcomeForCreate, sparkActivityFields } from '../../../../../lib/sparkAccounts';
+import { AssigneeChips, FormSerialInput, OutcomeField, ProductChips, useProductCatalogue } from '../../../../../components/crm/spark/SparkActivityFields';
 
 
 const ENTITY_TYPES = [
@@ -118,6 +118,10 @@ function NewActivityPageInner() {
   const [formSerial, setFormSerial] = useState('');
   const [serialError, setSerialError] = useState<string | null>(null);
   const catalogue = useProductCatalogue(spark);
+  // Spark: the Outcome of what was done. Required when the activity is logged as completed, optional while it is
+  // only scheduled.
+  const [outcome, setOutcome] = useState('');
+  const [outcomeError, setOutcomeError] = useState<string | null>(null);
   // Admin-defined custom fields scoped to entity_type='activity'.
   // CustomFieldsSection reads /api/v1/crm/custom-fields?entity=activity
   // on mount; we just hold the form's values blob and post it as
@@ -276,6 +280,9 @@ function NewActivityPageInner() {
     ? entityOptions.filter((o) => o.label.toLowerCase().includes(entitySearch.toLowerCase()))
     : entityOptions;
 
+  // Does this save log a COMPLETED activity? (from a lead: the "first visit done" box; otherwise: no schedule and not a task)
+  const completingNow = cameFromLead && type === 'meeting' ? markFirstVisit : (!dueAt && type !== 'task');
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -288,6 +295,11 @@ function NewActivityPageInner() {
     // already a valid save.
     if (cameFromLead && type === 'meeting' && !markFirstVisit && !dueAt) {
       return toast.error('Mark first visit or schedule the next one.');
+    }
+
+    if (spark) {
+      const oe = activityOutcomeError(outcome, completingNow);
+      if (oe) { setOutcomeError(oe); return; }
     }
 
     setBusy(true);
@@ -327,6 +339,7 @@ function NewActivityPageInner() {
       completedAt?: string;
       visitKind: 'completed' | 'scheduled';
       isFirstVisit: boolean;
+      withOutcome?: boolean;
     }): Record<string, unknown> => ({
       type,
       subject: params.subject,
@@ -336,6 +349,7 @@ function NewActivityPageInner() {
       status: params.status,
       assigned_to: primaryAssignee || undefined,
       ...sparkFields,
+      ...(spark && params.withOutcome ? outcomeForCreate(outcome) : {}),
       image_url: imageUrl || undefined,
       custom_fields: {
         ...sharedCustomFields,
@@ -360,6 +374,7 @@ function NewActivityPageInner() {
             completedAt: nowIso,
             visitKind: 'completed',
             isFirstVisit: true,
+            withOutcome: true,
           }) as any));
         }
         if (dueAt) {
@@ -369,6 +384,8 @@ function NewActivityPageInner() {
             dueAt: new Date(dueAt).toISOString(),
             visitKind: 'scheduled',
             isFirstVisit: false,
+            // The outcome belongs to the completed visit; it goes on the scheduled one only when that is all we save.
+            withOutcome: !markFirstVisit,
           }) as any));
         }
       } else {
@@ -384,6 +401,7 @@ function NewActivityPageInner() {
           status: noSchedule && type !== 'task' ? 'completed' : 'planned',
           assigned_to: primaryAssignee || undefined,
           ...sparkFields,
+          ...(spark ? outcomeForCreate(outcome) : {}),
           image_url: imageUrl || undefined,
           custom_fields: Object.keys(cf).length > 0 ? cf : undefined,
           ...linkedFields,
@@ -436,6 +454,16 @@ function NewActivityPageInner() {
         <Field label="Notes / Description" style={{ marginTop: 12 }}>
           <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="What was discussed, outcome, follow-up points…" style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }} />
         </Field>
+        {spark && (
+          <div style={{ marginTop: 12 }}>
+            <OutcomeField
+              value={outcome}
+              onChange={(v) => { setOutcome(v); setOutcomeError(null); }}
+              required={completingNow}
+              error={outcomeError}
+            />
+          </div>
+        )}
         {/* Admin-defined custom fields for activities. Renders nothing
             when the tenant hasn't configured any defs for
             entity_type='activity', so the form stays unchanged for

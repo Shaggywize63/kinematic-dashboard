@@ -4,7 +4,7 @@ import { LocateFixed, Search } from 'lucide-react';
 import { INDIA_STATES, INDIA_CENTRE } from '../../../lib/indiaStates';
 import { breakdownFactors } from '../../../lib/crm/scoreFactors';
 import { applyMapTheme, baseMapOptions, circleSymbol, escapeHtml, infoHtml, MAP_COLORS, useDocumentTheme, useGoogleMaps, type GMaps, type MapTheme } from '../../../lib/googleMaps';
-import { industryColor, INDUSTRY_LEGEND, NO_INDUSTRY } from '../../../lib/sparkIndustries';
+import { industryColor, industryLegend, NO_INDUSTRY, useIndustries, type IndustryDef } from '../../../lib/industries';
 import { Eyebrow, Input, T, useIsCompact } from '../../ui';
 
 // City catalog — coords + state for ~120 Indian cities. Each entry is
@@ -227,13 +227,13 @@ interface SearchHit {
 
 // InfoWindow body for a lead pin — name, place, status pill, score
 // breakdown and a link into the lead.
-function leadPopupHtml(lead: LeadGeoPoint, place: string, color: string, byIndustry = false): string {
+function leadPopupHtml(lead: LeadGeoPoint, place: string, color: string, byIndustry = false, industries?: readonly IndustryDef[]): string {
   const name = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || lead.company || 'Lead';
   const status = (lead.status ?? 'new').toLowerCase();
   let extra = `<span style="display:inline-block;margin-top:6px;padding:1px 8px;border-radius:999px;background:${color}1f;color:${color};font-size:11px;font-weight:600">${escapeHtml(status)}</span>`;
   if (byIndustry) {
     const ind = (lead.industry ?? '').trim();
-    const ic = industryColor(ind);
+    const ic = industryColor(industries, ind);
     extra = `<span style="display:inline-flex;align-items:center;gap:5px;margin:6px 6px 0 0;padding:1px 8px;border-radius:999px;background:${ic}1f;color:${ic};font-size:11px;font-weight:600"><span style="width:7px;height:7px;border-radius:50%;background:${ic}"></span>${escapeHtml(ind || 'No industry')}</span>` + extra;
   }
   if (lead.score != null) {
@@ -252,6 +252,9 @@ function leadPopupHtml(lead: LeadGeoPoint, place: string, color: string, byIndus
 
 export default function LeadsGeoMap({ leads, height = 620, colorBy = 'status' }: { leads: LeadGeoPoint[]; height?: number; colorBy?: 'status' | 'industry' }) {
   const byIndustry = colorBy === 'industry';
+  // The admin-configured industries (Settings -> Industries); the built-in seven until/unless one is saved.
+  const { industries } = useIndustries(byIndustry);
+  const legendRows = useMemo(() => industryLegend(industries), [industries]);
   const [zoom, setZoom] = useState<number>(INDIA_CENTRE.zoom);
   const [search, setSearch] = useState('');
   // Below this width we stack the map + side panel vertically and shrink the
@@ -319,17 +322,17 @@ export default function LeadsGeoMap({ leads, height = 620, colorBy = 'status' }:
 
   const totalMapped = byCity.reduce((s, c) => s + c.count, 0);
 
-  // Pins per legend row (the seven industries — "Other" also catches any non-listed name — plus "No industry").
+  // Pins per legend row (the configured industries — "Other", when listed, also catches any non-listed name — plus "No industry").
   const industryCounts = useMemo(() => {
     const m = new Map<string, number>();
     if (!byIndustry) return m;
     for (const l of pinnedLeads) {
       const raw = (l.industry ?? '').trim();
-      const key = !raw ? NO_INDUSTRY : (INDUSTRY_LEGEND.find((r) => r.value.toLowerCase() === raw.toLowerCase())?.value ?? 'Other');
-      m.set(key, (m.get(key) ?? 0) + 1);
+      const key = !raw ? NO_INDUSTRY : (legendRows.find((r) => r.value.toLowerCase() === raw.toLowerCase())?.value ?? legendRows.find((r) => r.value.toLowerCase() === 'other')?.value ?? '');
+      if (key) m.set(key, (m.get(key) ?? 0) + 1);
     }
     return m;
-  }, [byIndustry, pinnedLeads]);
+  }, [byIndustry, pinnedLeads, legendRows]);
 
   // Search hits — dynamic over states + cities.
   const searchHits = useMemo<SearchHit[]>(() => {
@@ -380,7 +383,7 @@ export default function LeadsGeoMap({ leads, height = 620, colorBy = 'status' }:
     for (const lead of pinnedLeads) {
       const statusCol = statusColor(lead.status, theme);
       // Spark & Ray: the marker takes the lead's industry colour; the popup keeps the status pill.
-      const color = byIndustry ? industryColor(lead.industry) : statusCol;
+      const color = byIndustry ? industryColor(industries, lead.industry) : statusCol;
       const place = [lead.city, lead.state].filter(Boolean).join(', ') || 'Pinned location';
       const marker = new maps.Marker({
         map, position: { lat: lead.latitude, lng: lead.longitude },
@@ -388,12 +391,12 @@ export default function LeadsGeoMap({ leads, height = 620, colorBy = 'status' }:
         icon: circleSymbol(maps, color, 6, MAP_COLORS[theme].stroke),
       });
       marker.addListener('click', () => {
-        infoRef.current?.setContent(leadPopupHtml(lead, place, statusCol, byIndustry));
+        infoRef.current?.setContent(leadPopupHtml(lead, place, statusCol, byIndustry, industries));
         infoRef.current?.open({ map, anchor: marker });
       });
       markersRef.current.push(marker);
     }
-  }, [maps, pinnedLeads, theme, byIndustry]);
+  }, [maps, pinnedLeads, theme, byIndustry, industries]);
 
   const flyTo = (h: { lat: number; lng: number; zoom: number }) => {
     const map = mapInst.current;
@@ -423,7 +426,7 @@ export default function LeadsGeoMap({ leads, height = 620, colorBy = 'status' }:
         )}
         {!error && byIndustry && (
           <div data-testid="industry-legend" aria-label="Industry colours" style={{ position: 'absolute', right: 10, bottom: 10, zIndex: 5, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 10px', fontSize: 11.5, color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', gap: 4, boxShadow: 'var(--shadow-pop)', maxWidth: 'calc(100% - 20px)' }}>
-            {INDUSTRY_LEGEND.map((row) => {
+            {legendRows.map((row) => {
               const n = industryCounts.get(row.value) ?? 0;
               return (
                 <span key={row.value} data-testid="industry-legend-row" data-color={row.color} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, opacity: n === 0 ? 0.55 : 1 }}>

@@ -13,6 +13,7 @@ import { ActivityRow } from './FeedItems';
 import SectionCard from './SectionCard';
 import type { Contact } from '../../../types/crm';
 import { useActivityActions } from './useActivityActions';
+import { CompleteActivityDialog } from '../spark/SparkActivityFields';
 import { fmtIST, isActionable, relTime, type DetailActivity } from './format';
 import type { LeadTab, LifecycleLead } from './types';
 
@@ -41,7 +42,7 @@ export default function OverviewTab({
   onActivitiesChanged: () => void;
   onOpenTab: (t: LeadTab) => void;
 }) {
-  const { busyId, setStatus, remove } = useActivityActions(onActivitiesChanged);
+  const { busyId, setStatus, remove, completing, closeCompleting, completedWithOutcome } = useActivityActions(onActivitiesChanged);
   const upcoming = useMemo(() => {
     const t = (a: DetailActivity) => (a.due_at ? new Date(a.due_at).getTime() : Number.POSITIVE_INFINITY);
     return activities.filter(isActionable).sort((a, b) => t(a) - t(b));
@@ -87,6 +88,7 @@ export default function OverviewTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {completing && <CompleteActivityDialog activity={completing} onClose={closeCompleting} onDone={completedWithOutcome} />}
       {walkIn && (
         <SectionCard title="Walk-in · Not purchased" accent={T.red}>
           {walkIn.reason && (

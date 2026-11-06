@@ -7,11 +7,11 @@ import type { Activity } from '../../types/crm';
 import { isB2bClientActive } from '../../lib/b2bClient';
 import { useRecordOwnerPicker } from '../../hooks/useRecordOwnerPicker';
 import { useActivityTypes } from '../../lib/activityTypes';
-import { apiErrorText, arr, sparkActivityFields } from '../../lib/sparkAccounts';
+import { activityOutcomeError, apiErrorText, arr, isActivityCompleted, outcomeForPatch, sparkActivityFields } from '../../lib/sparkAccounts';
 import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
 import CustomFieldsSection from './CustomFieldsSection';
 import ActivityPhotoField from './shared/ActivityPhotoField';
-import { AssigneeChips, FormSerialInput, ProductChips, useProductCatalogue } from './spark/SparkActivityFields';
+import { AssigneeChips, FormSerialInput, OutcomeField, ProductChips, useProductCatalogue } from './spark/SparkActivityFields';
 
 /**
  * The edit-activity form (type, subject, notes, outcome, photo, due date, assignees, custom fields, Spark
@@ -57,6 +57,9 @@ export default function EditActivityModal({ activity, onClose, onSaved }: { acti
     arr<string>(activity.product_ids).length ? arr<string>(activity.product_ids) : arr<{ id: string }>(activity.products).map((p) => p.id));
   const [formSerial, setFormSerial] = useState(activity.form_ref_no || '');
   const [serialError, setSerialError] = useState<string | null>(null);
+  // Spark: an already-completed activity must keep an Outcome; a scheduled one may leave it blank.
+  const [outcomeError, setOutcomeError] = useState<string | null>(null);
+  const outcomeRequired = spark && isActivityCompleted(activity as Activity & { status?: string | null });
   const catalogue = useProductCatalogue(spark);
   const [userOptions, setUserOptions] = useState<UserOption[]>(() =>
     arr<{ id: string; name: string }>(activity.assignees).map((u) => ({ id: u.id, name: u.name })));
@@ -76,6 +79,10 @@ export default function EditActivityModal({ activity, onClose, onSaved }: { acti
   }, [spark, activity.assignees]);
 
   const submit = async () => {
+    if (spark) {
+      const oe = activityOutcomeError(outcome, outcomeRequired);
+      if (oe) { setOutcomeError(oe); return; }
+    }
     setSaving(true);
     setSerialError(null);
     try {
@@ -83,7 +90,7 @@ export default function EditActivityModal({ activity, onClose, onSaved }: { acti
         type,
         subject: subject.trim() || null,
         description: description.trim() || null,
-        outcome: outcome.trim() || null,
+        outcome: spark ? outcomeForPatch(outcome) : (outcome.trim() || null),
         due_at: dueAt ? new Date(dueAt).toISOString() : null,
         custom_fields: customFields,
       };
@@ -139,7 +146,11 @@ export default function EditActivityModal({ activity, onClose, onSaved }: { acti
         <Field label="Description / notes">
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} style={{ ...editInput, fontFamily: 'inherit', resize: 'vertical' }} />
         </Field>
-        <Field label="Outcome (optional)"><input value={outcome} onChange={(e) => setOutcome(e.target.value)} style={editInput} /></Field>
+        {spark ? (
+          <OutcomeField value={outcome} onChange={(v) => { setOutcome(v); setOutcomeError(null); }} required={outcomeRequired} error={outcomeError} />
+        ) : (
+          <Field label="Outcome (optional)"><input value={outcome} onChange={(e) => setOutcome(e.target.value)} style={editInput} /></Field>
+        )}
         <ActivityPhotoField value={imageUrl} onChange={setImageUrl} label="Photo" />
         <Field label="Due / scheduled for"><input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={editInput} /></Field>
         {/* Admins / managers can reassign an activity after it was assigned (other tenants: one assignee). */}
