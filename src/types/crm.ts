@@ -128,6 +128,14 @@ export interface Account {
   owner_name?: string | null;
   billing_address?: string | null;
   shipping_address?: string | null;
+  // Location columns (persisted by POST/PATCH /crm/accounts). state / city come from the location master (or typed).
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  email?: string | null;
   description?: string | null;
   // Spark & Ray only: a legacy outcome stored on the account earlier (no longer asked for; read-only).
   outcome?: string | null;

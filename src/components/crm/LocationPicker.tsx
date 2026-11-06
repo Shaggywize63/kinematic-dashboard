@@ -16,7 +16,27 @@ interface Props {
    *  call site (form behaviour stays unchanged for callers that don't
    *  opt in to a different value). */
   required?: boolean;
+  /**
+   * Who the city list is limited to. 'user' (default) keeps the field-rep behaviour described below (assigned-city
+   * chip / dropdown). 'any' always renders the cascading State -> City picker, whatever cities the signed-in user is
+   * assigned to — for records that are not a rep's beat (accounts).
+   */
+  scope?: 'user' | 'any';
+  /** Cascading picker only: lets a city that is not in the master be typed ("Other…"), and keeps a saved one that is not in it. */
+  allowTypedCity?: boolean;
+  /** Cascading picker only: render just one of the two controls (each is gated by its own field override). */
+  hideState?: boolean;
+  hideCity?: boolean;
+  stateLabel?: string;
+  cityLabel?: string;
+  stateRequired?: boolean;
+  /** Extra style on each control's wrapper (the admin's form order) and a data-field hook for each. */
+  stateStyle?: React.CSSProperties;
+  cityStyle?: React.CSSProperties;
+  dataFields?: boolean;
 }
+
+const OTHER_CITY = '__other__';
 
 /**
  * Location picker that adapts to the signed-in user's city scope.
@@ -35,7 +55,8 @@ interface Props {
  * the leadCreateSchema (city.min(1)). Without it the lead would slip
  * past the per-user city scope filter and become visible to everyone.
  */
-export default function LocationPicker({ stateValue, cityValue, onChange, required = true }: Props) {
+export default function LocationPicker(props: Props) {
+  const { stateValue, cityValue, onChange, required = true, scope = 'user' } = props;
   // Stored user → assigned_city_names. /auth/me populates this on
   // login + every dashboard mount.
   const userCities = useMemo<string[]>(() => {
@@ -47,7 +68,7 @@ export default function LocationPicker({ stateValue, cityValue, onChange, requir
   // yet, pre-pick the (only) city so the rep doesn't have to do a
   // tap they can never get wrong.
   useEffect(() => {
-    if (cityValue) return;
+    if (scope === 'any' || cityValue) return;
     if (userCities.length === 1) {
       const c = userCities[0];
       onChange({ city: c, state: stateForCity(c) ?? stateValue });
@@ -56,7 +77,7 @@ export default function LocationPicker({ stateValue, cityValue, onChange, requir
   }, []);
 
   // === Single-city user → read-only chip. ============================
-  if (userCities.length === 1) {
+  if (scope !== 'any' && userCities.length === 1) {
     const c = userCities[0];
     const inferred = stateForCity(c);
     return (
@@ -78,7 +99,7 @@ export default function LocationPicker({ stateValue, cityValue, onChange, requir
   }
 
   // === Multi-city user → constrained dropdown. =======================
-  if (userCities.length > 1) {
+  if (scope !== 'any' && userCities.length > 1) {
     return (
       <FieldWrap label="City" required={required}>
         <select
@@ -103,10 +124,15 @@ export default function LocationPicker({ stateValue, cityValue, onChange, requir
   }
 
   // === Unrestricted user (admin / super_admin) → full picker. ========
-  return <FullLocationPicker stateValue={stateValue} cityValue={cityValue} onChange={onChange} required={required} />;
+  return <FullLocationPicker {...props} />;
 }
 
-function FullLocationPicker({ stateValue, cityValue, onChange, required = true }: Props) {
+function FullLocationPicker({
+  stateValue, cityValue, onChange, required = true, allowTypedCity = false, hideState = false, hideCity = false,
+  stateLabel = 'State', cityLabel = 'City', stateRequired = false, stateStyle, cityStyle, dataFields = false,
+}: Props) {
+  // "Other…" picked in the city list: the city is typed instead.
+  const [typing, setTyping] = useState(false);
   const [states, setStates] = useState<CrmState[]>([]);
   const [cities, setCities] = useState<CrmCity[]>([]);
   const [loadingStates, setLoadingStates] = useState(true);
@@ -131,37 +157,72 @@ function FullLocationPicker({ stateValue, cityValue, onChange, required = true }
   }, [stateValue, states]);
 
   const noStatesYet = !loadingStates && states.length === 0;
+  const stateField = dataFields ? 'state' : undefined;
+  const cityField = dataFields ? 'city' : undefined;
 
   if (noStatesYet) {
     return (
       <>
-        <FieldWrap label="State"><input className="km-input" value={stateValue} onChange={(e) => onChange({ state: e.target.value, city: cityValue })} placeholder="e.g. Maharashtra" style={inputStyle} /></FieldWrap>
-        <FieldWrap label="City" required={required}><input className="km-input" value={cityValue} onChange={(e) => onChange({ state: stateValue, city: e.target.value })} placeholder="e.g. Mumbai" style={inputStyle} /></FieldWrap>
+        {!hideState && <FieldWrap label={stateLabel} required={stateRequired} style={stateStyle} dataField={stateField}><input className="km-input" aria-label={stateLabel} value={stateValue} onChange={(e) => onChange({ state: e.target.value, city: cityValue })} placeholder="e.g. Maharashtra" style={inputStyle} /></FieldWrap>}
+        {!hideCity && <FieldWrap label={cityLabel} required={required} style={cityStyle} dataField={cityField}><input className="km-input" aria-label={cityLabel} value={cityValue} onChange={(e) => onChange({ state: stateValue, city: e.target.value })} placeholder="e.g. Mumbai" style={inputStyle} /></FieldWrap>}
       </>
     );
   }
 
+  // A saved state / city that is not in the master list must survive an edit, so it is offered as an option / typed.
+  const stateKnown = !stateValue || states.some((s) => s.name === stateValue);
+  const cityKnown = !cityValue || cities.some((c) => c.name === cityValue);
+  const showTyped = allowTypedCity && (typing || (!!cityValue && !loadingCities && !cityKnown));
+
   return (
     <>
-      <FieldWrap label="State">
-        <select className="km-input" value={stateValue} onChange={(e) => onChange({ state: e.target.value, city: '' })} style={inputStyle}>
-          <option value="">— Select state —</option>
-          {states.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
-        </select>
-      </FieldWrap>
-      <FieldWrap label="City" required={required}>
-        <select className="km-input" value={cityValue} onChange={(e) => onChange({ state: stateValue, city: e.target.value })} disabled={!stateValue || loadingCities} style={{ ...inputStyle, opacity: !stateValue ? 0.6 : 1 }}>
-          <option value="">{stateValue ? '— Select city —' : 'Pick a state first'}</option>
-          {cities.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-        </select>
-      </FieldWrap>
+      {!hideState && (
+        <FieldWrap label={stateLabel} required={stateRequired} style={stateStyle} dataField={stateField}>
+          <select className="km-input" aria-label={stateLabel} value={stateValue} onChange={(e) => { setTyping(false); onChange({ state: e.target.value, city: '' }); }} style={inputStyle}>
+            <option value="">— Select state —</option>
+            {!stateKnown && <option value={stateValue}>{stateValue}</option>}
+            {states.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+          </select>
+        </FieldWrap>
+      )}
+      {!hideCity && (
+        <FieldWrap label={cityLabel} required={required} style={cityStyle} dataField={cityField}>
+          {showTyped ? (
+            <>
+              <input className="km-input" aria-label={cityLabel} value={cityValue} onChange={(e) => onChange({ state: stateValue, city: e.target.value })} placeholder="Type the city" style={inputStyle} />
+              {cities.length > 0 && (
+                <button type="button" onClick={() => { setTyping(false); onChange({ state: stateValue, city: '' }); }} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0, fontSize: 12, color: 'var(--primary)', cursor: 'pointer' }}>
+                  Pick from the list instead
+                </button>
+              )}
+            </>
+          ) : (
+            <select
+              className="km-input"
+              aria-label={cityLabel}
+              value={cityValue}
+              onChange={(e) => {
+                if (e.target.value === OTHER_CITY) { setTyping(true); onChange({ state: stateValue, city: '' }); return; }
+                onChange({ state: stateValue, city: e.target.value });
+              }}
+              disabled={(!stateValue && !allowTypedCity) || loadingCities}
+              style={{ ...inputStyle, opacity: !stateValue ? 0.6 : 1 }}
+            >
+              <option value="">{stateValue ? '— Select city —' : 'Pick a state first'}</option>
+              {!cityKnown && <option value={cityValue}>{cityValue}</option>}
+              {cities.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+              {allowTypedCity && <option value={OTHER_CITY}>Other (type city)…</option>}
+            </select>
+          )}
+        </FieldWrap>
+      )}
     </>
   );
 }
 
-function FieldWrap({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
+function FieldWrap({ label, children, required, style, dataField }: { label: string; children: React.ReactNode; required?: boolean; style?: React.CSSProperties; dataField?: string }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+    <label data-field={dataField} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, ...style }}>
       <span style={labelStyle}>
         {label}
         {required && requiredMark}

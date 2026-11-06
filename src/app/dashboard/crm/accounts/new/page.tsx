@@ -7,10 +7,14 @@ import { CRM_INDUSTRIES } from '../../../../../lib/crmIndustries';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { apiErrorText } from '../../../../../lib/sparkAccounts';
+import LocationPicker from '../../../../../components/crm/LocationPicker';
+import { accountLocationPayload, emptyAccountLocation, type AccountLocationKey } from '../../../../../lib/accountLocation';
 
 export default function NewAccountPage() {
   const router = useRouter();
   const [form, setForm] = useState({ name: '', industry: '', website: '', phone: '', annual_revenue: '', employees: '' });
+  // Location: address, state, city, PIN code, country (default India). Each is a built-in field gated by its override.
+  const [loc, setLoc] = useState(emptyAccountLocation);
   // Admin-defined custom fields (entity=account) — bound as one map that
   // becomes the row's custom_fields jsonb (same pattern as the lead form).
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({});
@@ -26,6 +30,13 @@ export default function NewAccountPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // State / City are pickers (no native `required`), so an admin's "required" override is checked here.
+    for (const k of ['state', 'city'] as const) {
+      if (!fields.isHidden(k) && fields.requiredFor(k, false) && !loc[k].trim()) {
+        toast.error(`${fields.labelFor(k, k === 'state' ? 'State' : 'City')} is required`);
+        return;
+      }
+    }
     setBusy(true);
     try {
       const r = await crmAccounts.create({
@@ -35,6 +46,7 @@ export default function NewAccountPage() {
         phone: form.phone || null,
         annual_revenue: form.annual_revenue ? Number(form.annual_revenue) : null,
         employees: form.employees ? Number(form.employees) : null,
+        ...accountLocationPayload(loc, 'create', fields.isHidden),
         custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
       } as any);
       toast.success('Account created');
@@ -62,6 +74,46 @@ export default function NewAccountPage() {
     );
   };
 
+  const LOC_LABELS: Record<AccountLocationKey, string> = {
+    address_line1: 'Address', address_line2: 'Address line 2', city: 'City', state: 'State', postal_code: 'PIN code', country: 'Country',
+  };
+  const locFld = (k: AccountLocationKey) => {
+    if (fields.isHidden(k)) return null;
+    const effRequired = fields.requiredFor(k, false);
+    return (
+      <label key={k} data-field={k} style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle(k) }}>
+        <span style={labelStyle}>{fields.labelFor(k, LOC_LABELS[k])}{effRequired && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}</span>
+        <input
+          value={loc[k]}
+          onChange={(e) => setLoc({ ...loc, [k]: e.target.value })}
+          required={effRequired}
+          inputMode={k === 'postal_code' ? 'numeric' : undefined}
+          style={inputStyle}
+        />
+      </label>
+    );
+  };
+  // State -> City cascade from the location master for everyone (not the field rep's assigned-city chip); a city that
+  // is not in the master can be typed. Each control is gated and ordered by its own override.
+  const locationPicker = (fields.isHidden('state') && fields.isHidden('city')) ? null : (
+    <LocationPicker
+      scope="any"
+      allowTypedCity
+      dataFields
+      stateValue={loc.state}
+      cityValue={loc.city}
+      onChange={({ state, city }) => setLoc((p) => ({ ...p, state, city }))}
+      hideState={fields.isHidden('state')}
+      hideCity={fields.isHidden('city')}
+      stateLabel={fields.labelFor('state', 'State')}
+      cityLabel={fields.labelFor('city', 'City')}
+      stateRequired={fields.requiredFor('state', false)}
+      required={fields.requiredFor('city', false)}
+      stateStyle={fields.orderStyle('state')}
+      cityStyle={fields.orderStyle('city')}
+    />
+  );
+
   const industryFld = fields.isHidden('industry') ? null : (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle('industry') }}>
       <span style={labelStyle}>{fields.labelFor('industry', 'Industry')}</span>
@@ -77,6 +129,7 @@ export default function NewAccountPage() {
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Account</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         {fld('name', 'Name')}{industryFld}{fld('website', 'Website')}{fld('phone', 'Phone')}{fld('annual_revenue', 'Annual Revenue', 'number')}{fld('employees', 'Employees', 'number')}
+        {locFld('address_line1')}{locFld('address_line2')}{locationPicker}{locFld('postal_code')}{locFld('country')}
         {/* Custom fields render inline inside this grid so admin-defined
             fields look like part of the form (same as the lead form). */}
         <CustomFieldsSection
