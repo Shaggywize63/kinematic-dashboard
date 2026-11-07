@@ -11,6 +11,7 @@ import { activityOutcomeError, apiErrorText, arr, isActivityCompleted, outcomeFo
 import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
 import CustomFieldsSection from './CustomFieldsSection';
 import ActivityPhotoField from './shared/ActivityPhotoField';
+import LinkedEntityField, { linkedEntityOf, type LinkedEntity } from './shared/LinkedEntityField';
 import { AssigneeChips, FormSerialInput, OutcomeField, ProductChips, useProductCatalogue } from './spark/SparkActivityFields';
 
 /**
@@ -24,6 +25,13 @@ export default function EditActivityModal({ activity, onClose, onSaved }: { acti
   const [outcome, setOutcome] = useState(activity.outcome || '');
   const [dueAt, setDueAt] = useState(activity.due_at ? toLocalDateTime(activity.due_at) : '');
   const [type, setType] = useState<string>(activity.type);
+  // The record this activity is attached to (lead / contact / deal / account). Only sent when it was changed.
+  const originalLink = linkedEntityOf(activity as unknown as Record<string, unknown>);
+  const [link, setLink] = useState<LinkedEntity>(originalLink);
+  // When a completed activity actually happened (the create form's "Activity Date & Time"). Only offered for
+  // activities that already have one; sent only when edited.
+  const originalDoneAt = activity.completed_at ? toLocalDateTime(activity.completed_at) : '';
+  const [doneAt, setDoneAt] = useState(originalDoneAt);
   // Built-ins + custom types from GET /crm/activity-types; the row's own type is always offered so editing an
   // old / deactivated / unknown type never silently re-types it.
   const typeCatalogue = useActivityTypes();
@@ -83,6 +91,12 @@ export default function EditActivityModal({ activity, onClose, onSaved }: { acti
       const oe = activityOutcomeError(outcome, outcomeRequired);
       if (oe) { setOutcomeError(oe); return; }
     }
+    if (link.type && !link.id) { toast.error(`Pick a ${link.type} to link, or choose None.`); return; }
+    if (doneAt && doneAt !== originalDoneAt) {
+      const t = new Date(doneAt);
+      if (Number.isNaN(t.getTime())) { toast.error('Enter a valid activity date.'); return; }
+      if (t.getTime() > Date.now() + 60_000) { toast.error('Activity date can’t be in the future.'); return; }
+    }
     setSaving(true);
     setSerialError(null);
     try {
@@ -95,6 +109,11 @@ export default function EditActivityModal({ activity, onClose, onSaved }: { acti
         custom_fields: customFields,
       };
       if (imageUrl !== (activity.image_url || '')) payload.image_url = imageUrl || null;
+      // Re-linked (or unlinked): the chosen record is set and every other link is cleared so it points at one thing.
+      if (link.type !== originalLink.type || link.id !== originalLink.id) {
+        for (const k of ['lead', 'contact', 'deal', 'account'] as const) payload[`${k}_id`] = link.type === k ? link.id : null;
+      }
+      if (doneAt && doneAt !== originalDoneAt) payload.completed_at = new Date(doneAt).toISOString();
       if (spark) {
         const f = sparkActivityFields({ assigneeIds, productIds, formSerial }, 'patch');
         // An untouched serial is not re-sent (the row shows the resolved ref, which is what the box starts with).
@@ -152,6 +171,12 @@ export default function EditActivityModal({ activity, onClose, onSaved }: { acti
           <Field label="Outcome (optional)"><input value={outcome} onChange={(e) => setOutcome(e.target.value)} style={editInput} /></Field>
         )}
         <ActivityPhotoField value={imageUrl} onChange={setImageUrl} label="Photo" />
+        <LinkedEntityField value={link} onChange={setLink} />
+        {activity.completed_at && (
+          <Field label="Activity date & time">
+            <input type="datetime-local" data-testid="edit-activity-date" value={doneAt} max={toLocalDateTime(new Date().toISOString())} onChange={(e) => setDoneAt(e.target.value)} style={editInput} />
+          </Field>
+        )}
         <Field label="Due / scheduled for"><input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={editInput} /></Field>
         {/* Admins / managers can reassign an activity after it was assigned (other tenants: one assignee). */}
         {!spark && ownerPicker.canChange && ownerPicker.users.length > 0 && (
