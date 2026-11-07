@@ -144,7 +144,7 @@ function RegistrationsTable({ entity, onEdit, onRemove }: { entity: LegalEntity;
     { key: 'type', label: 'Registration', sortValue: (r) => registrationLabel(r.type), render: (r) => <span style={{ fontWeight: 600 }}>{registrationLabel(r.type)}</span> },
     { key: 'state', label: 'State', sortValue: (r) => r.state ?? '', render: (r) => r.state ?? <span style={{ color: T.mute }}>All states</span> },
     { key: 'number', label: 'Number', render: (r) => <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>{r.number}</span> },
-    { key: 'validity', label: 'Validity', nowrap: true, sortValue: (r) => r.validTo ?? '9999', render: (r) => (r.validFrom || r.validTo ? `${fmtDate(r.validFrom)} to ${r.validTo ? fmtDate(r.validTo) : 'open'}` : '—') },
+    { key: 'validity', label: 'Validity', sortValue: (r) => r.validTo ?? '9999', render: (r) => (r.validFrom || r.validTo ? `${fmtDate(r.validFrom)} to ${r.validTo ? fmtDate(r.validTo) : 'open'}` : '—') },
     {
       key: 'status', label: 'Status', nowrap: true, render: (r) => {
         const x = expiryStatus(r);
@@ -160,7 +160,7 @@ function RegistrationsTable({ entity, onEdit, onRemove }: { entity: LegalEntity;
       ),
     },
   ];
-  return <DataTable columns={cols} rows={entity.registrations} minWidth={820} empty="No registrations on file for this entity yet. Add the PF, ESI, PT and Shops numbers it holds." />;
+  return <DataTable columns={cols} rows={entity.registrations} minWidth={760} empty="No registrations on file for this entity yet. Add the PF, ESI, PT and Shops numbers it holds." />;
 }
 
 // ───────────────────────────── coverage ─────────────────────────────

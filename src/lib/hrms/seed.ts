@@ -283,7 +283,7 @@ const letterTemplates = [
 ];
 
 // ───────────────────────────── compliance + DPDP ─────────────────────────────
-const due = (id: string, name: string, law: ComplianceTask['law'], dueOn: string, entityId: string, status: ComplianceTask['status'], state?: string, filedOn?: string): ComplianceTask => ({ id, name, law, dueOn, entityId, status, state, filedOn, reference: filedOn ? `CHL-${id.slice(-4).toUpperCase()}` : undefined });
+const due = (id: string, name: string, law: ComplianceTask['law'], dueOn: string, entityId: string, status: ComplianceTask['status'], state?: string, filedOn?: string): ComplianceTask => ({ id, name, law, dueOn, entityId, status, state, filedOn, reference: filedOn ? `CHL-${id.replace(/[^a-z0-9]/gi, '').slice(-5).toUpperCase()}` : undefined });
 const compliance: ComplianceTask[] = [
   due('cmp_tds_oct', 'TDS deposit for October', 'TDS', '2026-11-07', ENT_RETAIL, 'due_soon'),
   due('cmp_pf_oct', 'PF contribution and ECR for October', 'PF', '2026-11-15', ENT_RETAIL, 'upcoming'),
