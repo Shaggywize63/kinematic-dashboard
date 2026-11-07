@@ -427,6 +427,18 @@ function NewActivityPageInner() {
         const loggedPast = !!doneAtIso;
         const doneNow = noSchedule && type !== 'task';
         const cf: Record<string, unknown> = { ...customFields };
+        if (loggedPast && dueAt) {
+          // Both dates given: it happened on the Activity Date AND something is scheduled. Same shape as the
+          // from-lead visit: the completed activity (carries the outcome) plus a planned follow-up on the scheduled date.
+          requests.push(crmActivities.create(buildPayload({
+            subject: baseSubject, status: 'completed', completedAt: doneAtIso,
+            visitKind: 'completed', isFirstVisit: false, withOutcome: true,
+          }) as any));
+          requests.push(crmActivities.create(buildPayload({
+            subject: baseSubject, status: 'planned', dueAt: new Date(dueAt).toISOString(),
+            visitKind: 'scheduled', isFirstVisit: false, withOutcome: false,
+          }) as any));
+        } else
         requests.push(crmActivities.create({
           type,
           subject: baseSubject,
@@ -450,7 +462,7 @@ function NewActivityPageInner() {
         : null;
       toast.success(
         requests.length === 2
-          ? 'First visit logged + next visit scheduled'
+          ? (firstVisitFlow && type === 'meeting' ? 'First visit logged + next visit scheduled' : 'Activity logged + follow-up scheduled')
           : linkedRef ? `Activity logged · linked to form ${linkedRef}` : 'Activity logged successfully',
       );
       router.push('/dashboard/crm/activities');
@@ -619,8 +631,8 @@ function NewActivityPageInner() {
                   data-testid="activity-date"
                   value={doneAt}
                   max={toLocalInput(new Date())}
-                  // It already happened, so it cannot also be scheduled: picking one clears the other.
-                  onChange={(e) => { setDoneAt(e.target.value); if (e.target.value) setDueAt(''); }}
+                  // Both can be set: it happened on this date, and a follow-up is scheduled on the other one.
+                  onChange={(e) => setDoneAt(e.target.value)}
                   style={input}
                 />
                 {doneAt && (
@@ -637,14 +649,14 @@ function NewActivityPageInner() {
                   type="datetime-local"
                   data-testid="activity-scheduled"
                   value={dueAt}
-                  onChange={(e) => { setDueAt(e.target.value); if (e.target.value) setDoneAt(''); }}
+                  onChange={(e) => setDueAt(e.target.value)}
                   style={input}
                 />
                 {dueAt && (
                   <button type="button" onClick={() => setDueAt('')} title="Clear schedule — log it for right now" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}>Now</button>
                 )}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>For something still to do. To log one that already happened, use Activity Date.</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>For something still to do. If you also set an Activity Date, the activity is logged as done on that date and this becomes a scheduled follow-up.</div>
             </Field>
           )}
           {!spark && (
