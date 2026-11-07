@@ -319,11 +319,16 @@ const retention = [
 
 // ───────────────────────────── assemble ─────────────────────────────
 export function makeSeed(): HrmsDb {
+  // Clone the module-level data on every call: the arrays above are shared, and a caller that edits its copy (a test,
+  // or code that skips the store) must never change what the next makeSeed() returns.
+  const base = structuredClone({
+    entities, locations, departments, designations, employees, shifts, roster, overtimeRules, leaveTypes, holidayLists, leaveBalances,
+    attendance, structures, adjustments, loans, fnfCases, onboarding, exits, letterTemplates, compliance, consents, accessLog, retention,
+  });
   const db: HrmsDb = {
     version: SEED_VERSION,
     company: { name: 'Meridian Retail', currency: 'INR', fyStartMonth: 4 },
-    entities, locations, departments, designations, employees, shifts, roster, overtimeRules, leaveTypes, holidayLists, leaveBalances,
-    attendance, structures, adjustments, loans, payRuns: [], fnfCases, onboarding, exits, letterTemplates, letters: [], compliance, consents, accessLog, retention,
+    ...base, letters: [], payRuns: [],
   };
   // Two closed runs per entity so reports, YTD and Form 16 style views have history.
   for (const month of ['2026-09', '2026-10']) {
