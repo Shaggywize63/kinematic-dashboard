@@ -1,21 +1,16 @@
 'use client';
 // Hard gate for the HRMS module. The sidebar already hides it, but the nav is not enforcement: deep links and
-// stale caches ignore it. Allowed today: the master admin, or a client admin whose client was granted the
-// `hrms` module. (Same rule as Finance; the backend will enforce it too once it exists.)
+// stale caches ignore it. Allowed today: the demo account only (demo@kinematic.com). The module runs on sample data
+// and has no backend yet, so no real customer and no real admin sees it. isDemoAccount() needs the demo email AND the
+// demo token, so a stray stored email never unlocks it.
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getStoredUser } from '../../../lib/auth';
-import { isMasterAdmin } from '../../../lib/clientFeatures';
+import api from '../../../lib/api';
 import { resetDb } from '../../../lib/hrms/db';
 import { Button, T } from '../../../components/hrms/ui';
 
-function allowed(): boolean {
-  const u = getStoredUser() as any;
-  if (isMasterAdmin(u)) return true;
-  const modules: string[] = Array.isArray(u?.enabled_modules) ? u.enabled_modules : [];
-  return !!(u?.client_id && modules.includes('hrms'));
-}
+const allowed = (): boolean => api.isDemoAccount();
 
 export default function HrmsLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -28,7 +23,7 @@ export default function HrmsLayout({ children }: { children: React.ReactNode }) 
   }, [router]);
 
   if (state === 'checking') return <div style={{ padding: 24, color: 'var(--dim)' }}>Checking access…</div>;
-  if (state === 'denied') return <div style={{ padding: 24, color: 'var(--dim)' }}>HRMS is not available for your account.</div>;
+  if (state === 'denied') return <div style={{ padding: 24, color: 'var(--dim)' }}>HRMS is a preview that is only available on the demo account.</div>;
   return (
     <>
       <div role="status" data-testid="hrms-preview-banner" style={{ margin: '12px 24px 0', padding: '8px 12px', borderRadius: 8, fontSize: 12.5, background: T.warnWash, color: T.warn, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>

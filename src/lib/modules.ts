@@ -23,7 +23,6 @@ export type ModulePackage =
   | 'system'
   | 'people'
   | 'finance'
-  | 'hrms'
   | 'audit';
 
 export type ModuleGroup =
@@ -35,7 +34,6 @@ export type ModuleGroup =
   | 'System'
   | 'People'
   | 'Finance'
-  | 'HRMS'
   | 'Audit';
 
 export interface ModuleEntry {
@@ -163,15 +161,11 @@ export const ALL_MODULES: ModuleEntry[] = [
   // granting this module in Client Management. Backend module id 'finance'.
   { id: 'finance', l: 'Finance (Invoicing)', group: 'Finance', package: 'finance' },
 
-  // HRMS (core HR, payroll, statutory compliance, lifecycle). Preview: master admin today; shared with a client by
-  // granting this module in Client Management. Backend module id 'hrms'. Not sellable until the backend ships.
-  { id: 'hrms', l: 'HRMS (Payroll & Compliance)', group: 'HRMS', package: 'hrms' },
-
   // Audit (super-admin only — never granted to clients)
   { id: 'audit_log', l: 'Activity Log', group: 'Audit', package: 'audit' },
 ];
 
-export const MODULE_GROUPS: ModuleGroup[] = ['FieldForce', 'CRM', 'SupplyChain', 'Distribution', 'Business', 'System', 'People', 'Finance', 'HRMS', 'Audit'];
+export const MODULE_GROUPS: ModuleGroup[] = ['FieldForce', 'CRM', 'SupplyChain', 'Distribution', 'Business', 'System', 'People', 'Finance', 'Audit'];
 
 /** Friendly display labels for `MODULE_GROUPS` (used in admin permission UIs). */
 export const MODULE_GROUP_LABELS: Record<ModuleGroup, string> = {
@@ -183,7 +177,6 @@ export const MODULE_GROUP_LABELS: Record<ModuleGroup, string> = {
   System:       'System Management',
   People:       'People & Support',
   Finance:      'Finance',
-  HRMS:         'HRMS (Preview)',
   Audit:        'Audit',
 };
 
@@ -196,7 +189,6 @@ export const PACKAGE_LABELS: Record<ModulePackage, string> = {
   system:       'System',
   people:       'People & Support',
   finance:      'Finance (Invoicing)',
-  hrms:         'HRMS (Preview)',
   audit:        'Audit (super-admin only)',
 };
 

@@ -463,8 +463,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // module was explicitly granted (checked directly — hasModule() treats an empty
   // entitlement list as "allow all", which must never unlock billing data).
   const financeAllowed = isMasterAdmin(user) || (!isPlatformAdmin && enabledModules.includes('finance'));
-  // HRMS (preview) follows the same rule as Finance: master admin, or an explicit grant of the `hrms` module.
-  const hrmsAllowed = isMasterAdmin(user) || (!isPlatformAdmin && enabledModules.includes('hrms'));
+  // HRMS (preview) is visible ONLY on the demo account (demo@kinematic.com): it runs on sample data and the backend
+  // does not exist yet. isDemoAccount() needs both the demo email and the demo token, so a stray email never unlocks it.
+  const hrmsAllowed = api.isDemoAccount();
 
   const filterNav = (items: any[]) => {
     const visibleAfterRole = items
@@ -512,7 +513,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!pkg) return true;
     // Finance items were already gated per user in filterNav (master admin / explicit grant).
     if (pkg === 'finance') return true;
-    // HRMS items were already gated per user in filterNav (master admin / explicit grant).
+    // HRMS items were already gated in filterNav (demo account only).
     if (pkg === 'hrms') return true;
     // ByteBack (field-force-only): never surface the CRM (Lead Management) or
     // Distribution sections, even for its client-admins (flagged isPlatformAdmin).
@@ -742,18 +743,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/broadcast',          label: 'Broadcast',     icon: 'radio', module: 'broadcast' },
       { href: '/dashboard/notifications',      label: 'Notifications', icon: 'bell', module: 'notifications' },
     ]},
-    // HRMS (preview): core HR, payroll, statutory compliance and employee lifecycle. Master admin until a client is granted `hrms`.
+    // HRMS (preview): core HR, payroll, statutory compliance and employee lifecycle. Demo account only (sample data).
     { label: 'HRMS (Preview)', package: 'hrms', items: [
-      { href: '/dashboard/hrms',                label: 'Overview',        icon: 'dashboard',  module: 'hrms', hrmsOnly: true },
-      { href: '/dashboard/hrms/employees',      label: 'Employees',       icon: 'users',      module: 'hrms', hrmsOnly: true },
-      { href: '/dashboard/hrms/organization',   label: 'Organization',    icon: 'building',   module: 'hrms', hrmsOnly: true },
-      { href: '/dashboard/hrms/time',           label: 'Time & Leave',    icon: 'clock',      module: 'hrms', hrmsOnly: true },
-      { href: '/dashboard/hrms/payroll',        label: 'Payroll',         icon: 'banknote',   module: 'hrms', hrmsOnly: true },
-      { href: '/dashboard/hrms/statutory',      label: 'Statutory',       icon: 'landmark',   module: 'hrms', hrmsOnly: true },
-      { href: '/dashboard/hrms/lifecycle',      label: 'Lifecycle',       icon: 'userCheck',  module: 'hrms', hrmsOnly: true },
-      { href: '/dashboard/hrms/my',             label: 'My HR',           icon: 'contact',    module: 'hrms', hrmsOnly: true },
-      { href: '/dashboard/hrms/reports',        label: 'HR Reports',      icon: 'trending',   module: 'hrms', hrmsOnly: true },
-      { href: '/dashboard/hrms/privacy',        label: 'Privacy & Access', icon: 'shield',    module: 'hrms', hrmsOnly: true },
+      { href: '/dashboard/hrms',                label: 'Overview',        icon: 'dashboard',  hrmsOnly: true },
+      { href: '/dashboard/hrms/employees',      label: 'Employees',       icon: 'users',      hrmsOnly: true },
+      { href: '/dashboard/hrms/organization',   label: 'Organization',    icon: 'building',   hrmsOnly: true },
+      { href: '/dashboard/hrms/time',           label: 'Time & Leave',    icon: 'clock',      hrmsOnly: true },
+      { href: '/dashboard/hrms/payroll',        label: 'Payroll',         icon: 'banknote',   hrmsOnly: true },
+      { href: '/dashboard/hrms/statutory',      label: 'Statutory',       icon: 'landmark',   hrmsOnly: true },
+      { href: '/dashboard/hrms/lifecycle',      label: 'Lifecycle',       icon: 'userCheck',  hrmsOnly: true },
+      { href: '/dashboard/hrms/my',             label: 'My HR',           icon: 'contact',    hrmsOnly: true },
+      { href: '/dashboard/hrms/reports',        label: 'HR Reports',      icon: 'trending',   hrmsOnly: true },
+      { href: '/dashboard/hrms/privacy',        label: 'Privacy & Access', icon: 'shield',    hrmsOnly: true },
     ]},
     { label: 'System Management', package: 'system', items: [
       { href: '/dashboard/other-management/cities',  label: 'Cities',          icon: 'landmark', module: 'cities' },

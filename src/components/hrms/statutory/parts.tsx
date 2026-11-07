@@ -67,6 +67,3 @@ export function Muted({ children, style }: { children: ReactNode; style?: CSSPro
 export function Stack({ children, gap = 18 }: { children: ReactNode; gap?: number }) {
   return <div style={{ display: 'flex', flexDirection: 'column', gap }}>{children}</div>;
 }
-
-/** The select used in filter rows: label + control, sized for a toolbar. */
-export function inline(width: number): CSSProperties { return { width }; }

@@ -8,7 +8,7 @@ import type { HrmsDb } from '../../../lib/hrms/types';
 import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import { fmtDate, fmtMonth, fullName, inr, inrWords } from '../../../lib/hrms/format';
 import { Field, Select } from '../../ui';
-import { Button, Card, CardTitle, EmptyState, Note, T, useIsCompact } from '../ui';
+import { Button, Card, CardTitle, EmptyState, useIsCompact } from '../ui';
 import { buildForm130, form130Employees, form130Years, type Form130Doc } from './builders';
 import { Muted } from './parts';
 
@@ -198,8 +198,4 @@ function Form130Paper({ doc, narrow }: { doc: Form130Doc; narrow: boolean }) {
       </div>
     </div>
   );
-}
-
-export function Form130Note() {
-  return <Note tone="info">Form 130 here is a readable annual statement for a preview. It is not signed or issued, and the sample data covers only the months that have a run.</Note>;
 }
