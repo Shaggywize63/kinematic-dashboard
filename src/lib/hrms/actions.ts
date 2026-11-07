@@ -116,13 +116,20 @@ export function freezeRun(runId: Id): void {
     run.frozenAt = new Date().toISOString();
     run.frozenBy = ACTOR;
     run.audit.push({ at: run.frozenAt, by: ACTOR, action: 'Frozen. Payslips are locked.' });
-    // Lock the month's attendance and recover loan EMIs once the run is frozen.
-    db.attendance.filter((a) => a.month === run.month).forEach((a) => { a.locked = true; });
+    // Lock attendance only for the people in this run (not every entity's), and remember who, so an unfreeze can undo it.
+    const ids = run.payslips.map((s) => s.employeeId);
+    run.attendanceLockedFor = [];
+    for (const a of db.attendance) {
+      if (a.month === run.month && ids.includes(a.employeeId) && !a.locked) { a.locked = true; run.attendanceLockedFor.push(a.employeeId); }
+    }
+    // Recover each open loan the way the engine deducted it (its own EMI, capped at the balance) and remember the amounts.
+    run.loanRecoveries = {};
     for (const s of run.payslips) {
-      const emi = s.deductions.filter((d) => d.code === 'LOAN').reduce((t, d) => t + d.amount, 0);
-      if (emi) {
-        const loan = db.loans.find((l) => l.employeeId === s.employeeId && l.recovered < l.principal);
-        if (loan) loan.recovered = Math.min(loan.principal, loan.recovered + emi);
+      for (const l of db.loans.filter((x) => x.employeeId === s.employeeId && x.startMonth <= run.month && x.recovered < x.principal)) {
+        const emi = Math.min(l.emi, l.principal - l.recovered);
+        if (emi <= 0) continue;
+        l.recovered += emi;
+        run.loanRecoveries[l.id] = (run.loanRecoveries[l.id] ?? 0) + emi;
       }
     }
   });
@@ -131,8 +138,20 @@ export function unfreezeRun(runId: Id, reason: string): void {
   mutate((db) => {
     const run = db.payRuns.find((r) => r.id === runId);
     if (!run || run.status !== 'frozen') return;
+    // Undo exactly what the freeze did, so freeze, unfreeze, freeze does not recover an EMI twice.
+    for (const [loanId, amt] of Object.entries(run.loanRecoveries ?? {})) {
+      const l = db.loans.find((x) => x.id === loanId);
+      if (l) l.recovered = Math.max(0, l.recovered - amt);
+    }
+    for (const empId of run.attendanceLockedFor ?? []) {
+      const a = db.attendance.find((x) => x.employeeId === empId && x.month === run.month);
+      if (a) a.locked = false;
+    }
+    run.loanRecoveries = undefined;
+    run.attendanceLockedFor = undefined;
     run.status = 'computed';
     run.frozenAt = undefined;
+    run.frozenBy = undefined;
     run.audit.push({ at: new Date().toISOString(), by: ACTOR, action: `Unfrozen: ${reason}` });
   });
 }

@@ -303,6 +303,9 @@ export interface PayRun {
   paidAt?: string;
   payslips: Payslip[];
   audit: { at: string; by: string; action: string }[];
+  /** Set when the run is frozen so an unfreeze can undo exactly what the freeze did. */
+  loanRecoveries?: Record<string, number>;   // loanId → rupees recovered by this run
+  attendanceLockedFor?: Id[];                // employees whose attendance this freeze locked
 }
 
 export interface FnfCase {
