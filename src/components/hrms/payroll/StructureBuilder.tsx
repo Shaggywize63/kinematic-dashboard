@@ -19,9 +19,9 @@ import { ConfirmModal, report } from './shared';
 const kindLabel = (k: SalaryComponent['kind']) => COMPONENT_KINDS.find((x) => x.value === k)?.label ?? k;
 const yes = (b: boolean) => (b ? 'Yes' : '—');
 const kindShort: Record<SalaryComponent['kind'], string> = { earning: 'Earning', employer: 'Employer', reimbursement: 'Reimb.', deduction: 'Deduction' };
-const thc = { padding: '9px 8px', fontSize: 11, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase' as const, color: T.mute, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' as const, background: T.panel, textAlign: 'left' as const };
+const thc = { padding: '9px 6px', fontSize: 11, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase' as const, color: T.mute, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' as const, background: T.panel, textAlign: 'left' as const };
 const th = { padding: '9px 12px', fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' as const, color: T.mute, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' as const, background: T.panel, textAlign: 'left' as const };
-const tdc = { padding: '9px 8px', fontSize: 13, borderTop: `1px solid ${T.border}`, color: T.text, verticalAlign: 'middle' as const };
+const tdc = { padding: '9px 6px', fontSize: 13, borderTop: `1px solid ${T.border}`, color: T.text, verticalAlign: 'middle' as const };
 const td = { padding: '9px 12px', fontSize: 13.5, borderTop: `1px solid ${T.border}`, color: T.text, verticalAlign: 'middle' as const };
 
 export default function StructureBuilder({ db, structure }: { db: HrmsDb; structure: SalaryStructure }) {
@@ -117,14 +117,14 @@ export default function StructureBuilder({ db, structure }: { db: HrmsDb; struct
             <thead>
               <tr>
                 <th scope="col" style={thc}>Code</th><th scope="col" style={thc}>Name</th><th scope="col" style={thc}>Kind</th><th scope="col" style={thc}>Calculation</th>
-                <th scope="col" style={{ ...thc, textAlign: 'right' }}>At CTC {b ? inr(ctc) : ''}</th>
+                <th scope="col" style={{ ...thc, textAlign: 'right' }} title={b ? `Monthly amount at an annual CTC of ${inr(ctc)}` : undefined}>Monthly</th>
                 <th scope="col" style={thc}><abbr title="Counts as wages for the 50% test, PF and gratuity">Wage</abbr></th>
                 <th scope="col" style={thc}><abbr title="Taxable">Tax</abbr></th>
                 <th scope="col" style={thc}><abbr title="PF applicable (informational)">PF</abbr></th>
                 <th scope="col" style={thc}><abbr title="ESI applicable">ESI</abbr></th>
                 <th scope="col" style={thc}><abbr title="Reduced by loss of pay">Prorate</abbr></th>
                 <th scope="col" style={thc}><abbr title="Shown on the payslip">Slip</abbr></th>
-                <th scope="col" style={thc}>Order and actions</th>
+                <th scope="col" style={thc}>Actions</th>
               </tr>
             </thead>
             <tbody>

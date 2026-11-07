@@ -35,6 +35,9 @@ const executablePath = resolveChromiumPath();
 
 export default defineConfig({
   testDir: './e2e',
+  // The HRMS module has its own job in CI (it adds a few hundred specs, which on top of the rest of the serial suite
+  // outgrew the 25-minute cap). PW_SKIP_HRMS=1 leaves those files out of the main run; `playwright test hrms-` runs only them.
+  testIgnore: process.env.PW_SKIP_HRMS ? /e2e\/hrms-.*\.spec\.ts$/ : undefined,
   // First-time `next dev` route compiles can be slow; keep generous timeouts.
   timeout: 90_000,
   expect: { timeout: 15_000 },

@@ -575,6 +575,14 @@ test.describe('layout', () => {
       await page.screenshot({ path: `/tmp/hrms-shots/${name}-tall.png`, fullPage: false });
       await page.setViewportSize({ width: 1280, height: 900 });
     }
+    // Light theme: tokens only, so a quick look at a table page and a form page is enough.
+    for (const [url, name] of [['/dashboard/hrms/reports/salary-register', 'reports-salary-light'], ['/dashboard/hrms/statutory?tab=tax', 'statutory-tax-light']] as const) {
+      await ready(url);
+      await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `/tmp/hrms-shots/${name}.png` });
+      await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+    }
     // The Form 130 sheet on its own, for an old-regime employee with declarations.
     await ready('/dashboard/hrms/statutory?tab=returns');
     await page.getByLabel('Employee for Form 130').selectOption(seed.employees.find((e) => e.firstName === 'Arvind')!.id);
