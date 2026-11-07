@@ -289,7 +289,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Match those two only when the path is exactly them; everything else
   // keeps the normal prefix match.
   const isActive = (href: string) =>
-    (href === '/dashboard' || href === '/dashboard/planograms' || href === '/dashboard/finance')
+    (href === '/dashboard' || href === '/dashboard/planograms' || href === '/dashboard/finance' || href === '/dashboard/hrms')
       ? pathname === href
       : pathname.startsWith(href);
   const sideW = isMobile ? 0 : (collapsed ? SIDEBAR_RAIL_W : SIDEBAR_W);
@@ -463,10 +463,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // module was explicitly granted (checked directly — hasModule() treats an empty
   // entitlement list as "allow all", which must never unlock billing data).
   const financeAllowed = isMasterAdmin(user) || (!isPlatformAdmin && enabledModules.includes('finance'));
+  // HRMS (preview) follows the same rule as Finance: master admin, or an explicit grant of the `hrms` module.
+  const hrmsAllowed = isMasterAdmin(user) || (!isPlatformAdmin && enabledModules.includes('hrms'));
 
   const filterNav = (items: any[]) => {
     const visibleAfterRole = items
       .filter((i) => !i.financeOnly || financeAllowed)
+      .filter((i) => !i.hrmsOnly || hrmsAllowed)
       .filter((i) => !i.superAdminOnly || isSuperAdmin)
       // A platform-operator surface (Website Chats): not shown while a super admin is viewing AS a client / user.
       .filter((i) => !i.hideWhenViewingAsClient || !(actingAs || impersonate));
@@ -509,6 +512,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!pkg) return true;
     // Finance items were already gated per user in filterNav (master admin / explicit grant).
     if (pkg === 'finance') return true;
+    // HRMS items were already gated per user in filterNav (master admin / explicit grant).
+    if (pkg === 'hrms') return true;
     // ByteBack (field-force-only): never surface the CRM (Lead Management) or
     // Distribution sections, even for its client-admins (flagged isPlatformAdmin).
     if (byteBackHideActive && (pkg === 'crm' || pkg === 'distribution')) return false;
@@ -736,6 +741,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/visit-logs',         label: 'Visit Logs',    icon: 'mapPin', module: 'visit_logs' },
       { href: '/dashboard/broadcast',          label: 'Broadcast',     icon: 'radio', module: 'broadcast' },
       { href: '/dashboard/notifications',      label: 'Notifications', icon: 'bell', module: 'notifications' },
+    ]},
+    // HRMS (preview): core HR, payroll, statutory compliance and employee lifecycle. Master admin until a client is granted `hrms`.
+    { label: 'HRMS (Preview)', package: 'hrms', items: [
+      { href: '/dashboard/hrms',                label: 'Overview',        icon: 'dashboard',  module: 'hrms', hrmsOnly: true },
+      { href: '/dashboard/hrms/employees',      label: 'Employees',       icon: 'users',      module: 'hrms', hrmsOnly: true },
+      { href: '/dashboard/hrms/organization',   label: 'Organization',    icon: 'building',   module: 'hrms', hrmsOnly: true },
+      { href: '/dashboard/hrms/time',           label: 'Time & Leave',    icon: 'clock',      module: 'hrms', hrmsOnly: true },
+      { href: '/dashboard/hrms/payroll',        label: 'Payroll',         icon: 'banknote',   module: 'hrms', hrmsOnly: true },
+      { href: '/dashboard/hrms/statutory',      label: 'Statutory',       icon: 'landmark',   module: 'hrms', hrmsOnly: true },
+      { href: '/dashboard/hrms/lifecycle',      label: 'Lifecycle',       icon: 'userCheck',  module: 'hrms', hrmsOnly: true },
+      { href: '/dashboard/hrms/my',             label: 'My HR',           icon: 'contact',    module: 'hrms', hrmsOnly: true },
+      { href: '/dashboard/hrms/reports',        label: 'HR Reports',      icon: 'trending',   module: 'hrms', hrmsOnly: true },
+      { href: '/dashboard/hrms/privacy',        label: 'Privacy & Access', icon: 'shield',    module: 'hrms', hrmsOnly: true },
     ]},
     { label: 'System Management', package: 'system', items: [
       { href: '/dashboard/other-management/cities',  label: 'Cities',          icon: 'landmark', module: 'cities' },
