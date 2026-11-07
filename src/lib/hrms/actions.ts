@@ -9,6 +9,7 @@ import { uid } from './types';
 import { computePayRunPayslips } from './engine';
 import { LAW_VERSION } from './rules';
 import { fullName } from './format';
+import { PREVIEW_TODAY } from './seed';
 
 export const ACTOR = 'You (HR admin)'; // the preview has no real identity; the backend will stamp the signed-in user
 
@@ -151,7 +152,7 @@ export const saveFnf = (c: Omit<FnfCase, 'id'> & { id?: Id }) => upsert('fnfCase
 
 // ───────────── letters, access log, compliance ─────────────
 export function issueLetter(l: Omit<IssuedLetter, 'id' | 'issuedOn' | 'signed'>): IssuedLetter {
-  const item: IssuedLetter = { ...l, id: uid('let'), issuedOn: new Date().toISOString().slice(0, 10), signed: false };
+  const item: IssuedLetter = { ...l, id: uid('let'), issuedOn: PREVIEW_TODAY, signed: false };
   upsert('letters', item);
   return item;
 }
@@ -164,7 +165,7 @@ export function markFiled(id: Id, reference?: string): void {
     const t = db.compliance.find((x) => x.id === id) as ComplianceTask | undefined;
     if (!t) return;
     t.status = 'filed';
-    t.filedOn = new Date().toISOString().slice(0, 10);
+    t.filedOn = PREVIEW_TODAY;
     t.reference = reference || `CHL-${uid('').slice(-5).toUpperCase()}`;
   });
 }

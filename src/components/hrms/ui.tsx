@@ -94,14 +94,27 @@ export function TabBar<K extends string>({ tabs, value, onChange }: { tabs: { ke
 }
 
 // ───────────────────────────── modal ─────────────────────────────
+// Open modals, top-most last: Escape closes only the top one, so a confirmation inside a dialog does not close both.
+const modalStack: object[] = [];
+
 export function Modal({ title, onClose, children, footer, width = 560 }: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode; width?: number }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Callers pass inline handlers, so keep the latest in a ref: the effect below must run once, not on every render
+  // (re-running it would pull focus out of whatever field the person is typing in).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const token = {};
+    modalStack.push(token);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && modalStack[modalStack.length - 1] === token) onCloseRef.current(); };
     window.addEventListener('keydown', onKey);
     ref.current?.focus();
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      const i = modalStack.indexOf(token);
+      if (i >= 0) modalStack.splice(i, 1);
+    };
+  }, []);
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(10,14,26,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>

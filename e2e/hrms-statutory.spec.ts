@@ -577,8 +577,11 @@ test.describe('layout', () => {
     // The Form 130 sheet on its own, for an old-regime employee with declarations.
     await ready('/dashboard/hrms/statutory?tab=returns');
     await page.getByLabel('Employee for Form 130').selectOption(seed.employees.find((e) => e.firstName === 'Arvind')!.id);
-    await page.getByTestId('form130').scrollIntoViewIfNeeded();
-    await page.getByTestId('form130').screenshot({ path: '/tmp/hrms-shots/statutory-form130.png' });
+    await page.setViewportSize({ width: 1280, height: 1900 });
+    await page.getByTestId('form130').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: '/tmp/hrms-shots/statutory-form130.png' });
+    await page.setViewportSize({ width: 1280, height: 900 });
     // Phone width: the page itself must not scroll sideways (tables scroll inside their own box).
     await page.setViewportSize({ width: 390, height: 844 });
     for (const [url, name] of shots) {
