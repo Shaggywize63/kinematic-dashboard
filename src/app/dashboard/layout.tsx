@@ -465,7 +465,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const financeAllowed = isMasterAdmin(user) || (!isPlatformAdmin && enabledModules.includes('finance'));
   // HRMS (preview) is visible ONLY on the demo account (demo@kinematic.com): it runs on sample data and the backend
   // does not exist yet. isDemoAccount() needs both the demo email and the demo token, so a stray email never unlocks it.
-  const hrmsAllowed = api.isDemoAccount();
+  // Read after mount (it looks at localStorage): reading it during render would differ between the server and the
+  // first client paint and fail hydration.
+  const [hrmsAllowed, setHrmsAllowed] = useState(false);
+  useEffect(() => { setHrmsAllowed(api.isDemoAccount()); }, []);
 
   const filterNav = (items: any[]) => {
     const visibleAfterRole = items
