@@ -107,20 +107,28 @@ test.describe('Log Activity: Activity Date', () => {
     expect(Object.keys(writes[0])).not.toContain('due_at');
   });
 
-  test('picking one date clears the other: it already happened, or it is still to do', async ({ page }) => {
-    await setup(page, []);
+  test('setting both dates keeps both, and saves it as done on that date plus a scheduled follow-up', async ({ page }) => {
+    const writes: Body[] = [];
+    await setup(page, writes);
     await open(page);
     const past = await moment(page, -2);
     const future = await moment(page, 3);
 
     await page.getByTestId('activity-date').fill(past.local);
     await page.getByTestId('activity-scheduled').fill(future.local);
-    await expect(page.getByTestId('activity-date')).toHaveValue('');
+    // Neither picker wipes the other.
+    await expect(page.getByTestId('activity-date')).toHaveValue(past.local);
     await expect(page.getByTestId('activity-scheduled')).toHaveValue(future.local);
 
-    await page.getByTestId('activity-date').fill(past.local);
-    await expect(page.getByTestId('activity-scheduled')).toHaveValue('');
-    await expect(page.getByTestId('activity-date')).toHaveValue(past.local);
+    await save(page);
+    await expect(page).toHaveURL(/\/dashboard\/crm\/activities$/, { timeout: 20_000 });
+    expect(writes).toHaveLength(2);
+    const done = writes.find((w) => w.status === 'completed')!;
+    const planned = writes.find((w) => w.status === 'planned')!;
+    expect(done.completed_at).toBe(past.iso);
+    expect(Object.keys(done)).not.toContain('due_at');
+    expect(planned.due_at).toBe(future.iso);
+    expect(Object.keys(planned)).not.toContain('completed_at');
   });
 
   test('the Activity Date cannot be in the future: the picker is capped at now and the save is refused', async ({ page }) => {
