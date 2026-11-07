@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { useIndustryScope } from '../context/IndustryScopeContext';
 import { INDUSTRY_OPTIONS } from '../lib/demo/industries';
 import { getStoredUser } from '../lib/auth';
@@ -36,6 +37,11 @@ const STYLE = {
 
 export default function IndustryScopePicker() {
   const { selectedIndustry, setSelectedIndustry } = useIndustryScope();
+  // The demo check reads localStorage, which the server cannot see: deciding on the first render made the server HTML
+  // (nothing) differ from the first client paint (the picker) and failed hydration on every full load as the demo account.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return null;
 
   // Demo-only control.
   const email = (getStoredUser() as { email?: string } | null)?.email?.toLowerCase();

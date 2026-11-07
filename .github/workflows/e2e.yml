@@ -13,7 +13,7 @@ jobs:
     # Backstop: cap the whole job so a stalled step fails fast (and is
     # diagnosable) instead of hanging for hours. The serial suite now runs
     # ~15 min, so keep comfortable headroom above the E2E step's own cap.
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -62,9 +62,14 @@ jobs:
 
       - name: Run E2E tests
         # The suite runs serially (workers: 1, one shared dev server) and has grown with the app: it was
-        # ~8 min, then ~12 min, and now ~15 min (599 specs), so a 15-minute cap tripped even though every
-        # spec passed. 25 leaves headroom inside the 35-minute job limit.
-        timeout-minutes: 25
+        # ~8 min, then ~12 min, then ~15 min (599 specs), and it now takes 24 to 26 minutes (about 900 specs)
+        # depending on runner load, so a 25-minute cap timed out at spec 895 of 899 with every spec passing.
+        # 33 leaves headroom inside the 45-minute job limit. Splitting the suite into shards is the next step
+        # if it keeps growing.
+        timeout-minutes: 33
+        env:
+          # HRMS specs run in their own job below so this one keeps its headroom.
+          PW_SKIP_HRMS: '1'
         run: npx playwright test --reporter=list
 
       - name: Upload report
@@ -73,6 +78,62 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
+          path: playwright-report
+          if-no-files-found: ignore
+          retention-days: 14
+
+  e2e-hrms:
+    name: Playwright E2E (HRMS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci || npm install --no-audit --no-fund
+
+      - name: Install Playwright browser
+        timeout-minutes: 6
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 240 npx playwright install chromium; then exit 0; fi
+            echo "browser download attempt $attempt failed; retrying..."
+            sleep 5
+          done
+          echo "browser download failed after 3 attempts"
+          exit 1
+
+      # Same best-effort OS deps step as the main job (see the comment there).
+      - name: Install Playwright OS deps (best-effort)
+        timeout-minutes: 8
+        continue-on-error: true
+        run: |
+          for attempt in 1 2 3; do
+            sudo pkill -9 -f apt-get 2>/dev/null || true
+            sudo rm -f /var/lib/apt/lists/lock /var/lib/apt/lists/lock-frontend \
+              /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend 2>/dev/null || true
+            if sudo timeout 180 npx playwright install-deps chromium; then
+              echo "OS deps installed on attempt $attempt"; exit 0
+            fi
+            echo "install-deps attempt $attempt stalled/failed; retrying..."
+            sleep 5
+          done
+          echo "install-deps did not complete; continuing (runner likely already has the libs)"
+
+      - name: Run HRMS E2E tests
+        timeout-minutes: 25
+        run: npx playwright test hrms- --reporter=list
+
+      - name: Upload report
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-hrms
           path: playwright-report
           if-no-files-found: ignore
           retention-days: 14
