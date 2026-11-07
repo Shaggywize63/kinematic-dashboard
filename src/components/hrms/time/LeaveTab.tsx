@@ -10,12 +10,11 @@ import type { HrmsDb, LeaveType } from '../../../lib/hrms/types';
 import { uid } from '../../../lib/hrms/types';
 import { remove, upsert } from '../../../lib/hrms/actions';
 import { BlockedDialog, ConfirmDialog } from '../org/Confirm';
-import { CheckField, SelectField, TextField, focusFirstInvalid, primaryStyle } from '../org/formKit';
+import { CheckField, SelectField, TextField, focusFirstInvalid, primaryStyle, srOnly } from '../org/formKit';
 import {
   MATERNITY_DAYS, compOffExpiryDays, describeLeavePolicy, emptyLeaveForm, formToLeave, isCompOff, isMaternity, leaveToForm, validateLeave, withCompOffExpiry, type LeaveForm,
 } from './timeLogic';
 
-const srOnly = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' } as const;
 const AUDIENCE: Record<LeaveType['audience'], string> = { all: 'Everyone', female: 'Women', male: 'Men' };
 
 function MaternityNote() {
@@ -128,12 +127,12 @@ function LeaveModal({ db, edit, onClose }: { db: HrmsDb; edit?: LeaveType; onClo
   return (
     <Modal title={edit ? `Edit ${edit.name}` : 'Add leave type'} onClose={onClose} width={760}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" type="submit" form={formId} style={primaryStyle}>{edit ? 'Save changes' : 'Add leave type'}</Button></>}>
-      <div data-testid="leave-preview" aria-live="polite" style={{ position: 'sticky', top: 0, zIndex: 2, padding: '10px 14px', borderRadius: T.radius.md, background: T.raised, border: `1px solid ${T.border}`, fontSize: 13.5, lineHeight: 1.55, maxHeight: '28vh', overflowY: 'auto' }}>
+      <div data-testid="leave-preview" aria-live="polite" style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 2, padding: '10px 14px', borderRadius: T.radius.md, background: T.raised, border: `1px solid ${T.border}`, fontSize: 13.5, lineHeight: 1.55, maxHeight: '28vh', overflowY: 'auto' }}>
         <div style={{ fontSize: 11.5, color: T.mute, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>What this policy says</div>
         {preview}
       </div>
-      {maternity && <MaternityNote />}
-      <form id={formId} onSubmit={submit} noValidate style={{ display: 'flex', flexDirection: 'column' }}>
+      {maternity && <div style={{ flexShrink: 0 }}><MaternityNote /></div>}
+      <form id={formId} onSubmit={submit} noValidate style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
         <Section eyebrow="Basics" first>
           <FormGrid narrow={narrow}>
             <TextField label="Leave type name" required value={f.name} onChange={(v) => set('name', v)} error={shown('name')} autoComplete="off" />

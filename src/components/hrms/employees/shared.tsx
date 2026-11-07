@@ -4,7 +4,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Badge, Button, Modal, T } from '../ui';
-import { MISSING_TAB, type TabKey } from './logic';
+import { MISSING_TAB, SHORT_MISSING, type TabKey } from './logic';
 
 // ───────────────────────────── confirm dialog ─────────────────────────────
 export function ConfirmDialog({ title, children, confirmLabel = 'Confirm', danger, onConfirm, onClose }: {
@@ -102,8 +102,8 @@ export function MissingChips({ missing, max = 3 }: { missing: string[]; max?: nu
   const shown = missing.slice(0, max);
   return (
     <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
-      {shown.map((m) => <Badge key={m} tone="warn" style={{ height: 20, fontSize: 11.5 }}>{m}</Badge>)}
-      {missing.length > max && <Badge tone="neutral" style={{ height: 20, fontSize: 11.5 }} >{`+${missing.length - max}`}</Badge>}
+      {shown.map((m) => <span key={m} title={`Missing: ${m}`}><Badge tone="warn" style={{ height: 20, fontSize: 11.5 }}>{SHORT_MISSING[m] ?? m}</Badge></span>)}
+      {missing.length > max && <span title={`Also missing: ${missing.slice(max).join(', ')}`}><Badge tone="neutral" style={{ height: 20, fontSize: 11.5 }}>{`+${missing.length - max}`}</Badge></span>}
     </span>
   );
 }

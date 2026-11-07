@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Badge, Button, Card, ConfidenceBadge, DataTable, Modal, SearchBox, Toolbar, T, useIsCompact, type Col } from '../ui';
+import { Badge, Button, ConfidenceBadge, DataTable, Modal, SearchBox, Toolbar, T, useIsCompact, type Col } from '../ui';
 import { Select, FormGrid } from '../../ui';
 import type { HrmsDb, Id, Location } from '../../../lib/hrms/types';
 import { uid } from '../../../lib/hrms/types';
@@ -15,7 +15,7 @@ import { remove, upsert } from '../../../lib/hrms/actions';
 import { INDIAN_STATES } from './states';
 import { usageOf, usageText, validateName } from './orgLogic';
 import { BlockedDialog, ConfirmDialog } from './Confirm';
-import { CheckField, SelectField, TextField, focusFirstInvalid, primaryStyle } from './formKit';
+import { CheckField, SelectField, TextField, focusFirstInvalid, primaryStyle, srOnly } from './formKit';
 
 interface LocForm { name: string; entityId: string; state: string; city: string; address: string; metro: boolean; holidayListId: string }
 const blank = (entityId: string): LocForm => ({ name: '', entityId, state: '', city: '', address: '', metro: false, holidayListId: '' });
@@ -44,13 +44,12 @@ export function LocationsTab({ db }: { db: HrmsDb }) {
   const cols: Col<Location>[] = [
     { key: 'name', label: 'Location', sortValue: (l) => l.name.toLowerCase(), render: (l) => <div><div style={{ fontWeight: 600 }}>{l.name}</div>{l.address && <div style={{ fontSize: 12, color: T.mute }}>{l.address}</div>}</div> },
     { key: 'entity', label: 'Legal entity', sortValue: (l) => entityName(l.entityId), render: (l) => entityName(l.entityId) },
-    { key: 'state', label: 'State', sortValue: (l) => l.state, render: (l) => l.state },
-    { key: 'city', label: 'City', sortValue: (l) => l.city, render: (l) => l.city },
+    { key: 'city', label: 'City and state', sortValue: (l) => `${l.state} ${l.city}`, render: (l) => <div><div>{l.city}</div><div style={{ fontSize: 12, color: T.mute }}>{l.state}</div></div> },
     { key: 'metro', label: 'Metro (HRA)', sortValue: (l) => (l.metro ? 1 : 0), render: (l) => <Badge tone={l.metro ? 'info' : 'neutral'}>{l.metro ? 'Metro, 50%' : 'Non-metro, 40%'}</Badge> },
     { key: 'holiday', label: 'Holiday list', sortValue: (l) => listName(l.holidayListId) ?? '', render: (l) => (listName(l.holidayListId) ? <Link href="/dashboard/hrms/time?tab=holidays" style={{ color: T.info, textDecoration: 'none' }}>{listName(l.holidayListId)}</Link> : <span style={{ color: T.mute }}>None</span>) },
     { key: 'people', label: 'People', align: 'right', sortValue: (l) => usageOf(db.employees, 'locationId', l.id).current, render: (l) => usageOf(db.employees, 'locationId', l.id).current },
     {
-      key: 'actions', label: <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span>, align: 'right', nowrap: true, render: (l) => (
+      key: 'actions', label: <span style={srOnly}>Actions</span>, align: 'right', nowrap: true, render: (l) => (
         <span style={{ display: 'inline-flex', gap: 6 }}>
           <Button size="sm" onClick={() => setModal({ edit: l })} aria-label={`Edit ${l.name}`}>Edit</Button>
           <Button size="sm" variant="danger" onClick={() => askRemove(l)} aria-label={`Remove ${l.name}`}>Remove</Button>
@@ -70,7 +69,7 @@ export function LocationsTab({ db }: { db: HrmsDb }) {
         <div style={{ flex: 1 }} />
         <Button variant="primary" style={primaryStyle} onClick={() => setModal({})} disabled={db.entities.length === 0} title={db.entities.length === 0 ? 'Add a legal entity first' : undefined}>Add location</Button>
       </Toolbar>
-      <DataTable columns={cols} rows={rows} minWidth={940}
+      <DataTable columns={cols} rows={rows} minWidth={780}
         empty={db.locations.length === 0 ? 'No locations yet. Add the offices, stores and warehouses where people work.' : 'No location matches this search.'} />
       <div style={{ fontSize: 12.5, color: T.mute }}>Metro locations get the 50% HRA exemption rate in the tax calculation, the rest 40%. The default comes from the dated metro list in the statutory rules.</div>
 

@@ -102,11 +102,18 @@ export default function SalaryTab({ e, db }: { e: Employee; db: HrmsDb }) {
 
   const lineRows = (breakup?.lines ?? []).map((l) => ({ ...l, id: l.componentId }));
   const lineCols: Col<(typeof lineRows)[number]>[] = [
-    { key: 'name', label: 'Component', render: (l) => <span><strong style={{ fontWeight: 600 }}>{l.name}</strong> <span style={{ color: T.mute, fontFamily: T.mono, fontSize: 11.5 }}>{l.code}</span></span> },
-    { key: 'kind', label: 'Type', render: (l) => KIND_LABEL[l.kind] ?? l.kind, nowrap: true },
+    {
+      key: 'name', label: 'Component',
+      render: (l) => (
+        <div>
+          <strong style={{ fontWeight: 600 }}>{l.name}</strong> <span style={{ color: T.mute, fontFamily: T.mono, fontSize: 11.5 }}>{l.code}</span>
+          <div style={{ fontSize: 12, color: T.mute }}>{KIND_LABEL[l.kind] ?? l.kind}</div>
+        </div>
+      ),
+    },
     { key: 'monthly', label: 'Monthly', align: 'right', render: (l) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{inr(l.monthly)}</span>, nowrap: true },
     { key: 'annual', label: 'Annual', align: 'right', render: (l) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{inr(l.monthly * 12)}</span>, nowrap: true },
-    { key: 'wage', label: 'Counts as wages', align: 'center', render: (l) => (l.isWage ? <Badge tone="info">Wage</Badge> : <span style={{ color: T.mute }}>No</span>), nowrap: true },
+    { key: 'wage', label: 'Wage', align: 'center', render: (l) => (l.isWage ? <Badge tone="info">Wage</Badge> : <span style={{ color: T.mute }}>No</span>), nowrap: true },
   ];
 
   const overridable = (structure?.components ?? []).filter((c) => c.kind !== 'deduction' && OVERRIDABLE.includes(c.calc.type));
@@ -148,20 +155,20 @@ export default function SalaryTab({ e, db }: { e: Employee; db: HrmsDb }) {
         <Card><div style={{ padding: 24, textAlign: 'center', color: T.dim, fontSize: 14 }}>Choose a structure and enter the annual CTC to see the monthly breakup, the 50% rule test and the take-home estimate.</div></Card>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'minmax(0, 1.5fr) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'minmax(0, 1.25fr) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
             <Card padding={0} style={{ overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px 0' }}><CardTitle>Monthly breakup</CardTitle></div>
               <div style={{ padding: '0 20px 20px' }}>
-                <DataTable columns={lineCols} rows={lineRows} minWidth={560} footer={
+                <DataTable columns={lineCols} rows={lineRows} minWidth={460} footer={
                   <tfoot>
                     <tr>
-                      <td colSpan={2} style={{ padding: '10px 14px', fontWeight: 700, borderTop: `1px solid ${T.border}`, background: T.panel }}>Gross (earnings)</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 700, borderTop: `1px solid ${T.border}`, background: T.panel }}>Gross (earnings)</td>
                       <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, borderTop: `1px solid ${T.border}`, background: T.panel, fontVariantNumeric: 'tabular-nums' }} data-testid="gross-monthly">{inr(breakup.monthlyGross)}</td>
                       <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, borderTop: `1px solid ${T.border}`, background: T.panel, fontVariantNumeric: 'tabular-nums' }}>{inr(breakup.monthlyGross * 12)}</td>
                       <td style={{ borderTop: `1px solid ${T.border}`, background: T.panel }} />
                     </tr>
                     <tr>
-                      <td colSpan={2} style={{ padding: '10px 14px', fontWeight: 700, background: T.panel }}>Total cost to company</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 700, background: T.panel }}>Total cost to company</td>
                       <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, background: T.panel, fontVariantNumeric: 'tabular-nums' }} data-testid="ctc-monthly">{inr(sumLines)}</td>
                       <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, background: T.panel, fontVariantNumeric: 'tabular-nums' }}>{inr(sumLines * 12)}</td>
                       <td style={{ background: T.panel }} />
@@ -191,11 +198,15 @@ export default function SalaryTab({ e, db }: { e: Employee; db: HrmsDb }) {
                   <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10, fontSize: 13, color: T.dim, lineHeight: 1.55 }} data-testid="wage-rule-impact">
                     {!e.pfMember ? 'Not a PF member, so the add-back changes gratuity and bonus wages only.' : wt!.passes ? (
                       <>No add-back, so the PF wage stays at <strong style={{ color: T.text }}>{inr(pfWageWith)}</strong> and employer PF at <strong style={{ color: T.text }}>{inr(erPf(pfWageWith))}</strong> a month.</>
+                    ) : pfWageWith === pfWageWithout ? (
+                      <>
+                        The add-back does not change PF here: the PF wage is capped at <strong style={{ color: T.text }}>{inr(pfWageWith)}</strong> either way, so employer PF stays
+                        {' '}<strong style={{ color: T.text }}>{inr(erPf(pfWageWith))}</strong> a month. Gratuity and bonus wages rise by {inr(wt!.addBack)} a month.
+                      </>
                     ) : (
                       <>
                         PF wage <strong style={{ color: T.text }}>{inr(pfWageWith)}</strong> instead of {inr(pfWageWithout)}; employer PF{' '}
-                        <strong style={{ color: T.text }}>{inr(erPf(pfWageWith))}</strong> instead of {inr(erPf(pfWageWithout))} a month
-                        {pfWageWith === pfWageWithout ? ` (no change here because the PF ceiling of ${inr(pfCeiling)} already caps it)` : ''}.
+                        <strong style={{ color: T.text }}>{inr(erPf(pfWageWith))}</strong> instead of {inr(erPf(pfWageWithout))} a month.
                         {' '}Gratuity and bonus wages rise by {inr(wt!.addBack)} a month.
                       </>
                     )}

@@ -18,7 +18,7 @@ import {
 } from './orgLogic';
 import { INDIAN_STATES } from './states';
 import { BlockedDialog, ConfirmDialog } from './Confirm';
-import { SelectField, TextField, focusFirstInvalid, primaryStyle } from './formKit';
+import { SelectField, TextField, focusFirstInvalid, primaryStyle, srOnly } from './formKit';
 
 const EXPIRY_TONE: Record<string, Tone> = { none: 'neutral', valid: 'ok', expiring: 'warn', expired: 'red' };
 const COVERAGE_TONE: Record<CoverageStatus, Tone> = { on_file: 'ok', expiring: 'warn', expired: 'red', missing: 'red' };
@@ -152,7 +152,7 @@ function RegistrationsTable({ entity, onEdit, onRemove }: { entity: LegalEntity;
       },
     },
     {
-      key: 'actions', label: <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span>, align: 'right', nowrap: true, render: (r) => (
+      key: 'actions', label: <span style={srOnly}>Actions</span>, align: 'right', nowrap: true, render: (r) => (
         <span style={{ display: 'inline-flex', gap: 6 }}>
           <Button size="sm" onClick={() => onEdit(r)} aria-label={`Edit ${registrationLabel(r.type)} ${r.number}`}>Edit</Button>
           <Button size="sm" variant="danger" onClick={() => onRemove(r)} aria-label={`Remove ${registrationLabel(r.type)} ${r.number}`}>Remove</Button>
@@ -187,7 +187,7 @@ function CoveragePanel({ coverage, onAdd }: { coverage: ReturnType<typeof stateC
           </header>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {s.items.map((it) => (
-              <li key={it.type} data-testid={`coverage-${s.state}-${it.type}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, 1.1fr) minmax(0, 2fr) auto', gap: '6px 14px', alignItems: 'center', padding: '10px 14px', borderTop: `1px solid ${T.border}` }}>
+              <li key={it.type} data-testid={`coverage-${s.state}-${it.type}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(56px, 0.4fr) minmax(0, 3fr) auto', gap: '6px 14px', alignItems: 'center', padding: '10px 14px', borderTop: `1px solid ${T.border}` }}>
                 <span style={{ fontWeight: 600, fontSize: 13.5 }}>{registrationMeta(it.type).short}</span>
                 <span style={{ fontSize: 13, color: T.dim, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   {it.registration ? <><span style={{ fontFamily: T.mono, fontSize: 12.5, color: T.text }}>{it.registration.number}</span> <span>{it.reason}</span></> : <span>{it.reason}</span>}

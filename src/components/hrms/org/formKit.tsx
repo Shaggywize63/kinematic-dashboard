@@ -5,6 +5,12 @@
 import { useId, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react';
 import { Field, Input, Select, T } from '../../ui';
 
+/**
+ * Visually hidden text that still reads aloud. It is deliberately not position:absolute: inside a wide table inside an
+ * overflow container, an absolutely positioned cell label is placed against the page and stretches it sideways on phones.
+ */
+export const srOnly: CSSProperties = { display: 'inline-block', width: 1, height: 1, overflow: 'hidden', whiteSpace: 'nowrap', verticalAlign: 'top' };
+
 /** Primary actions keep a hit target of about 44px. */
 export const primaryStyle: CSSProperties = { minHeight: 44, padding: '0 18px' };
 

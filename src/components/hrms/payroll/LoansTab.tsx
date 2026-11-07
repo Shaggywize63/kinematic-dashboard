@@ -124,7 +124,7 @@ function LoanForm({ db, onClose }: { db: HrmsDb; onClose: () => void }) {
         <FormGrid narrow={narrow}>
           <Field label="Employee" required htmlFor="ln-emp" error={show('employeeId')}>
             <Select id="ln-emp" value={d.employeeId} invalid={!!show('employeeId')} onChange={(e) => set('employeeId', e.target.value)}>
-              <option value="">Choose an employee</option>
+              <option value="">Select an employee</option>
               {db.employees.filter((e) => e.status === 'active' || e.status === 'on_notice').map((e) => <option key={e.id} value={e.id}>{fullName(e)} ({e.code})</option>)}
             </Select>
           </Field>

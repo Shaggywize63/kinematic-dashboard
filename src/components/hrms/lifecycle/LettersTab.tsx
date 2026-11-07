@@ -52,7 +52,7 @@ export default function LettersTab({ db }: { db: HrmsDb }) {
     { key: 'date', label: 'Issued on', nowrap: true, render: (r) => fmtDate(r.l.issuedOn), sortValue: (r) => r.l.issuedOn },
     { key: 'signed', label: 'Signed', render: (r) => (r.l.signed ? <Badge tone="ok" dot>Signed</Badge> : <Badge tone="warn" dot>Unsigned</Badge>), sortValue: (r) => (r.l.signed ? 1 : 0) },
     {
-      key: 'actions', label: <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span>, align: 'right', nowrap: true,
+      key: 'actions', label: 'Actions', align: 'right', nowrap: true,
       render: (r) => (
         <span style={{ display: 'inline-flex', gap: 6 }}>
           <Button size="sm" style={{ height: 36 }} aria-label={`View ${letterTypeLabel(r.l.type)} letter for ${fullName(r.emp)}`} onClick={() => setViewing(r.l.id)}>View</Button>

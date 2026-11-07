@@ -10,13 +10,12 @@ import { fullName } from '../../../lib/hrms/format';
 import { remove, upsert } from '../../../lib/hrms/actions';
 import { usageOf, usageText, validateName } from './orgLogic';
 import { BlockedDialog, ConfirmDialog } from './Confirm';
-import { SelectField, TextField, focusFirstInvalid, primaryStyle } from './formKit';
+import { SelectField, TextField, focusFirstInvalid, primaryStyle, srOnly } from './formKit';
 
 type Kind = 'department' | 'designation';
 interface Row { id: string; name: string; headId?: string; grade?: string }
 interface Form { name: string; headId: string; grade: string }
 
-const srOnly = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' } as const;
 
 function ListTab({ db, kind }: { db: HrmsDb; kind: Kind }) {
   const dept = kind === 'department';

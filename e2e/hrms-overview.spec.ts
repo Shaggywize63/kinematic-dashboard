@@ -17,13 +17,14 @@ const KEY = 'kinematic_hrms_preview_v3';
 const readDb = (page: Page): Promise<HrmsDb> => page.evaluate((k) => JSON.parse(localStorage.getItem(k) as string), KEY);
 /** Edit the persisted database, then reload so the in-memory store picks it up. */
 async function patchDb(page: Page, patch: { fnf?: { status: 'draft' | 'approved' | 'paid'; employeeId: string; lastWorkingDate: string } | null }): Promise<void> {
-  await page.evaluate(([k, p]) => {
-    const db = JSON.parse(localStorage.getItem(k as string) as string);
-    const fnf = (p as { fnf?: { status: string; employeeId: string; lastWorkingDate: string } | null }).fnf;
-    db.fnfCases = db.fnfCases.filter((c: { employeeId: string }) => c.employeeId !== fnf?.employeeId || !fnf);
-    if (fnf) db.fnfCases.push({ id: `fnf_e2e_${fnf.employeeId}`, noticeDaysServed: 30, leaveEncashDays: 0, otherRecoveries: 0, otherPayments: 0, dueBy: fnf.lastWorkingDate, ...fnf });
-    localStorage.setItem(k as string, JSON.stringify(db));
-  }, [KEY, patch] as const);
+  await page.evaluate(({ k, fnf }) => {
+    const db = JSON.parse(localStorage.getItem(k) as string);
+    if (fnf) {
+      db.fnfCases = db.fnfCases.filter((c: { employeeId: string }) => c.employeeId !== fnf.employeeId);
+      db.fnfCases.push({ id: `fnf_e2e_${fnf.employeeId}`, noticeDaysServed: 30, leaveEncashDays: 0, otherRecoveries: 0, otherPayments: 0, dueBy: fnf.lastWorkingDate, ...fnf });
+    }
+    localStorage.setItem(k, JSON.stringify(db));
+  }, { k: KEY, fnf: patch.fnf ?? null });
   await page.reload();
   await page.getByTestId('hrms-preview-banner').waitFor({ timeout: 45_000 });
 }
@@ -41,6 +42,14 @@ test.describe.configure({ timeout: 150_000 });
 const seed = makeSeed();
 const live = seed.employees.filter((e) => e.status === 'active' || e.status === 'on_notice');
 const stat = (page: Page, id: string) => page.getByTestId(`stat-${id}`);
+/** A tile reads label, value, hint on separate lines; compare the label and the value exactly. */
+async function expectStat(page: Page, id: string, label: string, value: string, hint?: string | RegExp): Promise<void> {
+  await expect.poll(async () => {
+    const l = (await stat(page, id).innerText()).split('\n').map((x) => x.trim()).filter(Boolean);
+    return [l[0]?.toLowerCase(), l[1]];
+  }).toEqual([label.toLowerCase(), value]);
+  if (hint) await expect(stat(page, id)).toContainText(hint);
+}
 
 // ───────────────────────────────────── overview ─────────────────────────────────────
 test.describe('overview', () => {
@@ -59,16 +68,14 @@ test.describe('overview', () => {
     const gaps = live.filter((e) => !e.pan || (e.pfMember && (!e.uan || e.uanStatus !== 'aadhaar_seeded')) || (e.payMode === 'bank' && !e.bank)).length;
 
     expect(live.length).toBe(22);   // guards the test data itself
-    await expect(stat(page, 'headcount')).toContainText(new RegExp(`Active headcount\\s*${live.length}\\b`));
-    await expect(stat(page, 'headcount')).toContainText(`${seed.employees.filter((e) => e.status === 'active').length} active, 1 on notice`);
-    await expect(stat(page, 'joiners')).toContainText(new RegExp(`Joiners this month\\s*${seed.employees.filter((e) => e.joinDate.startsWith(month)).length}\\b`));
-    await expect(stat(page, 'leavers')).toContainText(new RegExp(`Leavers this month\\s*${seed.employees.filter((e) => e.lastWorkingDate?.startsWith(month)).length}\\b`));
-    await expect(stat(page, 'notice')).toContainText(new RegExp(`On notice\\s*${seed.employees.filter((e) => e.status === 'on_notice').length}\\b`));
-    await expect(stat(page, 'attrition')).toContainText(`${attrition}%`);
-    await expect(stat(page, 'payroll')).toContainText(inr(octCost));
-    await expect(stat(page, 'payroll')).toContainText('Oct 2026');
-    await expect(stat(page, 'dues')).toContainText(new RegExp(`Open compliance dues\\s*${openDues}\\b`));
-    await expect(stat(page, 'gaps')).toContainText(new RegExp(`Employees with data gaps\\s*${gaps}\\b`));
+    await expectStat(page, 'headcount', 'Active headcount', String(live.length), `${seed.employees.filter((e) => e.status === 'active').length} active, 1 on notice`);
+    await expectStat(page, 'joiners', 'Joiners this month', String(seed.employees.filter((e) => e.joinDate.startsWith(month)).length), '2 yet to join');
+    await expectStat(page, 'leavers', 'Leavers this month', String(seed.employees.filter((e) => e.lastWorkingDate?.startsWith(month)).length), '0 left, 1 still serving');
+    await expectStat(page, 'notice', 'On notice', String(seed.employees.filter((e) => e.status === 'on_notice').length));
+    await expectStat(page, 'attrition', 'Attrition, 12 months', `${attrition}%`, `${leavers12} leaver`);
+    await expectStat(page, 'payroll', 'Monthly payroll cost', inr(octCost), 'Oct 2026');
+    await expectStat(page, 'dues', 'Open compliance dues', String(openDues), '1 overdue, 1 due within 7 days');
+    await expectStat(page, 'gaps', 'Employees with data gaps', String(gaps));
     expect(errors).toEqual([]);
   });
 
@@ -76,7 +83,7 @@ test.describe('overview', () => {
     await openHrms(page);
 
     // headcount by department: each row's count equals the seed
-    const deptCard = page.locator('section, div').filter({ has: page.getByRole('heading', { name: 'Headcount by department' }) }).last();
+    const deptCard = page.getByRole('region', { name: 'Headcount by department' });
     for (const d of seed.departments) {
       const n = live.filter((e) => e.departmentId === d.id).length;
       if (n) await expect(deptCard.getByRole('listitem').filter({ hasText: d.name })).toContainText(String(n));
@@ -93,14 +100,14 @@ test.describe('overview', () => {
     await expect(page.getByRole('row')).toHaveCount(7);   // header + six months
 
     // compliance mini-calendar: five rows, status computed from the due date against 7 Nov 2026
-    const cal = page.locator('div').filter({ has: page.getByRole('heading', { name: 'Next compliance dues' }) }).last();
+    const cal = page.getByRole('region', { name: 'Next compliance dues' });
     await expect(cal.getByRole('listitem')).toHaveCount(5);
     await expect(cal.getByRole('listitem').filter({ hasText: 'CLRA licence renewal' })).toContainText('Overdue');
     await expect(cal.getByRole('listitem').filter({ hasText: 'TDS deposit for October' })).toContainText('Due soon');
     await expect(cal.getByRole('listitem').filter({ hasText: 'PF contribution and ECR for October' }).first()).toContainText('Upcoming');
 
     // birthdays and anniversaries in the next 30 days
-    const events = page.locator('div').filter({ has: page.getByRole('heading', { name: 'Birthdays and anniversaries' }) }).last();
+    const events = page.getByRole('region', { name: 'Birthdays and anniversaries' });
     await expect(events.getByRole('listitem').filter({ hasText: 'Rekha More' })).toContainText('Birthday');          // 11 Nov
     await expect(events.getByRole('listitem').filter({ hasText: 'Karthik Subramanian' })).toContainText('4 years');  // 14 Nov, joined 2022
     await expect(events.getByRole('listitem').filter({ hasText: 'Arvind Nair' })).toHaveCount(0);                    // his birthday was 2 Nov
@@ -109,12 +116,12 @@ test.describe('overview', () => {
   test('needs-attention items link to the exact page and tab', async ({ page }) => {
     await openHrms(page);
     const list = page.locator('#needs-attention');
-    await list.getByRole('button', { name: /Show all/ }).click();
+    await list.getByRole('button', { name: /Show all 12/ }).click();
 
     const link = (name: RegExp) => list.getByRole('link', { name });
     await expect(link(/Rekha More: PAN missing/)).toHaveAttribute('href', '/dashboard/hrms/employees/emp_14?tab=statutory');
     await expect(link(/Pooja Verma: UAN missing/)).toHaveAttribute('href', '/dashboard/hrms/employees/emp_7?tab=statutory');
-    await expect(link(/Sana Qureshi: bank account missing, UAN not Aadhaar-seeded/)).toHaveAttribute('href', '/dashboard/hrms/employees/emp_9?tab=statutory');
+    await expect(link(/Sana Qureshi: UAN not Aadhaar-seeded, bank account missing/)).toHaveAttribute('href', '/dashboard/hrms/employees/emp_9?tab=statutory');
     await expect(link(/CLRA licence \(Maharashtra\) expired 30 Apr 2026/)).toHaveAttribute('href', '/dashboard/hrms/organization');
     await expect(link(/Shops and Establishments registration \(Delhi\) expires 31 Dec 2026/)).toHaveAttribute('href', '/dashboard/hrms/organization');
     await expect(link(/CLRA licence renewal, Maharashtra/)).toHaveAttribute('href', '/dashboard/hrms/statutory');
@@ -154,7 +161,7 @@ test.describe('overview', () => {
     expect(db.payRuns.filter((r) => r.month === '2026-11' && r.entityId === 'ent_retail' && r.status === 'draft')).toHaveLength(1);
     // the earlier "not started" item is replaced by a "not closed" one for that entity
     await page.locator('#needs-attention').getByRole('button', { name: /Show all/ }).click();
-    await expect(page.locator('#needs-attention').getByRole('link', { name: /Nov 2026 payroll for Meridian Retail is draft, not closed/ })).toBeVisible();
+    await expect(page.locator('#needs-attention').getByRole('link', { name: /Nov 2026 payroll for Meridian Retail Pvt Ltd is draft, not closed/ })).toBeVisible();
   });
 
   test('quick actions point at the right places', async ({ page }) => {
@@ -246,7 +253,7 @@ test.describe('onboarding', () => {
 
     // the overview sees it: headcount 23, and the new employee's missing PAN and bank show up
     await page.goto('/dashboard/hrms');
-    await expect(stat(page, 'headcount')).toContainText(/Active headcount\s*23\b/);
+    await expectStat(page, 'headcount', 'Active headcount', '23');
     await page.locator('#needs-attention').getByRole('button', { name: /Show all/ }).click();
     await expect(page.locator('#needs-attention').getByRole('link', { name: /Aditya Bhat: PAN missing, bank account missing/ })).toHaveAttribute('href', '/dashboard/hrms/employees/emp_24?tab=statutory');
     await expect(page.locator('#needs-attention').getByRole('link', { name: /Aditya Bhat: \d+ of \d+ joining tasks open/ })).toHaveCount(0);
@@ -307,12 +314,13 @@ test.describe('exits', () => {
     await expect(page.getByRole('region', { name: /^Notice, 1 case/ })).toContainText('Yash Rathore');
     await page.getByRole('button', { name: 'Start exit' }).click();
     const dlg = page.getByRole('dialog', { name: 'Start exit' });
+    const employee = dlg.getByRole('combobox', { name: /^Employee/ });
     await dlg.getByRole('button', { name: 'Start exit' }).click();
-    await expect(dlg.getByText('Choose an employee')).toBeVisible();
-    await expect(dlg.getByLabel('Employee')).toBeFocused();
+    await expect(dlg.getByText('Choose an employee', { exact: true })).toBeVisible();
+    await expect(employee).toBeFocused();
     // Yash already has an open exit and is not offered; Ritu (manager grade) has a 90-day notice
-    await expect(dlg.getByLabel('Employee').locator('option', { hasText: 'Yash Rathore' })).toHaveCount(0);
-    await dlg.getByLabel('Employee').selectOption({ label: 'Ritu Malhotra (MER-1001)' });
+    await expect(employee.locator('option', { hasText: 'Yash Rathore' })).toHaveCount(0);
+    await employee.selectOption({ label: 'Ritu Malhotra (MER-1001)' });
     await expect(dlg.getByLabel('Last working date')).toHaveValue('2027-02-05');      // 7 Nov 2026 + 90 days
     await dlg.getByLabel('Resignation date').fill('2026-11-10');
     await expect(dlg.getByLabel('Last working date')).toHaveValue('2027-02-08');
@@ -321,9 +329,9 @@ test.describe('exits', () => {
     await dlg.getByRole('checkbox', { name: /Notice is waived/ }).uncheck();
     await dlg.getByLabel('Last working date').fill('2026-12-31');                      // shortened by hand
     await expect(dlg.getByRole('status')).toContainText('short of the 90-day notice');
-    await dlg.getByLabel('Resignation date').fill('2020-01-01');
+    await dlg.getByLabel('Resignation date').fill('2016-01-01');
     await dlg.getByRole('button', { name: 'Start exit' }).click();
-    await expect(dlg.getByText(/This is before the join date/)).toBeVisible();
+    await expect(dlg.getByText(/This is before the join date, 10 Apr 2017/)).toBeVisible();
     await dlg.getByLabel('Resignation date').fill('2026-11-10');
     await dlg.getByLabel('Last working date').fill('2026-12-31');
     await dlg.getByLabel('Reason').selectOption('retirement');
@@ -339,7 +347,7 @@ test.describe('exits', () => {
     expect(ex.clearance.map((c) => c.department)).toEqual(['Reporting manager', 'IT', 'Finance', 'HR']);
     // and the overview now counts two people on notice
     await page.goto('/dashboard/hrms');
-    await expect(stat(page, 'notice')).toContainText(/On notice\s*2\b/);
+    await expectStat(page, 'notice', 'On notice', '2');
   });
 
   test('case detail: notice calculator and the settlement clock', async ({ page }) => {
@@ -353,11 +361,11 @@ test.describe('exits', () => {
     await expect(notice).toContainText('Served as of 7 Nov 2026');
     await expect(notice).toContainText('8 days');
     await expect(notice).toContainText('23 days');
-    await expect(notice.getByText('0 days')).toBeVisible();   // shortfall
+    await expect(notice.getByText('0 days', { exact: true })).toBeVisible();   // shortfall
     // bringing the last day forward creates a shortfall
     await dlg.getByLabel('Last working date').fill('2026-11-20');
     await expect(notice).toContainText('Shortfall');
-    await expect(notice.getByText('10 days', { exact: true })).toBeVisible();
+    await expect(notice.getByText('9 days', { exact: true })).toBeVisible();   // 30 required, 21 planned
     expect((await readDb(page)).employees.find((e) => e.id === 'emp_22')!.lastWorkingDate).toBe('2026-11-20');
     await dlg.getByLabel('Last working date').fill('2026-11-30');
     await dlg.getByRole('checkbox', { name: 'Notice is waived' }).check();
@@ -392,7 +400,7 @@ test.describe('exits', () => {
     // a clearance department can be added; duplicates are refused
     await dlg.getByLabel('New clearance department').fill('Admin');
     await dlg.getByRole('button', { name: 'Add department' }).click();
-    await expect(dlg).toContainText('0 of 5 done'.replace('0 of 5', '1 of 5'));
+    await expect(dlg).toContainText('1 of 5 done');
     await dlg.getByLabel('New clearance department').fill('admin');
     await dlg.getByRole('button', { name: 'Add department' }).click();
     await expect(dlg.getByText('This department is already on the list')).toBeVisible();
@@ -450,8 +458,8 @@ test.describe('exits', () => {
 
     // headcount drops by one and the exit's attention items are gone
     await page.goto('/dashboard/hrms');
-    await expect(stat(page, 'headcount')).toContainText(/Active headcount\s*21\b/);
-    await expect(stat(page, 'notice')).toContainText(/On notice\s*0\b/);
+    await expectStat(page, 'headcount', 'Active headcount', '21');
+    await expectStat(page, 'notice', 'On notice', '0');
     await page.locator('#needs-attention').getByRole('button', { name: /Show all/ }).click();
     await expect(page.locator('#needs-attention').getByRole('link', { name: /Yash Rathore/ })).toHaveCount(0);
 
@@ -587,7 +595,7 @@ test.describe('letters', () => {
     await expect(dlg.getByRole('button', { name: 'Issue letter' })).toBeEnabled();
     // wording can be edited for this letter only
     await dlg.getByRole('checkbox', { name: /Edit the wording for this letter only/ }).check();
-    await dlg.getByLabel('Wording for this letter').fill('Dear {{employee_name}}, welcome to {{company}}.');
+    await dlg.getByLabel('Wording for this letter', { exact: true }).fill('Dear {{employee_name}}, welcome to {{company}}.');
     await expect(paper).toContainText('Dear Rohit Chauhan, welcome to Meridian Retail Pvt Ltd.');
     await dlg.getByRole('checkbox', { name: /Edit the wording for this letter only/ }).uncheck();
     await expect(paper).toContainText('appointed as Team Lead');
@@ -596,7 +604,6 @@ test.describe('letters', () => {
     const done = page.getByRole('dialog', { name: 'Letter issued' });
     await expect(done).toContainText('Recorded in the issued-letters register as unsigned');
     expect((await readDb(page)).letters).toHaveLength(1);
-    expect((await readDb(page)).templatesUntouched ?? true).toBeTruthy();
 
     // print goes through a hidden iframe holding only the letter
     await page.evaluate(() => {
@@ -636,7 +643,7 @@ test.describe('letters', () => {
     // view it again
     await row.getByRole('button', { name: /^View / }).click();
     await expect(page.getByRole('dialog', { name: 'Appointment letter' }).getByTestId('letter-paper')).toContainText('Dear Rohit Chauhan');
-    await page.getByRole('dialog', { name: 'Appointment letter' }).getByRole('button', { name: 'Close' }).click();
+    await page.getByRole('dialog', { name: 'Appointment letter' }).getByRole('button', { name: 'Close' }).last().click();
 
     // register filters
     await page.getByLabel('Filter by letter type').selectOption('offer');
@@ -659,7 +666,7 @@ test.describe('letters', () => {
     await expect(dlg.getByRole('alert')).toContainText('Replace the bracketed text before issuing');
     await expect(dlg.getByRole('button', { name: 'Issue letter' })).toBeDisabled();
     await dlg.getByRole('checkbox', { name: /Edit the wording/ }).check();
-    const w = dlg.getByLabel('Wording for this letter');
+    const w = dlg.getByLabel('Wording for this letter', { exact: true });
     await w.fill((await w.inputValue()).replace(/\[[^\]]+\]/, 'On 3 Nov 2026 you left the store unattended during opening hours.'));
     await expect(dlg.getByRole('button', { name: 'Issue letter' })).toBeEnabled();
     await dlg.getByRole('button', { name: 'Issue letter' }).click();

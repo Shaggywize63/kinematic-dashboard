@@ -10,7 +10,7 @@ import { employeesForRun, runTotals } from '../../../lib/hrms/engine';
 import { CALENDAR_RULES } from '../../../lib/hrms/rules';
 import { addMonths, fmtDate, fmtDateTime, fmtMonth, fullName, inr } from '../../../lib/hrms/format';
 import { freezeRunSafe, unfreezeRunSafe } from '../../../lib/hrms/payrollActions';
-import { CHANGE_THRESHOLD_PCT, acknowledgedBlockers, comparePayslips, isLocked, runIsStale } from './logic';
+import { CHANGE_THRESHOLD_PCT, acknowledgedBlockers, comparePayslips, runIsStale } from './logic';
 import { blockerCount } from './RunChecks';
 import { ConfirmModal, bigBtn, report } from './shared';
 import type { Step } from './RunStepper';

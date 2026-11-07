@@ -88,7 +88,7 @@ export function RosterTab({ db }: { db: HrmsDb }) {
       <StatGrid min={170}>
         <Stat label="On this week's roster" value={entries.length} hint={`${rosterable.length} active or on notice`} />
         <Stat label="Weekly offs set" value={offsSet} hint="across all rostered people" />
-        <Stat label="People with a rule warning" value={withWarnings} tone={withWarnings ? 'warn' : 'ok'} hint={withWarnings ? 'See the last column' : 'Every row passes'} />
+        <Stat label="People with a rule warning" value={withWarnings} tone={withWarnings ? 'warn' : 'ok'} hint={withWarnings ? 'Shown under each name' : 'Every row passes'} />
         <Stat label="Night shifts needing consent" value={womenNight ? consentDays : 'Rule off'} tone={consentDays ? 'warn' : undefined} hint={womenNight ? 'Women on night shifts, days this week' : 'Turn it on under Overtime'} />
       </StatGrid>
 
@@ -117,26 +117,30 @@ export function RosterTab({ db }: { db: HrmsDb }) {
           </Toolbar>
 
           <div style={{ overflowX: 'auto', border: `1px solid ${T.border}`, borderRadius: T.radius.lg, background: T.card }}>
-            <table data-testid="roster-grid" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 1080 }}>
+            <table data-testid="roster-grid" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 900 }}>
               <thead>
                 <tr>
-                  <th scope="col" style={{ ...th, position: 'sticky', left: 0, zIndex: 2, textAlign: 'left', minWidth: 190 }}>Employee</th>
+                  <th scope="col" style={{ ...th, position: 'sticky', left: 0, zIndex: 2, textAlign: 'left', minWidth: 210 }}>Employee and rule checks</th>
                   {dates.map((d, i) => (
-                    <th key={d} scope="col" style={{ ...th, textAlign: 'center', minWidth: 104 }}>
+                    <th key={d} scope="col" style={{ ...th, textAlign: 'center', minWidth: 86, padding: '10px 4px' }}>
                       <div>{DAYS[i]}</div>
                       <div style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: d === PREVIEW_TODAY ? T.red : T.mute }}>{dayShort(d)}{d === PREVIEW_TODAY ? ' (today)' : ''}</div>
                     </th>
                   ))}
-                  <th scope="col" style={{ ...th, textAlign: 'right', minWidth: 80 }}>Hours</th>
-                  <th scope="col" style={{ ...th, textAlign: 'left', minWidth: 220 }}>Rule checks</th>
+                  <th scope="col" style={{ ...th, textAlign: 'right', minWidth: 64 }}>Hours</th>
                 </tr>
               </thead>
               <tbody>
-                {shown.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: 'center', color: T.mute, fontSize: 13.5 }}>Nobody on this week&apos;s roster matches the filters.</td></tr>}
+                {shown.length === 0 && <tr><td colSpan={9} style={{ padding: 32, textAlign: 'center', color: T.mute, fontSize: 13.5 }}>Nobody on this week&apos;s roster matches the filters.</td></tr>}
                 {shown.map(({ emp, row, analysis }) => (
                   <tr key={emp.id} data-testid={`roster-row-${emp.id}`}>
-                    <th scope="row" style={{ ...td, position: 'sticky', left: 0, zIndex: 1, background: T.card, textAlign: 'left', fontWeight: 400 }}>
+                    <th scope="row" style={{ ...td, ...plain, position: 'sticky', left: 0, zIndex: 1, background: T.card, textAlign: 'left', verticalAlign: 'top' }}>
                       <EmployeeCell e={emp} href={false} />
+                      {analysis.warnings.length > 0 && (
+                        <span style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start', marginTop: 8 }}>
+                          {analysis.warnings.map((w) => <Badge key={w.id} tone="warn" style={{ height: 'auto', minHeight: 22, whiteSpace: 'normal', padding: '2px 8px', textAlign: 'left' }}><span data-testid={`warn-${emp.id}-${w.id}`}>{w.text}</span></Badge>)}
+                        </span>
+                      )}
                     </th>
                     {row.days.map((cell, i) => {
                       const shift = cell === 'off' ? undefined : shiftById.get(cell);
@@ -144,7 +148,7 @@ export function RosterTab({ db }: { db: HrmsDb }) {
                       const isEditing = editing?.employeeId === emp.id && editing.day === i;
                       const label = `${emp.firstName} ${emp.lastName}, ${dayName(i)}`;
                       return (
-                        <td key={i} style={{ ...td, padding: 6, textAlign: 'center' }}>
+                        <td key={i} style={{ ...td, padding: 4, textAlign: 'center' }}>
                           {isEditing ? (
                             <select autoFocus aria-label={`Shift for ${label}`} value={cell} className="km-input"
                               onChange={(e) => choose(emp, i, e.target.value)} onBlur={() => setEditing(null)}
@@ -171,26 +175,23 @@ export function RosterTab({ db }: { db: HrmsDb }) {
                       );
                     })}
                     <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: analysis.hours > MAX_WEEKLY_HOURS ? T.red : T.text, fontWeight: analysis.hours > MAX_WEEKLY_HOURS ? 700 : 400 }}>{analysis.hours} h</td>
-                    <td style={td}>
-                      {analysis.warnings.length === 0
-                        ? <span style={{ color: T.mute, fontSize: 12.5 }}>All checks pass</span>
-                        : <span style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>{analysis.warnings.map((w) => <Badge key={w.id} tone="warn" style={{ height: 'auto', minHeight: 22, whiteSpace: 'normal', padding: '2px 8px' }}><span data-testid={`warn-${emp.id}-${w.id}`}>{w.text}</span></Badge>)}</span>}
-                    </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <th scope="row" style={{ ...td, position: 'sticky', left: 0, zIndex: 1, background: T.panel, textAlign: 'left', fontSize: 12.5, color: T.dim }}>On duty (shown rows)</th>
+                  <th scope="row" style={{ ...td, ...plain, position: 'sticky', left: 0, zIndex: 1, background: T.panel, textAlign: 'left', fontSize: 12.5, color: T.dim }}>On duty / off, and consent flags (shown rows)</th>
                   {dates.map((d, i) => {
                     const c = dayCoverage(shown.map((s) => s.row), i);
+                    const consent = shown.filter((s) => s.analysis.consentDays.includes(i)).length;
                     return (
-                      <td key={d} data-testid={`coverage-day-${i}`} style={{ ...td, background: T.panel, textAlign: 'center', fontSize: 12.5 }}>
-                        {shown.length > 0 && c.working === 0 ? <Badge tone="red">Nobody</Badge> : <><b style={{ fontVariantNumeric: 'tabular-nums' }}>{c.working}</b> <span style={{ color: T.mute }}>/ {c.off} off</span></>}
+                      <td key={d} data-testid={`coverage-day-${i}`} style={{ ...td, background: T.panel, textAlign: 'center', fontSize: 12.5, padding: '8px 4px' }}>
+                        <div>{shown.length > 0 && c.working === 0 ? <span style={{ color: T.mute }}>None on duty</span> : <><b style={{ fontVariantNumeric: 'tabular-nums' }}>{c.working}</b> <span style={{ color: T.mute }}>/ {c.off} off</span></>}</div>
+                        {consent > 0 && <div style={{ marginTop: 4 }}><Badge tone="warn" style={{ height: 'auto', minHeight: 20, whiteSpace: 'normal', padding: '1px 6px' }}>{consent} need{consent === 1 ? 's' : ''} consent</Badge></div>}
                       </td>
                     );
                   })}
-                  <td style={{ ...td, background: T.panel }} colSpan={2} />
+                  <td style={{ ...td, background: T.panel }} />
                 </tr>
               </tfoot>
             </table>
@@ -227,4 +228,5 @@ export function RosterTab({ db }: { db: HrmsDb }) {
 }
 
 const th = { padding: '10px 10px', fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap', background: T.panel } as const;
+const plain = { textTransform: 'none', letterSpacing: 0, fontFamily: 'inherit', fontWeight: 400 } as const;
 const td = { padding: '8px 10px', borderTop: `1px solid ${T.border}`, fontSize: 13.5, color: T.text, verticalAlign: 'middle' } as const;

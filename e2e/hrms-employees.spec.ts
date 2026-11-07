@@ -5,7 +5,7 @@ import { makeSeed, PREVIEW_TODAY } from '../src/lib/hrms/seed';
 import { attendanceFor, buildBreakup, computePayslip } from '../src/lib/hrms/engine';
 import { checkAadhaar, sampleAadhaar } from '../src/lib/hrms/validators';
 import { inr } from '../src/lib/hrms/format';
-import { addMonthsToDate, parseCsv, parseFlexDate, statutorySummary, validateImport, autoMap } from '../src/components/hrms/employees/logic';
+import { SHORT_MISSING, addMonthsToDate, parseCsv, parseFlexDate, statutorySummary, validateImport, autoMap } from '../src/components/hrms/employees/logic';
 
 /** Employees area: list, CSV import, new employee, profile tabs. Runs on the seeded sample data (localStorage, fresh per test). */
 
@@ -142,7 +142,7 @@ test.describe('employee list', () => {
       const row = page.getByRole('row', { name: new RegExp(`${e.firstName} ${e.lastName}`) });
       await expect(row.getByRole('progressbar')).toHaveAttribute('aria-valuenow', String(s.comp.pct));
       if (s.comp.missing.length === 0) await expect(row.getByText('Complete')).toBeVisible();
-      else await expect(row).toContainText(s.comp.missing[0]!);
+      else await expect(row).toContainText(SHORT_MISSING[s.comp.missing[0]!] ?? s.comp.missing[0]!);
     }
   });
 
@@ -750,17 +750,26 @@ test.describe('layout', () => {
   });
 
   test('screenshots for review', async ({ page }) => {
+    // The dashboard scrolls inside its own container, so tall shots use a tall viewport rather than fullPage.
     await page.setViewportSize({ width: 1280, height: 900 });
     await openHrms(page, LIST);
     await expect(page.getByTestId('employee-count')).toBeVisible();
     await page.screenshot({ path: '/tmp/hrms-shots/employees-list.png' });
+    const tableOverflow = await page.evaluate(() => { const t = document.querySelector('table')!.parentElement!; return t.scrollWidth - t.clientWidth; });
+    expect(tableOverflow).toBeLessThanOrEqual(1);   // the statutory column is on screen at 1280, no sideways scroll
+    await page.setViewportSize({ width: 1280, height: 1500 });
     for (const tab of ['overview', 'statutory', 'salary', 'documents']) {
       await openHrms(page, profile('emp_4', tab));
       await page.waitForTimeout(600);
-      await page.screenshot({ path: `/tmp/hrms-shots/employees-profile-${tab}.png`, fullPage: tab === 'salary' });
+      await page.screenshot({ path: `/tmp/hrms-shots/employees-profile-${tab}.png` });
     }
+    await openHrms(page, profile('emp_7', 'overview'));
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: '/tmp/hrms-shots/employees-profile-incomplete.png' });
     await openHrms(page, `${LIST}/new`);
     await page.getByRole('button', { name: 'Create employee' }).click();
-    await page.screenshot({ path: '/tmp/hrms-shots/employees-new-errors.png', fullPage: true });
+    await page.setViewportSize({ width: 1280, height: 2600 });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: '/tmp/hrms-shots/employees-new-errors.png' });
   });
 });

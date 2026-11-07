@@ -4,7 +4,7 @@ import { openHrms } from './hrms-utils';
 import { buildBreakup, buildEcr, runTotals } from '../src/lib/hrms/engine';
 import { makeSeed, PREVIEW_TODAY } from '../src/lib/hrms/seed';
 import { PF } from '../src/lib/hrms/rules';
-import { inr } from '../src/lib/hrms/format';
+import { addDays, fmtDate, inr } from '../src/lib/hrms/format';
 import {
   buildForm130, derivedStatus, esiRows, form130Employees, regularPayslip, suggestedDues, taxFor, tdsRows,
 } from '../src/components/hrms/statutory/builders';
@@ -18,6 +18,7 @@ import { retentionSentence } from '../src/components/hrms/statutory/privacy/mode
 
 const seed = makeSeed();
 const OCT_RETAIL = seed.payRuns.find((r) => r.id === 'run_2026-10_ent_retail')!;
+const OCT_LOGI = seed.payRuns.find((r) => r.id === 'run_2026-10_ent_logistics')!;
 const OCT_RUNS = seed.payRuns.filter((r) => r.month === '2026-10');
 const nav = { timeout: 45_000 };
 
@@ -104,7 +105,7 @@ test.describe('statutory: rules and rates', () => {
     await expect(page.locator('#rules-hra')).toContainText('Bengaluru');
 
     // Professional tax by state.
-    await expect(page.locator('#rules-pt')).toContainText('₹201');
+    await expect(page.locator('#rules-pt')).toContainText('Above ₹24,999');
     await page.getByLabel('State', { exact: true }).selectOption('Maharashtra');
     await expect(page.locator('#rules-pt')).toContainText('Women');
     await expect(page.locator('#rules-pt')).toContainText('Up to ₹25,000');
@@ -151,9 +152,10 @@ test.describe('statutory: returns', () => {
     expect(ecrDl.suggestedFilename()).toBe('ECR_DLCPM1234567000_2026-10.txt');
     expect(await text(ecrDl)).toBe(ecr.text);
 
-    const [esiDl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download ESI statement for Oct 2026, Meridian Retail Pvt Ltd' }).click()]);
+    expect(esiRows(seed, OCT_LOGI).length).toBeGreaterThan(0);
+    const [esiDl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download ESI statement for Oct 2026, Meridian Logistics LLP' }).click()]);
     const esiLines = (await text(esiDl)).split('\n');
-    expect(esiLines.length).toBe(esiRows(seed, OCT_RETAIL).length + 1);
+    expect(esiLines.length).toBe(esiRows(seed, OCT_LOGI).length + 1);
     expect(esiLines[0]).toContain('Employee (0.75%)');
 
     const [tdsDl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download TDS summary for Oct 2026, Meridian Retail Pvt Ltd' }).click()]);
@@ -315,7 +317,7 @@ test.describe('reports', () => {
     await expect(header).toHaveAttribute('aria-sort', 'ascending');
     await header.getByRole('button').click();
     await expect(header).toHaveAttribute('aria-sort', 'descending');
-    const firstNet = await page.locator('tbody tr').first().locator('td').nth(9).innerText();
+    const firstNet = await page.locator('tbody tr').first().locator('td').nth(11).innerText();
     expect(firstNet).toBe(inr(Math.max(...slips(OCT_RUNS).map((s) => s.net))));
 
     // Export keeps the sort and ends with a totals row.
@@ -392,7 +394,6 @@ test.describe('reports', () => {
 
 test.describe('privacy', () => {
   test('consent ledger: counts, filters, and withdrawing keeps the row', async ({ page }) => {
-    const live = seed.consents.filter((c) => !c.withdrawnAt).length;
     await openHrms(page, '/dashboard/hrms/privacy?tab=consent');
     await expect(page.getByTestId('ready-consent')).toBeVisible(nav);
     await expect(page.getByText(`${seed.consents.length} of ${seed.consents.length} records`)).toBeVisible();
@@ -414,15 +415,13 @@ test.describe('privacy', () => {
     await expect(page.getByRole('button', { name: /^Withdraw consent:/ })).toHaveCount(before - 1);
     await page.getByLabel('Filter by status').selectOption('withdrawn');
     await expect(page.getByText(`${face.filter((c) => c.withdrawnAt).length + 1} of ${seed.consents.length} records`)).toBeVisible();
-    await expect(page.locator('tbody').getByText(`Withdrawn ${7} Nov 2026`.replace('7 ', '7 '))).toHaveCount(1);
-    // The stat tile for the purpose counts the withdrawal, and the total ledger is unchanged.
-    expect(live).toBeGreaterThan(0);
+    await expect(page.locator('tbody').getByText('Withdrawn 7 Nov 2026')).toHaveCount(1);
   });
 
   test('access log: filters and CSV export', async ({ page }) => {
     await openHrms(page, '/dashboard/hrms/privacy?tab=access');
     await expect(page.getByTestId('access-count')).toContainText(`${seed.accessLog.length} of ${seed.accessLog.length} entries`, nav);
-    await expect(page.getByText('Revealing a sensitive field')).toBeVisible();
+    await expect(page.getByRole('note').filter({ hasText: 'Revealing a sensitive field' })).toBeVisible();
     await page.getByLabel('Filter by field').selectOption('Bank account');
     await expect(page.getByTestId('access-count')).toContainText(`${seed.accessLog.filter((a) => a.field === 'Bank account').length} of`);
     await expect(page.locator('tbody')).toContainText('Fix IFSC before payroll');
@@ -463,7 +462,7 @@ test.describe('privacy', () => {
     await dlg.getByRole('button', { name: 'Save rule' }).click();
     await expect(dlg).toHaveCount(0);
     await expect(page.getByTestId('retention-sentence-rt_3')).toHaveText('After 180 days the location trail is anonymised.');
-    await expect(page.getByTestId('retention-rt_3')).toContainText('5 May 2027'); // 7 Nov 2026 plus 182 days
+    await expect(page.getByTestId('retention-rt_3')).toContainText(fmtDate(addDays(PREVIEW_TODAY, Math.round(0.5 * 365))));
   });
 
   test('roles matrix is read-only and explains least privilege', async ({ page }) => {
@@ -561,15 +560,20 @@ test.describe('layout', () => {
     await openHrms(page, shots[0]![0]);
     for (const [url, name] of shots) {
       await page.goto(url);
-      await page.getByRole('heading', { level: 1 }).waitFor({ timeout: 45_000 });
+      await page.getByRole('heading', { level: 1 }).first().waitFor({ timeout: 45_000 });
       await page.waitForTimeout(700);
       await page.screenshot({ path: `/tmp/hrms-shots/${name}.png`, fullPage: false });
+      // The dashboard scrolls inside its shell, so a tall viewport is the way to see the whole page.
+      await page.setViewportSize({ width: 1280, height: 2300 });
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `/tmp/hrms-shots/${name}-tall.png`, fullPage: false });
+      await page.setViewportSize({ width: 1280, height: 900 });
     }
     // Phone width: the page itself must not scroll sideways (tables scroll inside their own box).
     await page.setViewportSize({ width: 390, height: 844 });
     for (const [url, name] of shots) {
       await page.goto(url);
-      await page.getByRole('heading', { level: 1 }).waitFor({ timeout: 45_000 });
+      await page.getByRole('heading', { level: 1 }).first().waitFor({ timeout: 45_000 });
       await page.waitForTimeout(400);
       const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(over, `${name} overflows by ${over}px at 390px`).toBeLessThanOrEqual(1);

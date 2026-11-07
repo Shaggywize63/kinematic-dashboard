@@ -28,7 +28,8 @@ export function AttentionList({ items }: { items: AttentionItem[] }) {
   const count = (s: Severity) => items.filter((i) => i.severity === s).length;
 
   return (
-    <Card padding={0} className="hrms-attention">
+    <section aria-label="Needs attention">
+    <Card padding={0}>
       <div style={{ padding: '18px 20px 0' }}>
         <CardTitle right={items.length > 0 && (
           <Segmented value={filter} onChange={(v) => { setFilter(v); setAll(false); }}
@@ -71,12 +72,14 @@ export function AttentionList({ items }: { items: AttentionItem[] }) {
         </div>
       )}
     </Card>
+    </section>
   );
 }
 
 // ───────────────────────────── payroll status ─────────────────────────────
 export function PayrollStatusCard({ entries, onStart, starting }: { entries: EntityPayroll[]; onStart: (p: EntityPayroll) => void; starting?: string | null }) {
   return (
+    <section aria-label="Payroll this month">
     <Card>
       <CardTitle right={<span style={{ fontSize: 12.5, color: T.dim }}>{fmtMonthLong(THIS_MONTH)}</span>}>Payroll this month</CardTitle>
       {entries.length === 0 ? <EmptyState title="No one to pay this month" description="No active employees fall in this month's pay period." style={{ padding: '24px 8px' }} /> : (
@@ -103,6 +106,7 @@ export function PayrollStatusCard({ entries, onStart, starting }: { entries: Ent
         </ul>
       )}
     </Card>
+    </section>
   );
 }
 
@@ -113,6 +117,7 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 
 export function ComplianceCalendar({ dues, db }: { dues: { task: ComplianceTask; state: DueState; days: number }[]; db: HrmsDb }) {
   return (
+    <section aria-label="Next compliance dues">
     <Card>
       <CardTitle right={<Link href="/dashboard/hrms/statutory" style={{ fontSize: 12.5, fontWeight: 600, color: T.info, textDecoration: 'none', padding: '10px 0' }}>Open compliance →</Link>}>Next compliance dues</CardTitle>
       {dues.length === 0 ? <EmptyState title="All filed" description="No compliance task is waiting to be filed." style={{ padding: '24px 8px' }} /> : (
@@ -133,6 +138,7 @@ export function ComplianceCalendar({ dues, db }: { dues: { task: ComplianceTask;
         </ul>
       )}
     </Card>
+    </section>
   );
 }
 
@@ -140,6 +146,7 @@ export function ComplianceCalendar({ dues, db }: { dues: { task: ComplianceTask;
 export function BarList({ title, rows, total }: { title: string; rows: { id: string; label: string; count: number }[]; total: number }) {
   const max = Math.max(1, ...rows.map((r) => r.count));
   return (
+    <section aria-label={title}>
     <Card>
       <CardTitle right={<span style={{ fontSize: 12.5, color: T.dim }}>{total} {total === 1 ? 'person' : 'people'}</span>}>{title}</CardTitle>
       {rows.length === 0 ? <EmptyState title="No employees yet" style={{ padding: '24px 8px' }} /> : (
@@ -154,12 +161,14 @@ export function BarList({ title, rows, total }: { title: string; rows: { id: str
         </ul>
       )}
     </Card>
+    </section>
   );
 }
 
 // ───────────────────────────── birthdays and anniversaries ─────────────────────────────
 export function PeopleEvents({ events, windowDays }: { events: PeopleEvent[]; windowDays: number }) {
   return (
+    <section aria-label="Birthdays and anniversaries">
     <Card>
       <CardTitle right={<span style={{ fontSize: 12.5, color: T.dim }}>Next {windowDays} days</span>}>Birthdays and anniversaries</CardTitle>
       {events.length === 0 ? <EmptyState title="No dates coming up" description={`No birthday or work anniversary falls in the next ${windowDays} days.`} style={{ padding: '24px 8px' }} /> : (
@@ -181,5 +190,6 @@ export function PeopleEvents({ events, windowDays }: { events: PeopleEvent[]; wi
         </ul>
       )}
     </Card>
+    </section>
   );
 }

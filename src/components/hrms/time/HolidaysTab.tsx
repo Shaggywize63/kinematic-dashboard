@@ -13,10 +13,9 @@ import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import { remove, upsert } from '../../../lib/hrms/actions';
 import { INDIAN_STATES } from '../org/states';
 import { BlockedDialog, ConfirmDialog } from '../org/Confirm';
-import { CheckField, SelectField, TextField, focusFirstInvalid, primaryStyle } from '../org/formKit';
+import { CheckField, SelectField, TextField, focusFirstInvalid, primaryStyle, srOnly } from '../org/formKit';
 import { DAYS, duplicateDates, holidayCounts, monthWeeks, shiftToYear, sortHolidays, validateHoliday, validateHolidayList, weekdayIndex, type HolidayForm, type HolidayListForm } from './timeLogic';
 
-const srOnly = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' } as const;
 interface HRow { id: string; h: Holiday; index: number; dup: boolean }
 
 export function HolidaysTab({ db }: { db: HrmsDb }) {

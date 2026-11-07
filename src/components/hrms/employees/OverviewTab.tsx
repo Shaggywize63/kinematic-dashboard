@@ -90,7 +90,7 @@ export default function OverviewTab({ e, db, go }: { e: Employee; db: HrmsDb; go
             { label: 'Shift', value: db.shifts.find((x) => x.id === e.shiftId)?.name },
             { label: 'Email', value: <a href={`mailto:${e.email}`} style={{ color: T.info }}>{e.email}</a> },
             { label: 'Mobile', value: e.mobile },
-          ]} />
+          ]} columns={3} />
         </Card>
 
         <Card>

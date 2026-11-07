@@ -73,7 +73,7 @@ export default function EmployeesPage() {
   const locationOptions = db.locations.filter((l) => !entityId || l.entityId === entityId);
 
   const columns: Col<Row>[] = [
-    { key: 'name', label: 'Employee', render: (r) => <EmployeeCell e={r.e} sub={`${r.e.code}`} />, sortValue: (r) => r.name.toLowerCase(), width: 230 },
+    { key: 'name', label: 'Employee', render: (r) => <div style={{ maxWidth: 150 }} title={r.name}><EmployeeCell e={r.e} sub={r.e.code} /></div>, sortValue: (r) => r.name.toLowerCase() },
     { key: 'designation', label: 'Designation', render: (r) => r.designation, sortValue: (r) => r.designation.toLowerCase() },
     { key: 'department', label: 'Department', render: (r) => r.department, sortValue: (r) => r.department.toLowerCase() },
     { key: 'location', label: 'Location', render: (r) => r.location, sortValue: (r) => r.location.toLowerCase() },
@@ -81,9 +81,9 @@ export default function EmployeesPage() {
     { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.e.status} />, sortValue: (r) => r.e.status, nowrap: true },
     { key: 'joined', label: 'Joined', render: (r) => fmtDate(r.e.joinDate), sortValue: (r) => r.e.joinDate },
     {
-      key: 'statutory', label: 'Statutory data', width: 190, sortValue: (r) => r.pct,
+      key: 'statutory', label: 'Statutory data', sortValue: (r) => r.pct,
       render: (r) => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 140 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 96 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ flex: 1 }}><ProgressBar pct={r.pct} tone={r.pct >= 100 ? 'ok' : r.pct >= 75 ? 'info' : r.pct >= 50 ? 'warn' : 'red'} /></div>
             <span style={{ fontSize: 12, color: T.dim, fontVariantNumeric: 'tabular-nums', minWidth: 34, textAlign: 'right' }}>{r.pct}%</span>
@@ -138,8 +138,8 @@ export default function EmployeesPage() {
           <option value="">All statuses</option>
           {STATUS_OPTIONS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
         </Select>
-        <Select aria-label="Employment type" value={type} style={{ width: narrow ? '100%' : 160 }} onChange={(e) => setType(e.target.value)}>
-          <option value="">All employment types</option>
+        <Select aria-label="Employment type" value={type} style={{ width: narrow ? '100%' : 130 }} onChange={(e) => setType(e.target.value)}>
+          <option value="">All types</option>
           {EMPLOYMENT_TYPES.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
         </Select>
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text, minHeight: 36, cursor: 'pointer' }}>

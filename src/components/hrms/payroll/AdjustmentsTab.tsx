@@ -2,7 +2,7 @@
 // Payroll hub, Adjustments tab: one-off pay and deductions by month. Also exports the add/edit form, which the run page reuses.
 
 import { useMemo, useState } from 'react';
-import { Badge, Button, Card, CardTitle, DataTable, EmployeeCell, Modal, Note, SearchBox, Toolbar, monthOptions, useIsCompact, T, type Col } from '../ui';
+import { Badge, Button, DataTable, EmployeeCell, Modal, Note, SearchBox, Toolbar, monthOptions, useIsCompact, T, type Col } from '../ui';
 import { Field, FormGrid, Input, Select } from '../../ui';
 import type { Adjustment, AdjustmentKind, Employee, HrmsDb } from '../../../lib/hrms/types';
 import { fmtMonth, fullName, inr } from '../../../lib/hrms/format';
@@ -42,7 +42,7 @@ export function AdjustmentForm({ db, initial, defaultMonth, employees, lockMonth
         <FormGrid narrow={narrow}>
           <Field label="Employee" required htmlFor="adj-emp" error={show('employeeId')}>
             <Select id="adj-emp" value={d.employeeId} invalid={!!show('employeeId')} onChange={(e) => set('employeeId', e.target.value)}>
-              <option value="">Choose an employee</option>
+              <option value="">Select an employee</option>
               {employees.map((e) => <option key={e.id} value={e.id}>{fullName(e)} ({e.code})</option>)}
             </Select>
           </Field>

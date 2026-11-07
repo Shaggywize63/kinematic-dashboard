@@ -10,10 +10,9 @@ import type { HrmsDb, Shift } from '../../../lib/hrms/types';
 import { uid } from '../../../lib/hrms/types';
 import { remove, upsert } from '../../../lib/hrms/actions';
 import { BlockedDialog, ConfirmDialog } from '../org/Confirm';
-import { TextField, focusFirstInvalid, primaryStyle } from '../org/formKit';
+import { TextField, focusFirstInvalid, primaryStyle, srOnly } from '../org/formKit';
 import { SHIFT_COLORS, crossesMidnight, durationText, emptyShiftForm, formToShift, paidMinutes, shiftToForm, spanMinutes, validateShift, type ShiftForm } from './timeLogic';
 
-const srOnly = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' } as const;
 
 function usage(db: HrmsDb, shiftId: string) {
   const employees = db.employees.filter((e) => e.shiftId === shiftId && e.status !== 'exited').length;
@@ -49,26 +48,30 @@ export function ShiftsTab({ db }: { db: HrmsDb }) {
     },
     {
       key: 'time', label: 'Timing', nowrap: true, sortValue: (s) => s.start,
-      render: (s) => <span style={{ fontFamily: T.mono, fontSize: 13 }}>{s.start} to {s.end}{crossesMidnight(s.start, s.end) ? <span style={{ color: T.mute }}> (next day)</span> : null}</span>,
+      render: (s) => (
+        <span style={{ fontFamily: T.mono, fontSize: 13 }}>
+          {s.start} to {s.end}
+          {crossesMidnight(s.start, s.end) ? <div style={{ fontSize: 11.5, color: T.mute }}>ends next day</div> : null}
+        </span>
+      ),
     },
-    { key: 'break', label: 'Break', align: 'right', sortValue: (s) => s.breakMinutes, render: (s) => `${s.breakMinutes} min` },
     {
       key: 'paid', label: 'Paid duration', nowrap: true, sortValue: (s) => paidMinutes(s), render: (s) => {
         const p = paidMinutes(s);
         return (
           <span data-testid={`paid-${s.id}`}>
             {durationText(p)}
-            {p < s.fullDayHours * 60 && <div style={{ fontSize: 12, color: T.warn }}>Under the {s.fullDayHours} h full day</div>}
+            {p < s.fullDayHours * 60 && <div style={{ fontSize: 12, color: T.warn, whiteSpace: 'normal' }}>Under the {s.fullDayHours} h full day</div>}
           </span>
         );
       },
     },
-    { key: 'grace', label: 'Grace', align: 'right', sortValue: (s) => s.graceMinutes, render: (s) => `${s.graceMinutes} min` },
+    { key: 'break', label: 'Break / grace', nowrap: true, sortValue: (s) => s.breakMinutes, render: (s) => `${s.breakMinutes} / ${s.graceMinutes} min` },
     { key: 'day', label: 'Full / half day', align: 'right', nowrap: true, sortValue: (s) => s.fullDayHours, render: (s) => `${s.fullDayHours} h / ${s.halfDayHours} h` },
     {
-      key: 'used', label: 'Assigned', align: 'right', sortValue: (s) => usage(db, s.id).employees, render: (s) => {
+      key: 'used', label: 'People', align: 'right', sortValue: (s) => usage(db, s.id).employees, render: (s) => {
         const u = usage(db, s.id);
-        return <span title={`${u.rosterDays} roster days`}>{u.employees} {u.employees === 1 ? 'person' : 'people'}</span>;
+        return <span title={`${u.employees} ${u.employees === 1 ? 'person' : 'people'} and ${u.rosterDays} roster days`} style={{ fontVariantNumeric: 'tabular-nums' }}>{u.employees}</span>;
       },
     },
     {
@@ -88,7 +91,7 @@ export function ShiftsTab({ db }: { db: HrmsDb }) {
         <div style={{ flex: 1 }} />
         <Button variant="primary" style={primaryStyle} onClick={() => setModal({})}>Add shift</Button>
       </Toolbar>
-      <DataTable columns={cols} rows={rows} minWidth={900} empty={db.shifts.length === 0 ? 'No shifts yet. Add the first one to start rostering.' : 'No shift matches this search.'} />
+      <DataTable columns={cols} rows={rows} minWidth={760} empty={db.shifts.length === 0 ? 'No shifts yet. Add the first one to start rostering.' : 'No shift matches this search.'} />
       <div style={{ fontSize: 12.5, color: T.mute }}>Paid duration is the time on duty less the unpaid break. Payroll divides pay by the full-day hours of each person&apos;s shift when it prices overtime.</div>
 
       {modal && <ShiftModal db={db} edit={modal.edit} onClose={() => setModal(null)} />}

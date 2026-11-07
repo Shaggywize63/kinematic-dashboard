@@ -289,7 +289,7 @@ function FnfForm({ db, initial, onClose, onSaved }: { db: HrmsDb; initial?: FnfC
         <FormGrid narrow={narrow}>
           <Field label="Employee" required htmlFor="fnf-emp" error={show('employeeId')} hint="People on notice or who have left, without a settlement yet.">
             <Select id="fnf-emp" value={d.employeeId} disabled={!!initial} invalid={!!show('employeeId')} onChange={(e) => pick(e.target.value)}>
-              {!initial && <option value="">Choose an employee</option>}
+              {!initial && <option value="">Select an employee</option>}
               {(initial ? (startEmp ? [startEmp] : []) : candidates).map((e) => <option key={e.id} value={e.id}>{fullName(e)} ({e.code}, {e.status.replace('_', ' ')})</option>)}
             </Select>
           </Field>

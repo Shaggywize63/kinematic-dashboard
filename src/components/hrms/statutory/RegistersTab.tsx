@@ -12,6 +12,9 @@ import { PREVIEW_MONTH, REGISTERS, inspectionStatus, monthsIn, toCsv, type Regis
 import { downloadZip } from './files';
 import { Muted, Stack } from './parts';
 
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+const yearsInWords = (n: number): string => `${Number.isInteger(n) && n >= 1 && n <= 10 ? WORDS[n] : n} ${n === 1 ? 'year' : 'years'}`;
+
 export default function RegistersTab({ db }: { db: HrmsDb }) {
   const narrow = useIsCompact(900);
   const firstMonth = useMemo(() => db.attendance.map((a) => a.month).sort()[0] ?? PREVIEW_MONTH, [db.attendance]);
@@ -116,7 +119,7 @@ export default function RegistersTab({ db }: { db: HrmsDb }) {
         </div>
         <div style={{ marginTop: 14 }}>
           <Note tone="warn">
-            Retention: registers are to be kept for {keep ? keep.keepYears : 5} years (as reported). {keep ? `The rule on file reads “${keep.basis}”.` : ''} This is not legal advice, so confirm the period and the form of each register with counsel.
+            Retention: registers are to be kept for {yearsInWords(keep ? keep.keepYears : 5)} (as reported). {keep ? `The rule on file reads “${keep.basis}”.` : ''} This is not legal advice, so confirm the period and the form of each register with counsel.
           </Note>
         </div>
       </Card>

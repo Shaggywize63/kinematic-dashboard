@@ -70,15 +70,15 @@ export default function DocumentsTab({ e }: { e: Employee }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 600 }}>{d.name}</span>
           {d.mandatory && <Badge tone="red" style={{ height: 20, fontSize: 11.5 }}>Mandatory</Badge>}
+          {labelOf(DOC_TYPES, d.type).toLowerCase() !== d.name.toLowerCase() && <span style={{ fontSize: 12, color: T.mute, flexBasis: '100%' }}>{labelOf(DOC_TYPES, d.type)}</span>}
         </div>
       ),
     },
-    { key: 'type', label: 'Type', render: (d) => labelOf(DOC_TYPES, d.type), sortValue: (d) => d.type },
     { key: 'status', label: 'Status', render: (d) => <StatusBadge status={d.status} />, sortValue: (d) => d.status, nowrap: true },
     { key: 'uploaded', label: 'Date', render: (d) => fmtDate(d.uploadedOn), sortValue: (d) => d.uploadedOn, nowrap: true },
     { key: 'file', label: 'File', render: (d) => (d.fileName ? <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>{d.fileName}</span> : <span style={{ color: T.mute }}>No file</span>) },
     {
-      key: 'actions', label: 'Actions', align: 'right', width: 300,
+      key: 'actions', label: 'Actions', align: 'right', width: 280,
       render: (d) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
           <Button size="sm" style={{ minHeight: 34 }} aria-label={`${d.fileName ? 'Replace file for' : 'Upload'} ${d.name}`} onClick={() => { setUploadFor(d.id); fileRef.current?.click(); }}>{d.fileName ? 'Replace' : 'Upload'}</Button>

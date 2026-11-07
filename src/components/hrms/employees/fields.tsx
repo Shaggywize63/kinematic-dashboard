@@ -4,7 +4,8 @@
 import type { ReactNode } from 'react';
 import { Field, FormGrid, Input, Select, Textarea, T } from '../../ui';
 import type { HrmsDb } from '../../../lib/hrms/types';
-import { fullName } from '../../../lib/hrms/format';
+import { fmtDate, fullName } from '../../../lib/hrms/format';
+import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import {
   BLOOD_GROUPS, EMPLOYMENT_TYPES, GENDERS, MARITAL, PAY_MODES, STATES, STATUS_OPTIONS, TAX_REGIMES, UAN_STATUSES, hasLwf,
   type EmployeeDraft, type Errors, type Option,
@@ -120,7 +121,7 @@ export function EmploymentFields({ d, set, errors, narrow, p, db, selfId, showSt
         <SelectField id={`${p}-mgr`} label="Reports to" value={d.reportingToId} onChange={(v) => set({ reportingToId: v })} options={managers} placeholder="No manager" error={errors.reportingToId} />
         <SelectField id={`${p}-type`} label="Employment type" required value={d.employmentType} onChange={(v) => set({ employmentType: v as EmployeeDraft['employmentType'] })} options={EMPLOYMENT_TYPES} placeholder={null} error={errors.employmentType} />
         <TextField id={`${p}-join`} label="Join date" required type="date" value={d.joinDate} onChange={(v) => set({ joinDate: v })} error={errors.joinDate}
-          hint={!selfId ? 'A date on or before 7 Nov 2026 makes the employee Active, a later date keeps them in Onboarding' : undefined} />
+          hint={!selfId ? `A date on or before ${fmtDate(PREVIEW_TODAY)} makes the employee Active, a later date keeps them in Onboarding` : undefined} />
         {showStatus && <SelectField id={`${p}-status`} label="Status" required value={d.status} onChange={(v) => set({ status: v as EmployeeDraft['status'] })} options={STATUS_OPTIONS} placeholder={null} error={errors.status} />}
         {showStatus && <TextField id={`${p}-confirm`} label="Confirmation date" type="date" value={d.confirmationDate} onChange={(v) => set({ confirmationDate: v })} error={errors.confirmationDate} />}
         <TextField id={`${p}-prob`} label="Probation (months)" inputMode="numeric" value={d.probationMonths} onChange={(v) => set({ probationMonths: v })} error={errors.probationMonths} />

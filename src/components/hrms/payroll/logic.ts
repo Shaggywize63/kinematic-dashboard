@@ -3,7 +3,7 @@
 // (src/lib/hrms/engine.ts) or from the stored data; nothing here is a hard-coded rate.
 
 import type {
-  Adjustment, AdjustmentKind, CalcType, ComponentKind, Employee, FnfCase, HrmsDb, Id, ISODate, LeaveBalance, LeaveType, Loan, Month,
+  AdjustmentKind, CalcType, ComponentKind, Employee, FnfCase, HrmsDb, Id, ISODate, LeaveBalance, LeaveType, Loan, Month,
   PayRun, Payslip, SalaryComponent, SalaryStructure,
 } from '../../../lib/hrms/types';
 import { PREVIEW_TODAY } from '../../../lib/hrms/seed';

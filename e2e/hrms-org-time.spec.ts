@@ -503,7 +503,7 @@ test.describe('time and leave screens', () => {
     await expect(d).toBeHidden();
     const late = page.getByRole('row').filter({ hasText: 'Late' });
     await expect(late).toContainText('14:00 to 02:00');
-    await expect(late).toContainText('(next day)');
+    await expect(late).toContainText('ends next day');
     await expect(late).toContainText('Night');
 
     await page.getByRole('button', { name: 'Delete General' }).click();
@@ -522,7 +522,7 @@ test.describe('time and leave screens', () => {
     await expect(page.getByTestId('week-label')).toHaveText('2 Nov to 8 Nov 2026');
     await expect(page.getByTestId('roster-row-emp_4')).toContainText('Rohit Chauhan');
     await expect(page.getByTestId('warn-emp_4-no_off')).toHaveCount(0);
-    await expect(page.getByTestId('roster-row-emp_4')).toContainText('All checks pass');
+    await expect(page.getByTestId('roster-row-emp_4').locator('[data-testid^="warn-"]')).toHaveCount(0);
 
     // working the Sunday as well: no weekly off and 56 scheduled hours
     await page.getByTestId('cell-emp_4-6').click();
@@ -540,7 +540,7 @@ test.describe('time and leave screens', () => {
     // and back to a weekly off clears both warnings
     await page.getByTestId('cell-emp_4-6').click();
     await page.getByLabel('Shift for Rohit Chauhan, Sunday 8 Nov').selectOption('off');
-    await expect(page.getByTestId('roster-row-emp_4')).toContainText('All checks pass');
+    await expect(page.getByTestId('roster-row-emp_4').locator('[data-testid^="warn-"]')).toHaveCount(0);
 
     // Rekha works nights and is a woman: consent is flagged because the overtime rule asks for it
     await expect(page.getByTestId('warn-emp_14-consent')).toHaveText('Night shift, consent needed (6 days)');
@@ -611,7 +611,6 @@ test.describe('time and leave screens', () => {
   test('overtime: the multiplier floor blocks saving, the cap warns, and the table matches the attendance data', async ({ page }) => {
     await openHrms(page, `${TIME}?tab=overtime`);
     const mult = page.getByLabel(/^Pay multiplier/);
-    const cap = page.getByLabel(/^Quarterly cap/);
     await expect(mult).toHaveValue('2');
     await mult.fill('1.5');
     await expect(page.getByText(/cannot pay less than 2x the ordinary rate/)).toBeVisible();
@@ -819,13 +818,39 @@ test.describe('time and leave screens', () => {
   });
 });
 
+// ───────────────────────────────── desktop fit ─────────────────────────────────
+test.describe('desktop fit', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+  // The row actions sit in the last column: a table that needs a sideways scroll at laptop width hides them.
+  const tabs: [string, string][] = [
+    ['organisation, legal entities', `${ORG}?tab=entities`], ['organisation, locations', `${ORG}?tab=locations`], ['organisation, departments', `${ORG}?tab=departments`],
+    ['organisation, designations', `${ORG}?tab=designations`], ['time, shifts', `${TIME}?tab=shifts`], ['time, roster', `${TIME}?tab=roster`],
+    ['time, overtime', `${TIME}?tab=overtime`], ['time, leave rules', `${TIME}?tab=leave`], ['time, holidays', `${TIME}?tab=holidays`],
+  ];
+  for (const [name, path] of tabs) {
+    test(`${name}: every table fits without a sideways scroll`, async ({ page }) => {
+      await openHrms(page, path);
+      await page.locator('table').first().waitFor();
+      const widths = await page.evaluate(() => Array.from(document.querySelectorAll('table')).map((t) => ({ scroll: t.parentElement!.scrollWidth, client: t.parentElement!.clientWidth })));
+      expect(widths.length).toBeGreaterThan(0);
+      for (const w of widths) expect(w.scroll).toBeLessThanOrEqual(w.client + 1);
+    });
+  }
+});
+
 // ───────────────────────────────── layout ─────────────────────────────────
 test.describe('layout', () => {
   test.use({ viewport: { width: 390, height: 844 } });
-  for (const [name, path] of [['organisation', ORG], ['time and leave', `${TIME}?tab=roster`], ['holidays calendar', `${TIME}?tab=holidays`]] as const) {
+  const pages: [string, string][] = [
+    ['organisation, legal entities', `${ORG}?tab=entities`], ['organisation, locations', `${ORG}?tab=locations`],
+    ['organisation, departments', `${ORG}?tab=departments`], ['organisation, designations', `${ORG}?tab=designations`],
+    ['time, shifts', `${TIME}?tab=shifts`], ['time, roster', `${TIME}?tab=roster`], ['time, overtime', `${TIME}?tab=overtime`],
+    ['time, leave rules', `${TIME}?tab=leave`], ['time, holidays list', `${TIME}?tab=holidays`], ['time, holidays calendar', `${TIME}?tab=holidays`],
+  ];
+  for (const [name, path] of pages) {
     test(`${name} does not scroll sideways on a phone`, async ({ page }) => {
       await openHrms(page, path);
-      if (name === 'holidays calendar') await page.getByRole('tab', { name: 'Calendar' }).click();
+      if (name.endsWith('calendar')) await page.getByRole('tab', { name: 'Calendar' }).click();
       await page.waitForTimeout(400);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow).toBeLessThanOrEqual(1);
@@ -837,7 +862,14 @@ test.describe('layout', () => {
 test.describe('screenshots', () => {
   test.skip(!process.env.HRMS_SHOTS, 'set HRMS_SHOTS=1 to write /tmp/hrms-shots/org-time-*.png');
   test.use({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
-  const shot = (page: Page, name: string) => page.screenshot({ path: `/tmp/hrms-shots/org-time-${name}.png`, fullPage: true });
+  // The app shell scrolls inside its own container, so fullPage cannot see below the fold: also take a tall one.
+  const shot = async (page: Page, name: string) => {
+    await page.screenshot({ path: `/tmp/hrms-shots/org-time-${name}.png` });
+    await page.setViewportSize({ width: 1280, height: 2300 });
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: `/tmp/hrms-shots/org-time-${name}-tall.png` });
+    await page.setViewportSize({ width: 1280, height: 900 });
+  };
 
   test('main pages', async ({ page }) => {
     await openHrms(page, ORG);

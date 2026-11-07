@@ -196,7 +196,7 @@ export default function StatutoryTab({ e, db }: { e: Employee; db: HrmsDb }) {
                 { label: 'ESIC number', value: e.esicIp ? <span style={{ fontFamily: T.mono }}>{e.esicIp}</span> : undefined },
                 { label: 'Professional tax applies', value: yesNo(e.ptApplicable) },
                 { label: 'Labour welfare fund applies', value: yesNo(e.lwfApplicable) },
-              ]} />
+              ]} columns={3} />
 
               <div>
                 <SubHeading>Bank account</SubHeading>
@@ -215,7 +215,7 @@ export default function StatutoryTab({ e, db }: { e: Employee; db: HrmsDb }) {
                     { label: 'IFSC', value: e.bank ? <span style={{ fontFamily: T.mono }}>{e.bank.ifsc}</span> : undefined },
                     { label: 'Bank', value: e.bank ? `${e.bank.bankName} (${e.bank.accountType})` : undefined },
                     { label: 'Pay mode', value: labelOf(PAY_MODES, e.payMode) },
-                  ]} />
+                  ]} columns={3} />
                   {!e.bank && e.payMode === 'bank' && <div style={{ marginTop: 10 }}><Note tone="warn">Pay mode is bank transfer but no account is on file. This employee cannot be paid in the next run until one is added.</Note></div>}
                 </div>
               </div>
@@ -236,7 +236,7 @@ export default function StatutoryTab({ e, db }: { e: Employee; db: HrmsDb }) {
               { label: 'Rent paid (yearly)', value: old ? inr(dec.rentPaidAnnual) : <span style={{ color: T.mute }}>{inr(dec.rentPaidAnnual)} (not used)</span> },
               { label: 'Landlord PAN', value: dec.landlordPan },
               { label: 'Other deductions (yearly)', value: old ? inr(dec.other) : <span style={{ color: T.mute }}>{inr(dec.other)} (not used)</span> },
-            ]} />
+            ]} columns={3} />
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 14, fontSize: 12.5, color: T.dim }}>
               <ConfidenceBadge level={TDS.oldRegime.confidence} />
               <span>

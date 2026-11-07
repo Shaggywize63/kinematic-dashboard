@@ -153,6 +153,11 @@ export const MISSING_TAB: Record<string, TabKey> = {
   'Bank account': 'statutory', 'Mandatory documents': 'documents', 'Salary structure': 'salary',
 };
 
+/** Short names for the chips in the list, where width is tight. The full label stays in the tooltip. */
+export const SHORT_MISSING: Record<string, string> = {
+  'Mandatory documents': 'Documents', 'UAN not Aadhaar-seeded': 'UAN seeding', 'Salary structure': 'Salary', 'Bank account': 'Bank', 'ESIC number': 'ESIC',
+};
+
 export interface DateNote { tone: 'red' | 'warn' | 'ok' | 'neutral'; text: string }
 /** "in 16 days" / "3 days ago" relative to the preview's today. */
 export function relativeDays(date: string, today: string = PREVIEW_TODAY): string {

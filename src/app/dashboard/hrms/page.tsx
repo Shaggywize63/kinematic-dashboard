@@ -3,7 +3,7 @@
 // headcount splits, a six-month payroll trend and upcoming birthdays. Everything is computed from the preview
 // database in lib/hrms and the preview date, never hard-coded.
 
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { Button, Card, CardTitle, HrmsPage, Loading, Stat, StatGrid, T, useIsCompact } from '../../../components/hrms/ui';
@@ -50,7 +50,7 @@ export default function HrmsOverviewPage() {
     toast.success(`Draft ${fmtMonth(p.month)} run created for ${p.entity.name}.`);
   }
 
-  const tile = (id: string, node: React.ReactNode) => <div key={id} data-testid={`stat-${id}`} style={{ display: 'grid' }}>{node}</div>;
+  const tile = (id: string, node: ReactNode) => <div key={id} data-testid={`stat-${id}`} style={{ display: 'grid' }}>{node}</div>;
   const dueTone = stats.dues.overdue > 0 ? 'red' : stats.dues.dueSoon > 0 ? 'warn' : undefined;
   const two = narrow ? '1fr' : 'minmax(0, 3fr) minmax(0, 2fr)';
 
@@ -90,10 +90,12 @@ export default function HrmsOverviewPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: two, gap: 18, alignItems: 'start' }}>
-        <Card style={{ minWidth: 0 }}>
-          <CardTitle right={<span style={{ fontSize: 12.5, color: T.dim }}>Employer cost, sample runs</span>}>Payroll cost, last six months</CardTitle>
-          <PayrollTrendChart points={view.trend} entities={db.entities.map((e) => ({ id: e.id, name: e.name }))} compact={narrow} />
-        </Card>
+        <section aria-label="Payroll cost, last six months" style={{ minWidth: 0 }}>
+          <Card>
+            <CardTitle right={<span style={{ fontSize: 12.5, color: T.dim }}>Employer cost, sample runs</span>}>Payroll cost, last six months</CardTitle>
+            <PayrollTrendChart points={view.trend} entities={db.entities.map((e) => ({ id: e.id, name: e.name }))} compact={narrow} />
+          </Card>
+        </section>
         <PeopleEvents events={view.events} windowDays={30} />
       </div>
 
