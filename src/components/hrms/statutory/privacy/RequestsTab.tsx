@@ -8,7 +8,7 @@ import { PREVIEW_TODAY } from '../../../../lib/hrms/seed';
 import { addDays, diffDays, fmtDate, fullName } from '../../../../lib/hrms/format';
 import { uid } from '../../../../lib/hrms/types';
 import { Field, Input, Select, Textarea } from '../../../ui';
-import { Badge, Button, Card, CardTitle, DataTable, EmployeeCell, Modal, Note, Stat, StatGrid, Toolbar, type Col, type Tone } from '../../ui';
+import { Badge, Button, Card, CardTitle, EmployeeCell, Modal, Note, Stat, StatGrid, Toolbar, type Tone } from '../../ui';
 import { Muted, Stack } from '../parts';
 import { DSR_DAYS, DSR_LABEL, DSR_STATUS_LABEL, dsrDaysLeft, dsrDue, dsrOpen, type Dsr, type DsrStatus, type DsrType } from './model';
 
@@ -30,52 +30,35 @@ export default function RequestsTab({ db, requests, setRequests }: { db: HrmsDb;
   );
   const move = (id: string, patch: Partial<Dsr>) => setRequests((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
-  const cols: Col<Dsr>[] = [
-    { key: 'emp', label: 'Employee', sortValue: (r) => (emp(r.employeeId) ? fullName(emp(r.employeeId)!) : ''), render: (r) => (emp(r.employeeId) ? <EmployeeCell e={emp(r.employeeId)!} /> : '—') },
-    { key: 'type', label: 'Request', sortValue: (r) => r.type, render: (r) => <Badge tone="neutral">{DSR_LABEL[r.type]}</Badge> },
-    {
-      key: 'details', label: 'Details', render: (r) => (
-        <div style={{ maxWidth: 340, whiteSpace: 'normal', fontSize: 13, color: 'var(--dim)', lineHeight: 1.45 }}>
-          {r.details}
-          {r.note && <div style={{ marginTop: 4, color: 'var(--mute)' }}>Outcome: {r.note}</div>}
-        </div>
-      ),
-    },
-    { key: 'recv', label: 'Received', sortValue: (r) => r.receivedOn, nowrap: true, render: (r) => fmtDate(r.receivedOn) },
-    {
-      key: 'clock', label: '30-day clock', sortValue: (r) => (dsrOpen(r) ? dsrDaysLeft(r) : 9999), nowrap: true, render: (r) => {
-        if (!dsrOpen(r)) {
-          const took = r.closedOn ? diffDays(r.receivedOn, r.closedOn) : null;
-          return <span style={{ fontSize: 12.5, color: 'var(--mute)' }}>Closed {fmtDate(r.closedOn)}{took != null ? `, after ${took} ${took === 1 ? 'day' : 'days'}` : ''}</span>;
-        }
-        const left = dsrDaysLeft(r);
-        return (
-          <div data-testid={`clock-${r.id}`}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: left < 0 ? 'var(--red)' : left <= 7 ? 'var(--warn)' : 'var(--text)' }}>
-              {left < 0 ? `Overdue by ${-left} ${left === -1 ? 'day' : 'days'}` : left === 0 ? 'Due today' : `${left} ${left === 1 ? 'day' : 'days'} left`}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--mute)' }}>Due {fmtDate(dsrDue(r))}</div>
-          </div>
-        );
-      },
-    },
-    { key: 'status', label: 'Status', sortValue: (r) => r.status, render: (r) => <Badge tone={STATUS_TONE[r.status]} dot>{DSR_STATUS_LABEL[r.status]}</Badge> },
-    {
-      key: 'act', label: '', align: 'right', render: (r) => {
-        const who = emp(r.employeeId) ? fullName(emp(r.employeeId)!) : '';
-        if (r.status === 'received') return <Button size="sm" aria-label={`Start review: ${DSR_LABEL[r.type]} request from ${who}`} style={{ minHeight: 40 }} onClick={() => move(r.id, { status: 'in_review' })}>Start review</Button>;
-        if (r.status === 'in_review') {
-          return (
-            <span style={{ display: 'inline-flex', gap: 6 }}>
-              <Button size="sm" variant="primary" aria-label={`Mark done: ${DSR_LABEL[r.type]} request from ${who}`} style={{ minHeight: 40 }} onClick={() => setClosing({ req: r, to: 'done' })}>Mark done</Button>
-              <Button size="sm" variant="danger" aria-label={`Reject: ${DSR_LABEL[r.type]} request from ${who}`} style={{ minHeight: 40 }} onClick={() => setClosing({ req: r, to: 'rejected' })}>Reject</Button>
-            </span>
-          );
-        }
-        return null;
-      },
-    },
-  ];
+  const clockOf = (r: Dsr) => {
+    if (!dsrOpen(r)) {
+      const took = r.closedOn ? diffDays(r.receivedOn, r.closedOn) : null;
+      return <span style={{ fontSize: 12.5, color: 'var(--mute)' }}>Closed {fmtDate(r.closedOn)}{took != null ? `, after ${took} ${took === 1 ? 'day' : 'days'}` : ''}</span>;
+    }
+    const left = dsrDaysLeft(r);
+    return (
+      <span data-testid={`clock-${r.id}`}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: left < 0 ? 'var(--red)' : left <= 7 ? 'var(--warn)' : 'var(--text)' }}>
+          {left < 0 ? `Overdue by ${-left} ${left === -1 ? 'day' : 'days'}` : left === 0 ? 'Due today' : `${left} ${left === 1 ? 'day' : 'days'} left`}
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--mute)' }}> · due {fmtDate(dsrDue(r))}</span>
+      </span>
+    );
+  };
+
+  const actionsOf = (r: Dsr) => {
+    const who = emp(r.employeeId) ? fullName(emp(r.employeeId)!) : '';
+    if (r.status === 'received') return <Button size="sm" aria-label={`Start review: ${DSR_LABEL[r.type]} request from ${who}`} style={{ minHeight: 40 }} onClick={() => move(r.id, { status: 'in_review' })}>Start review</Button>;
+    if (r.status === 'in_review') {
+      return (
+        <span style={{ display: 'inline-flex', gap: 8 }}>
+          <Button size="sm" variant="primary" aria-label={`Mark done: ${DSR_LABEL[r.type]} request from ${who}`} style={{ minHeight: 40 }} onClick={() => setClosing({ req: r, to: 'done' })}>Mark done</Button>
+          <Button size="sm" variant="danger" aria-label={`Reject: ${DSR_LABEL[r.type]} request from ${who}`} style={{ minHeight: 40 }} onClick={() => setClosing({ req: r, to: 'rejected' })}>Reject</Button>
+        </span>
+      );
+    }
+    return null;
+  };
 
   return (
     <Stack>
@@ -104,9 +87,32 @@ export default function RequestsTab({ db, requests, setRequests }: { db: HrmsDb;
           </Select>
           <Muted>{rows.length} of {requests.length} requests</Muted>
         </Toolbar>
-        <div style={{ marginTop: 12 }}>
-          <DataTable columns={cols} rows={rows} minWidth={940} empty="No requests match these filters. Use “New request” to log one." />
-        </div>
+        {rows.length === 0 ? (
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--mute)', fontSize: 13.5 }}>No requests match these filters. Use “New request” to log one.</div>
+        ) : (
+          <ul style={{ listStyle: 'none', margin: '12px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {rows.map((r) => (
+              <li key={r.id} data-testid={`request-${r.id}`} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    {emp(r.employeeId) ? <EmployeeCell e={emp(r.employeeId)!} /> : '—'}
+                    <Badge tone="neutral">{DSR_LABEL[r.type]}</Badge>
+                    <Badge tone={STATUS_TONE[r.status]} dot>{DSR_STATUS_LABEL[r.status]}</Badge>
+                  </div>
+                  <span style={{ fontSize: 12.5, color: 'var(--mute)' }}>Received {fmtDate(r.receivedOn)}</span>
+                </div>
+                <div style={{ fontSize: 13.5, color: 'var(--dim)', lineHeight: 1.5 }}>
+                  {r.details}
+                  {r.note && <div style={{ marginTop: 4, color: 'var(--mute)' }}>Outcome: {r.note}</div>}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                  <div>{clockOf(r)}</div>
+                  <div>{actionsOf(r)}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
 
       {adding && <NewRequest db={db} onClose={() => setAdding(false)} onAdd={(r) => { setRequests((rs) => [r, ...rs]); setAdding(false); }} />}

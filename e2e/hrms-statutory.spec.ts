@@ -553,6 +553,7 @@ test.describe('layout', () => {
       ['/dashboard/hrms/reports/payroll-cost-department', 'reports-payroll-cost'],
       ['/dashboard/hrms/reports/attrition', 'reports-attrition'],
       ['/dashboard/hrms/privacy?tab=consent', 'privacy-consent'],
+      ['/dashboard/hrms/privacy?tab=access', 'privacy-access'],
       ['/dashboard/hrms/privacy?tab=retention', 'privacy-retention'],
       ['/dashboard/hrms/privacy?tab=roles', 'privacy-roles'],
       ['/dashboard/hrms/privacy?tab=requests', 'privacy-requests'],
@@ -589,7 +590,7 @@ test.describe('layout', () => {
       await page.waitForTimeout(400);
       const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(over, `${name} overflows by ${over}px at 390px`).toBeLessThanOrEqual(1);
-      if (name === 'statutory-calendar' || name === 'reports-hub') await page.screenshot({ path: `/tmp/hrms-shots/${name}-phone.png`, fullPage: false });
+      if (['statutory-calendar', 'reports-hub', 'privacy-requests', 'reports-payroll-cost'].includes(name)) await page.screenshot({ path: `/tmp/hrms-shots/${name}-phone.png`, fullPage: false });
     }
   });
 });

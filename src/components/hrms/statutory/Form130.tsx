@@ -183,7 +183,7 @@ function Form130Paper({ doc, narrow }: { doc: Form130Doc; narrow: boolean }) {
         </tbody>
       </table>
       <div style={{ fontSize: 12, color: faint, marginTop: 6 }}>
-        Tax on the annual basis in words: {inrWords(doc.tax.total)} The computation uses the regime and declarations on file and ignores surcharge.
+        Tax on the annual basis in words: {inrWords(doc.tax.total)}. The computation uses the regime and declarations on file and ignores surcharge.
       </div>
 
       <div style={{ marginTop: 26, display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>

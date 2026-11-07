@@ -140,7 +140,10 @@ export function explainChange(db: HrmsDb, prev: Payslip, cur: Payslip): string[]
   if (cur.overtimeHours !== prev.overtimeHours) reasons.push(`Overtime ${prev.overtimeHours}h to ${cur.overtimeHours}h`);
   const adj = db.adjustments.filter((a) => a.employeeId === cur.employeeId && a.month === cur.month);
   if (adj.length) reasons.push(`Adjustment this month: ${adj.map((a) => `${adjustmentInfo(a.kind).label} ${inr(a.amount)}`).join(', ')}`);
-  else if (oneTimeTotal(prev) > 0 && oneTimeTotal(cur) === 0) reasons.push(`A one-time item in ${fmtMonth(prev.month)} (${inr(oneTimeTotal(prev))}) did not repeat`);
+  // Last month's one-time pay does not carry over, which is often the real cause of a drop even when something else was added this month.
+  if (oneTimeTotal(prev) > oneTimeTotal(cur)) {
+    reasons.push(`One-time pay in ${fmtMonth(prev.month)} (${inr(oneTimeTotal(prev))}) did not repeat${oneTimeTotal(cur) ? `; this month's one-time pay is ${inr(oneTimeTotal(cur))}` : ''}`);
+  }
   for (const c of ['TDS', 'PT', 'LWF', 'LOAN', 'DED']) {
     if (dedCode(prev, c) !== dedCode(cur, c)) reasons.push(`${c === 'DED' ? 'Other deductions' : c} ${inr(dedCode(prev, c))} to ${inr(dedCode(cur, c))}`);
   }

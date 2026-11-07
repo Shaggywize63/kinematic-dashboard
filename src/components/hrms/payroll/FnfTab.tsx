@@ -181,7 +181,7 @@ function LinesTable({ title, lines, total, negative }: { title: string; lines: F
         </div>
       ))}
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderTop: `1px solid ${T.border}`, fontWeight: 700, fontSize: 13.5 }}>
-        <span>Total {title.toLowerCase()}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{negative ? '-' : ''}{inr(total)}</span>
+        <span>Total {title.toLowerCase()}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{negative && total ? '-' : ''}{inr(total)}</span>
       </div>
     </div>
   );

@@ -80,6 +80,12 @@ test.describe('payroll helpers against the engine', () => {
     const bonus = changes.get('emp_10')!;
     expect(bonus.flagged).toBe(true);
     expect(bonus.reasons.join(' ')).toContain('Bonus');
+    // Imran (emp_6) had a 9,500 incentive in October and only a 2,400 reimbursement in November: the drop is the incentive not repeating
+    const drop = changes.get('emp_6')!;
+    expect(drop.flagged).toBe(true);
+    expect(drop.pct!).toBeLessThan(-10);
+    expect(drop.reasons.join(' ')).toContain('did not repeat');
+    expect(drop.reasons.join(' ')).toContain('Reimbursement');
     const raise = changes.get('emp_5')!;
     expect(raise.flagged).toBe(true);
     expect(raise.reasons.join(' ')).toContain('Salary structure or CTC change');
