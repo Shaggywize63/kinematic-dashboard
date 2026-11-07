@@ -124,7 +124,6 @@ function LettersAndDocs({ db, e }: { db: HrmsDb; e: Employee }) {
     { key: 'name', label: 'Document', render: (d) => <span>{d.name}{d.mandatory && <span style={{ color: T.mute }}> · required</span>}</span> },
     { key: 'status', label: 'Status', render: (d) => <StatusBadge status={d.status} /> },
     { key: 'on', label: 'Uploaded', render: (d) => (d.status === 'pending' ? '—' : fmtDate(d.uploadedOn)), nowrap: true },
-    { key: 'file', label: 'File', render: (d) => <span style={{ color: T.dim }}>{d.fileName ?? '—'}</span> },
   ];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 18, alignItems: 'start' }}>
@@ -135,7 +134,7 @@ function LettersAndDocs({ db, e }: { db: HrmsDb; e: Employee }) {
       </Card>
       <Card>
         <CardTitle right={<Badge tone={done === mandatory.length ? 'ok' : 'warn'} dot>{done} of {mandatory.length} required in</Badge>}>Documents</CardTitle>
-        <DataTable columns={docCols} rows={e.documents} minWidth={480} empty="No document is listed for this employee." />
+        <DataTable columns={docCols} rows={e.documents} minWidth={400} empty="No document is listed for this employee." />
       </Card>
       {viewing && (
         <Modal title={LETTER_LABEL[viewing.type] ?? 'Letter'} onClose={() => setViewing(null)} width={620} footer={<Button onClick={() => setViewing(null)}>Close</Button>}>

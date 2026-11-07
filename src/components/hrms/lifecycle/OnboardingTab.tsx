@@ -192,12 +192,12 @@ export default function OnboardingTab({ db }: { db: HrmsDb }) {
         <>
           {needle && cases.length === 0 && <div role="status" style={{ fontSize: 13, color: T.dim }}>No joiner matches &ldquo;{q}&rdquo;.</div>}
           <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(6, minmax(158px, 1fr))', gap: 10, alignItems: 'start' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(6, minmax(132px, 1fr))', gap: 8, alignItems: 'start' }}>
               {ONBOARDING_STAGES.map((stage) => {
                 const col = cases.filter((c) => c.stage === stage).sort((a, b) => (stage === 'done' ? (a.joinDate < b.joinDate ? 1 : -1) : (a.joinDate < b.joinDate ? -1 : 1)));
                 return (
                   <section key={stage} aria-label={`${STAGE_LABEL[stage]}, ${col.length} ${col.length === 1 ? 'case' : 'cases'}`}
-                    style={{ background: T.panel, border: `1px solid ${T.border}`, borderRadius: T.radius.lg, padding: 10, display: 'flex', flexDirection: 'column', gap: 8, minHeight: narrow ? undefined : 120 }}>
+                    style={{ background: T.panel, border: `1px solid ${T.border}`, borderRadius: T.radius.lg, padding: 8, display: 'flex', flexDirection: 'column', gap: 8, minHeight: narrow ? undefined : 120 }}>
                     <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: T.dim }}>
                       {STAGE_LABEL[stage]}
                       <span style={{ background: T.raised, borderRadius: 999, padding: '1px 8px', fontVariantNumeric: 'tabular-nums' }}>{col.length}</span>

@@ -91,7 +91,7 @@ export default function MyTax({ db, e }: { db: HrmsDb; e: Employee }) {
           {money('homeLoanInterest', 'Home loan interest (₹ a year)', <>Counted up to {inr(limits.homeLoanInterest)}.</>)}
           {money('rentPaidAnnual', 'Rent paid (₹ a year)', 'Used for the HRA exemption.')}
           <Field label="Landlord PAN" htmlFor="tx-landlordPan" required={n(d.rentPaidAnnual) > RENT_PAN_THRESHOLD} error={show('landlordPan')} hint={`Needed when rent is above ${inr(RENT_PAN_THRESHOLD)} a year.`}>
-            <Input id="tx-landlordPan" value={d.landlordPan} invalid={!!show('landlordPan')} onChange={(ev) => set('landlordPan', ev.target.value.toUpperCase())} placeholder="ABCDE1234F" maxLength={10} />
+            <Input id="tx-landlordPan" value={d.landlordPan} invalid={!!show('landlordPan')} onChange={(ev) => set('landlordPan', ev.target.value.toUpperCase())} placeholder="ABCPE1234F" maxLength={10} />
           </Field>
           {money('other', 'Other deductions (₹ a year)', 'Anything else HR has approved.')}
         </FormGrid>

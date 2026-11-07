@@ -387,7 +387,7 @@ test.describe('pay run', () => {
     const bank = buildBankFile(db, run);
     const total = bank.rows.reduce((n, r) => n + Number(r[5]), 0);
     await expect(page.getByTestId('bank-total')).toContainText(inr(total));
-    await expect(page.getByText('File plus skipped equals net pay')).toBeVisible();
+    await expect(page.getByText('Reconciles', { exact: true })).toBeVisible();
     await expect(page.getByTestId('bank-skipped')).toContainText('No bank account');
     const [csv] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Download bank file/ }).click()]);
     const csvText = readFileSync(await csv.path(), 'utf8').split('\n');
@@ -871,14 +871,14 @@ test.describe('My HR', () => {
     await page.getByLabel('Landlord PAN').fill('');
     await page.getByRole('button', { name: 'Submit for verification' }).click();
     await expect(page.getByText(/needs the landlord's PAN/)).toBeVisible();
-    await page.getByLabel(/80D/).fill('-5');
-    await expect(page.getByText('Cannot be negative').or(page.getByText(/must be a number/)).first()).toBeVisible();
+    await page.getByLabel(/80D/).fill('1.2.3'); // the field only accepts digits and a dot, so a minus sign never gets in
+    await expect(page.getByText(/must be a number/)).toBeVisible();
     await page.getByLabel(/80D/).fill('25000');
-    await page.getByLabel('Landlord PAN').fill('ABCDE1234F');
+    await page.getByLabel('Landlord PAN').fill('ABCPE1234F');
     await page.getByRole('button', { name: 'Submit for verification' }).click();
     await expect(page.getByText('Submitted, awaiting HR')).toBeVisible();
     const saved = (await readDb(page)).employees.find((e) => e.id === 'emp_2')!;
-    expect(saved.declaration).toMatchObject({ sec80C: 150000, sec80D: 25000, rentPaidAnnual: 240000, landlordPan: 'ABCDE1234F', status: 'submitted', submittedOn: PREVIEW_TODAY });
+    expect(saved.declaration).toMatchObject({ sec80C: 150000, sec80D: 25000, rentPaidAnnual: 240000, landlordPan: 'ABCPE1234F', status: 'submitted', submittedOn: PREVIEW_TODAY });
 
     // switching regime is saved on the employee
     await page.getByRole('radio', { name: 'New regime' }).check();
@@ -934,63 +934,71 @@ test.describe('My HR', () => {
 test.describe('screenshots', () => {
   test.skip(!process.env.HRMS_SHOTS, 'set HRMS_SHOTS=1 to write screenshots');
   test.use({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
-  const out = (n: string) => ({ path: `/tmp/hrms-shots/payroll-${n}.png`, fullPage: true });
+  // The dashboard scrolls inside a fixed-height shell, so a full-page capture would stop at the window height. Each page is
+  // shot twice: at 1280x900 (what a laptop shows), and in a tall window so the whole page can be looked at.
+  const shot = async (page: Page, n: string) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: `/tmp/hrms-shots/payroll-${n}.png` });
+    await page.setViewportSize({ width: 1280, height: 2600 });
+    await page.screenshot({ path: `/tmp/hrms-shots/payroll-${n}-tall.png` });
+    await page.setViewportSize({ width: 1280, height: 900 });
+  };
 
   test('main pages', async ({ page }) => {
     test.setTimeout(420_000);
     await openHrms(page, '/dashboard/hrms/payroll');
     await expect(page.getByTestId('run-scope')).toBeVisible(slow);
-    await page.screenshot(out('hub-runs'));
+    await shot(page, 'hub-runs');
     await openHrms(page, '/dashboard/hrms/payroll?tab=structures');
     await expect(page.getByRole('row').filter({ hasText: 'Office staff' })).toBeVisible(slow);
-    await page.screenshot(out('hub-structures'));
+    await shot(page, 'hub-structures');
     await openHrms(page, '/dashboard/hrms/payroll?tab=adjustments');
     await expect(page.getByTestId('adj-summary')).toBeVisible(slow);
-    await page.screenshot(out('hub-adjustments'));
+    await shot(page, 'hub-adjustments');
     await openHrms(page, '/dashboard/hrms/payroll?tab=loans');
     await expect(page.getByTestId('loan-summary')).toBeVisible(slow);
-    await page.screenshot(out('hub-loans'));
+    await shot(page, 'hub-loans');
     await openHrms(page, '/dashboard/hrms/payroll?tab=fnf');
     await page.getByRole('button', { name: /Open the settlement of Deepa Pillai/ }).click();
     await expect(page.getByTestId('fnf-net')).toBeVisible(slow);
-    await page.screenshot(out('hub-fnf'));
+    await shot(page, 'hub-fnf');
 
     await openHrms(page, '/dashboard/hrms/payroll/structures/str_field');
     await expect(page.getByTestId('wage-test')).toBeVisible(slow);
     await page.getByLabel(/Annual CTC/).fill('600000');
-    await page.screenshot(out('structure'));
+    await shot(page, 'structure');
 
     await computeNovRun(page);
-    await page.screenshot(out('run-compute'));
+    await shot(page, 'run-compute');
     const slip = (await novRun(page)).run.payslips.find((s) => s.employeeId === 'emp_10')!;
     await page.getByRole('button', { name: /Show the lines of Vikram Joshi/ }).click();
     await expect(page.locator(`#detail-${slip.id}`)).toBeVisible();
-    await page.screenshot(out('run-compute-detail'));
+    await shot(page, 'run-compute-detail');
     await step(page, 'inputs');
-    await page.screenshot(out('run-inputs'));
+    await shot(page, 'run-inputs');
     await step(page, 'checks');
-    await page.screenshot(out('run-checks'));
+    await shot(page, 'run-checks');
     await step(page, 'review');
-    await page.screenshot(out('run-review'));
+    await shot(page, 'run-review');
     await step(page, 'freeze');
     await page.getByRole('button', { name: 'Freeze run' }).click();
     await page.getByRole('dialog', { name: 'Freeze this run?' }).getByRole('button', { name: 'Freeze run' }).click();
     await expect(page.getByTestId('step-pay')).toBeVisible(slow);
-    await page.screenshot(out('run-pay'));
+    await shot(page, 'run-pay');
 
     await openHrms(page, '/dashboard/hrms/my');
     await expect(page.getByTestId('my-name')).toBeVisible(slow);
-    await page.screenshot(out('my-hr'));
+    await shot(page, 'my-hr');
     await page.getByLabel('Employee', { exact: true }).selectOption({ label: 'Arvind Nair (MER-1002)' });
     await expect(page.getByTestId('tax-compare')).toBeVisible();
-    await page.screenshot(out('my-hr-arvind'));
+    await shot(page, 'my-hr-arvind');
 
     await openHrms(page, '/dashboard/hrms/my');
     await page.getByRole('link', { name: 'Open the payslip for Oct 2026' }).click();
     await expect(page.getByTestId('payslip-paper')).toBeVisible(slow);
-    await page.screenshot(out('payslip'));
+    await shot(page, 'payslip');
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot(out('payslip-mobile'));
+    await page.screenshot({ path: '/tmp/hrms-shots/payroll-payslip-mobile.png' });
   });
 });
 

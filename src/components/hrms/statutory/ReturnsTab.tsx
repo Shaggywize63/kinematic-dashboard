@@ -117,7 +117,7 @@ function RunCard({ db, run }: { db: HrmsDb; run: PayRun }) {
             <div><b style={{ color: T.text }}>{tds.filter((r) => r.tds > 0).length}</b> of {tds.length} employees had TDS</div>
             <div>Taxable earnings {inr(sumBy(tds, (r) => r.taxable))}</div>
             <div style={{ color: T.mute }}>TDS {inr(sumBy(tds, (r) => r.tds))}</div>
-            {tds.some((r) => !r.pan) && <Badge tone="warn">{tds.filter((r) => !r.pan).length} without PAN</Badge>}
+            {tds.some((r) => !r.pan) && <div><Badge tone="warn">{tds.filter((r) => !r.pan).length} without PAN</Badge></div>}
           </>
         ), (
           <Button size="sm" disabled={tds.length === 0} aria-label={`Download TDS summary for ${label}`} style={{ minHeight: 40 }}

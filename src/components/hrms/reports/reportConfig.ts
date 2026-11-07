@@ -54,6 +54,7 @@ const matchEmp = (e: Employee | undefined, f: Filters): e is Employee =>
   !!e && (f.entity === ALL || e.entityId === f.entity) && (f.department === ALL || e.departmentId === f.department) && (f.location === ALL || e.locationId === f.location);
 const SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const r1 = (n: number) => Math.round(n * 10) / 10;
+const pl = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const cmpCode = (a: ReportRow, b: ReportRow) => String(a.code ?? '').localeCompare(String(b.code ?? ''));
 
 export function defaultMonth(db: HrmsDb, def: ReportDef): Month {
@@ -154,7 +155,7 @@ export const REPORTS: ReportDef[] = [
       entityName: entityName(db, e.entityId), state: db.locations.find((l) => l.id === e.locationId)?.state ?? '—',
     })),
     chart: { title: 'Headcount by location', x: 'label', series: [{ key: 'headcount', label: 'Headcount' }], type: 'number', horizontal: true },
-    peek: (rows) => `${rows.length} locations`,
+    peek: (rows) => pl(rows.length, 'location'),
   },
   {
     name: 'joiners-leavers', title: 'Joiners and leavers', group: 'Headcount and people', filters: ['month', 'entity', 'department', 'location'], monthKind: 'current', monthAll: true,
@@ -178,7 +179,7 @@ export const REPORTS: ReportDef[] = [
       return out.sort((a, b) => String(a.on).localeCompare(String(b.on)) || cmpCode(a, b));
     },
     empty: () => 'Nobody joined or left in this period.',
-    peek: (rows) => `${rows.filter((r) => r.event === 'Joiner').length} joiners, ${rows.filter((r) => r.event === 'Leaver').length} leavers`,
+    peek: (rows) => `${pl(rows.filter((r) => r.event === 'Joiner').length, 'joiner')}, ${pl(rows.filter((r) => r.event === 'Leaver').length, 'leaver')}`,
   },
   {
     name: 'attrition', title: 'Attrition, trailing 12 months', group: 'Headcount and people', filters: ['month', 'entity', 'department', 'location'], monthKind: 'prev',
@@ -223,7 +224,7 @@ export const REPORTS: ReportDef[] = [
       return out.sort((a, b) => Number(a.sort) - Number(b.sort) || cmpCode(a, b));
     },
     empty: () => 'No birthdays or anniversaries in this month.',
-    peek: (rows) => `${rows.filter((r) => r.event === 'Birthday').length} birthdays, ${rows.filter((r) => r.event !== 'Birthday').length} anniversaries`,
+    peek: (rows) => `${pl(rows.filter((r) => r.event === 'Birthday').length, 'birthday')}, ${pl(rows.filter((r) => r.event !== 'Birthday').length, 'anniversary', 'anniversaries')}`,
   },
 
   // ── Payroll ──
@@ -281,7 +282,7 @@ export const REPORTS: ReportDef[] = [
     },
     chart: { title: 'Employees by CTC band', x: 'label', series: [{ key: 'employees', label: 'Employees' }], type: 'number' },
     notes: () => ['Employees without a CTC on file (for example new joiners still onboarding) are left out.'],
-    peek: (rows) => `${sumBy(rows, (r) => Number(r.employees))} employees in ${rows.filter((r) => Number(r.employees) > 0).length} bands`,
+    peek: (rows) => `${pl(sumBy(rows, (r) => Number(r.employees)), 'employee')} in ${pl(rows.filter((r) => Number(r.employees) > 0).length, 'band')}`,
   },
   {
     name: 'bank-advice', title: 'Bank advice', group: 'Payroll', filters: ['month', 'entity', 'department', 'location'], monthKind: 'run', exportLog: 'Bank account (bank advice export)',
@@ -308,7 +309,7 @@ export const REPORTS: ReportDef[] = [
       const skipped = runsFor(db, f.month, f.entity, ['frozen', 'paid']).flatMap((run) => buildBankFile(db, run).skipped.map((s) => `${employeeOf(db, s.employeeId) ? fullName(employeeOf(db, s.employeeId)!) : s.employeeId} is left out: ${s.reason}.`));
       return [...skipped, 'Account numbers are masked on screen. The CSV holds them in full, so exporting writes an access-log entry for each employee.'];
     },
-    peek: (rows) => `${rows.length} transfers, ${inr(sumBy(rows, (r) => Number(r.amount)))}`,
+    peek: (rows) => `${pl(rows.length, 'transfer')}, ${inr(sumBy(rows, (r) => Number(r.amount)))}`,
   },
 
   // ── Statutory ──
@@ -377,7 +378,7 @@ export const REPORTS: ReportDef[] = [
     }).sort(cmpCode),
     empty: (db, f) => `There is no attendance summary for ${fmtMonth(f.month)}.`,
     notes: (db, f, rows) => (rows.some((r) => r.locked === 'No') ? [`${fmtMonth(f.month)} is still open: ${rows.filter((r) => r.locked === 'No').length} summaries are not locked, so days can still change.`] : []),
-    peek: (rows) => `${rows.length} employees, ${sumBy(rows, (r) => Number(r.lop))} LOP days`,
+    peek: (rows) => `${pl(rows.length, 'employee')}, ${pl(sumBy(rows, (r) => Number(r.lop)), 'LOP day')}`,
   },
   {
     name: 'lop-report', title: 'Loss of pay', group: 'Attendance and leave', filters: ['month', 'entity', 'department', 'location'], monthKind: 'prev',
@@ -392,7 +393,7 @@ export const REPORTS: ReportDef[] = [
     }).sort((a, b) => Number(b.lop) - Number(a.lop) || cmpCode(a, b)),
     empty: (db, f) => `Nobody has loss of pay in ${fmtMonth(f.month)}.`,
     notes: () => ['The estimate is gross for a full month divided by the days in the month, times the loss of pay days. The payslip may differ because only some components reduce with loss of pay.'],
-    peek: (rows) => `${rows.length} employees, ${sumBy(rows, (r) => Number(r.lop))} days`,
+    peek: (rows) => `${pl(rows.length, 'employee')}, ${pl(sumBy(rows, (r) => Number(r.lop)), 'day')}`,
   },
   {
     name: 'leave-balance', title: 'Leave balance', group: 'Attendance and leave', filters: ['entity', 'department', 'location'],
@@ -408,7 +409,7 @@ export const REPORTS: ReportDef[] = [
     }).sort(cmpCode),
     empty: () => 'No leave balances for these filters.',
     notes: () => [`Balances are as on ${fmtDate(PREVIEW_TODAY)}.`],
-    peek: (rows) => `${rows.length} employees`,
+    peek: (rows) => pl(rows.length, 'employee'),
   },
   {
     name: 'overtime', title: 'Overtime', group: 'Attendance and leave', filters: ['month', 'entity', 'department', 'location'], monthKind: 'prev',
@@ -432,7 +433,7 @@ export const REPORTS: ReportDef[] = [
     empty: (db, f) => `No overtime was logged in ${fmtMonth(f.month)}.`,
     chart: { title: 'Overtime hours', x: 'name', series: [{ key: 'hours', label: 'Overtime hours' }], type: 'decimal', horizontal: true },
     notes: () => ['Overtime pay is shown once the month’s run is frozen. The cap is the quarterly limit in the overtime rule, counted over the calendar quarter.'],
-    peek: (rows) => `${sumBy(rows, (r) => Number(r.hours))} hours`,
+    peek: (rows) => pl(sumBy(rows, (r) => Number(r.hours)), 'hour'),
   },
   {
     name: 'document-completeness', title: 'Document completeness', group: 'Attendance and leave', filters: ['entity', 'department', 'location'],

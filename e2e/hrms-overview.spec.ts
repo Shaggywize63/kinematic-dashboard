@@ -74,7 +74,7 @@ test.describe('overview', () => {
     await expectStat(page, 'notice', 'On notice', String(seed.employees.filter((e) => e.status === 'on_notice').length));
     await expectStat(page, 'attrition', 'Attrition, 12 months', `${attrition}%`, `${leavers12} leaver`);
     await expectStat(page, 'payroll', 'Monthly payroll cost', inr(octCost), 'Oct 2026');
-    await expectStat(page, 'dues', 'Open compliance dues', String(openDues), '1 overdue, 1 due within 7 days');
+    await expectStat(page, 'dues', 'Open compliance dues', String(openDues), 'Unfiled, due within 30 days: 1 overdue, 1 due within 7 days');
     await expectStat(page, 'gaps', 'Employees with data gaps', String(gaps));
     expect(errors).toEqual([]);
   });
@@ -698,7 +698,10 @@ test.describe('screenshots', () => {
     await page.locator('.recharts-surface').first().waitFor({ timeout: 30_000 });
     await page.waitForTimeout(600);
     await page.screenshot({ path: `${dir}/overview-1-top.png` });
-    await page.screenshot({ path: `${dir}/overview-2-full.png`, fullPage: true });
+    await page.setViewportSize({ width: 1280, height: 2300 });   // the shell scrolls inside <main>, so a tall window shows the whole page
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${dir}/overview-2-full.png` });
+    await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/dashboard/hrms/lifecycle?tab=onboarding');
     await page.getByRole('button', { name: /Aditya Bhat/ }).waitFor();
     await page.screenshot({ path: `${dir}/overview-3-onboarding.png` });
@@ -725,8 +728,14 @@ test.describe('screenshots', () => {
     await page.screenshot({ path: `${dir}/overview-9-template-editor.png` });
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Generate Appointment letter' }).click();
-    await page.getByLabel('Employee').selectOption({ label: 'Rohit Chauhan (MER-1004)' });
+    await page.getByRole('dialog').getByRole('combobox', { name: /^Employee/ }).selectOption({ label: 'Rohit Chauhan (MER-1004)' });
     await page.getByTestId('letter-paper').waitFor();
     await page.screenshot({ path: `${dir}/overview-10-generate.png` });
+    await page.getByRole('button', { name: 'Issue letter' }).click();
+    await page.getByRole('dialog', { name: 'Letter issued' }).waitFor();
+    await page.screenshot({ path: `${dir}/overview-11-issued.png` });
+    await page.getByRole('button', { name: 'Done' }).click();
+    await page.setViewportSize({ width: 1280, height: 1500 });
+    await page.screenshot({ path: `${dir}/overview-12-letters-register.png` });
   });
 });

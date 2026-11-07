@@ -557,10 +557,15 @@ test.describe('layout', () => {
       ['/dashboard/hrms/privacy?tab=roles', 'privacy-roles'],
       ['/dashboard/hrms/privacy?tab=requests', 'privacy-requests'],
     ];
+    // The dev server compiles each route on first visit and can answer with its own error page meanwhile: reload once.
+    const ready = async (url: string) => {
+      await page.goto(url);
+      try { await page.getByTestId('hrms-preview-banner').waitFor({ timeout: 30_000 }); } catch { await page.reload(); await page.getByTestId('hrms-preview-banner').waitFor({ timeout: 45_000 }); }
+      await page.getByRole('heading', { level: 1 }).first().waitFor({ timeout: 15_000 });
+    };
     await openHrms(page, shots[0]![0]);
     for (const [url, name] of shots) {
-      await page.goto(url);
-      await page.getByRole('heading', { level: 1 }).first().waitFor({ timeout: 45_000 });
+      await ready(url);
       await page.waitForTimeout(700);
       await page.screenshot({ path: `/tmp/hrms-shots/${name}.png`, fullPage: false });
       // The dashboard scrolls inside its shell, so a tall viewport is the way to see the whole page.
@@ -569,11 +574,15 @@ test.describe('layout', () => {
       await page.screenshot({ path: `/tmp/hrms-shots/${name}-tall.png`, fullPage: false });
       await page.setViewportSize({ width: 1280, height: 900 });
     }
+    // The Form 130 sheet on its own, for an old-regime employee with declarations.
+    await ready('/dashboard/hrms/statutory?tab=returns');
+    await page.getByLabel('Employee for Form 130').selectOption(seed.employees.find((e) => e.firstName === 'Arvind')!.id);
+    await page.getByTestId('form130').scrollIntoViewIfNeeded();
+    await page.getByTestId('form130').screenshot({ path: '/tmp/hrms-shots/statutory-form130.png' });
     // Phone width: the page itself must not scroll sideways (tables scroll inside their own box).
     await page.setViewportSize({ width: 390, height: 844 });
     for (const [url, name] of shots) {
-      await page.goto(url);
-      await page.getByRole('heading', { level: 1 }).first().waitFor({ timeout: 45_000 });
+      await ready(url);
       await page.waitForTimeout(400);
       const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(over, `${name} overflows by ${over}px at 390px`).toBeLessThanOrEqual(1);

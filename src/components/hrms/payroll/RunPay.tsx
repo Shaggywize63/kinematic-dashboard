@@ -75,8 +75,11 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
           <Stat label="Payments in the file" value={bank.rows.length} />
           <div data-testid="bank-total"><Stat label="File total" value={inr(fileTotal)} tone="ok" /></div>
           <Stat label="Skipped" value={bank.skipped.length} tone={bank.skipped.length ? 'warn' : undefined} hint={bank.skipped.length ? `${inr(skippedNet)} to pay another way` : 'Everyone is in the file'} />
-          <Stat label="Run net pay" value={inr(totals.net)} hint={<Badge tone={reconciles ? 'ok' : 'red'} dot>{reconciles ? 'File plus skipped equals net pay' : 'Does not reconcile'}</Badge>} />
+          <Stat label="Run net pay" value={inr(totals.net)} hint={<Badge tone={reconciles ? 'ok' : 'red'} dot>{reconciles ? 'Reconciles' : 'Does not reconcile'}</Badge>} />
         </StatGrid>
+        <div style={{ marginTop: 10, fontSize: 12.5, color: reconciles ? T.mute : T.red }}>
+          {reconciles ? 'The file total plus the skipped payments equals the run\'s net pay.' : 'The file total plus the skipped payments does not equal the run\'s net pay. Do not send this file; recompute the run.'}
+        </div>
         <div style={{ marginTop: 14 }}>
           <DataTable columns={bankCols} rows={bankRows} minWidth={760} empty="No payment can be made by bank transfer in this run." />
         </div>

@@ -33,7 +33,6 @@ export default function TaxTab({ db }: { db: HrmsDb }) {
     { key: 'decl', label: 'Declaration', sortValue: (e) => e.declaration.status, render: (e) => <Badge tone={DECL_TONE[e.declaration.status]} dot>{DECL_LABEL[e.declaration.status]}</Badge> },
     { key: 'on', label: 'Submitted on', sortValue: (e) => e.declaration.submittedOn ?? '', render: (e) => fmtDate(e.declaration.submittedOn) },
     { key: 'c80', label: '80C declared', align: 'right', sortValue: (e) => e.declaration.sec80C, render: (e) => (e.declaration.sec80C ? inr(e.declaration.sec80C) : '—') },
-    { key: 'rent', label: 'Rent a year', align: 'right', sortValue: (e) => e.declaration.rentPaidAnnual, render: (e) => (e.declaration.rentPaidAnnual ? inr(e.declaration.rentPaidAnnual) : '—') },
     {
       key: 'cmp', label: '', align: 'right', render: (e) => {
         const ok = !!(e.structureId && e.annualCtc);
@@ -77,7 +76,7 @@ export default function TaxTab({ db }: { db: HrmsDb }) {
           <Muted>{rows.length} of {people.length} employees (exited employees are left out)</Muted>
         </Toolbar>
         <div style={{ marginTop: 12 }}>
-          <DataTable columns={cols} rows={rows} minWidth={780} empty="No employee matches these filters." />
+          <DataTable columns={cols} rows={rows} minWidth={700} empty="No employee matches these filters." />
         </div>
       </Card>
     </Stack>

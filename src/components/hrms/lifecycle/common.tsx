@@ -56,7 +56,7 @@ export function CommitInput({ value, onCommit, label, placeholder, width }: { va
 /** A checkbox and its label as one 44px-high target. */
 export function CheckRow({ checked, onChange, children, disabled }: { checked: boolean; onChange: (v: boolean) => void; children: ReactNode; disabled?: boolean }) {
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, cursor: disabled ? 'not-allowed' : 'pointer', flex: 1, minWidth: 0 }}>
+    <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, fontSize: 13.5, color: T.text, cursor: disabled ? 'not-allowed' : 'pointer', flex: 1, minWidth: 0 }}>
       <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--info)', flex: '0 0 auto', cursor: 'inherit' }} />
       <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{children}</span>
     </label>

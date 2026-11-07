@@ -31,12 +31,12 @@ export default function ReportTable({ cols, rows, empty, label, sort, onSort }: 
   const totals = useMemo(() => computeTotals(cols, rows), [cols, rows]);
   const sorted = rows;
 
-  const th: CSSProperties = { padding: 0, fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap', background: T.panel };
+  const th: CSSProperties = { padding: 0, fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute, borderBottom: `1px solid ${T.border}`, background: T.panel, verticalAlign: 'bottom' };
   const td: CSSProperties = { padding: '10px 14px', fontSize: 13.5, color: T.text, whiteSpace: 'nowrap', verticalAlign: 'middle' };
 
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table aria-label={label} style={{ width: '100%', borderCollapse: 'collapse', minWidth: Math.max(520, cols.length * 110) }}>
+      <table aria-label={label} style={{ width: '100%', borderCollapse: 'collapse', minWidth: Math.max(520, cols.length * 96) }}>
         <thead>
           <tr>
             {cols.map((c) => {
@@ -45,7 +45,7 @@ export default function ReportTable({ cols, rows, empty, label, sort, onSort }: 
               return (
                 <th key={c.key} scope="col" style={th} aria-sort={on ? (sort!.dir === 1 ? 'ascending' : 'descending') : 'none'}>
                   <button type="button" onClick={() => onSort(sort?.key === c.key ? (sort.dir === 1 ? { key: c.key, dir: -1 } : null) : { key: c.key, dir: 1 })}
-                    style={{ all: 'unset', boxSizing: 'border-box', width: '100%', cursor: 'pointer', padding: '10px 14px', textAlign: num ? 'right' : 'left', display: 'flex', justifyContent: num ? 'flex-end' : 'flex-start', gap: 4 }}
+                    style={{ all: 'unset', boxSizing: 'border-box', width: '100%', cursor: 'pointer', padding: '10px 14px', textAlign: num ? 'right' : 'left', display: 'flex', justifyContent: num ? 'flex-end' : 'flex-start', gap: 4, whiteSpace: 'normal', lineHeight: 1.3 }}
                     title={`Sort by ${c.label}`}>
                     {c.label}<span aria-hidden style={{ width: 10 }}>{on ? (sort!.dir === 1 ? '↑' : '↓') : ''}</span>
                   </button>

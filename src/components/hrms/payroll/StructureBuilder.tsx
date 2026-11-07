@@ -18,7 +18,10 @@ import { ConfirmModal, report } from './shared';
 
 const kindLabel = (k: SalaryComponent['kind']) => COMPONENT_KINDS.find((x) => x.value === k)?.label ?? k;
 const yes = (b: boolean) => (b ? 'Yes' : '—');
+const kindShort: Record<SalaryComponent['kind'], string> = { earning: 'Earning', employer: 'Employer', reimbursement: 'Reimb.', deduction: 'Deduction' };
+const thc = { padding: '9px 8px', fontSize: 11, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase' as const, color: T.mute, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' as const, background: T.panel, textAlign: 'left' as const };
 const th = { padding: '9px 12px', fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' as const, color: T.mute, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' as const, background: T.panel, textAlign: 'left' as const };
+const tdc = { padding: '9px 8px', fontSize: 13, borderTop: `1px solid ${T.border}`, color: T.text, verticalAlign: 'middle' as const };
 const td = { padding: '9px 12px', fontSize: 13.5, borderTop: `1px solid ${T.border}`, color: T.text, verticalAlign: 'middle' as const };
 
 export default function StructureBuilder({ db, structure }: { db: HrmsDb; structure: SalaryStructure }) {
@@ -110,35 +113,38 @@ export default function StructureBuilder({ db, structure }: { db: HrmsDb; struct
           <CardTitle right={<Button variant="primary" style={{ height: 40 }} onClick={() => setEditing('new')}>Add component</Button>}>Components</CardTitle>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1060 }} data-testid="component-table">
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 880 }} data-testid="component-table">
             <thead>
               <tr>
-                <th scope="col" style={th}>Order</th><th scope="col" style={th}>Code</th><th scope="col" style={th}>Name</th><th scope="col" style={th}>Kind</th><th scope="col" style={th}>Calculation</th>
-                <th scope="col" style={{ ...th, textAlign: 'right' }}>At CTC {b ? inr(ctc) : ''}</th>
-                <th scope="col" style={th}>Wage</th><th scope="col" style={th}>Taxable</th><th scope="col" style={th}>PF</th><th scope="col" style={th}>ESI</th><th scope="col" style={th}>Prorate</th><th scope="col" style={th}>On payslip</th>
-                <th scope="col" style={th}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}>Actions</span></th>
+                <th scope="col" style={thc}>Code</th><th scope="col" style={thc}>Name</th><th scope="col" style={thc}>Kind</th><th scope="col" style={thc}>Calculation</th>
+                <th scope="col" style={{ ...thc, textAlign: 'right' }}>At CTC {b ? inr(ctc) : ''}</th>
+                <th scope="col" style={thc}><abbr title="Counts as wages for the 50% test, PF and gratuity">Wage</abbr></th>
+                <th scope="col" style={thc}><abbr title="Taxable">Tax</abbr></th>
+                <th scope="col" style={thc}><abbr title="PF applicable (informational)">PF</abbr></th>
+                <th scope="col" style={thc}><abbr title="ESI applicable">ESI</abbr></th>
+                <th scope="col" style={thc}><abbr title="Reduced by loss of pay">Prorate</abbr></th>
+                <th scope="col" style={thc}><abbr title="Shown on the payslip">Slip</abbr></th>
+                <th scope="col" style={thc}>Order and actions</th>
               </tr>
             </thead>
             <tbody>
-              {draft.components.length === 0 && <tr><td colSpan={13} style={{ ...td, textAlign: 'center', color: T.mute, padding: 32 }}>No components. Add a BASIC component to start.</td></tr>}
+              {draft.components.length === 0 && <tr><td colSpan={12} style={{ ...tdc, textAlign: 'center', color: T.mute, padding: 32 }}>No components. Add a BASIC component to start.</td></tr>}
               {draft.components.map((c, i) => (
                 <tr key={c.id} data-testid="component-row">
-                  <td style={td}>
-                    <div style={{ display: 'inline-flex', gap: 2 }}>
+                  <td style={{ ...tdc, fontFamily: T.mono, fontSize: 12.5, fontWeight: 600 }}>{c.code}</td>
+                  <td style={tdc}>{c.name}</td>
+                  <td style={{ ...tdc, whiteSpace: 'nowrap' }}><Badge tone={c.kind === 'earning' ? 'info' : c.kind === 'employer' ? 'neutral' : c.kind === 'reimbursement' ? 'ok' : 'warn'}>{kindShort[c.kind]}</Badge></td>
+                  <td style={{ ...tdc, whiteSpace: 'nowrap' }}>{calcShort(c.calc)}</td>
+                  <td style={{ ...tdc, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{amountOf(c) != null ? inr(amountOf(c)) : '—'}</td>
+                  <td style={tdc}>{c.isWage ? <Badge tone="ok">Wage</Badge> : '—'}</td>
+                  <td style={tdc}>{yes(c.taxable)}</td><td style={tdc}>{yes(c.pfApplicable)}</td><td style={tdc}>{yes(c.esiApplicable)}</td><td style={tdc}>{yes(c.prorate)}</td><td style={tdc}>{yes(c.showInPayslip)}</td>
+                  <td style={{ ...tdc, whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
                       <button type="button" aria-label={`Move ${c.code} up`} disabled={i === 0} onClick={() => move(i, -1)} style={arrowBtn(i === 0)}>↑</button>
                       <button type="button" aria-label={`Move ${c.code} down`} disabled={i === draft.components.length - 1} onClick={() => move(i, 1)} style={arrowBtn(i === draft.components.length - 1)}>↓</button>
+                      <Button size="sm" aria-label={`Edit ${c.code}`} onClick={() => setEditing(c)}>Edit</Button>
+                      <Button size="sm" variant="danger" aria-label={`Remove ${c.code}`} onClick={() => setRemoving(c)}>Remove</Button>
                     </div>
-                  </td>
-                  <td style={{ ...td, fontFamily: T.mono, fontSize: 12.5, fontWeight: 600 }}>{c.code}</td>
-                  <td style={td}>{c.name}</td>
-                  <td style={{ ...td, whiteSpace: 'nowrap' }}><Badge tone={c.kind === 'earning' ? 'info' : c.kind === 'employer' ? 'neutral' : c.kind === 'reimbursement' ? 'ok' : 'warn'}>{kindLabel(c.kind)}</Badge></td>
-                  <td style={{ ...td, whiteSpace: 'nowrap' }}>{calcShort(c.calc)}</td>
-                  <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{amountOf(c) != null ? inr(amountOf(c)) : '—'}</td>
-                  <td style={td}>{c.isWage ? <Badge tone="ok">Wage</Badge> : '—'}</td>
-                  <td style={td}>{yes(c.taxable)}</td><td style={td}>{yes(c.pfApplicable)}</td><td style={td}>{yes(c.esiApplicable)}</td><td style={td}>{yes(c.prorate)}</td><td style={td}>{yes(c.showInPayslip)}</td>
-                  <td style={{ ...td, whiteSpace: 'nowrap' }}>
-                    <Button size="sm" aria-label={`Edit ${c.code}`} onClick={() => setEditing(c)}>Edit</Button>{' '}
-                    <Button size="sm" variant="danger" aria-label={`Remove ${c.code}`} onClick={() => setRemoving(c)}>Remove</Button>
                   </td>
                 </tr>
               ))}
@@ -146,7 +152,7 @@ export default function StructureBuilder({ db, structure }: { db: HrmsDb; struct
           </table>
         </div>
         <div style={{ padding: '10px 20px 16px', fontSize: 12.5, color: T.mute }}>
-          Order is the order of the lines on the payslip. The PF flag is informational: the PF wage comes from the wage components and the 50% rule. Changes stay in this draft until you save.
+          The arrows set the order of the lines on the payslip. The PF flag is informational: the PF wage comes from the wage components and the 50% rule. Changes stay in this draft until you save.
         </div>
       </Card>
 

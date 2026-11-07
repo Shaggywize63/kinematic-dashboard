@@ -1,7 +1,7 @@
 'use client';
 // Run step 3, Compute: build the payslips with the engine, read the totals, and review each payslip against last month.
 
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Badge, Button, Card, CardTitle, EmptyState, Note, SearchBox, Stat, StatGrid, Toolbar, T } from '../ui';
 import { Select } from '../../ui';
@@ -16,8 +16,8 @@ import type { Step } from './RunStepper';
 
 type SortKey = 'name' | 'gross' | 'net' | 'cost' | 'change' | 'warn';
 
-const th = { padding: '10px 14px', fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' as const, color: T.mute, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' as const, background: T.panel, textAlign: 'left' as const };
-const td = { padding: '10px 14px', fontSize: 13.5, borderTop: `1px solid ${T.border}`, color: T.text, verticalAlign: 'middle' as const, fontVariantNumeric: 'tabular-nums' as const };
+const th = { padding: '10px 10px', fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' as const, color: T.mute, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' as const, background: T.panel, textAlign: 'left' as const };
+const td = { padding: '10px 10px', fontSize: 13.5, borderTop: `1px solid ${T.border}`, color: T.text, verticalAlign: 'middle' as const, fontVariantNumeric: 'tabular-nums' as const };
 
 export default function RunCompute({ db, run, go }: { db: HrmsDb; run: PayRun; go: (s: Step) => void }) {
   const locked = isLocked(run);
@@ -32,6 +32,19 @@ export default function RunCompute({ db, run, go }: { db: HrmsDb; run: PayRun; g
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'name', dir: 1 });
   const [open, setOpen] = useState<string | null>(null);
   const [showLaw, setShowLaw] = useState(false);
+  // The open payslip's detail sticks to the left edge of the scrolling table at the table's visible width, so it never needs a sideways scroll.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [wrapW, setWrapW] = useState(0);
+  const hasSlips = run.payslips.length > 0;
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const measure = () => setWrapW(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hasSlips]);
 
   const emps = useMemo(() => new Map(db.employees.map((e) => [e.id, e])), [db.employees]);
   const flagged = Array.from(changes.values()).filter((c) => c.flagged).length;
@@ -134,8 +147,8 @@ export default function RunCompute({ db, run, go }: { db: HrmsDb; run: PayRun; g
         <span style={{ fontSize: 13, color: T.mute }}>{rows.length} of {run.payslips.length}</span>
       </Toolbar>
 
-      <div style={{ overflowX: 'auto', border: `1px solid ${T.border}`, borderRadius: T.radius.lg, background: T.card }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980 }} data-testid="payslip-table">
+      <div ref={wrapRef} style={{ overflowX: 'auto', border: `1px solid ${T.border}`, borderRadius: T.radius.lg, background: T.card }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }} data-testid="payslip-table">
           <thead>
             <tr>
               {head('name', 'Employee')}
@@ -178,7 +191,9 @@ export default function RunCompute({ db, run, go }: { db: HrmsDb; run: PayRun; g
                   </tr>
                   {isOpen && (
                     <tr id={`detail-${s.id}`}>
-                      <td colSpan={8} style={{ ...td, background: T.panel, padding: 16 }}><SlipDetail db={db} run={run} s={s} e={e} change={ch} /></td>
+                      <td colSpan={8} style={{ ...td, background: T.panel, padding: 0 }}>
+                        <div style={{ position: 'sticky', left: 0, width: wrapW ? wrapW - 2 : undefined, boxSizing: 'border-box', padding: 16 }}><SlipDetail db={db} run={run} s={s} e={e} change={ch} /></div>
+                      </td>
                     </tr>
                   )}
                 </Fragment>

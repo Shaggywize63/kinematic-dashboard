@@ -76,7 +76,7 @@ export default function HrmsOverviewPage() {
         {tile('payroll', <Stat label="Monthly payroll cost" value={stats.payroll ? inr(stats.payroll.cost) : '—'}
           hint={stats.payroll ? `${fmtMonth(stats.payroll.month)}, employer cost, ${plural(stats.payroll.payslips, 'payslip')}` : 'No payroll run yet'} href="/dashboard/hrms/payroll" />)}
         {tile('dues', <Stat label="Open compliance dues" value={stats.dues.open} tone={dueTone}
-          hint={`${stats.dues.overdue} overdue, ${stats.dues.dueSoon} due within 7 days; overdue or due in 30 days`} href="/dashboard/hrms/statutory" />)}
+          hint={`Unfiled, due within 30 days: ${stats.dues.overdue} overdue, ${stats.dues.dueSoon} due within 7 days`} href="/dashboard/hrms/statutory" />)}
         {tile('gaps', <Stat label="Employees with data gaps" value={stats.gaps.employees} tone={stats.gaps.employees ? 'warn' : 'ok'}
           hint={stats.gaps.employees ? `${plural(stats.gaps.items, 'gap')} in PAN, UAN or bank details` : 'PAN, UAN and bank details are complete'} href="#needs-attention" />)}
       </StatGrid>
