@@ -139,9 +139,14 @@ jobs:
           retention-days: 14
 
   e2e-hrmsx:
-    name: Playwright E2E (HRMS modules)
+    name: Playwright E2E (HRMS modules ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
+    # About 630 specs: split into four runs that go side by side, so no single run nears its cap.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -181,15 +186,15 @@ jobs:
           echo "install-deps did not complete; continuing (runner likely already has the libs)"
 
       - name: Run HRMS module E2E tests
-        timeout-minutes: 25
-        run: npx playwright test hrmsx- --reporter=list
+        timeout-minutes: 30
+        run: npx playwright test hrmsx- --shard=${{ matrix.shard }}/4 --reporter=list
 
       - name: Upload report
         if: always()
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-hrmsx
+          name: playwright-report-hrmsx-${{ matrix.shard }}
           path: playwright-report
           if-no-files-found: ignore
           retention-days: 14
