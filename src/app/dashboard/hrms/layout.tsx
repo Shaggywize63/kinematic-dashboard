@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '../../../lib/api';
 import { resetDb } from '../../../lib/hrms/db';
+import { resetAllAreaStores } from '../../../lib/hrms/areaStore';
 import { Button, T } from '../../../components/hrms/ui';
 
 const allowed = (): boolean => api.isDemoAccount();
@@ -28,7 +29,7 @@ export default function HrmsLayout({ children }: { children: React.ReactNode }) 
     <>
       <div role="status" data-testid="hrms-preview-banner" style={{ margin: '12px 24px 0', padding: '8px 12px', borderRadius: 8, fontSize: 12.5, background: T.warnWash, color: T.warn, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <span><b>Preview.</b> This module runs on sample data kept in this browser. Nothing is saved to the server yet, and statutory rates are not confirmed for live payroll.</span>
-        <Button size="sm" variant="ghost" onClick={() => { if (window.confirm('Reset the sample data to its starting state? Your changes in this browser will be lost.')) resetDb(); }}>Reset sample data</Button>
+        <Button size="sm" variant="ghost" onClick={() => { if (window.confirm('Reset the sample data to its starting state? Your changes in this browser will be lost.')) { resetAllAreaStores(); resetDb(); } }}>Reset sample data</Button>
       </div>
       {children}
     </>
