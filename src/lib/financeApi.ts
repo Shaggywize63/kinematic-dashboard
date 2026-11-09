@@ -1,4 +1,5 @@
 import api, { API_BASE_URL } from './api';
+import type { UploadedReceipt } from './expensesApi';
 
 const BASE = '/api/v1/finance';
 
@@ -174,12 +175,17 @@ export interface ExpenseInput {
   expense_date: string; vendor_name: string; vendor_gstin?: string | null; bill_number?: string | null; category?: string; description?: string | null;
   place_of_supply?: string | null; amount: number; tax_inclusive?: boolean; gst_rate: number; gst_amount?: number | null;
   itc_eligible?: boolean | null; itc_reason?: string | null; notes?: string | null;
+  /** The stored reference returned by `expenses.uploadReceipt`; null removes the receipt. */
+  receipt_url?: string | null;
 }
 /** The stored bill, as returned for editing (`amount` = the bill total). */
 export interface ExpenseBill {
   id: string; expense_date: string; vendor_name: string; vendor_gstin: string | null; bill_number: string | null; category: string; description: string | null;
   place_of_supply: string | null; gst_rate: number; taxable_value: number; cgst: number; sgst: number; igst: number; total: number; amount: number;
   itc_eligible: boolean; itc_reason: string | null; notes: string | null;
+  receipt_url: string | null;
+  /** A short-lived link to view the receipt (the bucket is private). Null when there is none or it cannot be signed. */
+  receipt_signed_url?: string | null;
 }
 
 // ── import previous invoices ────────────────────────────────────────────────
@@ -273,6 +279,12 @@ export const financeApi = {
     create: (body: ExpenseInput) => api.post<Wrapped<ExpenseBill>>(`${BASE}/expenses`, body),
     update: (id: string, body: ExpenseInput) => api.put<Wrapped<ExpenseBill>>(`${BASE}/expenses/${id}`, body),
     remove: (id: string) => api.delete<Wrapped<{ ok: boolean }>>(`${BASE}/expenses/${id}`),
+    /** Store a bill's receipt (photo or PDF, up to 10 MB). `scan` reads the amount, merchant, date and GST off an image. */
+    uploadReceipt: (file: File | Blob, filename = 'receipt.jpg', scan = true) => {
+      const fd = new FormData();
+      fd.append('file', file, filename);
+      return api.postForm<Wrapped<UploadedReceipt>>(`${BASE}/expenses/receipt${scan ? '' : '?scan=0'}`, fd);
+    },
   },
   importInvoices: {
     /** Parses and validates the file; writes nothing. */
