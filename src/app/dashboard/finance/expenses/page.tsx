@@ -7,8 +7,11 @@
 import Link from 'next/link';
 import { FormEvent, useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { Paperclip } from 'lucide-react';
 import { Badge, Button, Card, Field, FormGrid, Input, Select, Textarea, T, useIsCompact } from '../../../../components/ui';
 import { Col, DataTable, FinancePage, Modal, Pager, SearchBox, Stat, Toolbar, fail, inr, useConfirm, useDebounced } from '../../../../components/finance/ui';
+import { ReceiptField, type ReceiptValue } from '../../../../components/finance/ReceiptField';
+import { ReceiptViewer, RECEIPT_MAX_BYTES, prepareReceipt } from '../../../../components/expenses/kit';
 import { ErrorNote, RadioGroup, RupeeInput, GSTIN_RE, usePage, useRemote } from '../../../../components/finance/masterBits';
 import { PRESET_LABELS, RangePreset, presetRange } from '../../../../components/finance/dateRanges';
 import { fmtDate, num } from '../../../../lib/financeFormat';
@@ -27,6 +30,8 @@ const EXPENSE_CATEGORIES: Array<{ value: string; label: string }> = [
 ];
 const catLabel = (v: string) => EXPENSE_CATEGORIES.find((c) => c.value === v)?.label ?? v;
 const todayIso = () => new Date().toISOString().slice(0, 10);
+const GST_SLABS = [5, 12, 18, 28];
+const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
 export default function ExpensesPage() {
   const narrow = useIsCompact(900);
@@ -86,7 +91,10 @@ export default function ExpensesPage() {
     { key: 'date', label: 'Date', nowrap: true, render: (r) => fmtDate(r.date) },
     { key: 'vendor', label: 'Vendor', render: (r) => (
       <div>
-        <div style={{ fontWeight: 600, color: T.text }}>{r.vendor}</div>
+        <div style={{ fontWeight: 600, color: T.text, display: 'flex', alignItems: 'center', gap: 6 }}>
+          {r.vendor}
+          {r.receipt_url && <span title="Receipt attached" aria-label="Receipt attached" data-testid="row-has-receipt" style={{ display: 'inline-flex', color: T.mute }}><Paperclip size={13} strokeWidth={1.8} /></span>}
+        </div>
         <div style={{ fontSize: 12, color: T.mute }}>{r.vendor_gstin || 'No GSTIN'}{r.bill_number ? ` · ${r.bill_number}` : ''}</div>
       </div>
     ) },
@@ -233,6 +241,10 @@ function ExpenseModal({ bill, businessState, onClose, onSaved }: { bill: Expense
   const [notes, setNotes] = useState(bill?.notes ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [receipt, setReceipt] = useState<ReceiptValue | null>(bill?.receipt_url ? { url: bill.receipt_url, view: bill.receipt_signed_url ?? null, name: 'Receipt' } : null);
+  const [uploading, setUploading] = useState(false);
+  const [viewing, setViewing] = useState<string | null>(null);
+  const [scanNote, setScanNote] = useState<string | null>(null);
 
   const g = gstin.trim().toUpperCase();
   const supplierState = (/^\d{2}/.test(g) ? g.slice(0, 2) : pos) || null;
@@ -243,9 +255,39 @@ function ExpenseModal({ bill, businessState, onClose, onSaved }: { bill: Expense
   const taxable = incl === 'incl' ? a - tax : a;
   const rates = GST_RATES.includes(rate) ? GST_RATES : [...GST_RATES, rate].sort((x, y) => x - y);
 
+  /** Store the file, then fill in only the boxes still empty from what was read off it. */
+  const attach = async (file: File) => {
+    setUploading(true);
+    try {
+      const ready = await prepareReceipt(file);
+      if (ready.size > RECEIPT_MAX_BYTES) throw new Error('That file is larger than 10 MB');
+      const { data: up } = await financeApi.expenses.uploadReceipt(ready, ready.name);
+      setReceipt({ url: up.url, view: up.signed_url, name: ready.name });
+      const sc = up.scan;
+      const read: string[] = [];
+      if (sc?.merchant && !vendor.trim()) { setVendor(sc.merchant); read.push(sc.merchant); }
+      if (sc?.amount != null && amount.trim() === '') { setAmount(String(sc.amount)); setIncl('incl'); read.push(inr(sc.amount)); }
+      if (sc?.txn_date && !bill && date === todayIso()) setDate(sc.txn_date);
+      if (sc?.category && category === 'other' && EXPENSE_CATEGORIES.some((c) => c.value === sc.category)) setCategory(sc.category);
+      if (sc?.tax_amount != null && sc.tax_amount > 0 && gstAmt.trim() === '') {
+        setGstAmt(String(sc.tax_amount));
+        const total = amount.trim() ? num(amount) : sc.amount ?? NaN;
+        if (Number.isFinite(total) && total > sc.tax_amount) {
+          const slab = GST_SLABS.find((r) => Math.abs(r - (sc.tax_amount! / (total - sc.tax_amount!)) * 100) <= 1.5);
+          if (slab) setRate(slab);
+        }
+      }
+      setScanNote(read.length ? `Read from the receipt: ${read.join(' · ')}. Check it looks right.` : null);
+      toast.success(read.length ? 'Receipt attached and read' : 'Receipt attached');
+    } catch (e) {
+      toast.error(errMsg(e, 'Could not upload the receipt'));
+    } finally { setUploading(false); }
+  };
+
   const submit = async (ev: FormEvent) => {
     ev.preventDefault();
     if (busy) return;
+    if (uploading) { toast.error('Wait for the receipt to finish uploading'); return; }
     const e: Record<string, string> = {};
     if (!vendor.trim()) e.vendor = 'Vendor is required';
     if (!date) e.date = 'Date is required';
@@ -258,6 +300,7 @@ function ExpenseModal({ bill, businessState, onClose, onSaved }: { bill: Expense
       description: desc.trim() || null, place_of_supply: g ? null : pos || null, amount: num(amount), tax_inclusive: incl === 'incl',
       gst_rate: rate, gst_amount: typed ? num(gstAmt) : null,
       itc_eligible: itc === 'auto' ? null : itc === 'yes', itc_reason: itc === 'no' ? reason.trim() || null : null, notes: notes.trim() || null,
+      receipt_url: receipt?.url ?? null,
     };
     setBusy(true);
     try {
@@ -267,11 +310,13 @@ function ExpenseModal({ bill, businessState, onClose, onSaved }: { bill: Expense
     } catch (err) { fail(err); setBusy(false); }
   };
 
+  const canClaim = itc !== 'no' && /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(g);
   return (
-    <Modal title={bill ? 'Edit expense' : 'New expense'} onClose={() => { if (!busy) onClose(); }} width={680}
+    <>
+    <Modal title={bill ? 'Edit expense' : 'New expense'} onClose={() => { if (!busy && !viewing) onClose(); }} width={680}
       footer={<>
         <Button onClick={onClose} disabled={busy}>Cancel</Button>
-        <Button variant="primary" type="submit" form={fid('form')} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
+        <Button variant="primary" type="submit" form={fid('form')} disabled={busy || uploading}>{busy ? 'Saving…' : 'Save'}</Button>
       </>}>
       <form id={fid('form')} onSubmit={submit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <FormGrid narrow={narrow}>
@@ -336,6 +381,14 @@ function ExpenseModal({ bill, businessState, onClose, onSaved }: { bill: Expense
             </Field>
           )}
         </FormGrid>
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 500, color: T.dim, marginBottom: 6 }}>Receipt</div>
+          <ReceiptField value={receipt} uploading={uploading} onPick={attach} onView={setViewing}
+            onClear={() => { setReceipt(null); setScanNote(null); }}
+            hint={canClaim && !receipt ? 'Keep the tax invoice with the bill: you need it to claim input credit. Drop a photo or PDF, up to 10 MB.' : undefined} />
+          {scanNote && <div data-testid="receipt-scan-note" style={{ fontSize: 12.5, color: T.dim, marginTop: 6 }}>{scanNote}</div>}
+          {bill && receipt && !receipt.view && <div style={{ fontSize: 12, color: T.mute, marginTop: 6 }}>The saved receipt cannot be previewed right now. Replace it to attach a new one.</div>}
+        </div>
         <Field label="Description" htmlFor={fid('desc')}>
           <Input id={fid('desc')} value={desc} maxLength={500} onChange={(e) => setDesc(e.target.value)} />
         </Field>
@@ -344,5 +397,7 @@ function ExpenseModal({ bill, businessState, onClose, onSaved }: { bill: Expense
         </Field>
       </form>
     </Modal>
+    {viewing && <ReceiptViewer url={viewing} title="Receipt" onClose={() => setViewing(null)} />}
+    </>
   );
 }

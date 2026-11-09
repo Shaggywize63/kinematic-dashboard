@@ -33,11 +33,16 @@ function resolveChromiumPath(): string | undefined {
 
 const executablePath = resolveChromiumPath();
 
+// PW_PORT lets several runs share one machine, each on its own port (the CI run and a default run use 3000).
+const PORT = process.env.PW_PORT || '3000';
+
 export default defineConfig({
   testDir: './e2e',
   // The HRMS module has its own job in CI (it adds a few hundred specs, which on top of the rest of the serial suite
   // outgrew the 25-minute cap). PW_SKIP_HRMS=1 leaves those files out of the main run; `playwright test hrms-` runs only them.
-  testIgnore: process.env.PW_SKIP_HRMS ? /e2e\/hrms-.*\.spec\.ts$/ : undefined,
+  // `hrms-*` is the core module, `hrmsx-*` the field-force, compliance, talent and workplace modules built on top of it
+  // (their own job too). `playwright test hrmsx-` runs only those.
+  testIgnore: process.env.PW_SKIP_HRMS ? /e2e\/hrmsx?-.*\.spec\.ts$/ : undefined,
   // First-time `next dev` route compiles can be slow; keep generous timeouts.
   timeout: 90_000,
   expect: { timeout: 15_000 },
@@ -50,7 +55,7 @@ export default defineConfig({
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
 
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: `http://localhost:${PORT}`,
     // The dashboard registers a Web-Push service worker that would otherwise
     // sit in front of the network and swallow requests before page.route()
     // sees them (breaking route interception). Block SW registration so every
@@ -77,12 +82,13 @@ export default defineConfig({
 
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:3000',
+    url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: Number(process.env.PW_SERVER_TIMEOUT || 120_000),
     stdout: 'ignore',
     stderr: 'pipe',
     env: {
+      PORT,
       // Pin the API base host. The app's Content-Security-Policy `connect-src`
       // is built from NEXT_PUBLIC_API_URL (see next.config.mjs), so setting it
       // both fixes the API origin AND allowlists it — otherwise browser CSP
