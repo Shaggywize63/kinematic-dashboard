@@ -97,7 +97,7 @@ const NEW_CLIENT_DEFAULT_MODULES = Array.from(new Set([
   ...NEW_CLIENT_BASELINE_MODULES,
 ]));
 
-const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[], login_org_id: '', data_project_key: '', data_client_id: '', max_active_users: '' as number | '', app_ui: {} as AppCustomization, trial_start_date: '', trial_days: '' as number | '' };
+const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[], login_org_id: '', data_project_key: '', data_client_id: '', max_active_users: '' as number | '', kini_user_monthly_limit: '' as number | '', kini_org_monthly_limit: '' as number | '', app_ui: {} as AppCustomization, trial_start_date: '', trial_days: '' as number | '' };
 
 // Trial period helpers: end date = start date + N calendar days (mirrors the
 // server's computeTrial). Returns '' when either input is missing/invalid.
@@ -151,6 +151,8 @@ export default function ClientManagement() {
   const [showModal, setShowModal] = useState(false);
   // Section the Edit modal should scroll to once it is open (the App Layout button on a client card sets it).
   const jumpRef = useRef<string | null>(null);
+  // The KINI limits the open client had when its form opened (see save()).
+  const kiniInitRef = useRef<{ user: number | ''; org: number | '' }>({ user: '', org: '' });
   const [editing, setEditing] = useState<Client | null>(null);
   const [form, setForm] = useState({ ...BLANK });
   const [saving, setSaving] = useState(false);
@@ -259,6 +261,12 @@ export default function ClientManagement() {
     // but are not part of the new 20-module granular architecture.
     const validIds = (c.modules || []).filter(m => MODULES.some(mod => mod.id === m));
     setEditing(c); 
+    // What the server had, so a save only sends the KINI limits the admin actually changed (a limit that failed to
+    // load must never be wiped by an untouched save).
+    kiniInitRef.current = {
+      user: (c as { kini_user_monthly_limit?: number | null }).kini_user_monthly_limit ?? '',
+      org: (c as { kini_org_monthly_limit?: number | null }).kini_org_monthly_limit ?? '',
+    };
     setForm({ 
       name: c.name, 
       contact_person: c.contact_person || '', 
@@ -271,6 +279,8 @@ export default function ClientManagement() {
       data_project_key: (c as { data_project_key?: string }).data_project_key || '',
       data_client_id: (c as { data_client_id?: string }).data_client_id || '',
       max_active_users: (c as { max_active_users?: number | null }).max_active_users ?? '',
+      kini_user_monthly_limit: (c as { kini_user_monthly_limit?: number | null }).kini_user_monthly_limit ?? '',
+      kini_org_monthly_limit: (c as { kini_org_monthly_limit?: number | null }).kini_org_monthly_limit ?? '',
       // Per-client app customization — the API returns it as `app_ui`, but a
       // freshly-listed client may carry it under settings.app_ui; accept both.
       app_ui: ((c as { app_ui?: AppCustomization }).app_ui
@@ -287,12 +297,18 @@ export default function ClientManagement() {
 
   const save = async () => {
     if (!form.name.trim()) { setFErr('Client name is required'); return; }
+    for (const v of [form.kini_user_monthly_limit, form.kini_org_monthly_limit]) {
+      if (v !== '' && !(Number.isInteger(v) && v >= 1)) { setFErr('KINI limits must be a whole number of at least 1, or left blank to use the default.'); return; }
+    }
     setSaving(true); setFErr('');
     
     // Final verification: ensure we only send recognized module IDs to the API
     const finalForm = {
       ...form,
       modules: form.modules.filter(m => MODULES.some(mod => mod.id === m)),
+      // KINI limits: on create send what was typed; on edit send only a limit that changed ('' = back to the default).
+      kini_user_monthly_limit: editing ? (form.kini_user_monthly_limit === kiniInitRef.current.user ? undefined : form.kini_user_monthly_limit) : (form.kini_user_monthly_limit === '' ? undefined : form.kini_user_monthly_limit),
+      kini_org_monthly_limit: editing ? (form.kini_org_monthly_limit === kiniInitRef.current.org ? undefined : form.kini_org_monthly_limit) : (form.kini_org_monthly_limit === '' ? undefined : form.kini_org_monthly_limit),
       // Trial-period record. Send the object when both fields are set (server
       // recomputes end_date); null clears it. Sent only when the admin touched
       // it — otherwise leave `trial` undefined so an untouched save never wipes
@@ -323,8 +339,10 @@ export default function ClientManagement() {
         load();
         return; // keep modal open to show the generated credentials
       }
-      if (editing) await api.patch(`/api/v1/clients/${editing.id}`, finalForm);
-      else await api.post('/api/v1/clients', finalForm);
+      const saved: any = editing ? await api.patch(`/api/v1/clients/${editing.id}`, finalForm) : await api.post('/api/v1/clients', finalForm);
+      // The client saved, but a part of it (the KINI limits) may not have: say so instead of closing silently.
+      const warnings = (saved?.data ?? saved)?.warnings;
+      if (Array.isArray(warnings) && warnings.length) alert(warnings.join(' '));
       setShowModal(false); load();
     } catch (e: any) { setFErr(e.response?.data?.error || e.message || 'Save failed'); }
     finally { setSaving(false); }
@@ -676,6 +694,51 @@ export default function ClientManagement() {
                 beyond the limit are blocked. Blank = no limit. Staff domains (kinematicapp.com,
                 horizontechstudio.com, kinematic.com, kaiyotechnologylabs.com) don&apos;t count toward it.
               </div>
+            </div>
+
+            <div style={{ marginBottom: 24 }} data-testid="kini-limits">
+              <Label t="KINI AI usage (optional)" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: C.gray, marginBottom: 6 }}>Questions per user, per month</div>
+                  <input
+                    type="number" min={1} step={1} style={inp} aria-label="KINI questions per user per month"
+                    placeholder="Default"
+                    value={form.kini_user_monthly_limit === '' ? '' : String(form.kini_user_monthly_limit)}
+                    onChange={e => {
+                      const v = e.target.value.trim();
+                      setForm(p => ({ ...p, kini_user_monthly_limit: v === '' ? '' : Math.floor(Number(v)) || 0 }));
+                    }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: C.gray, marginBottom: 6 }}>Questions for the whole client, per month</div>
+                  <input
+                    type="number" min={1} step={1} style={inp} aria-label="KINI questions for the whole client per month"
+                    placeholder="Default"
+                    value={form.kini_org_monthly_limit === '' ? '' : String(form.kini_org_monthly_limit)}
+                    onChange={e => {
+                      const v = e.target.value.trim();
+                      setForm(p => ({ ...p, kini_org_monthly_limit: v === '' ? '' : Math.floor(Number(v)) || 0 }));
+                    }}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: C.grayd, marginTop: 6 }}>
+                Each question to KINI counts once, across web, iOS and Android, and the count restarts every calendar month (UTC).
+                A user who reaches their own limit is stopped; when the client&apos;s total is used up, nobody in this client can
+                use KINI until next month. Blank uses the platform default. Platform admins are never limited.
+              </div>
+              {editing && (() => {
+                const used = (editing as { kini_org_used_this_month?: number | null }).kini_org_used_this_month;
+                if (used == null) return null;
+                const cap = kiniInitRef.current.org;
+                return (
+                  <div data-testid="kini-used" style={{ fontSize: 12, color: C.white, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>
+                    Used this month: <b>{used}</b>{cap === '' ? ' (client total has no custom limit)' : <> of <b>{cap}</b></>}
+                  </div>
+                );
+              })()}
             </div>
 
             <div style={{ marginBottom: 28 }}>

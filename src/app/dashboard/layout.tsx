@@ -11,6 +11,7 @@ import StagingBoot from './StagingBoot';
 import StagingDeployModal from './StagingDeployModal';
 import { getStoredProjectKey } from '../../lib/projects';
 import { isMasterAdmin, BMW_CLIENT_ID } from '../../lib/clientFeatures';
+import { canUseHrms } from '../../lib/hrms/access';
 import { ClientProvider } from '../../context/ClientContext';
 import { CityScopeProvider } from '../../context/CityScopeContext';
 import { IndustryScopeProvider } from '../../context/IndustryScopeContext';
@@ -463,17 +464,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // module was explicitly granted (checked directly — hasModule() treats an empty
   // entitlement list as "allow all", which must never unlock billing data).
   const financeAllowed = isMasterAdmin(user) || (!isPlatformAdmin && enabledModules.includes('finance'));
-  // HRMS (preview) is visible ONLY on the demo account (demo@kinematic.com): it runs on sample data and the backend
-  // does not exist yet. isDemoAccount() needs both the demo email and the demo token, so a stray email never unlocks it.
-  // Read after mount (it looks at localStorage): reading it during render would differ between the server and the
-  // first client paint and fail hydration.
-  const [hrmsAllowed, setHrmsAllowed] = useState(false);
-  useEffect(() => { setHrmsAllowed(api.isDemoAccount()); }, []);
+  // HRMS (preview) is the master admin's only: it runs on sample data and the backend does not exist yet. canUseHrms()
+  // is the single rule (the module's own layout enforces it too, for deep links). `user` is set after mount, so this
+  // cannot differ between the server render and the first client paint.
+  const hrmsAllowed = canUseHrms(user);
 
   const filterNav = (items: any[]) => {
     const visibleAfterRole = items
       .filter((i) => !i.financeOnly || financeAllowed)
-      .filter((i) => !i.hrmsOnly || hrmsAllowed)
+      // Not shown while the master admin is viewing AS a client or user: that view should look like theirs.
+      .filter((i) => !i.hrmsOnly || (hrmsAllowed && !(actingAs || impersonate)))
       .filter((i) => !i.superAdminOnly || isSuperAdmin)
       // A platform-operator surface (Website Chats): not shown while a super admin is viewing AS a client / user.
       .filter((i) => !i.hideWhenViewingAsClient || !(actingAs || impersonate));
