@@ -8,7 +8,9 @@ import type {
 } from '../../../lib/hrms/types';
 import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import { addMonths, diffDays, financialYear, fmtMonth, fullName, inr } from '../../../lib/hrms/format';
-import { annualTax, buildBreakup, computePayRunPayslips, employeesForRun, type Breakup } from '../../../lib/hrms/engine';
+import { annualTax, buildBankFile, buildBreakup, computePayRunPayslips, employeesForRun, type Breakup } from '../../../lib/hrms/engine';
+import { looksMaskedAccount } from '../../../lib/hrms/live/masking';
+import { getAcks } from '../../../lib/hrms/live/acks';
 import { checkPan } from '../../../lib/hrms/validators';
 import {
   ESI, LABOUR_CODES, LWF_RULES, PF, PT_RULES, TDS, isMetroCity, monthEnd, professionalTax, rowOn, type Confidence,
@@ -94,22 +96,47 @@ export function ytdFor(db: HrmsDb, employeeId: Id, month: Month = PREVIEW_MONTH)
   };
 }
 
-/** How many blockers the person has already agreed to proceed past, read back from the run's audit trail. */
+/**
+ * How many blockers the person has already agreed to proceed past, read back from the run's audit trail. Live data has no call
+ * that appends an audit line, so there the agreement is also remembered in memory (live/acks.ts) and the larger count wins.
+ */
 export function acknowledgedBlockers(run: PayRun): number {
+  let fromAudit = 0;
   for (let i = run.audit.length - 1; i >= 0; i--) {
     const m = /^Continued past (\d+) blocker/.exec(run.audit[i]!.action);
-    if (m) return Number(m[1]);
+    if (m) { fromAudit = Number(m[1]); break; }
   }
-  return 0;
+  return Math.max(fromAudit, getAcks(run.id));
+}
+
+/**
+ * The bank transfer list as a screen shows it before the file is made. On live data the server holds the real account numbers and the
+ * browser holds only masks, so this lists the same people the real file will (same rules as the engine's bank file builder) with the
+ * account shown as the mask it is. It is for display and totals only: the file to send to the bank comes from the server.
+ */
+export function previewBankFile(db: HrmsDb, run: PayRun): ReturnType<typeof buildBankFile> {
+  const masked = new Map<string, string>();
+  for (const e of db.employees) if (e.bank && looksMaskedAccount(e.bank.accountNumber)) masked.set(e.id, e.bank.accountNumber);
+  if (!masked.size) return buildBankFile(db, run);
+  // Give masked accounts same-length digits so the builder lists them, then put the mask back: nothing here is ever a number to pay.
+  const stand = db.employees.map((e) => (masked.has(e.id) ? { ...e, bank: { ...e.bank!, accountNumber: `${'0'.repeat(Math.max(0, e.bank!.accountNumber.length - 4))}${e.bank!.accountNumber.slice(-4)}` } } : e));
+  const file = buildBankFile({ ...db, employees: stand }, run);
+  const byCode = new Map(db.employees.map((e) => [e.code, e]));
+  file.rows = file.rows.map((r) => { const e = byCode.get(r[0]!); return e && masked.has(e.id) ? [r[0]!, r[1]!, masked.get(e.id)!, ...r.slice(3)] : r; });
+  return file;
 }
 
 // ───────────────────────────── run: staleness and comparison ─────────────────────────────
 const slipSignature = (slips: Payslip[]): string =>
   slips.map((p) => `${p.employeeId}:${p.gross}:${p.totalDeductions}:${p.net}:${p.employerCost}`).sort().join('|');
 
-/** True when recomputing now would give different payslips than the ones stored on the run (inputs changed after Compute). */
+/**
+ * True when recomputing now would give different payslips than the ones stored on the run (inputs changed after Compute).
+ * A live run carries the server's own answer (`stale`), and that is used as it is: the browser does not compute payslips on live data.
+ */
 export function runIsStale(db: HrmsDb, run: PayRun): boolean {
   if (run.status !== 'computed') return false;
+  if (typeof run.stale === 'boolean') return run.stale;
   return slipSignature(computePayRunPayslips(db, run.month, run.entityId, run.id)) !== slipSignature(run.payslips);
 }
 

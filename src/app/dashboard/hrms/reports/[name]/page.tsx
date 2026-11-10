@@ -6,13 +6,16 @@ import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { toast } from 'sonner';
 import { useHrmsDb } from '../../../../../lib/hrms/db';
+import { liveBankFiles } from '../../../../../lib/hrms/live/payrollCommands';
+import { useLiveStatus } from '../../../../../lib/hrms/live/store';
 import type { HrmsDb } from '../../../../../lib/hrms/types';
 import { logAccess } from '../../../../../lib/hrms/actions';
 import { fmtMonth } from '../../../../../lib/hrms/format';
 import { Button, Card, EmptyState, HrmsPage, Loading, Note, T, downloadRows, monthOptions, useIsCompact } from '../../../../../components/hrms/ui';
 import { Field, Select } from '../../../../../components/ui';
-import { PREVIEW_MONTH } from '../../../../../components/hrms/statutory/builders';
+import { PREVIEW_MONTH, runsFor } from '../../../../../components/hrms/statutory/builders';
 import ReportTable, { sortRows, type SortState } from '../../../../../components/hrms/reports/ReportTable';
 import {
   ALL, computeTotals, csvValue, defaultFilters, reportDef, type Filters, type ReportDef,
@@ -60,6 +63,8 @@ function Viewer({ db, def }: { db: HrmsDb; def: ReportDef }) {
   const narrow = useIsCompact(900);
   const [f, setF] = useState<Filters>(() => readFilters(db, def));
   const [sort, setSort] = useState<SortState>(null);
+  const [exporting, setExporting] = useState(false);
+  const isLive = useLiveStatus().source === 'live';
 
   // Keep the filters in the address so a report can be bookmarked or shared.
   useEffect(() => {
@@ -78,7 +83,20 @@ function Viewer({ db, def }: { db: HrmsDb; def: ReportDef }) {
   const set = (k: keyof Filters) => (e: React.ChangeEvent<HTMLSelectElement>) => setF((x) => ({ ...x, [k]: e.target.value }));
   const width = narrow ? '100%' : 190;
 
+  // Live bank advice: the table above is a masked preview; the file with the full account numbers is built by the server, which records the download.
+  const exportBankAdviceFromServer = async () => {
+    setExporting(true);
+    try {
+      const codes = new Set(rows.map((r) => String(r.code)));
+      const file = await liveBankFiles(runsFor(db, f.month, f.entity, ['frozen', 'paid']).map((r) => r.id));
+      downloadRows(`${def.name}_${f.month}.csv`, file.header, file.rows.filter((r) => codes.has(r[0] ?? '')));
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Could not get the bank file from the server.');
+    } finally { setExporting(false); }
+  };
+
   const exportCsv = () => {
+    if (isLive && def.name === 'bank-advice') { void exportBankAdviceFromServer(); return; }
     const totals = computeTotals(cols, rows);
     const body = shown.map((r) => cols.map((c) => csvValue(c, r)));
     if (totals) body.push(cols.map((c, i) => (totals[c.key] != null ? totals[c.key]! : i === 0 ? 'Total' : '')));
@@ -93,7 +111,7 @@ function Viewer({ db, def }: { db: HrmsDb; def: ReportDef }) {
       eyebrow="HRMS · Reports"
       title={def.title}
       description={def.description}
-      actions={<Button variant="primary" onClick={exportCsv} disabled={rows.length === 0} style={{ minHeight: 40 }}>Export CSV</Button>}
+      actions={<Button variant="primary" onClick={exportCsv} disabled={rows.length === 0 || exporting} style={{ minHeight: 40 }}>Export CSV</Button>}
     >
       <div><Link href="/dashboard/hrms/reports" style={{ fontSize: 13, color: T.info }}>← All reports</Link></div>
 

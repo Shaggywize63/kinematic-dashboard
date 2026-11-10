@@ -8,8 +8,13 @@
 //   - freezeRun puts a payslip's whole loan EMI on the first open loan, and unfreezeRun never gives it back, so a
 //     freeze, unfreeze, freeze cycle recovers the EMI twice and the next compute then shows a smaller EMI.
 // freezeRunSafe / unfreezeRunSafe keep the same status flow and audit lines and remember what they changed.
+//
+// Live data: the helpers that change a record (setAttendance, saveAdjustment, createStructure ...) are unchanged. They go through
+// `mutate`, which on live data saves the change on the server and undoes it, with the server's reason, if the server refuses.
+// The helpers that are commands (freezeRunSafe, unfreezeRunSafe, approveFnf, markFnfPaid) call the server instead and return a
+// promise of the same ActionResult, so call sites await them. In sample mode they stay synchronous and behave exactly as before.
 
-import { mutate, getDb } from './db';
+import { mutate, getDb, newId } from './db';
 import { ACTOR, remove, upsert } from './actions';
 import { uid } from './types';
 import type {
@@ -17,6 +22,10 @@ import type {
 } from './types';
 import { daysInMonth, fmtMonth } from './format';
 import { ESI, PF } from './rules';
+import { makeSeed } from './seed';
+import { isLive } from './live/store';
+import { setAcks } from './live/acks';
+import { liveFnfCommand, liveFreezeRun, liveUnfreezeRun } from './live/payrollCommands';
 import { adjustmentInfo, adjustmentLock, isLocked, runIsStale, validateStructure } from '../../components/hrms/payroll/logic';
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -27,6 +36,9 @@ const fail = (error: string): ActionResult => ({ ok: false, error });
 interface RunExtras { loanRecoveries?: Record<Id, number>; attendanceLockedFor?: Id[] }
 
 export function logRunAudit(runId: Id, action: string): void {
+  // The server cannot take an audit line from here, so a "continued past N blockers" is also kept in memory (live data only).
+  const m = /^Continued past (\d+) blocker/.exec(action);
+  if (m && isLive()) setAcks(runId, Number(m[1]));
   mutate((db) => {
     const run = db.payRuns.find((r) => r.id === runId);
     if (run) run.audit.push({ at: new Date().toISOString(), by: ACTOR, action });
@@ -67,7 +79,7 @@ export function saveAdjustment(a: Omit<Adjustment, 'id'> & { id?: Id }): ActionR
     if (origLock) return fail(`This adjustment belongs to the ${fmtMonth(origLock.month)} run, which is ${origLock.status}.`);
   }
   const info = adjustmentInfo(a.kind);
-  upsert('adjustments', { ...a, amount: Math.round(a.amount), taxable: info.effect === 'earning' ? a.taxable : false, id: a.id ?? uid('adj') });
+  upsert('adjustments', { ...a, amount: Math.round(a.amount), taxable: info.effect === 'earning' ? a.taxable : false, id: a.id ?? newId('adj') });
   return OK;
 }
 export function deleteAdjustment(id: Id): ActionResult {
@@ -82,7 +94,7 @@ export function deleteAdjustment(id: Id): ActionResult {
 
 // ───────────── salary structures ─────────────
 const comp = (code: string, name: string, kind: SalaryComponent['kind'], type: SalaryComponent['calc']['type'], value: number, o: Partial<SalaryComponent> = {}): SalaryComponent => ({
-  id: uid('c'), code, name, kind, calc: { type, value }, isWage: false, taxable: kind === 'earning', pfApplicable: false, esiApplicable: kind === 'earning', prorate: kind === 'earning', showInPayslip: true, ...o,
+  id: newId('c'), code, name, kind, calc: { type, value }, isWage: false, taxable: kind === 'earning', pfApplicable: false, esiApplicable: kind === 'earning', prorate: kind === 'earning', showInPayslip: true, ...o,
 });
 
 /** A new structure, blank (basic plus a balancing allowance plus employer PF) or copied from an existing one with fresh component ids. */
@@ -90,14 +102,14 @@ export function createStructure(name: string, copyFromId?: Id, effectiveFrom = '
   const db = getDb();
   const src = copyFromId ? db.structures.find((s) => s.id === copyFromId) : undefined;
   const components: SalaryComponent[] = src
-    ? src.components.map((c) => ({ ...c, id: uid('c'), calc: { ...c.calc } }))
+    ? src.components.map((c) => ({ ...c, id: newId('c'), calc: { ...c.calc } }))
     : [
       comp('BASIC', 'Basic', 'earning', 'pct_ctc', 50, { isWage: true, pfApplicable: true }),
       comp('SPECIAL', 'Special Allowance', 'earning', 'balance', 0),
       comp('PF_ER', 'Employer PF', 'employer', 'pf_employer', PF.employerRate, { taxable: false, esiApplicable: false, prorate: false }),
       comp('ESI_ER', 'Employer ESI', 'employer', 'esi_employer', ESI.employerRate, { taxable: false, esiApplicable: false, prorate: false }),
     ];
-  const s: SalaryStructure = { id: uid('str'), name: name.trim(), description: src ? `Copy of ${src.name}` : '', effectiveFrom, components };
+  const s: SalaryStructure = { id: newId('str'), name: name.trim(), description: src ? `Copy of ${src.name}` : '', effectiveFrom, components };
   upsert('structures', s);
   return s;
 }
@@ -115,6 +127,20 @@ export function deleteStructure(id: Id): ActionResult {
   return OK;
 }
 
+/**
+ * The three structures the sample company uses (office staff, field sales, warehouse), as new rows with fresh ids. A new organisation
+ * has none, and these are a sensible start to edit. Structures already there under the same name are not added twice.
+ */
+export function addStandardStructures(): ActionResult {
+  const have = new Set(getDb().structures.map((s) => s.name.trim().toLowerCase()));
+  const fresh = makeSeed().structures
+    .filter((t) => !have.has(t.name.trim().toLowerCase()))
+    .map((t): SalaryStructure => ({ ...t, id: newId('str'), components: t.components.map((c) => ({ ...c, id: newId('c'), calc: { ...c.calc } })) }));
+  if (!fresh.length) return fail('The standard structures are already there.');
+  mutate((db) => { for (const s of fresh) db.structures.push(s); });
+  return OK;
+}
+
 // ───────────── loans ─────────────
 export function deleteLoan(id: Id): ActionResult {
   const l = getDb().loans.find((x) => x.id === id);
@@ -125,7 +151,8 @@ export function deleteLoan(id: Id): ActionResult {
 }
 
 // ───────────── full and final ─────────────
-export function approveFnf(id: Id): ActionResult {
+export function approveFnf(id: Id): ActionResult | Promise<ActionResult> {
+  if (isLive()) return liveFnfCommand(id, 'approve');
   let result: ActionResult = OK;
   mutate((db) => {
     const c = db.fnfCases.find((x) => x.id === id);
@@ -135,7 +162,8 @@ export function approveFnf(id: Id): ActionResult {
   });
   return result;
 }
-export function markFnfPaid(id: Id): ActionResult {
+export function markFnfPaid(id: Id): ActionResult | Promise<ActionResult> {
+  if (isLive()) return liveFnfCommand(id, 'mark-paid');
   let result: ActionResult = OK;
   mutate((db) => {
     const c = db.fnfCases.find((x) => x.id === id);
@@ -154,7 +182,8 @@ export function deleteFnf(id: Id): ActionResult {
 }
 
 // ───────────── freeze / unfreeze ─────────────
-export function freezeRunSafe(runId: Id): ActionResult {
+export function freezeRunSafe(runId: Id): ActionResult | Promise<ActionResult> {
+  if (isLive()) return liveFreezeRun(runId);
   let result: ActionResult = OK;
   mutate((db) => {
     const run = db.payRuns.find((r) => r.id === runId) as (PayRun & RunExtras) | undefined;
@@ -187,9 +216,10 @@ export function freezeRunSafe(runId: Id): ActionResult {
   return result;
 }
 
-export function unfreezeRunSafe(runId: Id, reason: string): ActionResult {
+export function unfreezeRunSafe(runId: Id, reason: string): ActionResult | Promise<ActionResult> {
   const why = reason.trim();
   if (why.length < 5) return fail('Give a reason of at least a few words. It goes into the audit trail.');
+  if (isLive()) return liveUnfreezeRun(runId, why);
   let result: ActionResult = OK;
   mutate((db) => {
     const run = db.payRuns.find((r) => r.id === runId) as (PayRun & RunExtras) | undefined;

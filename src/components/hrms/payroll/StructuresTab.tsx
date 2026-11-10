@@ -4,13 +4,14 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Badge, Button, DataTable, Modal, Note, SearchBox, Toolbar, T, type Col } from '../ui';
+import { Badge, Button, Card, DataTable, EmptyState, Modal, Note, SearchBox, Toolbar, T, type Col } from '../ui';
 import { Field, Input, Select } from '../../ui';
 import type { HrmsDb, SalaryStructure } from '../../../lib/hrms/types';
 import { buildBreakup } from '../../../lib/hrms/engine';
 import { monthEnd } from '../../../lib/hrms/rules';
 import { fmtDate } from '../../../lib/hrms/format';
-import { createStructure, deleteStructure } from '../../../lib/hrms/payrollActions';
+import { addStandardStructures, createStructure, deleteStructure } from '../../../lib/hrms/payrollActions';
+import { useLiveStatus } from '../../../lib/hrms/live/store';
 import { PREVIEW_MONTH } from './logic';
 import { ConfirmModal, LinkButton, report } from './shared';
 
@@ -22,6 +23,7 @@ export default function StructuresTab({ db }: { db: HrmsDb }) {
   const [q, setQ] = useState('');
   const [creating, setCreating] = useState(false);
   const [removing, setRemoving] = useState<Row | null>(null);
+  const isLive = useLiveStatus().source === 'live';
 
   const rows: Row[] = useMemo(() => db.structures
     .map((s) => {
@@ -51,6 +53,15 @@ export default function StructuresTab({ db }: { db: HrmsDb }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {isLive && db.structures.length === 0 && (
+        <div data-testid="structures-empty">
+          <Card>
+            <EmptyState title="No salary structures yet"
+              description="Pay is worked out from a salary structure. Start with the three standard ones (office staff, field sales, warehouse and contract) and edit them to suit your company, or create your own."
+              action={<Button variant="primary" data-testid="add-standard-structures" style={{ height: 40 }} onClick={() => { report(addStandardStructures(), 'Standard structures added'); }}>Add the standard structures</Button>} />
+          </Card>
+        </div>
+      )}
       <Toolbar>
         <SearchBox value={q} onChange={setQ} placeholder="Search structures" />
         <div style={{ marginLeft: 'auto' }}><Button variant="primary" style={{ height: 40 }} onClick={() => setCreating(true)}>New structure</Button></div>

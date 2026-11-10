@@ -8,6 +8,8 @@ import type {
 import { uid } from './types';
 import { computePayRunPayslips } from './engine';
 import { LAW_VERSION } from './rules';
+import { isLive } from './live/store';
+import { liveComputeRun, liveCreateRun, liveFreezeRun, liveMarkRunPaid, liveUnfreezeRun, type CommandResult } from './live/payrollCommands';
 import { fullName } from './format';
 import { PREVIEW_TODAY } from './seed';
 
@@ -86,7 +88,10 @@ export function updateEmployee(id: Id, patch: Partial<Employee>): void {
 }
 
 // ───────────── payroll ─────────────
-export function createPayRun(month: Month, entityId: Id, type: PayRun['type'] = 'regular'): PayRun {
+// On live data a pay run is created, computed, frozen and paid on the server: these helpers then return a promise of the server's
+// answer (and the run it holds replaces the local one), so call sites await them. In sample mode they stay synchronous.
+export function createPayRun(month: Month, entityId: Id, type: PayRun['type'] = 'regular'): PayRun | Promise<PayRun> {
+  if (isLive()) return liveCreateRun(month, entityId, type);
   let run!: PayRun;
   mutate((db) => {
     const existing = db.payRuns.find((r) => r.month === month && r.entityId === entityId && r.type === type);
@@ -97,7 +102,8 @@ export function createPayRun(month: Month, entityId: Id, type: PayRun['type'] = 
   return run;
 }
 
-export function computeRun(runId: Id): void {
+export function computeRun(runId: Id): CommandResult | Promise<CommandResult> {
+  if (isLive()) return liveComputeRun(runId);
   mutate((db) => {
     const run = db.payRuns.find((r) => r.id === runId);
     if (!run || run.status === 'frozen' || run.status === 'paid') return;
@@ -107,8 +113,10 @@ export function computeRun(runId: Id): void {
     run.lawVersion = LAW_VERSION;
     run.audit.push({ at: run.computedAt, by: ACTOR, action: `Computed ${run.payslips.length} payslips` });
   });
+  return { ok: true };
 }
-export function freezeRun(runId: Id): void {
+export function freezeRun(runId: Id): void | Promise<CommandResult> {
+  if (isLive()) return liveFreezeRun(runId);
   mutate((db) => {
     const run = db.payRuns.find((r) => r.id === runId);
     if (!run || run.status !== 'computed') return;
@@ -134,7 +142,8 @@ export function freezeRun(runId: Id): void {
     }
   });
 }
-export function unfreezeRun(runId: Id, reason: string): void {
+export function unfreezeRun(runId: Id, reason: string): void | Promise<CommandResult> {
+  if (isLive()) return liveUnfreezeRun(runId, reason);
   mutate((db) => {
     const run = db.payRuns.find((r) => r.id === runId);
     if (!run || run.status !== 'frozen') return;
@@ -155,7 +164,8 @@ export function unfreezeRun(runId: Id, reason: string): void {
     run.audit.push({ at: new Date().toISOString(), by: ACTOR, action: `Unfrozen: ${reason}` });
   });
 }
-export function markRunPaid(runId: Id): void {
+export function markRunPaid(runId: Id): CommandResult | Promise<CommandResult> {
+  if (isLive()) return liveMarkRunPaid(runId);
   mutate((db) => {
     const run = db.payRuns.find((r) => r.id === runId);
     if (!run || run.status !== 'frozen') return;
@@ -163,11 +173,12 @@ export function markRunPaid(runId: Id): void {
     run.paidAt = new Date().toISOString();
     run.audit.push({ at: run.paidAt, by: ACTOR, action: 'Marked paid' });
   });
+  return { ok: true };
 }
 
-export const addAdjustment = (a: Omit<Adjustment, 'id'>) => upsert('adjustments', { ...a, id: uid('adj') });
-export const addLoan = (l: Omit<Loan, 'id' | 'recovered'>) => upsert('loans', { ...l, id: uid('loan'), recovered: 0 });
-export const saveFnf = (c: Omit<FnfCase, 'id'> & { id?: Id }) => upsert('fnfCases', { ...c, id: c.id ?? uid('fnf') } as FnfCase);
+export const addAdjustment = (a: Omit<Adjustment, 'id'>) => upsert('adjustments', { ...a, id: newId('adj') });
+export const addLoan = (l: Omit<Loan, 'id' | 'recovered'>) => upsert('loans', { ...l, id: newId('loan'), recovered: 0 });
+export const saveFnf = (c: Omit<FnfCase, 'id'> & { id?: Id }) => upsert('fnfCases', { ...c, id: c.id ?? newId('fnf') } as FnfCase);
 
 // ───────────── letters, access log, compliance ─────────────
 export function issueLetter(l: Omit<IssuedLetter, 'id' | 'issuedOn' | 'signed'>): IssuedLetter {

@@ -157,8 +157,9 @@ export function defaultInput(db: HrmsDb, type: ScenarioType): ScenarioInput {
     return { type, count: 3, designationId: des.id, annualCtc: 360000, locationId: loc.id, structureId: usualStructure(db, des.id), fromMonth };
   }
   if (type === 'structure') {
-    const st = db.structures.find((s) => s.id === 'str_field') ?? db.structures[0]!;
-    return { type, structureId: st.id, basicPct: 50, pfOnActual: false, fromMonth };
+    // A new live organisation has no structures yet: leave the choice empty (validateInput then asks for one) rather than fail.
+    const st = db.structures.find((s) => s.id === 'str_field') ?? db.structures[0];
+    return { type, structureId: st?.id ?? '', basicPct: 50, pfOnActual: false, fromMonth };
   }
   return { type, rule: 'esi_ceiling', value: 30000, fromMonth };
 }
@@ -168,7 +169,7 @@ export function usualStructure(db: HrmsDb, designationId: Id): Id {
   const count = new Map<Id, number>();
   for (const e of db.employees) if (e.designationId === designationId && e.structureId) count.set(e.structureId, (count.get(e.structureId) ?? 0) + 1);
   const best = [...count.entries()].sort((a, b) => b[1] - a[1])[0];
-  return best?.[0] ?? db.structures[0]!.id;
+  return best?.[0] ?? db.structures[0]?.id ?? '';
 }
 
 export function validateInput(db: HrmsDb, input: ScenarioInput): Record<string, string> {

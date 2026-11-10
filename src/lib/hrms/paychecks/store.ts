@@ -5,9 +5,10 @@
 
 import { createAreaStore } from '../areaStore';
 import { getDb } from '../db';
+import { isLive } from '../live/store';
 import { createPayRun, computeRun, ACTOR } from '../actions';
 import { PREVIEW_TODAY, makeSeed } from '../seed';
-import type { Id, Month } from '../types';
+import type { Id, Month, PayRun } from '../types';
 import { draftTarget, reviewKey, runPayChecks, type StoredReview } from './engine';
 
 export interface PayChecksState {
@@ -63,13 +64,15 @@ export function reopenFinding(key: string): void {
  * compare it with the last closed run. Uses the same actions as the payroll screen. A frozen or paid run is left alone.
  */
 export function prepareDraft(entityId: Id): { ok: true; month: Month; runId: Id; created: boolean } | { ok: false; error: string } {
+  // On live data a run is created and computed on the server, through the Payroll screens. This button must not compute payslips in the browser.
+  if (isLive()) return { ok: false, error: 'Preparing a draft run from here is not available on live data. Start the run from Payroll, where the server computes it.' };
   const db = getDb();
   const target = draftTarget(db, entityId, PREVIEW_TODAY.slice(0, 7));
   if (target.existing && (target.existing.status === 'frozen' || target.existing.status === 'paid')) {
     return { ok: false, error: `The ${target.month} run is already ${target.existing.status}, so it cannot be recomputed here.` };
   }
   const created = !target.existing;
-  const run = createPayRun(target.month, entityId);
+  const run = createPayRun(target.month, entityId) as PayRun; // sample mode only (live returned above), so this is synchronous
   computeRun(run.id);
   payChecksStore.mutate((d) => { d.log.unshift({ at: stamp(), by: ACTOR, action: `${created ? 'Prepared' : 'Recomputed'} the ${target.month} draft for ${entityId}` }); });
   return { ok: true, month: target.month, runId: run.id, created };

@@ -4,10 +4,12 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Button, Card, CardTitle, DataTable, Note, SearchBox, StatusBadge, Toolbar, monthOptions, useIsCompact, T, type Col } from '../ui';
 import { Field, Select } from '../../ui';
 import type { HrmsDb, PayRun } from '../../../lib/hrms/types';
 import { createPayRun } from '../../../lib/hrms/actions';
+import { useLiveStatus } from '../../../lib/hrms/live/store';
 import { employeesForRun, runTotals } from '../../../lib/hrms/engine';
 import { fmtMonth, inr } from '../../../lib/hrms/format';
 import { PREVIEW_MONTH } from './logic';
@@ -23,6 +25,8 @@ export default function RunsTab({ db }: { db: HrmsDb }) {
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [entityFilter, setEntityFilter] = useState('all');
+  const [starting, setStarting] = useState(false);
+  const isLive = useLiveStatus().source === 'live';
 
   const existing = db.payRuns.find((r) => r.month === month && r.entityId === entityId && r.type === 'regular');
   const inScope = useMemo(() => employeesForRun(db, month, entityId).length, [db, month, entityId]);
@@ -32,9 +36,15 @@ export default function RunsTab({ db }: { db: HrmsDb }) {
     .filter((r) => (statusFilter === 'all' || r.status === statusFilter) && (entityFilter === 'all' || r.entityId === entityFilter)
       && (!q.trim() || `${fmtMonth(r.month)} ${r.month} ${r.entityLabel}`.toLowerCase().includes(q.trim().toLowerCase()))), [db, q, statusFilter, entityFilter]);
 
-  const start = () => {
-    const run = createPayRun(month, entityId);
-    router.push(`/dashboard/hrms/payroll/runs/${run.id}`);
+  // On live data the server creates the run (or returns the one that exists), so this waits for its answer; in sample mode it is instant.
+  const start = async () => {
+    setStarting(true);
+    try {
+      const run = await createPayRun(month, entityId);
+      router.push(`/dashboard/hrms/payroll/runs/${run.id}`);
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Could not start the run.');
+    } finally { setStarting(false); }
   };
 
   const cols: Col<Row>[] = [
@@ -46,7 +56,7 @@ export default function RunsTab({ db }: { db: HrmsDb }) {
     { key: 'gross', label: 'Gross', align: 'right', render: (r) => (r.payslips.length ? inr(r.totals.gross) : '—'), sortValue: (r) => r.totals.gross, nowrap: true },
     { key: 'net', label: 'Net pay', align: 'right', render: (r) => (r.payslips.length ? inr(r.totals.net) : '—'), sortValue: (r) => r.totals.net, nowrap: true },
     { key: 'cost', label: 'Employer cost', align: 'right', render: (r) => (r.payslips.length ? inr(r.totals.employerCost) : '—'), sortValue: (r) => r.totals.employerCost, nowrap: true },
-    { key: 'law', label: 'Law version', render: (r) => <span style={{ fontSize: 12.5, color: T.dim }}>{r.lawVersion}</span>, nowrap: true },
+    { key: 'law', label: 'Law version', render: (r) => <span style={{ fontSize: 12.5, color: T.dim }}>{r.lawVersion || '—'}</span>, nowrap: true },
     { key: 'open', label: <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}>Open</span>, align: 'right', render: (r) => <LinkButton href={`/dashboard/hrms/payroll/runs/${r.id}`} label={`Open the ${fmtMonth(r.month)} run for ${r.entityLabel}`}>Open</LinkButton> },
   ];
 
@@ -65,7 +75,7 @@ export default function RunsTab({ db }: { db: HrmsDb }) {
               {db.entities.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
             </Select>
           </Field>
-          <Button variant="primary" style={bigBtn} onClick={start} disabled={!entityId}>{existing ? `Open ${existing.status} run` : 'Start run'}</Button>
+          <Button variant="primary" style={bigBtn} onClick={() => void start()} disabled={!entityId || starting}>{existing ? `Open ${existing.status} run` : 'Start run'}</Button>
         </div>
         <div style={{ marginTop: 12, fontSize: 13, color: T.dim }} data-testid="run-scope">
           {inScope} employee{inScope === 1 ? '' : 's'} in scope for {fmtMonth(month)}.{' '}
@@ -74,7 +84,7 @@ export default function RunsTab({ db }: { db: HrmsDb }) {
       </Card>
 
       <Note tone="warn">
-        Preview on sample data. The statutory rates behind these runs (PF and ESI ceilings, professional tax, TDS slabs) are reported or sample values and are not confirmed
+        {isLive ? 'Payslips are computed on the server.' : 'Preview on sample data.'} The statutory rates behind these runs (PF and ESI ceilings, professional tax, TDS slabs) are reported or sample values and are not confirmed
         for live payroll. Each run page shows the confidence of every parameter it used.
       </Note>
 

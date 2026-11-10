@@ -106,7 +106,7 @@ export default function RunInputs({ db, run }: { db: HrmsDb; run: PayRun }) {
         <div style={{ fontSize: 12.5, color: T.mute, marginTop: 10 }}>Kinds: {ADJUSTMENT_KINDS.map((k) => k.label).join(', ')}. The full list across months is on the Adjustments tab of the payroll hub.</div>
       </Card>
 
-      <Card>
+      <div data-testid="run-loans"><Card>
         <CardTitle>Loan and advance recoveries in this run</CardTitle>
         {loanRows.length === 0 ? <div style={{ fontSize: 13.5, color: T.mute }}>No loan or advance is being recovered this month.</div> : (
           <DataTable columns={[
@@ -117,7 +117,7 @@ export default function RunInputs({ db, run }: { db: HrmsDb; run: PayRun }) {
           ]} rows={loanRows} minWidth={520} />
         )}
         <div style={{ fontSize: 12.5, color: T.mute, marginTop: 10 }}>These come from the Loans tab. They are deducted automatically, and the recovered amount moves when the run is frozen.</div>
-      </Card>
+      </Card></div>
 
       {editing && <AdjustmentForm db={db} initial={editing === 'new' ? undefined : editing} defaultMonth={run.month} lockMonth employees={emps} onClose={() => setEditing(null)} />}
       {removing && (

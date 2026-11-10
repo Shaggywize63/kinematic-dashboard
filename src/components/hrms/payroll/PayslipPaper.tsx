@@ -129,7 +129,7 @@ export default function PayslipPaper({ db, run, slip }: { db: HrmsDb; run: PayRu
 
         <div style={{ marginTop: 14, fontSize: 10.5, color: DIM, lineHeight: 1.6 }}>
           {hasWageMark && <div>† Counted as wages under the Labour Codes (basic, dearness allowance and similar). Wages feed the 50% test, PF and gratuity.</div>}
-          <div>Computed under {run.lawVersion}. Sample data for a preview; statutory rates are not confirmed for live use.</div>
+          <div>Computed under {run.lawVersion}. {typeof run.stale === 'boolean' ? 'Statutory rates are not confirmed for live use.' : 'Sample data for a preview; statutory rates are not confirmed for live use.'}</div>
           <div>This is a computer-generated payslip and does not need a signature.</div>
         </div>
       </div>

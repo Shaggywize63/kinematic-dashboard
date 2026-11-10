@@ -1,30 +1,35 @@
 'use client';
 // Payroll hub, Full and final tab: settlement cases, a settlement sheet computed by the engine, and a printable statement.
+// Live data: a saved settlement is worked out by the server (GET /fnf/:id/compute); the preview inside the form is an estimate from the browser.
 
 import { useMemo, useState } from 'react';
 import { Badge, Button, Card, CardTitle, DataTable, EmployeeCell, KeyValue, Modal, Note, StatusBadge, Toolbar, useIsCompact, T, type Col } from '../ui';
 import { Field, FormGrid, Input, Select } from '../../ui';
 import type { Employee, FnfCase, HrmsDb } from '../../../lib/hrms/types';
-import { uid } from '../../../lib/hrms/types';
+import { newId } from '../../../lib/hrms/db';
 import { addWorkingDays, computeFnf, employeesForRun, type FnfResult } from '../../../lib/hrms/engine';
 import { saveFnf } from '../../../lib/hrms/actions';
 import { approveFnf, deleteFnf, markFnfPaid } from '../../../lib/hrms/payrollActions';
+import { useFnfResults } from '../../../lib/hrms/live/payrollCommands';
+import { useLiveStatus } from '../../../lib/hrms/live/store';
 import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import { LABOUR_CODES } from '../../../lib/hrms/rules';
 import { diffDays, fmtDate, fmtMonth, fullName, inr, inrWords } from '../../../lib/hrms/format';
 import { defaultFnfDraft, elBalance, fnfCandidates, fnfIsOverdue, validateFnf, type FnfDraft } from './logic';
 import { ConfirmModal, PrintStyle, report } from './shared';
 
-type Row = FnfCase & { who?: Employee; result: FnfResult | null; overdue: boolean };
+/** `result`: undefined while the server's answer is on its way (live data), null when the settlement cannot be computed. */
+type Row = FnfCase & { who?: Employee; result: FnfResult | null | undefined; overdue: boolean };
 
 export default function FnfTab({ db }: { db: HrmsDb }) {
   const [status, setStatus] = useState('all');
   const [editing, setEditing] = useState<FnfCase | 'new' | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
 
+  const results = useFnfResults(db, db.fnfCases);
   const rows: Row[] = useMemo(() => db.fnfCases
-    .map((c) => ({ ...c, who: db.employees.find((e) => e.id === c.employeeId), result: computeFnf(db, c), overdue: fnfIsOverdue(c) }))
-    .filter((c) => status === 'all' || c.status === status || (status === 'overdue' && c.overdue)), [db, status]);
+    .map((c) => ({ ...c, who: db.employees.find((e) => e.id === c.employeeId), result: results.get(c.id), overdue: fnfIsOverdue(c) }))
+    .filter((c) => status === 'all' || c.status === status || (status === 'overdue' && c.overdue)), [db, status, results]);
   const open = db.fnfCases.find((c) => c.id === openId);
   const candidates = fnfCandidates(db);
 
@@ -32,7 +37,7 @@ export default function FnfTab({ db }: { db: HrmsDb }) {
     { key: 'emp', label: 'Employee', render: (r) => (r.who ? <EmployeeCell e={r.who} href={false} /> : '—'), sortValue: (r) => (r.who ? fullName(r.who) : '') },
     { key: 'lwd', label: 'Last working day', render: (r) => fmtDate(r.lastWorkingDate), sortValue: (r) => r.lastWorkingDate, nowrap: true },
     { key: 'status', label: 'Status', render: (r) => <StatusBadge status={r.status} />, sortValue: (r) => r.status },
-    { key: 'net', label: 'Net payable', align: 'right', render: (r) => (r.result ? <b style={{ color: r.result.net < 0 ? T.red : T.text }}>{inr(r.result.net)}</b> : '—'), sortValue: (r) => r.result?.net ?? 0, nowrap: true },
+    { key: 'net', label: 'Net payable', align: 'right', render: (r) => (r.result === undefined ? '…' : r.result ? <b style={{ color: r.result.net < 0 ? T.red : T.text }}>{inr(r.result.net)}</b> : '—'), sortValue: (r) => r.result?.net ?? 0, nowrap: true },
     { key: 'due', label: 'Due by', render: (r) => (
       <span>{fmtDate(r.dueBy)} {r.overdue && <Badge tone="red" dot style={{ marginLeft: 6 }}>Overdue {diffDays(r.dueBy, PREVIEW_TODAY)} day{diffDays(r.dueBy, PREVIEW_TODAY) === 1 ? '' : 's'}</Badge>}</span>
     ), sortValue: (r) => r.dueBy, nowrap: true },
@@ -67,9 +72,11 @@ export default function FnfTab({ db }: { db: HrmsDb }) {
 // ───────────────────────────── settlement sheet ─────────────────────────────
 function FnfSheet({ db, c, onClose, onEdit }: { db: HrmsDb; c: FnfCase; onClose: () => void; onEdit: () => void }) {
   const narrow = useIsCompact(900);
+  const isLive = useLiveStatus().source === 'live';
   const e = db.employees.find((x) => x.id === c.employeeId);
-  const result = computeFnf(db, c);
+  const result = useFnfResults(db, [c]).get(c.id);
   const [confirm, setConfirm] = useState<'approve' | 'pay' | 'delete' | null>(null);
+  const [busy, setBusy] = useState(false);
   const entity = db.entities.find((x) => x.id === e?.entityId);
   const overdue = fnfIsOverdue(c);
   const lwdMonth = c.lastWorkingDate.slice(0, 7);
@@ -77,6 +84,9 @@ function FnfSheet({ db, c, onClose, onEdit }: { db: HrmsDb; c: FnfCase; onClose:
   const dept = db.departments.find((d) => d.id === e?.departmentId)?.name;
   const desig = db.designations.find((d) => d.id === e?.designationId)?.name;
 
+  if (result === undefined) {
+    return <div data-testid="fnf-sheet"><Card><CardTitle right={<Button size="sm" onClick={onClose}>Close</Button>}>Settlement</CardTitle><div role="status" style={{ fontSize: 13.5, color: T.dim }}>Working out the settlement on the server…</div></Card></div>;
+  }
   if (!e || !result) {
     return <Card><CardTitle right={<Button size="sm" onClick={onClose}>Close</Button>}>Settlement</CardTitle><Note tone="red">This settlement cannot be computed: the employee needs a salary structure, a CTC and a location.</Note></Card>;
   }
@@ -149,13 +159,13 @@ function FnfSheet({ db, c, onClose, onEdit }: { db: HrmsDb; c: FnfCase; onClose:
         <FnfStatement company={entity?.name ?? ''} address={[entity?.address.line1, entity?.address.city, entity?.address.state].filter(Boolean).join(', ')} e={e} desig={desig} dept={dept} c={c} result={result} />
       </div>
       {confirm === 'approve' && (
-        <ConfirmModal title="Approve settlement" confirmLabel="Approve" onClose={() => setConfirm(null)} onConfirm={() => { if (report(approveFnf(c.id), 'Settlement approved')) setConfirm(null); }}>
+        <ConfirmModal title="Approve settlement" confirmLabel="Approve" onClose={() => setConfirm(null)} disabled={busy} onConfirm={async () => { setBusy(true); try { if (report(await approveFnf(c.id), 'Settlement approved')) setConfirm(null); } finally { setBusy(false); } }}>
           Approve the settlement of <b>{inr(result.net)}</b> for {fullName(e)}? After approval the inputs can no longer be edited.
         </ConfirmModal>
       )}
       {confirm === 'pay' && (
-        <ConfirmModal title="Mark settlement as paid" confirmLabel="Mark as paid" onClose={() => setConfirm(null)} onConfirm={() => { if (report(markFnfPaid(c.id), 'Settlement marked paid')) setConfirm(null); }}>
-          Confirm that <b>{inr(result.net)}</b> has been paid to {fullName(e)}. This preview records the status only; it does not move money.
+        <ConfirmModal title="Mark settlement as paid" confirmLabel="Mark as paid" onClose={() => setConfirm(null)} disabled={busy} onConfirm={async () => { setBusy(true); try { if (report(await markFnfPaid(c.id), 'Settlement marked paid')) setConfirm(null); } finally { setBusy(false); } }}>
+          Confirm that <b>{inr(result.net)}</b> has been paid to {fullName(e)}. {isLive ? 'This records the status only; it does not move money.' : 'This preview records the status only; it does not move money.'}
         </ConfirmModal>
       )}
       {confirm === 'delete' && (
@@ -247,6 +257,7 @@ function FnfStatement({ company, address, e, desig, dept, c, result }: { company
 // ───────────────────────────── create / edit ─────────────────────────────
 function FnfForm({ db, initial, onClose, onSaved }: { db: HrmsDb; initial?: FnfCase; onClose: () => void; onSaved: (id: string) => void }) {
   const narrow = useIsCompact(700);
+  const isLive = useLiveStatus().source === 'live';
   const candidates = fnfCandidates(db);
   const startEmp = initial ? db.employees.find((e) => e.id === initial.employeeId) : candidates[0];
   const [d, setD] = useState<FnfDraft>(initial
@@ -271,7 +282,7 @@ function FnfForm({ db, initial, onClose, onSaved }: { db: HrmsDb; initial?: FnfC
   const submit = () => {
     setTouched(true);
     if (!valid) return;
-    const id = initial?.id ?? uid('fnf');
+    const id = initial?.id ?? newId('fnf');
     saveFnf({ ...toCase(), id });
     report({ ok: true }, initial ? 'Settlement updated' : 'Settlement created');
     onSaved(id);
@@ -305,7 +316,10 @@ function FnfForm({ db, initial, onClose, onSaved }: { db: HrmsDb; initial?: FnfC
           {numField('otherPayments', 'Other payments (₹)', 'Reimbursements, retention or notice pay')}
         </FormGrid>
         {live && (
-          <Note>With these inputs the net payable is <b>{inr(live.net)}</b> (payments {inr(live.payable)}, recoveries {inr(live.recoverable)}). Gratuity: {live.gratuity.eligible ? inr(live.gratuity.amount) : 'not eligible'}.</Note>
+          <Note>
+            With these inputs the net payable is <b>{inr(live.net)}</b> (payments {inr(live.payable)}, recoveries {inr(live.recoverable)}). Gratuity: {live.gratuity.eligible ? inr(live.gratuity.amount) : 'not eligible'}.
+            {isLive && ' This is an estimate; the server works out the settlement once it is saved.'}
+          </Note>
         )}
         <button type="submit" hidden />
       </form>

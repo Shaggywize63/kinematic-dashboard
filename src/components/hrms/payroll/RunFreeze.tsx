@@ -10,8 +10,8 @@ import { employeesForRun, runTotals } from '../../../lib/hrms/engine';
 import { CALENDAR_RULES } from '../../../lib/hrms/rules';
 import { addMonths, fmtDate, fmtDateTime, fmtMonth, fullName, inr } from '../../../lib/hrms/format';
 import { freezeRunSafe, unfreezeRunSafe } from '../../../lib/hrms/payrollActions';
+import { usePreRunChecks } from '../../../lib/hrms/live/payrollCommands';
 import { CHANGE_THRESHOLD_PCT, acknowledgedBlockers, comparePayslips, runIsStale } from './logic';
-import { blockerCount } from './RunChecks';
 import { ConfirmModal, bigBtn, report } from './shared';
 import type { Step } from './RunStepper';
 
@@ -28,7 +28,8 @@ function NotComputed({ go, what }: { go: (s: Step) => void; what: string }) {
 export function RunReview({ db, run, go }: { db: HrmsDb; run: PayRun; go: (s: Step) => void }) {
   const totals = runTotals(run);
   const stale = runIsStale(db, run);
-  const blockers = blockerCount(db, run);
+  const { checks: found } = usePreRunChecks(db, run);
+  const blockers = (found ?? []).filter((c) => c.severity === 'blocker').length;
   const acked = acknowledgedBlockers(run);
   const { prevRun, changes } = useMemo(() => comparePayslips(db, run), [db, run]);
   const missing = employeesForRun(db, run.month, run.entityId).filter((e) => !run.payslips.some((s) => s.employeeId === e.id));
@@ -122,6 +123,7 @@ export function RunReview({ db, run, go }: { db: HrmsDb; run: PayRun; go: (s: St
 export function RunFreeze({ db, run, go }: { db: HrmsDb; run: PayRun; go: (s: Step) => void }) {
   const [confirm, setConfirm] = useState(false);
   const [unfreeze, setUnfreeze] = useState(false);
+  const [busy, setBusy] = useState(false);
   const stale = runIsStale(db, run);
   const totals = runTotals(run);
   const emiTotal = run.payslips.reduce((s, p) => s + p.deductions.filter((d) => d.code === 'LOAN').reduce((t, d) => t + d.amount, 0), 0);
@@ -176,7 +178,14 @@ export function RunFreeze({ db, run, go }: { db: HrmsDb; run: PayRun; go: (s: St
 
       {confirm && (
         <ConfirmModal title="Freeze this run?" confirmLabel="Freeze run" onClose={() => setConfirm(false)}
-          onConfirm={() => { if (report(freezeRunSafe(run.id), `${fmtMonth(run.month)} run frozen`)) { setConfirm(false); go('pay'); } }}>
+          disabled={busy}
+          onConfirm={async () => {
+            // On live data the server freezes the run (locks attendance, recovers loan EMIs) and answers; its reason is shown if it refuses.
+            setBusy(true);
+            try {
+              if (report(await freezeRunSafe(run.id), `${fmtMonth(run.month)} run frozen`)) { setConfirm(false); go('pay'); }
+            } finally { setBusy(false); }
+          }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div>You are about to freeze <b>{totals.headcount} payslips</b> for {fmtMonth(run.month)} with a net pay of <b>{inr(totals.net)}</b>.</div>
             <ul style={{ margin: 0, paddingLeft: 18, color: T.dim, fontSize: 13.5, lineHeight: 1.6 }}>
@@ -195,15 +204,19 @@ export function RunFreeze({ db, run, go }: { db: HrmsDb; run: PayRun; go: (s: St
 function UnfreezeModal({ run, onClose }: { run: PayRun; onClose: () => void }) {
   const [reason, setReason] = useState('');
   const [touched, setTouched] = useState(false);
+  const [busy, setBusy] = useState(false);
   const error = reason.trim().length < 5 ? 'Give a reason of at least a few words' : '';
-  const submit = () => {
+  const submit = async () => {
     setTouched(true);
     if (error) return;
-    if (report(unfreezeRunSafe(run.id, reason), `${fmtMonth(run.month)} run unfrozen`)) onClose();
+    setBusy(true);
+    try {
+      if (report(await unfreezeRunSafe(run.id, reason), `${fmtMonth(run.month)} run unfrozen`)) onClose();
+    } finally { setBusy(false); }
   };
   return (
     <Modal title="Unfreeze this run" onClose={onClose} width={500}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" style={{ height: 40 }} onClick={submit}>Unfreeze run</Button></>}>
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" style={{ height: 40 }} disabled={busy} onClick={() => void submit()}>Unfreeze run</Button></>}>
       <Note tone="warn">Unfreezing unlocks the inputs again and gives back the loan EMIs recovered at freeze. Payslips stay as computed until you recompute.</Note>
       <Field label="Reason" required htmlFor="unfreeze-reason" error={touched ? error : undefined} hint="Recorded in the audit trail with your name and the time.">
         <Textarea id="unfreeze-reason" autoFocus value={reason} invalid={touched && !!error} onChange={(e) => setReason(e.target.value)} placeholder="For example, an incentive was missed for the Delhi sales team" />

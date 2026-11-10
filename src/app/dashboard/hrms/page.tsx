@@ -45,9 +45,13 @@ export default function HrmsOverviewPage() {
   if (!db || !view) return <Loading />;
   const { stats } = view;
 
-  function startRun(p: EntityPayroll) {
-    createPayRun(p.month, p.entity.id);
-    toast.success(`Draft ${fmtMonth(p.month)} run created for ${p.entity.name}.`);
+  async function startRun(p: EntityPayroll) {
+    try {
+      await createPayRun(p.month, p.entity.id); // on live data the server creates it, so this waits for the answer
+      toast.success(`Draft ${fmtMonth(p.month)} run created for ${p.entity.name}.`);
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Could not start the run.');
+    }
   }
 
   const tile = (id: string, node: ReactNode) => <div key={id} data-testid={`stat-${id}`} style={{ display: 'grid' }}>{node}</div>;

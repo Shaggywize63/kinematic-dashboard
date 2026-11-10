@@ -1,5 +1,6 @@
 'use client';
-// Run step 3, Compute: build the payslips with the engine, read the totals, and review each payslip against last month.
+// Run step 3, Compute: build the payslips, read the totals, and review each payslip against last month.
+// Sample data: the engine runs in the browser. Live data: the server computes (and says when the inputs have changed since).
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -8,9 +9,9 @@ import { Select } from '../../ui';
 import type { Employee, HrmsDb, PayRun, Payslip, PayslipLine } from '../../../lib/hrms/types';
 import { employeesForRun, runTotals } from '../../../lib/hrms/engine';
 import { computeRun } from '../../../lib/hrms/actions';
+import { usePreRunChecks } from '../../../lib/hrms/live/payrollCommands';
 import { fmtMonth, fullName, inr } from '../../../lib/hrms/format';
 import { CHANGE_THRESHOLD_PCT, acknowledgedBlockers, comparePayslips, employeeBreakup, isLocked, lawBasis, runIsStale, type PayslipChange } from './logic';
-import { blockerCount } from './RunChecks';
 import { LawBasisTable, bigBtn, report } from './shared';
 import type { Step } from './RunStepper';
 
@@ -21,8 +22,10 @@ const td = { padding: '10px 10px', fontSize: 13.5, borderTop: `1px solid ${T.bor
 
 export default function RunCompute({ db, run, go }: { db: HrmsDb; run: PayRun; go: (s: Step) => void }) {
   const locked = isLocked(run);
-  const blockers = blockerCount(db, run);
+  const { checks, loading: checking, error: checksError } = usePreRunChecks(db, run);
+  const blockers = (checks ?? []).filter((c) => c.severity === 'blocker').length;
   const gated = blockers > 0 && acknowledgedBlockers(run) < blockers;
+  const [computing, setComputing] = useState(false);
   const stale = runIsStale(db, run);
   const totals = runTotals(run);
   const { prevRun, changes } = useMemo(() => comparePayslips(db, run), [db, run]);
@@ -69,14 +72,22 @@ export default function RunCompute({ db, run, go }: { db: HrmsDb; run: PayRun; g
     return [...list].sort((a, b) => { const x = val(a); const y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * sort.dir; });
   }, [run.payslips, emps, q, filter, sort, changes]);
 
-  const doCompute = () => { computeRun(run.id); report({ ok: true }, `Computed ${employeesForRun(db, run.month, run.entityId).length} employees`); };
+  // On live data the server computes and answers; the button waits for it and shows its reason if it refuses.
+  const doCompute = async () => {
+    setComputing(true);
+    try {
+      const res = await computeRun(run.id);
+      report(res, `Computed ${employeesForRun(db, run.month, run.entityId).length} employees`);
+    } finally { setComputing(false); }
+  };
 
   if (!run.payslips.length) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         <Card>
           <EmptyState title="No payslips yet" description={`Computing builds one payslip for each of the ${inScope.length} employees in scope for ${fmtMonth(run.month)}, from their salary structure, attendance, adjustments and loans.`}
-            action={<Button variant="primary" style={bigBtn} disabled={locked || gated} onClick={doCompute}>Compute payslips</Button>} />
+            action={<Button variant="primary" style={bigBtn} disabled={locked || gated || checking || computing} onClick={() => void doCompute()}>{computing ? 'Computing…' : 'Compute payslips'}</Button>} />
+          {checksError && <div style={{ textAlign: 'center' }} data-testid="checks-error"><Note tone="warn">The pre-run checks could not be loaded ({checksError}), so blockers cannot be shown here. Open Checks to try again.</Note></div>}
           {gated && <div style={{ textAlign: 'center' }}><Note tone="red">{blockers} blocker{blockers === 1 ? '' : 's'} from the checks have not been confirmed. <button type="button" onClick={() => go('checks')} style={{ border: 0, background: 'transparent', color: T.red, textDecoration: 'underline', cursor: 'pointer', font: 'inherit', padding: 0 }}>Open Checks</button> to fix or confirm them first.</Note></div>}
         </Card>
       </div>
@@ -100,7 +111,7 @@ export default function RunCompute({ db, run, go }: { db: HrmsDb; run: PayRun; g
       {stale && !locked && (
         <Note tone="warn">
           <b>Inputs changed after the last compute.</b> The payslips below do not match the current attendance, adjustments, loans or salary data, and the run cannot be frozen until you recompute.{' '}
-          <button type="button" onClick={doCompute} style={{ border: 0, background: 'transparent', color: T.warn, textDecoration: 'underline', cursor: 'pointer', font: 'inherit', padding: 0, fontWeight: 700 }}>Recompute now</button>
+          <button type="button" onClick={() => void doCompute()} disabled={computing} style={{ border: 0, background: 'transparent', color: T.warn, textDecoration: 'underline', cursor: 'pointer', font: 'inherit', padding: 0, fontWeight: 700 }}>Recompute now</button>
         </Note>
       )}
       {run.status === 'computed' && !stale && <Note tone="ok">Payslips match the current inputs.</Note>}
@@ -123,7 +134,7 @@ export default function RunCompute({ db, run, go }: { db: HrmsDb; run: PayRun; g
         <CardTitle right={
           <div style={{ display: 'flex', gap: 8 }}>
             <Button size="sm" onClick={() => setShowLaw((v) => !v)} aria-expanded={showLaw}>{showLaw ? 'Hide' : 'Show'} statutory parameters</Button>
-            {!locked && <Button size="sm" onClick={doCompute}>Recompute</Button>}
+            {!locked && <Button size="sm" disabled={computing} onClick={() => void doCompute()}>Recompute</Button>}
           </div>
         }>Compared with last month</CardTitle>
         {prevRun && prevTotals ? (

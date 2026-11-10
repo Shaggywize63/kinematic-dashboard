@@ -15,25 +15,25 @@ export type Row = Record<string, unknown>;
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ───────────────────────────── small helpers ─────────────────────────────
-const isNil = (v: unknown): v is null | undefined => v === null || v === undefined;
-const isObj = (v: unknown): v is Row => !!v && typeof v === 'object' && !Array.isArray(v);
-const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
-const bool = (v: unknown, d = false): boolean => (typeof v === 'boolean' ? v : d);
-const num = (v: unknown): number | undefined => {
+export const isNil = (v: unknown): v is null | undefined => v === null || v === undefined;
+export const isObj = (v: unknown): v is Row => !!v && typeof v === 'object' && !Array.isArray(v);
+export const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
+export const bool = (v: unknown, d = false): boolean => (typeof v === 'boolean' ? v : d);
+export const num = (v: unknown): number | undefined => {
   if (isNil(v) || v === '') return undefined;
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
 };
-const arr = (v: unknown): Row[] => (Array.isArray(v) ? v.filter(isObj) : []);
+export const arr = (v: unknown): Row[] => (Array.isArray(v) ? v.filter(isObj) : []);
 
 /** A copy of a flat object without null, undefined and empty-string values (the dashboard uses `undefined` for "none"). */
-function clean<T extends object>(v: unknown): T {
+export function clean<T extends object>(v: unknown): T {
   const out: Row = {};
   if (isObj(v)) for (const [k, x] of Object.entries(v)) if (!isNil(x) && x !== '') out[k] = x;
   return out as T;
 }
 /** Same, but drops only undefined (what JSON would drop anyway), keeping null so a clear is explicit. */
-const dropUndefined = <T extends object>(v: T): T => {
+export const dropUndefined = <T extends object>(v: T): T => {
   const out: Row = {};
   for (const [k, x] of Object.entries(v)) if (x !== undefined) out[k] = x;
   return out as T;
@@ -53,7 +53,7 @@ export function norm(v: unknown): unknown {
 export const same = (a: unknown, b: unknown): boolean => JSON.stringify(norm(a)) === JSON.stringify(norm(b));
 
 // ───────────────────────────── field specs ─────────────────────────────
-interface Spec {
+export interface Spec {
   local: string; wire: string;
   /** A cleared value is sent as null (the column allows it). */
   nullable: boolean;
@@ -63,7 +63,7 @@ interface Spec {
 }
 
 /** Blank text means "none": the API stores null for it. */
-const blankToNull = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? null : v);
+export const blankToNull = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? null : v);
 
 const objectOut = (v: unknown) => (isObj(v) ? dropUndefined(v) : v);
 
@@ -72,7 +72,7 @@ const objectOut = (v: unknown) => (isObj(v) ? dropUndefined(v) : v);
  * fields that changed, where a field that became empty is sent as null (when its column allows it) so the server clears it.
  * `keys` lists the dashboard-side names of the fields included (rollback needs them).
  */
-function bodyFor(specs: Spec[], next: Row, prev?: Row): { body: Row; keys: string[] } {
+export function bodyFor(specs: Spec[], next: Row, prev?: Row): { body: Row; keys: string[] } {
   const body: Row = {};
   const keys: string[] = [];
   for (const s of specs) {
