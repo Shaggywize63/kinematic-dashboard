@@ -9,7 +9,6 @@ import { buildBankFile, buildEcr, runTotals } from '../../../lib/hrms/engine';
 import { markRunPaid } from '../../../lib/hrms/actions';
 import { fmtDateTime, fmtMonth, fullName, inr } from '../../../lib/hrms/format';
 import { maskAccount } from '../../../lib/hrms/validators';
-import { looksMaskedAccount } from '../../../lib/hrms/live/masking';
 import { isLocked } from './logic';
 import { ConfirmModal, LinkButton, bigBtn, report } from './shared';
 import type { Step } from './RunStepper';
@@ -39,7 +38,7 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
 
   // Live data: the server only ever sends account numbers masked, and payroll still runs in this browser. A bank file built
   // from masks would carry numbers the bank cannot pay, so the file is refused until payroll runs where the full numbers are.
-  const maskedAccounts = bank.rows.filter((r) => looksMaskedAccount(r[2])).length;
+  const maskedAccounts = bank.masked.length;
   const fileTotal = bank.rows.reduce((s, r) => s + Number(r[5]), 0);
   const skippedNet = bank.skipped.reduce((s, k) => s + (run.payslips.find((p) => p.employeeId === k.employeeId)?.net ?? 0), 0);
   const reconciles = Math.round(fileTotal + skippedNet) === Math.round(totals.net);

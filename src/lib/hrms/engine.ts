@@ -459,10 +459,12 @@ export function buildEcr(db: HrmsDb, run: PayRun): { text: string; rows: number;
 }
 
 /** NEFT-style bank advice CSV for a frozen run. */
-export function buildBankFile(db: HrmsDb, run: PayRun): { header: string[]; rows: string[][]; skipped: { employeeId: string; reason: string }[] } {
+/** `masked` lists the people left out only because their account number is masked (live data), so a screen can refuse the whole file. */
+export function buildBankFile(db: HrmsDb, run: PayRun): { header: string[]; rows: string[][]; skipped: { employeeId: string; reason: string }[]; masked: string[] } {
   const header = ['Employee code', 'Name', 'Account number', 'IFSC', 'Bank', 'Amount', 'Narration'];
   const rows: string[][] = [];
   const skipped: { employeeId: string; reason: string }[] = [];
+  const masked: string[] = [];
   for (const s of run.payslips) {
     const e = db.employees.find((x) => x.id === s.employeeId);
     if (!e) continue;
@@ -470,10 +472,10 @@ export function buildBankFile(db: HrmsDb, run: PayRun): { header: string[]; rows
     if (!e.bank) { skipped.push({ employeeId: e.id, reason: 'No bank account' }); continue; }
     if (s.net <= 0) { skipped.push({ employeeId: e.id, reason: 'Net pay is zero or negative' }); continue; }
     // Live data keeps account numbers masked in the browser; a bank file with a mask in it would pay no one.
-    if (looksMaskedAccount(e.bank.accountNumber)) { skipped.push({ employeeId: e.id, reason: 'Account number is masked (live data): the full number is not held in this browser' }); continue; }
+    if (looksMaskedAccount(e.bank.accountNumber)) { skipped.push({ employeeId: e.id, reason: 'Account number is masked (live data): the full number is not held in this browser' }); masked.push(e.id); continue; }
     rows.push([e.code, e.bank.accountHolder, e.bank.accountNumber, e.bank.ifsc, e.bank.bankName, String(r0(s.net)), `Salary ${run.month}`]);
   }
-  return { header, rows, skipped };
+  return { header, rows, skipped, masked };
 }
 
 export function runTotals(run: PayRun) {

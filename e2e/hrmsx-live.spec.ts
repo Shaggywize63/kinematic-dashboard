@@ -323,6 +323,8 @@ test.describe('live mode: wire mapping and diff-sync (no browser)', () => {
     expect(after.rows.some((r) => r[0] === target.code)).toBe(false);
     expect(after.rows.every((r) => !/[•*xX]/.test(r[2]!))).toBe(true);
     expect(after.skipped.find((k) => k.employeeId === target.id)?.reason).toMatch(/masked/i);
+    expect(after.masked).toEqual([target.id]);   // the pay screen refuses the whole file on this
+    expect(before.masked).toEqual([]);
   });
 
   test('a masked PAN and account count as "on file" in the validators and in completeness, not as invalid', () => {
