@@ -123,6 +123,12 @@ class FakeHrms {
       return true;
     }
 
+    // Payroll (phase 2) is covered by hrmsx-livepay.spec.ts. Here the server just has no payroll yet, so the people pages load as before.
+    if (method === 'GET' && path === '/payroll/bootstrap') {
+      await this.ok(route, { structures: [], attendance: [], adjustments: [], loans: [], runs: [], fnf_cases: [], settings: { payroll: {} }, server_time: '2026-11-10T09:00:00Z' });
+      return true;
+    }
+
     if (method === 'GET' && path === '/bootstrap') {
       if (this.bootstrapDelay) await new Promise((r) => setTimeout(r, this.bootstrapDelay));
       if (this.mode === 'offline') { await route.abort('failed'); return true; }
@@ -1073,13 +1079,14 @@ test.describe('live: new joiner', () => {
 
 // ═════════════════════════════ guards ═════════════════════════════
 test.describe('live: guards', () => {
-  test('pages that are not on the server yet say so; the server-backed ones do not', async ({ page }) => {
+  test('pages that are not on the server yet say so; the server-backed ones (people, organisation and payroll) do not', async ({ page }) => {
     const fake = new FakeHrms().seedOrg().seedAsha();
-    await open(page, fake, '/dashboard/hrms/payroll');
-    await expect(page.getByTestId('hrms-local-note')).toContainText('Saved in this browser only: payroll is not on the server yet', { timeout: 30_000 });
-    await page.goto('/dashboard/hrms/time');
+    await open(page, fake, '/dashboard/hrms/time');
     await expect(page.getByTestId('hrms-local-note')).toContainText('Saved in this browser only: this part of HRMS is not on the server yet', { timeout: 30_000 });
-    for (const path of [EMPLOYEES, ORG, '/dashboard/hrms']) {
+    await page.goto('/dashboard/hrms/lifecycle');
+    await expect(page.getByTestId('hrms-local-note')).toContainText('Saved in this browser only: this part of HRMS is not on the server yet', { timeout: 30_000 });
+    // payroll moved to the server in phase 2 (see hrmsx-livepay.spec.ts): the old "payroll is not on the server yet" note is gone
+    for (const path of [EMPLOYEES, ORG, '/dashboard/hrms', '/dashboard/hrms/payroll']) {
       await page.goto(path);
       await waitLoaded(page);
       await expect(page.getByTestId('hrms-local-note')).toHaveCount(0);
@@ -1101,29 +1108,8 @@ test.describe('live: guards', () => {
     await expect(page.getByTestId('hrms-reset-reason')).toHaveCount(0);
   });
 
-  test('bank-file generation refuses masked account numbers with a plain message', async ({ page }) => {
-    test.setTimeout(300_000);
-    const fake = new FakeHrms().seedOrg().seedAsha();
-    await open(page, fake, '/dashboard/hrms/payroll');
-    await page.getByRole('button', { name: 'Start run' }).click();
-    await page.waitForURL(/\/payroll\/runs\//, { timeout: 90_000 });
-    await expect(page.getByTestId('hrms-local-note')).toContainText('payroll is not on the server yet');
-    await page.locator('[data-step="checks"]').click();
-    const accept = page.getByRole('checkbox', { name: /I understand/ });
-    if (await accept.isVisible().catch(() => false)) await accept.check();
-    await page.getByRole('button', { name: 'Continue to compute' }).click();
-    await page.getByRole('button', { name: 'Compute payslips' }).click();
-    await expect(page.getByTestId('payslip-table')).toBeVisible({ timeout: 60_000 });
-    await page.locator('[data-step="review"]').click();
-    await page.getByRole('button', { name: 'Continue to freeze' }).click();
-    await page.getByRole('button', { name: 'Freeze run' }).click();
-    await page.getByRole('dialog', { name: 'Freeze this run?' }).getByRole('button', { name: 'Freeze run' }).click();
-    await expect(page.getByTestId('step-pay')).toBeVisible({ timeout: 60_000 });
-    const guard = page.getByTestId('bank-masked-guard');
-    await expect(guard).toContainText('The bank file cannot be made: 1 account number is masked');
-    await expect(page.getByRole('button', { name: /Download bank file/ })).toBeDisabled();
-    expect(fake.calls.filter((c) => c.method !== 'GET')).toHaveLength(0);          // payroll never reached the server
-  });
+  // Phase 1 refused to make a bank file from masked account numbers, because payroll ran in the browser. Payroll now runs on the server,
+  // which holds the full numbers and builds the file: that is tested (and the refusal's absence with it) in hrmsx-livepay.spec.ts.
 });
 
 // ═════════════════════════════ quality ═════════════════════════════
@@ -1184,8 +1170,8 @@ test.describe('live: no errors, narrow screens', () => {
       await page.goto('/dashboard/hrms/time');
       await expect(page.getByTestId('hrms-local-note')).toBeVisible({ timeout: 30_000 });
       await noSidewaysScroll(page);
-      // The payroll page has wide tables of its own (it scrolls sideways in sample mode too); the banner and the note must still fit.
-      await page.goto('/dashboard/hrms/payroll');
+      // The lifecycle page has wide tables of its own (it scrolls sideways in sample mode too); the banner and the note must still fit.
+      await page.goto('/dashboard/hrms/lifecycle');
       await expect(page.getByTestId('hrms-local-note')).toBeVisible({ timeout: 30_000 });
       for (const id of ['hrms-preview-banner', 'hrms-local-note']) {
         const box = await page.getByTestId(id).boundingBox();

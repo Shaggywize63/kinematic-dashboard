@@ -1,15 +1,21 @@
 'use client';
 // Run step 6, Pay: bank advice, EPFO ECR, mark as paid, and the payslips.
+// Sample data: the files are built in the browser. Live data: the bank transfer list shown here is a preview with masked account
+// numbers (the browser never holds the full ones); the file itself, with the full numbers, is built by the server when the
+// download button is pressed, and so is the ECR.
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import { Badge, Button, Card, CardTitle, DataTable, EmployeeCell, EmptyState, Note, SearchBox, Stat, StatGrid, T, type Col, downloadRows, downloadText } from '../ui';
 import type { Employee, HrmsDb, PayRun, Payslip } from '../../../lib/hrms/types';
-import { buildBankFile, buildEcr, runTotals } from '../../../lib/hrms/engine';
+import { runTotals } from '../../../lib/hrms/engine';
 import { markRunPaid } from '../../../lib/hrms/actions';
+import { liveBankFile, useRunEcr } from '../../../lib/hrms/live/payrollCommands';
+import { useLiveStatus } from '../../../lib/hrms/live/store';
 import { fmtDateTime, fmtMonth, fullName, inr } from '../../../lib/hrms/format';
 import { maskAccount } from '../../../lib/hrms/validators';
-import { isLocked } from './logic';
+import { isLocked, previewBankFile } from './logic';
 import { ConfirmModal, LinkButton, bigBtn, report } from './shared';
 import type { Step } from './RunStepper';
 
@@ -18,15 +24,20 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(
 export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (s: Step) => void }) {
   const [confirm, setConfirm] = useState(false);
   const [q, setQ] = useState('');
+  const [busy, setBusy] = useState<'bank' | 'paid' | null>(null);
+  /** What the server's file held the last time it was downloaded (counts and reasons only: never the account numbers). */
+  const [sent, setSent] = useState<{ payments: number; total: number; skipped: { who: string; reason: string }[] } | null>(null);
+  const isLive = useLiveStatus().source === 'live';
   const locked = isLocked(run);
   const entity = db.entities.find((e) => e.id === run.entityId);
-  const bank = useMemo(() => (locked ? buildBankFile(db, run) : null), [db, run, locked]);
-  const ecr = useMemo(() => (locked ? buildEcr(db, run) : null), [db, run, locked]);
+  const bank = useMemo(() => (locked ? previewBankFile(db, run) : null), [db, run, locked]);
+  const { ecr: ecrFile, loading: ecrLoading, error: ecrError } = useRunEcr(db, run, locked);
+  const ecr = ecrFile ?? { text: '', rows: 0, blocked: [] as { employeeId: string; reason: string }[] };
   const totals = runTotals(run);
   const emp = (id: string): Employee | undefined => db.employees.find((e) => e.id === id);
   const nameOf = (id: string) => { const e = emp(id); return e ? fullName(e) : '—'; };
 
-  if (!locked || !bank || !ecr) {
+  if (!locked || !bank) {
     return (
       <Card>
         <EmptyState title="Freeze the run before paying"
@@ -36,9 +47,6 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
     );
   }
 
-  // Live data: the server only ever sends account numbers masked, and payroll still runs in this browser. A bank file built
-  // from masks would carry numbers the bank cannot pay, so the file is refused until payroll runs where the full numbers are.
-  const maskedAccounts = bank.masked.length;
   const fileTotal = bank.rows.reduce((s, r) => s + Number(r[5]), 0);
   const skippedNet = bank.skipped.reduce((s, k) => s + (run.payslips.find((p) => p.employeeId === k.employeeId)?.net ?? 0), 0);
   const reconciles = Math.round(fileTotal + skippedNet) === Math.round(totals.net);
@@ -61,6 +69,21 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
     { key: 'reason', label: 'Why the row is blocked', render: (r) => r.reason },
     { key: 'fix', label: '', align: 'right', render: (r) => <Link href={`/dashboard/hrms/employees/${r.employeeId}?tab=statutory`} style={{ color: T.info, fontWeight: 600, fontSize: 13 }}>Fix UAN</Link> },
   ];
+  // Sample: the file is made here. Live: the server makes it (with the full account numbers) and the browser only turns its answer into a download.
+  const downloadBank = async () => {
+    if (!isLive) { downloadRows(`bank-advice-${base}`, bank.header, bank.rows); return; }
+    setBusy('bank');
+    try {
+      const file = await liveBankFile(run.id);
+      downloadRows(`bank-advice-${base}`, file.header, file.rows);
+      setSent({
+        payments: file.rows.length, total: file.rows.reduce((t, r) => t + Number(r[5]), 0),
+        skipped: file.skipped.map((k) => ({ who: k.name ?? k.code ?? nameOf(k.employeeId ?? '') , reason: k.reason })),
+      });
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Could not get the bank file from the server.');
+    } finally { setBusy(null); }
+  };
   const slipRows = run.payslips.filter((s) => !q.trim() || `${nameOf(s.employeeId)} ${emp(s.employeeId)?.code ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()));
   const slipCols: Col<Payslip>[] = [
     { key: 'emp', label: 'Employee', render: (s) => { const e = emp(s.employeeId); return e ? <EmployeeCell e={e} href={false} /> : '—'; }, sortValue: (s) => nameOf(s.employeeId) },
@@ -73,12 +96,12 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
       {run.status === 'paid' && <Note tone="ok">Marked as paid on {fmtDateTime(run.paidAt)}. The files below can still be downloaded again.</Note>}
 
       <Card>
-        <CardTitle right={<Button variant="primary" style={{ height: 40 }} onClick={() => { if (!maskedAccounts) downloadRows(`bank-advice-${base}`, bank.header, bank.rows); }} disabled={!bank.rows.length || maskedAccounts > 0}>Download bank file (CSV)</Button>}>Bank transfer file</CardTitle>
-        {maskedAccounts > 0 && (
-          <div data-testid="bank-masked-guard" style={{ marginBottom: 14 }}>
-            <Note tone="red">
-              The bank file cannot be made: {maskedAccounts} {maskedAccounts === 1 ? 'account number is' : 'account numbers are'} masked (live data, only the last four digits are held here).
-              A file with masked numbers cannot pay anyone. Payroll still runs in this browser, so the full numbers are not available to it yet.
+        <CardTitle right={<Button variant="primary" style={{ height: 40 }} onClick={() => void downloadBank()} disabled={!bank.rows.length || busy === 'bank'}>Download bank file (CSV)</Button>}>Bank transfer file</CardTitle>
+        {sent && (
+          <div data-testid="bank-server-result" style={{ marginBottom: 14 }}>
+            <Note tone="ok">
+              Bank file downloaded from the server: {sent.payments} payment{sent.payments === 1 ? '' : 's'} totalling {inr(sent.total)}.
+              {sent.skipped.length > 0 && <> Left out: {sent.skipped.map((k) => `${k.who} (${k.reason})`).join('; ')}.</>}
             </Note>
           </div>
         )}
@@ -94,7 +117,11 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
         <div style={{ marginTop: 14 }}>
           <DataTable columns={bankCols} rows={bankRows} minWidth={760} empty="No payment can be made by bank transfer in this run." />
         </div>
-        <div style={{ fontSize: 12.5, color: T.mute, marginTop: 8 }}>The preview masks account numbers; the downloaded file carries the full number the bank needs. Handle it as sensitive data.</div>
+        <div style={{ fontSize: 12.5, color: T.mute, marginTop: 8 }}>
+          {isLive
+            ? 'The list shows masked account numbers. The file is built on the server with the full numbers the bank needs, and each download is recorded in the access log. Handle it as sensitive data.'
+            : 'The preview masks account numbers; the downloaded file carries the full number the bank needs. Handle it as sensitive data.'}
+        </div>
         {skipRows.length > 0 && (
           <div style={{ marginTop: 16 }} data-testid="bank-skipped">
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, fontFamily: T.heading }}>Skipped, with the reason</div>
@@ -109,6 +136,8 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
 
       <Card>
         <CardTitle right={<Button variant="primary" style={{ height: 40 }} onClick={() => downloadText(`ecr-${base}.txt`, ecr.text)} disabled={!ecr.rows}>Download ECR (text)</Button>}>EPFO ECR file</CardTitle>
+        {isLive && ecrLoading && <div role="status" style={{ fontSize: 13, color: T.dim, marginBottom: 10 }}>Loading the ECR from the server…</div>}
+        {isLive && ecrError && <div style={{ marginBottom: 10 }} data-testid="ecr-error"><Note tone="red">The ECR could not be loaded from the server: {ecrError}</Note></div>}
         <StatGrid min={160}>
           <Stat label="Rows in the ECR" value={ecr.rows} />
           <Stat label="Blocked rows" value={ecr.blocked.length} tone={ecr.blocked.length ? 'red' : 'ok'} hint={ecr.blocked.length ? 'Left out of the file' : 'None'} />
@@ -127,7 +156,7 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
 
       <Card>
         <CardTitle right={run.status === 'frozen'
-          ? <Button variant="primary" style={bigBtn} onClick={() => setConfirm(true)}>Mark as paid</Button>
+          ? <Button variant="primary" style={bigBtn} disabled={busy === 'paid'} onClick={() => setConfirm(true)}>Mark as paid</Button>
           : <Badge tone="ok" dot>Paid</Badge>}>Payslips</CardTitle>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <SearchBox value={q} onChange={setQ} placeholder="Search payslips" />
@@ -137,9 +166,15 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
 
       {confirm && (
         <ConfirmModal title="Mark this run as paid?" confirmLabel="Mark as paid" onClose={() => setConfirm(false)}
-          onConfirm={() => { markRunPaid(run.id); report({ ok: true }, `${fmtMonth(run.month)} run marked as paid`); setConfirm(false); }}>
+          disabled={busy === 'paid'}
+          onConfirm={async () => {
+            setBusy('paid');
+            try {
+              if (report(await markRunPaid(run.id), `${fmtMonth(run.month)} run marked as paid`)) setConfirm(false);
+            } finally { setBusy(null); }
+          }}>
           Confirm that the bank file for <b>{inr(fileTotal)}</b> has been paid{bank.skipped.length ? `, and that the ${bank.skipped.length} skipped payment${bank.skipped.length === 1 ? ' has' : 's have'} been settled another way` : ''}.
-          A paid run is closed and cannot be unfrozen. This preview records the status only; it does not move money.
+          A paid run is closed and cannot be unfrozen. {isLive ? 'This records the status only; it does not move money.' : 'This preview records the status only; it does not move money.'}
         </ConfirmModal>
       )}
     </div>

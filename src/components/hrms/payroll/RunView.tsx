@@ -21,7 +21,7 @@ export default function RunView({ db, run }: { db: HrmsDb; run: PayRun }) {
     <HrmsPage
       eyebrow={<Link href="/dashboard/hrms/payroll" style={{ color: T.mute, textDecoration: 'none' }}>Payroll / Runs</Link>}
       title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>Pay run, {fmtMonthLong(run.month)} <StatusBadge status={run.status} /></span>}
-      description={<>{entity?.name ?? '—'} · {run.type === 'regular' ? 'Regular run' : 'Off-cycle run'} · computed under <Badge mono>{run.lawVersion}</Badge></>}
+      description={<>{entity?.name ?? '—'} · {run.type === 'regular' ? 'Regular run' : 'Off-cycle run'} · {run.lawVersion ? <>computed under <Badge mono>{run.lawVersion}</Badge></> : 'not computed yet'}</>}
       actions={<Button href="/dashboard/hrms/payroll">All runs</Button>}
     >
       <RunStepper status={run.status} value={step} onChange={go} />

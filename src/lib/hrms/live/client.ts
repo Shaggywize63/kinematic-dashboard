@@ -8,10 +8,20 @@ import api from '../../api';
 import {
   bootstrapFromWire, importFromWire, type ImportOutcome, type Row, type ServerData,
 } from './wire';
+import {
+  bankFileFromWire, checksFromWire, ecrFromWire, fnfFromWire, fnfResultFromWire, payrollFromWire, runFlagFromWire, runFromWire,
+  type BankFileData, type EcrData, type PayrollData, type RunFlag,
+} from './payrollWire';
+import type { FnfResult, PreRunCheck } from '../engine';
+import type { FnfCase, PayRun } from '../types';
 
 const BASE = '/api/v1/hrms';
 
 export type MasterKind = 'entities' | 'locations' | 'departments' | 'designations';
+/** The payroll records the diff-sync saves one by one. Attendance and the payroll settings have their own calls. */
+export type PayrollKind = 'structures' | 'adjustments' | 'loans' | 'fnf';
+/** The commands on a pay run. Each one is a call to the server whose answer replaces the run held here. */
+export type RunCommand = 'compute' | 'freeze' | 'unfreeze' | 'mark-paid';
 
 export class HrmsApiError extends Error {
   status: number;
@@ -26,6 +36,7 @@ export class HrmsApiError extends Error {
 }
 
 export const NOT_READY_MESSAGE = 'HRMS storage is not set up yet on the server';
+export const PAYROLL_NOT_READY_MESSAGE = 'Payroll storage is not set up yet on the server';
 
 function toError(e: unknown): HrmsApiError {
   if (e instanceof HrmsApiError) return e;
@@ -53,6 +64,20 @@ async function call<T>(run: () => Promise<unknown>): Promise<T> {
   }
 }
 
+const PAYROLL = `${BASE}/payroll`;
+const enc = encodeURIComponent;
+
+/** Payroll-only trouble: a server that predates payroll answers 404 for the route, which reads the same as "not set up yet". */
+function payrollError(e: unknown): HrmsApiError {
+  const err = toError(e);
+  if (err.notReady || err.status === 404) return new HrmsApiError(PAYROLL_NOT_READY_MESSAGE, err.status || 503, true);
+  return err;
+}
+
+// Salary data: every payroll read bypasses the shared GET cache (noCache), because that cache also mirrors small responses to
+// localStorage. Payslips, salary structures and bank files must never reach browser storage.
+const payrollGet = <T,>(path: string): Promise<T> => call<T>(() => api.get(`${PAYROLL}${path}`, { noCache: true } as RequestInit));
+
 export const hrmsApi = {
   async bootstrap(): Promise<ServerData> {
     const data = await call<Row>(() => api.get(`${BASE}/bootstrap`, { noCache: true } as RequestInit));
@@ -74,5 +99,43 @@ export const hrmsApi = {
   async importEmployees(rows: Row[], dryRun = false): Promise<ImportOutcome> {
     const data = await call<Row>(() => api.post(`${BASE}/employees/import`, { rows, dry_run: dryRun }));
     return importFromWire(data ?? {});
+  },
+
+  payroll: {
+    async bootstrap(): Promise<PayrollData> {
+      try {
+        const data = await call<Row>(() => api.get(`${PAYROLL}/bootstrap?months=12`, { noCache: true } as RequestInit));
+        return payrollFromWire(data ?? {});
+      } catch (e) { throw payrollError(e); }
+    },
+
+    /** Structures, adjustments, loans and settlements: create, change and remove one record. */
+    create: (kind: PayrollKind, body: Row): Promise<Row> => call<Row>(() => api.post(`${PAYROLL}/${kind}`, body)),
+    update: (kind: PayrollKind, id: string, body: Row): Promise<Row> => call<Row>(() => api.put(`${PAYROLL}/${kind}/${enc(id)}`, body)),
+    remove: (kind: PayrollKind, id: string): Promise<Row> => call<Row>(() => api.delete(`${PAYROLL}/${kind}/${enc(id)}`)),
+    /** One attendance row per employee and month: a create and an update are the same call. */
+    putAttendance: (employeeId: string, month: string, body: Row): Promise<Row> => call<Row>(() => api.put(`${PAYROLL}/attendance/${enc(employeeId)}/${enc(month)}`, body)),
+    putSettings: (body: Row): Promise<Row> => call<Row>(() => api.put(`${PAYROLL}/settings/payroll`, body)),
+
+    /** GET /runs: runs without payslips. Used to refresh the "inputs changed" flag of the runs already held. */
+    async runFlags(): Promise<RunFlag[]> {
+      const data = await payrollGet<unknown>('/runs').catch((e) => { throw toError(e); });
+      const list = Array.isArray(data) ? data : (data as { runs?: unknown } | null)?.runs;
+      return (Array.isArray(list) ? list : []).filter((x): x is Row => !!x && typeof x === 'object').map(runFlagFromWire);
+    },
+    async run(id: string): Promise<PayRun> { return runFromWire(await payrollGet<Row>(`/runs/${enc(id)}`).catch((e) => { throw toError(e); }) ?? {}); },
+    async createRun(body: Row): Promise<PayRun> { return runFromWire(await call<Row>(() => api.post(`${PAYROLL}/runs`, body)) ?? {}); },
+    async runCommand(id: string, command: RunCommand, body?: Row): Promise<PayRun> {
+      return runFromWire(await call<Row>(() => api.post(`${PAYROLL}/runs/${enc(id)}/${command}`, body ?? {})) ?? {});
+    },
+    async checks(id: string): Promise<PreRunCheck[]> { return checksFromWire(await payrollGet<Row>(`/runs/${enc(id)}/checks`).catch((e) => { throw toError(e); }) ?? {}); },
+    async ecr(id: string): Promise<EcrData> { return ecrFromWire(await payrollGet<Row>(`/runs/${enc(id)}/ecr`).catch((e) => { throw toError(e); }) ?? {}); },
+    /** The bank file with full account numbers. The server records who asked for it, so call it only when the file is wanted. */
+    async bankFile(id: string): Promise<BankFileData> { return bankFileFromWire(await payrollGet<Row>(`/runs/${enc(id)}/bank-file`).catch((e) => { throw toError(e); }) ?? {}); },
+
+    async fnfCommand(id: string, command: 'approve' | 'mark-paid'): Promise<FnfCase> {
+      return fnfFromWire(await call<Row>(() => api.post(`${PAYROLL}/fnf/${enc(id)}/${command}`, {})) ?? {});
+    },
+    async fnfCompute(id: string): Promise<FnfResult> { return fnfResultFromWire(await payrollGet<Row>(`/fnf/${enc(id)}/compute`).catch((e) => { throw toError(e); }) ?? {}); },
   },
 };

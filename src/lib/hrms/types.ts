@@ -306,6 +306,8 @@ export interface PayRun {
   /** Set when the run is frozen so an unfreeze can undo exactly what the freeze did. */
   loanRecoveries?: Record<string, number>;   // loanId → rupees recovered by this run
   attendanceLockedFor?: Id[];                // employees whose attendance this freeze locked
+  /** Live data only: the server's answer to "have the inputs changed since the last compute?". Sample runs leave it unset and work it out in the browser. */
+  stale?: boolean;
 }
 
 export interface FnfCase {

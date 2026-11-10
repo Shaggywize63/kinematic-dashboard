@@ -3,8 +3,8 @@
 // stale caches ignore it. Allowed today: the master admin only (see lib/hrms/access.ts).
 //
 // The module has two data sources. Sample (the default) runs on made-up data kept in this browser and never calls the
-// server. Live saves people and organisation on the server (the rest of the module still stays in this browser). The
-// choice is remembered in localStorage and read after mount, so it never changes what the first render shows.
+// server. Live saves people, organisation and payroll on the server (the rest of the module still stays in this browser).
+// The choice is remembered in localStorage and read after mount, so it never changes what the first render shows.
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
@@ -18,8 +18,11 @@ import { Button, Card, EmptyState, Modal, Note, T } from '../../../components/hr
 const allowed = (): boolean => canUseHrms(getStoredUser());
 
 /** Sections whose data is on the server in live mode. Every other section keeps its data in this browser. */
-const SERVER_BACKED = new Set(['', 'employees', 'organization', 'org-chart']);
-const PAYROLL_SECTIONS = new Set(['payroll', 'payslips', 'pay-checks', 'wage-access', 'compensation', 'incentives', 'benefits']);
+const SERVER_BACKED = new Set(['', 'employees', 'organization', 'org-chart', 'payroll', 'payslips']);
+/** Sections that cannot show anything useful without the payroll data: they say so instead when payroll could not be loaded. */
+const NEEDS_PAYROLL = new Set(['payroll', 'payslips', 'statutory']);
+/** Sections that read some payroll figures: they stay usable but warn that those figures are missing. */
+const READS_PAYROLL = new Set(['my', 'reports']);
 
 function sectionOf(pathname: string | null): string {
   return (pathname ?? '').replace(/^\/dashboard\/hrms\/?/, '').split('/')[0] ?? '';
@@ -48,14 +51,33 @@ function SwitchToLive({ onClose, onConfirm }: { onClose: () => void; onConfirm: 
       <div style={{ fontSize: 14, color: T.text, lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <p style={{ margin: 0 }}>
           <b>What becomes real.</b> Legal entities, locations, departments, designations and employees are loaded from the server, and everything you add or change
-          there is saved on the server straight away. PAN and bank details are kept encrypted and shown masked; revealing one needs a reason and is written to an access log.
+          there is saved on the server straight away. So is payroll: salary structures, attendance, adjustments, loans, pay runs and payslips, and full and final settlements.
+          The server works out the payslips and builds the bank file. PAN and bank details are kept encrypted and shown masked; revealing one needs a reason and is written to an access log.
         </p>
         <p style={{ margin: 0 }}>
-          <b>What stays in this browser.</b> Payroll, time and leave, statutory filings and the other modules are not on the server yet. In live mode they start empty and are saved in this browser only.
+          <b>What stays in this browser.</b> Time and leave, statutory filings and the other modules are not on the server yet. In live mode they start empty and are saved in this browser only.
         </p>
         <p style={{ margin: 0 }}>Your sample data is not touched, and you can switch back at any time.</p>
       </div>
     </Modal>
+  );
+}
+
+function PayrollUnavailable({ live }: { live: LiveStatus }) {
+  const notReady = live.payrollPhase === 'not_ready';
+  return (
+    <div style={{ padding: '16px 24px' }} data-testid={notReady ? 'hrms-payroll-not-ready' : 'hrms-payroll-error'}>
+      <Card>
+        <EmptyState title={notReady ? 'Payroll storage is not set up yet on the server' : 'Could not load payroll'}
+          description={notReady
+            ? 'The tables that hold live payroll have not been created on the server, so there is nothing to load or save yet. People and organisation still work, and so does the sample data.'
+            : <span data-testid="hrms-payroll-error-message">{live.payrollMessage || 'Could not reach the server.'} Nothing was changed. Try again, or use the sample data meanwhile.</span>}
+          action={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <Button variant="primary" onClick={() => void hydrate()} style={{ minHeight: 40 }}>Try again</Button>
+            <Button onClick={() => setSource('sample')} style={{ minHeight: 40 }}>Use sample data</Button>
+          </div>} />
+      </Card>
+    </div>
   );
 }
 
@@ -93,12 +115,21 @@ function LiveGate({ live, children }: { live: LiveStatus; children: React.ReactN
       </div>
     );
   }
+  const payrollDown = live.payrollPhase === 'not_ready' || live.payrollPhase === 'error';
+  if (payrollDown && NEEDS_PAYROLL.has(section)) return <PayrollUnavailable live={live} />;
   return (
     <>
       {!SERVER_BACKED.has(section) && (
         <div data-testid="hrms-local-note" style={{ margin: '12px 24px 0' }}>
           <Note tone="warn">
-            Saved in this browser only: {PAYROLL_SECTIONS.has(section) ? 'payroll' : 'this part of HRMS'} is not on the server yet.
+            Saved in this browser only: this part of HRMS is not on the server yet.
+          </Note>
+        </div>
+      )}
+      {payrollDown && READS_PAYROLL.has(section) && (
+        <div data-testid="hrms-payroll-missing" style={{ margin: '12px 24px 0' }}>
+          <Note tone="warn">
+            Payroll could not be loaded from the server{live.payrollMessage ? ` (${live.payrollMessage})` : ''}, so payslips and pay figures on this page are empty.
           </Note>
         </div>
       )}
@@ -131,7 +162,7 @@ export default function HrmsLayout({ children }: { children: React.ReactNode }) 
       <div role="status" data-testid="hrms-preview-banner" data-source={live.source} style={{ margin: '12px 24px 0', padding: '8px 12px', borderRadius: 8, fontSize: 12.5, background: tone.bg, color: tone.fg, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         {isLive ? (
           <span data-testid="hrms-banner-text" style={{ minWidth: 0, flex: '1 1 280px' }}>
-            <b>Live data.</b> People and organisation are saved on the server. Payroll, time and leave and the rest of the module still stay in this browser.
+            <b>Live data.</b> People, organisation and payroll are saved on the server. Time and leave and the rest of the module still stay in this browser.
             {live.syncing && <span data-testid="hrms-syncing" aria-live="polite"> Saving…</span>}
           </span>
         ) : (

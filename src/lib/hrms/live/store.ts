@@ -1,28 +1,39 @@
 'use client';
-// Live data source for HRMS phase 1 (legal entities, locations, departments, designations, employees with their documents
-// and change log). Sample mode never touches this file's network code: db.ts only calls into it when the source is 'live'.
+// Live data source for HRMS: phase 1 (legal entities, locations, departments, designations, employees with their documents
+// and change log) and phase 2 (payroll: salary structures, attendance, adjustments, loans, pay runs with payslips, full and
+// final settlements, the overtime rule). Sample mode never touches this file's network code: db.ts only calls into it when
+// the source is 'live'.
 //
-// How a change travels: mutate(fn) applies fn to a copy of the live database (optimistic), diffs the five server-backed
+// How a change travels: mutate(fn) applies fn to a copy of the live database (optimistic), diffs the server-backed
 // collections against the state before, and queues one API call per created / updated / deleted row. The calls run one at a
 // time, in the order the server needs. A response reconciles the local row (the server's employee code, masked PAN and bank,
 // change log). When a call fails, that change and the ones after it in the same batch are undone row by row and an error
-// toast names the reason. Everything that is not on the server yet (structures, shifts, payroll ...) is plain local state,
+// toast names the reason. Pay runs are different: they change only through commands (live/payrollCommands.ts) whose answer
+// replaces the run held here. Everything that is not on the server yet (shifts, leave, letters ...) is plain local state,
 // kept in its own storage key so it survives a reload.
 //
-// Personal data from the server is held in memory only. It is never written to browser storage.
+// Personal data and pay from the server are held in memory only. They are never written to browser storage.
 
 import { toast } from 'sonner';
 import { useSyncExternalStore } from 'react';
 import type { Employee, HrmsDb } from '../types';
 import { SEED_VERSION, makeSeed } from '../seed';
 import { HrmsApiError, hrmsApi } from './client';
-import { diffServer, VERB_TEXT, type ServerCollections, type SyncOp } from './diff';
 import {
-  documentFromWire, employeeFromWire, entityFromWire, departmentFromWire, designationFromWire, locationFromWire, type ImportOutcome, type Row, type ServerData,
+  diffServer, PAYROLL_KINDS, RUN_INPUT_KINDS, VERB_TEXT, type PayrollCollections, type PeopleCollections, type SyncOp,
+} from './diff';
+import {
+  documentFromWire, employeeFromWire, entityFromWire, departmentFromWire, designationFromWire, locationFromWire, str, UUID_RE, type ImportOutcome, type Row, type ServerData,
 } from './wire';
+import {
+  adjustmentFromWire, attendanceFromWire, fnfFromWire, loanFromWire, overtimeFromWire, structureFromWire, type PayrollData,
+} from './payrollWire';
 
 export type Source = 'sample' | 'live';
 export type Phase = 'idle' | 'loading' | 'ready' | 'not_ready' | 'error';
+
+/** Payroll loads next to the people data but can fail on its own (its tables may not be set up yet): people pages keep working. */
+export type PayrollPhase = 'idle' | 'ok' | 'not_ready' | 'error';
 
 export interface LiveStatus {
   source: Source;
@@ -33,6 +44,11 @@ export interface LiveStatus {
   syncing: boolean;
   /** Why the phase is `error` or `not_ready`. */
   message: string;
+  payrollPhase: PayrollPhase;
+  /** Why the payroll phase is `error` or `not_ready`. */
+  payrollMessage: string;
+  /** Goes up whenever saved changes could alter what a run's checks or compute see, and after every load: the server checks are asked again. */
+  inputsVersion: number;
 }
 
 export const SOURCE_KEY = 'kinematic_hrms_source';
@@ -41,7 +57,7 @@ export const LOCAL_KEY = 'kinematic_hrms_live_local_v1';
 export const PENDING_CODE = '…';
 
 // ───────────────────────────── status and subscriptions ─────────────────────────────
-let status: LiveStatus = { source: 'sample', phase: 'idle', refreshing: false, syncing: false, message: '' };
+let status: LiveStatus = { source: 'sample', phase: 'idle', refreshing: false, syncing: false, message: '', payrollPhase: 'idle', payrollMessage: '', inputsVersion: 0 };
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 function setStatus(patch: Partial<LiveStatus>): void {
@@ -73,19 +89,21 @@ export function randomUuid(): string {
 }
 
 // ───────────────────────────── the live database ─────────────────────────────
-const SERVER_KEYS = ['entities', 'locations', 'departments', 'designations', 'employees'] as const;
+const PEOPLE_KEYS = ['entities', 'locations', 'departments', 'designations', 'employees'] as const;
+/** On the server since phase 2. Held in memory only: never written to browser storage. */
+const PAYROLL_KEYS = ['structures', 'attendance', 'adjustments', 'loans', 'payRuns', 'fnfCases', 'overtimeRules'] as const;
 /** Defaults that are reference data (taken from the sample seed once). */
-const REFERENCE_KEYS = ['structures', 'shifts', 'overtimeRules', 'leaveTypes', 'holidayLists', 'letterTemplates', 'retention'] as const;
+const REFERENCE_KEYS = ['shifts', 'leaveTypes', 'holidayLists', 'letterTemplates', 'retention'] as const;
 /** Transactional data that is not on the server yet: starts empty, kept in this browser only. */
-const TRANSACTIONAL_KEYS = [
-  'roster', 'leaveBalances', 'attendance', 'adjustments', 'loans', 'payRuns', 'fnfCases', 'onboarding', 'exits', 'letters', 'compliance', 'consents', 'accessLog',
-] as const;
+const TRANSACTIONAL_KEYS = ['roster', 'leaveBalances', 'onboarding', 'exits', 'letters', 'compliance', 'consents', 'accessLog'] as const;
 const LOCAL_KEYS = [...REFERENCE_KEYS, ...TRANSACTIONAL_KEYS] as const;
 type LocalParts = Pick<HrmsDb, (typeof LOCAL_KEYS)[number]>;
 
 const pickLocal = (db: HrmsDb): LocalParts => Object.fromEntries(LOCAL_KEYS.map((k) => [k, db[k]])) as unknown as LocalParts;
-const pickServer = (db: ServerData | HrmsDb): ServerCollections =>
-  Object.fromEntries(SERVER_KEYS.map((k) => [k, db[k]])) as unknown as ServerCollections;
+const pickPeople = (db: ServerData | HrmsDb): PeopleCollections =>
+  Object.fromEntries(PEOPLE_KEYS.map((k) => [k, db[k]])) as unknown as PeopleCollections;
+const pickPayroll = (db: HrmsDb): PayrollCollections =>
+  Object.fromEntries(PAYROLL_KEYS.map((k) => [k, db[k]])) as unknown as PayrollCollections;
 
 function freshLocal(): LocalParts {
   const seed = makeSeed();
@@ -93,38 +111,49 @@ function freshLocal(): LocalParts {
   return { ...Object.fromEntries(REFERENCE_KEYS.map((k) => [k, seed[k]])), ...empty } as unknown as LocalParts;
 }
 
+/** No payroll yet: nothing recorded, and the sample overtime rule so a page that reads "the rule" always finds one until the server's arrives. */
+function emptyPayroll(): PayrollCollections {
+  return { structures: [], attendance: [], adjustments: [], loans: [], payRuns: [], fnfCases: [], overtimeRules: makeSeed().overtimeRules };
+}
+
 function readLocal(): LocalParts {
+  const base = freshLocal();
   try {
     const raw = typeof window !== 'undefined' ? window.localStorage.getItem(LOCAL_KEY) : null;
     if (raw) {
-      const parsed = JSON.parse(raw) as { seedVersion?: number; local?: Partial<LocalParts> };
+      const parsed = JSON.parse(raw) as { seedVersion?: number; local?: Record<string, unknown> };
       if (parsed?.seedVersion === SEED_VERSION && parsed.local) {
-        const base = freshLocal();
-        // A key missing from an older copy falls back to the default rather than breaking a page.
-        return { ...base, ...parsed.local } as LocalParts;
+        // Only the keys that are still kept here are read back, so a key missing from an older copy falls back to the default
+        // and payroll an earlier build saved in this browser can never override what the server says.
+        const out = { ...base } as Record<string, unknown>;
+        for (const k of LOCAL_KEYS) if (Array.isArray(parsed.local[k])) out[k] = parsed.local[k];
+        // That earlier copy held pay run data. Rewrite the stored copy without it.
+        if (Object.keys(parsed.local).some((k) => !(LOCAL_KEYS as readonly string[]).includes(k))) persistLocalParts(out as unknown as LocalParts);
+        return out as unknown as LocalParts;
       }
     }
   } catch { /* corrupt or blocked: start from the defaults */ }
-  return freshLocal();
+  return base;
 }
 
-function persistLocal(db: HrmsDb): void {
-  try { window.localStorage.setItem(LOCAL_KEY, JSON.stringify({ seedVersion: SEED_VERSION, local: pickLocal(db) })); } catch { /* full or blocked: memory still works */ }
+function persistLocalParts(parts: LocalParts): void {
+  try { window.localStorage.setItem(LOCAL_KEY, JSON.stringify({ seedVersion: SEED_VERSION, local: parts })); } catch { /* full or blocked: memory still works */ }
 }
+function persistLocal(db: HrmsDb): void { persistLocalParts(pickLocal(db)); }
 
 /** The company name has no home on the server yet: use the first legal entity's name so live mode never shows the sample company. */
 const companyOf = (entities: HrmsDb['entities']): HrmsDb['company'] => ({ name: entities[0]?.name ?? 'Your company', currency: 'INR', fyStartMonth: 4 });
 
-function build(server: ServerCollections, local: LocalParts): HrmsDb {
-  return { version: SEED_VERSION, company: companyOf(server.entities), ...server, ...local } as HrmsDb;
+function build(people: PeopleCollections, payroll: PayrollCollections, local: LocalParts): HrmsDb {
+  return { version: SEED_VERSION, company: companyOf(people.entities), ...local, ...people, ...payroll } as HrmsDb;
 }
 
-const EMPTY_SERVER: ServerCollections = { entities: [], locations: [], departments: [], designations: [], employees: [] };
+const EMPTY_PEOPLE: PeopleCollections = { entities: [], locations: [], departments: [], designations: [], employees: [] };
 let liveDb: HrmsDb | null = null;
 
 /** The live database. Before the first load it is empty (the layout shows a loading state instead of the pages). */
 export function getLiveDb(): HrmsDb {
-  if (!liveDb) liveDb = build(EMPTY_SERVER, readLocal());
+  if (!liveDb) liveDb = build(EMPTY_PEOPLE, emptyPayroll(), readLocal());
   return liveDb;
 }
 
@@ -135,7 +164,7 @@ function commit(next: HrmsDb): void {
 }
 
 /** Change the live database without diffing it: used for server answers (reconcile) and rollbacks. */
-function patchLive(fn: (db: HrmsDb) => void): void {
+export function patchLive(fn: (db: HrmsDb) => void): void {
   const next = structuredClone(getLiveDb());
   fn(next);
   commit(next);
@@ -155,6 +184,9 @@ const release = (op: SyncOp) => {
 
 const asError = (e: unknown): HrmsApiError => (e instanceof HrmsApiError ? e : new HrmsApiError(e instanceof Error && e.message ? e.message : 'Request failed', 0));
 
+/** The payroll resource each simple payroll record is saved under. */
+const PAYROLL_RESOURCE = { structure: 'structures', adjustment: 'adjustments', loan: 'loans', fnf: 'fnf' } as const;
+
 async function execute(op: SyncOp): Promise<Row> {
   const body = op.body ?? {};
   if (op.kind === 'document') {
@@ -163,13 +195,23 @@ async function execute(op: SyncOp): Promise<Row> {
     if (op.verb === 'update') return hrmsApi.updateDocument(emp, op.rowId, body);
     return hrmsApi.removeDocument(emp, op.rowId);
   }
-  if (op.verb === 'create') return hrmsApi.create(op.collection, body);
-  if (op.verb === 'update') return hrmsApi.update(op.collection, op.rowId, body);
-  return hrmsApi.remove(op.collection, op.rowId);
+  if (op.kind === 'attendance') return hrmsApi.payroll.putAttendance(op.employeeId!, op.month!, body);
+  if (op.kind === 'settings') return hrmsApi.payroll.putSettings(body);
+  if (op.kind === 'structure' || op.kind === 'adjustment' || op.kind === 'loan' || op.kind === 'fnf') {
+    const kind = PAYROLL_RESOURCE[op.kind];
+    if (op.verb === 'create') return hrmsApi.payroll.create(kind, body);
+    if (op.verb === 'update') return hrmsApi.payroll.update(kind, op.rowId, body);
+    return hrmsApi.payroll.remove(kind, op.rowId);
+  }
+  const collection = op.collection as 'entities' | 'locations' | 'departments' | 'designations' | 'employees';
+  if (op.verb === 'create') return hrmsApi.create(collection, body);
+  if (op.verb === 'update') return hrmsApi.update(collection, op.rowId, body);
+  return hrmsApi.remove(collection, op.rowId);
 }
 
 const FROM_WIRE = {
   entity: entityFromWire, location: locationFromWire, department: departmentFromWire, designation: designationFromWire,
+  structure: structureFromWire, adjustment: adjustmentFromWire, loan: loanFromWire, fnf: fnfFromWire,
 } as const;
 
 /** Put the server's version of a row into local state, without triggering another sync. */
@@ -191,9 +233,23 @@ function reconcile(op: SyncOp, data: Row): void {
       db.employees[i] = alone ? fresh : { ...db.employees[i]!, code: fresh.code, history: fresh.history };
       return;
     }
+    if (op.kind === 'attendance') {
+      // The server's row has no id of its own that the dashboard keeps; it is found by employee and month. A malformed answer is ignored.
+      if (!str(data.employee_id) || !alone) return;
+      const i = db.attendance.findIndex((a) => a.employeeId === op.employeeId && a.month === op.month);
+      if (i >= 0) db.attendance[i] = attendanceFromWire(data);
+      return;
+    }
+    if (op.kind === 'settings') {
+      const rule = overtimeFromWire(data.overtime_rule) ?? overtimeFromWire((data.payroll as Row | undefined)?.overtime_rule) ?? overtimeFromWire((data.value as Row | undefined)?.overtime_rule);
+      if (rule && alone) db.overtimeRules = [rule];
+      return;
+    }
+    // Payroll records are replaced by the server's row only when it really is one (an answer without an id is left alone).
+    if (PAYROLL_KINDS.has(op.kind) && !str(data.id)) return;
     const list = db[op.collection] as Array<{ id: string }>;
     const i = list.findIndex((x) => x.id === op.rowId);
-    if (i >= 0 && alone) list[i] = FROM_WIRE[op.kind](data);
+    if (i >= 0 && alone) list[i] = FROM_WIRE[op.kind as keyof typeof FROM_WIRE](data);
   });
 }
 
@@ -212,6 +268,16 @@ function undo(db: HrmsDb, op: SyncOp): void {
     else if (op.verb === 'update') { if (i >= 0) for (const k of op.keys) setKey(e.documents[i]!, k, (op.prev as Row)[k]); }
     else if (i < 0) e.documents.splice(Math.min(op.prevIndex ?? e.documents.length, e.documents.length), 0, structuredClone(op.prev) as Employee['documents'][number]);
     dropHistory(e);
+    return;
+  }
+  if (op.kind === 'attendance') {
+    const at = db.attendance.findIndex((a) => a.employeeId === op.employeeId && a.month === op.month);
+    if (op.verb === 'create') { if (at >= 0) db.attendance.splice(at, 1); }
+    else if (at >= 0) for (const k of op.keys) setKey(db.attendance[at]!, k, (op.prev as Row)[k]);
+    return;
+  }
+  if (op.kind === 'settings') {
+    db.overtimeRules = op.prev ? [structuredClone(op.prev) as HrmsDb['overtimeRules'][number]] : [];
     return;
   }
   const list = db[op.collection] as Array<{ id: string }>;
@@ -233,7 +299,11 @@ function rollback(ops: SyncOp[]): void {
   patchLive((db) => { for (const op of [...ops].reverse()) undo(db, op); });
 }
 
+/** Set when a batch has touched something a run is computed from; acted on once the queue is empty. */
+let inputsDirty = false;
+
 async function runBatch(ops: SyncOp[]): Promise<boolean> {
+  if (ops.some((o) => RUN_INPUT_KINDS.has(o.kind))) inputsDirty = true;
   for (let i = 0; i < ops.length; i++) {
     const op = ops[i]!;
     try {
@@ -260,8 +330,35 @@ function enqueue(ops: SyncOp[]): void {
   setStatus({ syncing: true });
   void done.then(() => {
     inflight.delete(done);
-    if (!inflight.size) setStatus({ syncing: false });
+    if (inflight.size) return;
+    if (inputsDirty) {
+      // The inputs of a computed run may have moved: ask the server again whether it is stale, and let the checks reload.
+      inputsDirty = false;
+      setStatus({ syncing: false, inputsVersion: status.inputsVersion + 1 });
+      void refreshRunFlags();
+    } else setStatus({ syncing: false });
   });
+}
+
+/** Bumped by every command that replaces a run, so a flag refresh that started before it is not applied over the newer answer. */
+let runEpoch = 0;
+export const noteRunChanged = (): void => { runEpoch++; };
+
+/** The server decides whether a computed run is stale. After inputs change, fetch the runs' flags (no payslips) and copy them onto the runs held here. */
+async function refreshRunFlags(): Promise<void> {
+  if (!isLiveReady() || status.payrollPhase !== 'ok') return;
+  if (!getLiveDb().payRuns.some((r) => r.status === 'computed')) return;
+  const epoch = runEpoch;
+  try {
+    const flags = await hrmsApi.payroll.runFlags();
+    if (epoch !== runEpoch || inflight.size) return;
+    patchLive((db) => {
+      for (const f of flags) {
+        const run = db.payRuns.find((r) => r.id === f.id);
+        if (run && run.status === f.status) run.stale = f.stale;
+      }
+    });
+  } catch { /* the flag stays as it was; the next compute or refresh corrects it */ }
 }
 
 /** Resolves once every change made so far has reached the server (or failed and been undone). */
@@ -281,14 +378,33 @@ export function whenSynced(cb: (ok: boolean) => void): void {
 }
 
 // ───────────────────────────── mutate ─────────────────────────────
+/** Payroll records the server takes a client-made id for. A new one that does not have a UUID (an older helper made it) gets one before it is diffed. */
+const NEW_ID_KEYS = ['structures', 'adjustments', 'loans', 'fnfCases'] as const;
+function giveNewRowsUuids(prev: HrmsDb, next: HrmsDb): void {
+  for (const key of NEW_ID_KEYS) {
+    const had = new Set((prev[key] as Array<{ id: string }>).map((r) => r.id));
+    for (const row of next[key] as Array<{ id: string }>) {
+      if (had.has(row.id) || UUID_RE.test(row.id)) continue;
+      const old = row.id;
+      row.id = randomUuid();
+      if (key === 'structures') for (const e of next.employees) if (e.structureId === old) e.structureId = row.id;
+    }
+  }
+}
+
 /** Apply a change optimistically and queue the API calls that make the server match. Returns false when the change was refused. */
 export function liveMutate(fn: (db: HrmsDb) => void): boolean {
   const prev = getLiveDb();
   const next = structuredClone(prev);
   fn(next);
+  giveNewRowsUuids(prev, next);
   const ops = diffServer(prev, next);
   if (ops.length && status.phase !== 'ready') {
     toast.error('The HRMS data has not loaded from the server, so this change was not made.');
+    return false;
+  }
+  if (ops.some((o) => PAYROLL_KINDS.has(o.kind)) && status.payrollPhase !== 'ok') {
+    toast.error(`Payroll has not loaded from the server, so this change was not made.${status.payrollMessage ? ` ${status.payrollMessage}.` : ''}`);
     return false;
   }
   const had = new Set(prev.employees.map((e) => e.id));
@@ -302,7 +418,19 @@ export function liveMutate(fn: (db: HrmsDb) => void): boolean {
 // ───────────────────────────── load, refresh, switch ─────────────────────────────
 let hydrateSeq = 0;
 
-/** Fetch everything from /bootstrap. From `ready` this is a quiet refresh (the page stays); otherwise the layout shows the loading state. */
+/**
+ * People and payroll are read together. People failing fails the load (as in phase 1). Payroll failing on its own does not: it
+ * is reported as the payroll phase, so the people pages keep working while the payroll pages say what is wrong.
+ */
+async function loadAll(): Promise<{ people: ServerData; payroll: PayrollData | null; payrollError: HrmsApiError | null }> {
+  const [people, payroll] = await Promise.allSettled([hrmsApi.bootstrap(), hrmsApi.payroll.bootstrap()]);
+  if (people.status === 'rejected') throw people.reason;
+  return payroll.status === 'fulfilled'
+    ? { people: people.value, payroll: payroll.value, payrollError: null }
+    : { people: people.value, payroll: null, payrollError: asError(payroll.reason) };
+}
+
+/** Fetch everything from /bootstrap and /payroll/bootstrap. From `ready` this is a quiet refresh (the page stays); otherwise the layout shows the loading state. */
 export async function hydrate(): Promise<void> {
   const seq = ++hydrateSeq;
   const refreshing = status.phase === 'ready';
@@ -310,11 +438,26 @@ export async function hydrate(): Promise<void> {
   try {
     // Read only when no change is on its way: an answer from before a write would put the old rows back. A change made while
     // the read was running sends us round again (a few times at most; after that the next refresh catches up).
-    let data = await settle().then(() => hrmsApi.bootstrap());
-    for (let again = 0; again < 3 && inflight.size && seq === hydrateSeq; again++) data = await settle().then(() => hrmsApi.bootstrap());
+    let got = await settle().then(loadAll);
+    for (let again = 0; again < 3 && inflight.size && seq === hydrateSeq; again++) got = await settle().then(loadAll);
     if (seq !== hydrateSeq) return;
-    commit(build(pickServer(data), pickLocal(getLiveDb())));
-    setStatus({ phase: 'ready', refreshing: false, message: '' });
+    const held = getLiveDb();
+    // A payroll read that failed on a quiet refresh keeps the payroll already held; on a first load there is none to keep.
+    const keepHeld = !got.payroll && refreshing && status.payrollPhase === 'ok';
+    const payroll: PayrollCollections = got.payroll
+      ? {
+        structures: got.payroll.structures, attendance: got.payroll.attendance, adjustments: got.payroll.adjustments, loans: got.payroll.loans,
+        payRuns: got.payroll.payRuns, fnfCases: got.payroll.fnfCases, overtimeRules: got.payroll.overtimeRule ? [got.payroll.overtimeRule] : held.overtimeRules,
+      }
+      : keepHeld ? pickPayroll(held) : emptyPayroll();
+    commit(build(pickPeople(got.people), payroll, pickLocal(held)));
+    noteRunChanged();
+    const failed = got.payrollError;
+    if (failed && keepHeld) toast.error(`Could not refresh payroll: ${failed.message}`);
+    setStatus({
+      phase: 'ready', refreshing: false, message: '', inputsVersion: status.inputsVersion + 1,
+      ...(keepHeld ? {} : { payrollPhase: failed ? (failed.notReady ? 'not_ready' : 'error') : 'ok', payrollMessage: failed?.message ?? '' }),
+    });
   } catch (e) {
     if (seq !== hydrateSeq) return;
     const err = asError(e);
@@ -330,7 +473,7 @@ export async function hydrate(): Promise<void> {
 function applySource(next: Source): void {
   if (next === 'live') {
     getLiveDb();
-    setStatus({ source: 'live', phase: 'loading', message: '', refreshing: false });
+    setStatus({ source: 'live', phase: 'loading', message: '', refreshing: false, payrollPhase: 'idle', payrollMessage: '' });
     void hydrate();
   } else {
     hydrateSeq++;

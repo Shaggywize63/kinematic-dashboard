@@ -1,12 +1,14 @@
 'use client';
-// Run step 2, Checks: engine.preRunChecks grouped by severity, with a link to fix each one. Blockers need an explicit confirmation.
+// Run step 2, Checks: the pre-run checks grouped by severity, with a link to fix each one. Blockers need an explicit confirmation.
+// Sample data: engine.preRunChecks in the browser. Live data: the server's checks for the run (what compute will act on).
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Badge, Button, Card, CardTitle, Note, T } from '../ui';
 import type { HrmsDb, PayRun } from '../../../lib/hrms/types';
 import { preRunChecks, type CheckSeverity, type PreRunCheck } from '../../../lib/hrms/engine';
 import { logRunAudit } from '../../../lib/hrms/payrollActions';
+import { usePreRunChecks } from '../../../lib/hrms/live/payrollCommands';
 import { acknowledgedBlockers, isLocked } from './logic';
 import type { Step } from './RunStepper';
 
@@ -16,12 +18,14 @@ const GROUPS: { key: CheckSeverity; title: string; tone: 'red' | 'warn' | 'info'
   { key: 'info', title: 'For information', tone: 'info', blurb: 'Explains a number you may otherwise question.' },
 ];
 
+/** Sample data only: the blockers worked out in the browser. Live screens use usePreRunChecks, which asks the server. */
 export function blockerCount(db: HrmsDb, run: PayRun): number {
   return preRunChecks(db, run.month, run.entityId).filter((c) => c.severity === 'blocker').length;
 }
 
 export default function RunChecks({ db, run, go }: { db: HrmsDb; run: PayRun; go: (s: Step) => void }) {
-  const checks = useMemo(() => preRunChecks(db, run.month, run.entityId), [db, run.month, run.entityId]);
+  const { checks: found, loading, error, reload } = usePreRunChecks(db, run);
+  const checks = found ?? [];
   const [agree, setAgree] = useState(false);
   const blockers = checks.filter((c) => c.severity === 'blocker');
   const acked = acknowledgedBlockers(run);
@@ -37,7 +41,13 @@ export default function RunChecks({ db, run, go }: { db: HrmsDb; run: PayRun; go
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <Note>These checks run against the live data every time this page opens, so a fix made on an employee&apos;s record shows up here straight away.</Note>
-      {checks.length === 0 && <Card><div style={{ fontSize: 14, color: T.ok, fontWeight: 600 }}>No issues found. Everything the checks look at is in order.</div></Card>}
+      {loading && found === null && <div role="status" data-testid="checks-loading" style={{ fontSize: 13.5, color: T.dim }}>Running the checks on the server…</div>}
+      {error && (
+        <div data-testid="checks-error"><Note tone="red">
+          The checks could not be run: {error}. <button type="button" onClick={reload} style={{ border: 0, background: 'transparent', color: T.red, textDecoration: 'underline', cursor: 'pointer', font: 'inherit', padding: 0 }}>Try again</button>
+        </Note></div>
+      )}
+      {!loading && !error && checks.length === 0 && <Card><div style={{ fontSize: 14, color: T.ok, fontWeight: 600 }}>No issues found. Everything the checks look at is in order.</div></Card>}
       {GROUPS.map((g) => {
         const items = checks.filter((c) => c.severity === g.key);
         if (!items.length) return null;
@@ -66,12 +76,12 @@ export default function RunChecks({ db, run, go }: { db: HrmsDb; run: PayRun; go
                   <span>I understand that {blockers.length} blocker{blockers.length === 1 ? '' : 's'} will not be fixed before this run is computed, and I want to continue.</span>
                 </label>
               )}
-              <div><Button variant="primary" style={{ height: 44, padding: '0 20px', fontSize: 14 }} disabled={acked < blockers.length && !agree} onClick={proceed}>Continue to compute</Button></div>
+              <div><Button variant="primary" style={{ height: 44, padding: '0 20px', fontSize: 14 }} disabled={(acked < blockers.length && !agree) || loading} onClick={proceed}>Continue to compute</Button></div>
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13.5, color: T.dim }}>No blockers.</span>
-              <Button variant="primary" style={{ height: 44, padding: '0 20px', fontSize: 14 }} onClick={proceed}>Continue to compute</Button>
+              <Button variant="primary" style={{ height: 44, padding: '0 20px', fontSize: 14 }} disabled={loading} onClick={proceed}>Continue to compute</Button>
             </div>
           )}
         </Card>

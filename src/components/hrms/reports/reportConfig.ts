@@ -5,7 +5,7 @@
 import type { Employee, HrmsDb, Month, PayRun, Payslip } from '../../../lib/hrms/types';
 import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import { addMonths, fmtDate, fmtMonth, fullName, inr, inrShort, num } from '../../../lib/hrms/format';
-import { buildBankFile } from '../../../lib/hrms/engine';
+import { previewBankFile } from '../payroll/logic';
 import { monthEnd, monthStart } from '../../../lib/hrms/rules';
 import { maskAccount, maskPan } from '../../../lib/hrms/validators';
 import {
@@ -295,7 +295,7 @@ export const REPORTS: ReportDef[] = [
     rows: (db, f) => {
       const out: ReportRow[] = [];
       for (const run of runsFor(db, f.month, f.entity, ['frozen', 'paid'])) {
-        const file = buildBankFile(db, run);
+        const file = previewBankFile(db, run);
         for (const r of file.rows) {
           const e = db.employees.find((x) => x.code === r[0]);
           if (!matchEmp(e, f)) continue;
@@ -306,7 +306,7 @@ export const REPORTS: ReportDef[] = [
     },
     empty: (db, f) => (runsFor(db, f.month, f.entity, ['computed']).length ? `The ${fmtMonth(f.month)} run is computed but not frozen. Freeze it before a bank advice is produced.` : noRun(db, f)),
     notes: (db, f) => {
-      const skipped = runsFor(db, f.month, f.entity, ['frozen', 'paid']).flatMap((run) => buildBankFile(db, run).skipped.map((s) => `${employeeOf(db, s.employeeId) ? fullName(employeeOf(db, s.employeeId)!) : s.employeeId} is left out: ${s.reason}.`));
+      const skipped = runsFor(db, f.month, f.entity, ['frozen', 'paid']).flatMap((run) => previewBankFile(db, run).skipped.map((s) => `${employeeOf(db, s.employeeId) ? fullName(employeeOf(db, s.employeeId)!) : s.employeeId} is left out: ${s.reason}.`));
       return [...skipped, 'Account numbers are masked on screen. The CSV holds them in full, so exporting writes an access-log entry for each employee.'];
     },
     peek: (rows) => `${pl(rows.length, 'transfer')}, ${inr(sumBy(rows, (r) => Number(r.amount)))}`,

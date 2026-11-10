@@ -8,10 +8,16 @@ import { Button, ConfidenceBadge, Modal, T } from '../ui';
 import { Input, buttonStyle, type ButtonVariant } from '../../ui';
 import type { LawRow } from './logic';
 import type { ActionResult } from '../../../lib/hrms/payrollActions';
+import { whenSynced } from '../../../lib/hrms/live/store';
 
-/** Show the result of an action as a toast. Returns true when it worked. */
+/**
+ * Show the result of an action as a toast. Returns true when it worked.
+ * On live data an action that saves a record has only been accepted locally when it returns: the success message waits until the
+ * server has taken it (and is dropped if the server refused and the change was undone, whose error toast says why). In sample
+ * mode `whenSynced` runs at once, so the message appears immediately as it always did.
+ */
 export function report(r: ActionResult, success?: string): boolean {
-  if (r.ok) { if (success) toast.success(success); return true; }
+  if (r.ok) { if (success) whenSynced((ok) => { if (ok) toast.success(success); }); return true; }
   toast.error(r.error);
   return false;
 }
