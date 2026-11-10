@@ -1,6 +1,7 @@
 /**
- * API client for the 15 extended analytics endpoints + the per-user
- * dashboard-layout CRUD. Mirrors the shape of crmApi.ts.
+ * API client for the extended analytics endpoints (the original 15 widgets plus
+ * the Lead Management "plus" widgets / reports) + the per-user dashboard-layout
+ * CRUD. Mirrors the shape of crmApi.ts.
  */
 import api from './api';
 
@@ -70,6 +71,35 @@ export const crmMarketIntel = {
   byCity: (range?: DateRangeParams) => api.get<Wrapped<IntelByCity[]>>(`${BASE}/intel/by-city${qs({ ...range })}`),
   trend: (range?: DateRangeParams) => api.get<Wrapped<IntelTrendPoint[]>>(`${BASE}/intel/trend${qs({ ...range })}`),
   feed: (range?: DateRangeParams, limit = 50) => api.get<Wrapped<IntelSignal[]>>(`${BASE}/intel/feed${qs({ ...range, limit })}`),
+};
+
+// ── Lead Management "plus" widgets + reports ─────────────────
+// Types + normalisers live in ./crm/crmPlusTypes (pure, unit-tested); the
+// client below unwraps the `{ success, data }` envelope and normalises.
+import {
+  normaliseActivityMix, normaliseCallTrend, normaliseConversionTime, normaliseDealSize, normaliseFollowup, normaliseRecycling,
+  normaliseSourcePerformance, normaliseStageVelocity, normaliseWeightedPipeline, normaliseWinRateTrend, normaliseWorkload,
+} from './crm/crmPlusTypes';
+export * from './crm/crmPlusTypes';
+
+/** Each call resolves to the normalised payload directly (the `{success, data}` envelope is unwrapped here). */
+const get = async <T,>(path: string, norm: (d: unknown) => T): Promise<T> => {
+  const r = await api.get<Wrapped<unknown>>(path);
+  return norm(r?.data);
+};
+
+export const crmAnalyticsPlus = {
+  sourcePerformance: (range?: DateRangeParams) => get(`${BASE}/source-performance${qs({ ...range })}`, normaliseSourcePerformance),
+  followupCompliance: (range?: DateRangeParams) => get(`${BASE}/followup-compliance${qs({ ...range })}`, normaliseFollowup),
+  ownerWorkload: (range?: DateRangeParams, sla_minutes?: number) => get(`${BASE}/owner-workload${qs({ ...range, sla_minutes })}`, normaliseWorkload),
+  stageVelocity: (pipeline_id?: string) => get(`${BASE}/stage-velocity${qs({ pipeline_id })}`, normaliseStageVelocity),
+  activityMix: (range?: DateRangeParams) => get(`${BASE}/activity-mix${qs({ ...range })}`, normaliseActivityMix),
+  conversionTime: (range?: DateRangeParams) => get(`${BASE}/conversion-time${qs({ ...range })}`, normaliseConversionTime),
+  weightedPipeline: (pipeline_id?: string) => get(`${BASE}/weighted-pipeline${qs({ pipeline_id })}`, normaliseWeightedPipeline),
+  dealSizeDistribution: (range?: DateRangeParams) => get(`${BASE}/deal-size-distribution${qs({ ...range })}`, normaliseDealSize),
+  winRateTrend: (months = 6) => get(`${BASE}/win-rate-trend${qs({ months })}`, normaliseWinRateTrend),
+  callConnectTrend: (weeks = 8) => get(`${BASE}/call-connect-trend${qs({ weeks })}`, normaliseCallTrend),
+  leadRecycling: (months = 6) => get(`${BASE}/lead-recycling${qs({ months })}`, normaliseRecycling),
 };
 
 // ── Dashboard layout CRUD ────────────────────────────────────

@@ -2,7 +2,7 @@
 /**
  * Field Force Analytics — read-and-customise widget grid.
  *
- * Mirrors LeadAnalyticsSection but for the field-force surface. 16 preset
+ * Mirrors LeadAnalyticsSection but for the field-force surface. 28 preset
  * widgets + a custom chart builder, drag/resize, per-tile chart-type
  * switcher, pin to overview.
  */
@@ -194,7 +194,7 @@ export default function FfmAnalyticsSection() {
           <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Field Force Analytics</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>Beat, productivity, discipline &amp; growth</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-            16 presets + custom chart builder. Drag, resize, switch chart types — layout saves automatically.
+            {FFM_WIDGET_CATALOG.length} presets + custom chart builder. Drag, resize, switch chart types — layout saves automatically.
           </div>
         </div>
         <button onClick={() => setAdding(true)} style={primaryBtn}><Plus size={14} /> Add widget</button>
@@ -214,7 +214,7 @@ export default function FfmAnalyticsSection() {
         <div style={{ padding: 40, textAlign: 'center', background: 'var(--s3)', border: '1px dashed var(--border)', borderRadius: 12, color: 'var(--text-dim)' }}>
           <BarChart3 size={32} style={{ marginBottom: 10, opacity: 0.5 }} />
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>No FFM widgets yet</div>
-          <div style={{ fontSize: 12, margin: '6px 0 14px' }}>Pick from 16 field-force presets — or build your own.</div>
+          <div style={{ fontSize: 12, margin: '6px 0 14px' }}>Pick from {FFM_WIDGET_CATALOG.length} field-force presets — or build your own.</div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
             <button onClick={() => setAdding(true)} style={primaryBtn}>
               <Plus size={14} /> Add preset
@@ -519,25 +519,25 @@ function pickShape(type: FfmWidgetType, rows: any[]): {
       return {
         series: rows.map((r: any) => ({ name: r.fe_name, value: r.adherence_pct })),
         suffix: '%', valueLabel: '%',
-        tableRows: rows.map((r: any) => ({ FE: r.fe_name, Planned: r.planned, Visited: r.visited, 'Adherence %': r.adherence_pct })),
+        tableRows: rows.map((r: any) => ({ FE: r.fe_name, Planned: r.planned, Visited: r.visited, Missed: r.missed, 'Adherence %': r.adherence_pct })),
       };
     case 'outlet_coverage':
       return {
         series: rows.map((r: any) => ({ name: r.fe_name, value: r.coverage_pct })),
         suffix: '%', valueLabel: '%',
-        tableRows: rows.map((r: any) => ({ FE: r.fe_name, Universe: r.universe, 'Visited MTD': r.visited_mtd, 'Coverage %': r.coverage_pct })),
+        tableRows: rows.map((r: any) => ({ FE: r.fe_name, Universe: r.universe, 'Visited MTD': r.visited_mtd, 'Not visited': r.not_visited, 'Coverage %': r.coverage_pct })),
       };
     case 'frequency':
       return {
         series: rows.map((r: any) => ({ name: r.outlet_type, value: r.compliance_pct })),
         suffix: '%', valueLabel: '%',
-        tableRows: rows.map((r: any) => ({ 'Outlet type': r.outlet_type, 'Due visits': r.due_visits, 'On time': r.on_time, 'Compliance %': r.compliance_pct })),
+        tableRows: rows.map((r: any) => ({ 'Outlet type': r.outlet_type, 'Due visits': r.due_visits, 'On time': r.on_time, Missed: r.missed, 'Compliance %': r.compliance_pct })),
       };
     case 'productive_calls':
       return {
         series: rows.map((r: any) => ({ name: r.fe_name, value: r.productive_pct })),
         suffix: '%', valueLabel: '%',
-        tableRows: rows.map((r: any) => ({ FE: r.fe_name, Visits: r.visits, Productive: r.productive, 'Productive %': r.productive_pct })),
+        tableRows: rows.map((r: any) => ({ FE: r.fe_name, Visits: r.visits, Productive: r.productive, Unproductive: r.unproductive, 'Productive %': r.productive_pct })),
       };
     case 'strike_rate':
       return {
@@ -548,7 +548,7 @@ function pickShape(type: FfmWidgetType, rows: any[]): {
     case 'aov':
       return {
         series: rows.map((r: any) => ({ name: r.week, value: r.aov_inr })),
-        tableRows: rows.map((r: any) => ({ Week: r.week, 'AOV (₹)': r.aov_inr, Orders: r.orders })),
+        tableRows: rows.map((r: any) => ({ Week: r.week, 'AOV (₹)': r.aov_inr, Orders: r.orders, 'Revenue (₹)': r.revenue_inr })),
       };
     case 'new_outlets':
       return {
@@ -558,7 +558,7 @@ function pickShape(type: FfmWidgetType, rows: any[]): {
     case 'visit_duration':
       return {
         series: rows.map((r: any) => ({ name: r.bucket, value: r.visit_count })),
-        tableRows: rows.map((r: any) => ({ Bucket: r.bucket, Visits: r.visit_count })),
+        tableRows: rows.map((r: any) => ({ Bucket: r.bucket, Visits: r.visit_count, 'Share %': r.share_pct })),
       };
     case 'idle_heatmap': {
       const fes = Array.from(new Set(rows.map((r: any) => r.fe_name)));
@@ -575,7 +575,7 @@ function pickShape(type: FfmWidgetType, rows: any[]): {
     case 'distance':
       return {
         series: rows.map((r: any) => ({ name: r.day, value: r.km_total })),
-        tableRows: rows.map((r: any) => ({ Day: r.day, 'Km total': r.km_total })),
+        tableRows: rows.map((r: any) => ({ Day: r.day, 'Km total': r.km_total, Reps: r.reps ?? '—', 'Km per rep': r.km_per_rep ?? '—' })),
       };
     case 'off_route':
       return {
@@ -585,7 +585,7 @@ function pickShape(type: FfmWidgetType, rows: any[]): {
     case 'punctuality':
       return {
         series: rows.map((r: any) => ({ name: r.fe_name, value: r.on_time })),
-        tableRows: rows.map((r: any) => ({ FE: r.fe_name, 'On time': r.on_time, Late: r.late, Absent: r.absent })),
+        tableRows: rows.map((r: any) => ({ FE: r.fe_name, 'On time': r.on_time, Late: r.late, Absent: r.absent, 'Punctual %': r.punctual_pct })),
       };
     case 'stuck_fes':
       return {
@@ -601,12 +601,75 @@ function pickShape(type: FfmWidgetType, rows: any[]): {
       return {
         series: rows.map((r: any) => ({ name: r.fe_name, value: r.completion_pct })),
         suffix: '%', valueLabel: '%',
-        tableRows: rows.map((r: any) => ({ FE: r.fe_name, Required: r.required, Submitted: r.submitted, 'Completion %': r.completion_pct })),
+        tableRows: rows.map((r: any) => ({ FE: r.fe_name, Required: r.required, Submitted: r.submitted, Missing: r.missing, 'Completion %': r.completion_pct })),
       };
     case 'top_performers':
       return {
         series: rows.map((r: any) => ({ name: r.fe_name, value: r.revenue_inr })),
-        tableRows: rows.map((r: any) => ({ FE: r.fe_name, 'Revenue (₹)': r.revenue_inr, Orders: r.orders, 'Outlets covered': r.outlets_covered })),
+        tableRows: rows.map((r: any) => ({ FE: r.fe_name, 'Revenue (₹)': r.revenue_inr, Orders: r.orders, 'AOV (₹)': r.aov_inr, 'Outlets covered': r.outlets_covered, 'Revenue share %': r.share_pct })),
+      };
+    // ── added widgets ──
+    case 'beat_adherence_trend':
+      return {
+        series: rows.map((r: any) => ({ name: r.week, value: r.adherence_pct })),
+        suffix: '%', valueLabel: '%',
+        tableRows: rows.map((r: any) => ({ Week: r.week, Planned: r.planned, Visited: r.visited, Missed: r.missed, 'Adherence %': r.adherence_pct, 'Active reps': r.active_reps })),
+      };
+    case 'outlet_recency':
+      return {
+        series: rows.map((r: any) => ({ name: r.bucket, value: r.outlets })),
+        tableRows: rows.map((r: any) => ({ 'Days since last visit': r.bucket, Outlets: r.outlets, 'Share %': r.share_pct })),
+      };
+    case 'visit_frequency':
+      return {
+        series: rows.map((r: any) => ({ name: r.bucket, value: r.outlets })),
+        tableRows: rows.map((r: any) => ({ Visits: r.bucket, Outlets: r.outlets, 'Share %': r.share_pct })),
+      };
+    case 'productive_trend':
+      return {
+        series: rows.map((r: any) => ({ name: r.week, value: r.productive_pct })),
+        suffix: '%', valueLabel: '%',
+        tableRows: rows.map((r: any) => ({ Week: r.week, Visits: r.visits, 'Productive visits': r.productive_visits, 'Productive %': r.productive_pct })),
+      };
+    case 'rep_basket':
+      return {
+        series: rows.map((r: any) => ({ name: r.fe_name, value: r.aov_inr })),
+        tableRows: rows.map((r: any) => ({ Rep: r.fe_name, Orders: r.orders, 'Revenue (₹)': r.revenue_inr, 'AOV (₹)': r.aov_inr, 'Orders / day': r.orders_per_day, 'AOV vs team %': r.vs_team_aov_pct })),
+      };
+    case 'calls_per_day':
+      return {
+        series: rows.map((r: any) => ({ name: r.fe_name, value: r.calls_per_day })),
+        tableRows: rows.map((r: any) => ({ Rep: r.fe_name, 'Days visiting': r.visit_days, Visits: r.visits, 'Calls / day': r.calls_per_day, 'Median calls / day': r.team_median, 'vs median': r.vs_median })),
+      };
+    case 'dwell_time':
+      return {
+        series: rows.map((r: any) => ({ name: r.fe_name, value: r.avg_dwell_min })),
+        tableRows: rows.map((r: any) => ({ Rep: r.fe_name, 'Timed visits': r.timed_visits, 'Avg on site (min)': r.avg_dwell_min, 'Avg planned (min)': r.avg_planned_min, 'Under 2 min %': r.under_2min_pct })),
+      };
+    case 'visit_hours':
+      return {
+        series: rows.map((r: any) => ({ name: r.hour_label, value: r.visits })),
+        tableRows: rows.map((r: any) => ({ 'Hour (IST)': r.hour_label, Visits: r.visits, 'Share %': r.share_pct })),
+      };
+    case 'travel_efficiency':
+      return {
+        series: rows.map((r: any) => ({ name: r.fe_name, value: r.km_per_visit })),
+        tableRows: rows.map((r: any) => ({ Rep: r.fe_name, 'Km total': r.km_total, Visits: r.visits, 'Km / visit': r.km_per_visit, 'Days visiting': r.active_days, 'Km / day': r.km_per_day })),
+      };
+    case 'geo_exceptions':
+      return {
+        series: rows.map((r: any) => ({ name: r.fe_name, value: r.outside_geofence })),
+        tableRows: rows.map((r: any) => ({ Rep: r.fe_name, 'Check-ins': r.checkins, 'Outside geofence': r.outside_geofence, 'Outside %': r.outside_pct, 'Furthest (m)': r.max_distance_m })),
+      };
+    case 'attendance_hours':
+      return {
+        series: rows.map((r: any) => ({ name: r.fe_name, value: r.avg_hours })),
+        tableRows: rows.map((r: any) => ({ Rep: r.fe_name, 'Days present': r.days_present, 'Avg hours / day': r.avg_hours, 'Avg check-in (IST)': r.avg_checkin_time, 'Days with no check-out': r.missed_checkouts })),
+      };
+    case 'outlet_churn':
+      return {
+        series: rows.map((r: any) => ({ name: r.segment, value: r.outlets })),
+        tableRows: rows.map((r: any) => ({ Segment: r.segment, Outlets: r.outlets, 'Revenue, last 30 days (₹)': r.revenue_last_30d_inr, 'Revenue, prior 30 days (₹)': r.revenue_prior_30d_inr })),
       };
   }
   return null;
