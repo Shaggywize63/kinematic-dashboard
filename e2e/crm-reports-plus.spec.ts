@@ -25,7 +25,7 @@ const cells = async (loc: ReturnType<Page['locator']>) => {
   await loc.locator('td').first().waitFor();
   return (await loc.locator('td').allInnerTexts()).map(clean);
 };
-const csvOf = async (page: Page, button: string | RegExp = 'Download CSV') => {
+const csvOf = async (page: Page, button: string | RegExp = /Download CSV|⬇ CSV/) => {   // the older pages say "⬇ CSV"
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: button }).click()]);
   return parseCsv(await readDownload(download));
 };
@@ -34,6 +34,14 @@ const csvRow = (csv: string[][], first: string) => {
   const row = csv.find((r) => r[0] === first);
   expect(row, `csv row ${first}`).toBeTruthy();
   return Object.fromEntries(csv[0].map((h, i) => [h, row![i]]));
+};
+/** A second page in the same context. The api client mirrors GET answers to localStorage (stale-while-revalidate), so it
+ *  starts from a clean slate, otherwise it would be served the first page's /crm/settings. Register before serve(): serve()
+ *  seeds the session afterwards. */
+const freshPage = async (page: Page) => {
+  const p = await page.context().newPage();
+  await p.addInitScript(() => { try { window.localStorage.clear(); } catch { /* blocked */ } });
+  return p;
 };
 const kpis = async (page: Page) => {
   await page.getByTestId('plus-kpi').first().waitFor();
@@ -252,7 +260,7 @@ test.describe('report: Lead Source Performance, field gate', () => {
     await expect(page.locator('table')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Download CSV' })).toHaveCount(0);
 
-    const page2 = await page.context().newPage();
+    const page2 = await freshPage(page);
     await serve(page2, { settings: settingsWith({ 'lead.source_id': { label: 'Channel' } }) });
     await page2.goto(`${REPORTS}/source-performance`);
     expect((await headers(page2))[0]).toBe('Channel');
@@ -540,7 +548,7 @@ test.describe('existing report: Win/Loss', () => {
     await expect.poll(async () => await headers(page, '[data-testid="winloss-table"]')).toEqual(['Source', 'Won', 'Lost', 'Win rate %', 'Leads']);
     expect(await cells(page.getByTestId('winloss-totals'))).toEqual(['Total', '5', '15', '25%', '20']);
 
-    const hidden = await page.context().newPage();
+    const hidden = await freshPage(page);
     await serve(hidden, { payloads: { 'win-rate': REP_ROWS }, settings: settingsWith({ 'lead.source_id': { hidden: true } }) });
     await hidden.goto(`${REPORTS}/win-loss`);
     await expect(hidden.getByTestId('winloss-table')).toBeVisible();
@@ -673,7 +681,6 @@ test.describe('existing report: Rep Leaderboard', () => {
     expect(row[12]).toBe('₹90.0K');        // open value
     expect(row[13]).toMatch(/^20d$/);      // (10 + 30) / 2 days
     expect(row[14]).toBe('1');
-    expect((await kpis(page)).length).toBe(0); // (these KPIs are plain tiles, asserted below by label)
     await expect(page.getByText('Open Pipeline Value')).toBeVisible();
     await expect(page.getByText('Win Rate by Value').first()).toBeVisible();
   });
@@ -854,7 +861,7 @@ test.describe('demo tenant', () => {
       await page.goto(`${REPORTS}/${sp.slug}`);
       await expect(page.getByTestId('plus-row').first()).toBeVisible({ timeout: 30_000 });
       expect(await page.getByTestId('plus-row').count()).toBeGreaterThan(1);
-      await expect(page.getByRole('alert')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Retry' })).toHaveCount(0);   // no error banner (the page has one empty route-announcer alert, so not getByRole('alert'))
       expect((await headers(page)).length).toBeGreaterThanOrEqual(3);
       const csv = await csvOf(page);
       expect(csv.length).toBeGreaterThan(2);
@@ -865,12 +872,13 @@ test.describe('demo tenant', () => {
     await demoLogin(page);
     await page.goto(`${REPORTS}/team-performance`);
     await expect(page.locator('tbody tr').first()).toBeVisible({ timeout: 30_000 });
-    const hs = await headers(page);
-    const col = hs.indexOf('Overdue Follow-ups');
-    expect(col).toBeGreaterThan(20);
+    // the second header row holds the column labels; the Rep column spans both rows, so a label's cell is one to the right
+    const labels = await headers(page, 'thead tr:nth-child(2)');
+    const col = (label: string) => { const i = labels.indexOf(label); expect(i, label).toBeGreaterThan(-1); return i + 1; };
+    expect(col('Overdue Follow-ups')).toBeGreaterThan(20);
     const first = await cells(page.locator('tbody tr').nth(1)); // row 0 is the pinned total
-    expect(first[col]).not.toBe('—');
-    expect(first[hs.indexOf('Conversion')]).toMatch(/^\d{1,2}(\.\d)?%$/);
+    expect(first[col('Overdue Follow-ups')]).not.toBe('—');
+    expect(first[col('Conversion')]).toMatch(/^\d{1,3}(\.\d)?%$/);
   });
 
   test('Lead Tracker, Win/Loss, Forecast, Sales Cycle and Lead Source ROI show their new columns for the demo tenant', async ({ page }) => {

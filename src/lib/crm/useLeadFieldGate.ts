@@ -15,7 +15,7 @@
  * field the admin had hidden.
  */
 import { useEffect, useState } from 'react';
-import { crmSettings } from '../crmApi';
+import api from '../api';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../crmFieldOverrides';
 import { blockedBy, isLeadFieldHidden } from './leadFieldGate';
 
@@ -25,7 +25,10 @@ const TTL_MS = 30_000;
 
 export function loadLeadFieldOverrides(force = false): Promise<FieldOverrides> {
   if (!force && inflight && Date.now() - inflight.at < TTL_MS) return inflight.promise;
-  const promise = crmSettings.get()
+  // noCache: the api client otherwise answers a GET from its localStorage stale-while-revalidate mirror, so a field the
+  // admin has just hidden (or un-hidden) would still be gated the old way for the first view. This read is tiny and is
+  // shared by every gated widget on the page, so always ask the server.
+  const promise = api.get<{ data?: unknown }>('/api/v1/crm/settings', { noCache: true } as RequestInit)
     .then((r) => extractFieldOverrides(r?.data))
     // A failed read leaves the form-side convention: nothing hidden.
     .catch(() => ({} as FieldOverrides));
