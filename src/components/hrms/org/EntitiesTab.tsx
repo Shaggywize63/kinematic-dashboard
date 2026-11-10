@@ -8,6 +8,8 @@ import { Badge, Button, Card, CardTitle, ConfidenceBadge, DataTable, EmptyState,
 import { Field, FormGrid, Section } from '../../ui';
 import type { HrmsDb, LegalEntity, Registration, RegistrationType } from '../../../lib/hrms/types';
 import { uid } from '../../../lib/hrms/types';
+import { newId } from '../../../lib/hrms/db';
+import { whenSynced } from '../../../lib/hrms/live/store';
 import { fmtDate } from '../../../lib/hrms/format';
 import { remove, upsert } from '../../../lib/hrms/actions';
 import { removeRegistration, saveRegistration } from '../../../lib/hrms/orgActions';
@@ -123,13 +125,13 @@ export function EntitiesTab({ db }: { db: HrmsDb }) {
 
       {confirm?.kind === 'entity' && (
         <ConfirmDialog title="Remove legal entity" confirmLabel="Remove entity" onCancel={() => setConfirm(null)}
-          onConfirm={() => { remove('entities', confirm.entity.id); toast.success(`${confirm.entity.name} removed`); setConfirm(null); setSelectedId(''); }}>
+          onConfirm={() => { const gone = confirm.entity.name; remove('entities', confirm.entity.id); whenSynced((ok) => { if (ok) toast.success(`${gone} removed`); }); setConfirm(null); setSelectedId(''); }}>
           Remove <b>{confirm.entity.name}</b> and its {confirm.entity.registrations.length} registration{confirm.entity.registrations.length === 1 ? '' : 's'}? This cannot be undone in the preview.
         </ConfirmDialog>
       )}
       {confirm?.kind === 'reg' && (
         <ConfirmDialog title="Remove registration" confirmLabel="Remove registration" onCancel={() => setConfirm(null)}
-          onConfirm={() => { removeRegistration(confirm.entity.id, confirm.reg.id); toast.success('Registration removed'); setConfirm(null); }}>
+          onConfirm={() => { removeRegistration(confirm.entity.id, confirm.reg.id); whenSynced((ok) => { if (ok) toast.success('Registration removed'); }); setConfirm(null); }}>
           Remove the {registrationLabel(confirm.reg.type)}{confirm.reg.state ? ` for ${confirm.reg.state}` : ''} registration <b>{confirm.reg.number}</b> from {confirm.entity.name}?
         </ConfirmDialog>
       )}
@@ -226,9 +228,9 @@ function EntityModal({ db, edit, onClose, onSaved }: { db: HrmsDb; edit?: LegalE
     ev.preventDefault();
     setTried(true);
     if (Object.keys(errors).length) { focusFirstInvalid(formId); return; }
-    const saved = formToEntity(f, { id: edit?.id ?? uid('ent'), registrations: edit?.registrations ?? [] });
+    const saved = formToEntity(f, { id: edit?.id ?? newId('ent'), registrations: edit?.registrations ?? [] });
     upsert('entities', saved);
-    toast.success(edit ? `${saved.name} updated` : `${saved.name} added`);
+    whenSynced((ok) => { if (ok) toast.success(edit ? `${saved.name} updated` : `${saved.name} added`); });
     onSaved(saved.id);
   };
 
@@ -285,7 +287,7 @@ function RegistrationModal({ entity, edit, preset, onClose }: { entity: LegalEnt
     setTried(true);
     if (Object.keys(errors).length) { focusFirstInvalid(formId); return; }
     saveRegistration(entity.id, formToRegistration(f, edit?.id ?? uid('reg')));
-    toast.success(edit ? 'Registration updated' : 'Registration added');
+    whenSynced((ok) => { if (ok) toast.success(edit ? 'Registration updated' : 'Registration added'); });
     onClose();
   };
 

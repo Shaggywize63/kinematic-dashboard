@@ -4,6 +4,7 @@
 
 import { HrmsPage, Loading, TabBar, useTabParam } from '../../../../components/hrms/ui';
 import { useHrmsDb } from '../../../../lib/hrms/db';
+import { isLive } from '../../../../lib/hrms/live/store';
 import { EntitiesTab } from '../../../../components/hrms/org/EntitiesTab';
 import { LocationsTab } from '../../../../components/hrms/org/LocationsTab';
 import { DepartmentsTab, DesignationsTab } from '../../../../components/hrms/org/DepartmentsTab';
@@ -17,7 +18,7 @@ export default function OrganizationPage() {
   if (!db) return <Loading />;
 
   return (
-    <HrmsPage title="Organisation" eyebrow="HRMS" description="Legal entities, registrations, locations, departments and designations. Preview on sample data.">
+    <HrmsPage title="Organisation" eyebrow="HRMS" description={`Legal entities, registrations, locations, departments and designations. ${isLive() ? 'Live data from the server.' : 'Preview on sample data.'}`}>
       <TabBar<Tab> value={tab} onChange={setTab} tabs={[
         { key: 'entities', label: 'Legal entities', count: db.entities.length },
         { key: 'locations', label: 'Locations', count: db.locations.length },

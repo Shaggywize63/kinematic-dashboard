@@ -1,7 +1,7 @@
 'use client';
 // Every change the HRMS pages make goes through here, so the later swap to API calls touches one file.
 
-import { mutate, getDb } from './db';
+import { mutate, getDb, newId } from './db';
 import type {
   Employee, HrmsDb, PayRun, Month, ChangeLogEntry, Id, AccessLogEntry, Adjustment, Loan, FnfCase, IssuedLetter, ComplianceTask,
 } from './types';
@@ -50,12 +50,12 @@ export function addEmployee(input: Omit<Employee, 'id' | 'code' | 'history' | 'd
   let created!: Employee;
   mutate((db) => {
     created = {
-      ...input, id: uid('emp'), code: nextEmployeeCode(db),
+      ...input, id: newId('emp'), code: nextEmployeeCode(db),
       documents: input.documents ?? [
-        { id: uid('doc'), type: 'appointment_letter', name: 'Appointment letter', uploadedOn: input.joinDate, status: 'pending', mandatory: true },
-        { id: uid('doc'), type: 'pan_card', name: 'PAN card', uploadedOn: input.joinDate, status: 'pending', mandatory: true },
-        { id: uid('doc'), type: 'aadhaar', name: 'Aadhaar (masked copy)', uploadedOn: input.joinDate, status: 'pending', mandatory: true },
-        { id: uid('doc'), type: 'bank_proof', name: 'Cancelled cheque', uploadedOn: input.joinDate, status: 'pending', mandatory: true },
+        { id: newId('doc'), type: 'appointment_letter', name: 'Appointment letter', uploadedOn: input.joinDate, status: 'pending', mandatory: true },
+        { id: newId('doc'), type: 'pan_card', name: 'PAN card', uploadedOn: input.joinDate, status: 'pending', mandatory: true },
+        { id: newId('doc'), type: 'aadhaar', name: 'Aadhaar (masked copy)', uploadedOn: input.joinDate, status: 'pending', mandatory: true },
+        { id: newId('doc'), type: 'bank_proof', name: 'Cancelled cheque', uploadedOn: input.joinDate, status: 'pending', mandatory: true },
       ],
       history: [{ id: uid('h'), at: new Date().toISOString(), by: ACTOR, field: 'Employee', to: 'Created' }],
     };

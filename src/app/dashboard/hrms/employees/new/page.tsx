@@ -2,11 +2,13 @@
 // New employee: sectioned form (Personal, Employment, Statutory and bank, Pay). Saves through addEmployee and opens the profile.
 
 import { useCallback, useMemo, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button, Card, HrmsPage, Loading, Note, T, useIsCompact } from '../../../../../components/hrms/ui';
 import { Section } from '../../../../../components/ui';
 import { useHrmsDb } from '../../../../../lib/hrms/db';
 import { addEmployee } from '../../../../../lib/hrms/actions';
+import { isLive, whenSynced } from '../../../../../lib/hrms/live/store';
 import { buildBreakup } from '../../../../../lib/hrms/engine';
 import { inr } from '../../../../../lib/hrms/format';
 import { PREVIEW_TODAY } from '../../../../../lib/hrms/seed';
@@ -44,6 +46,8 @@ function NewEmployeeForm() {
   const ctc = toAmount(d.annualCtc);
   const breakup = structure && ctc > 0 ? buildBreakup(structure, ctc, { asOn: PREVIEW_TODAY, pfMember: d.pfMember, pfOnActual: d.pfOnActualWage }) : null;
   const joinsLater = d.joinDate > PREVIEW_TODAY;
+  const liveData = isLive();
+  const needsOrg = liveData && (db.locations.length === 0 || db.departments.length === 0 || db.designations.length === 0);
 
   function submit(ev: FormEvent) {
     ev.preventDefault();
@@ -58,17 +62,23 @@ function NewEmployeeForm() {
     }
     setSaving(true);
     const created = addEmployee(draftToInput(d, db));
-    router.push(profileHref(created.id));
+    // Sample data: this runs at once. Live data: it runs when the server has answered, so a refused save keeps the form (and an error toast says why).
+    whenSynced((ok) => { if (ok) router.push(profileHref(created.id)); else setSaving(false); });
   }
 
   return (
     <HrmsPage
       title="Add employee"
-      description="Creates the record on the sample data in this browser. Nothing is sent to a server."
+      description={liveData ? 'Saves the employee on the server. The server assigns the employee code.' : 'Creates the record on the sample data in this browser. Nothing is sent to a server.'}
       actions={<Button href="/dashboard/hrms/employees">Back to employees</Button>}
       maxWidth={1040}
     >
       <form onSubmit={submit} noValidate aria-label="New employee">
+        {needsOrg && (
+          <div data-testid="new-needs-org" style={{ marginBottom: 12 }}>
+            <Note tone="warn">Set up the organisation first. An employee needs a location, a department and a designation: add a legal entity, then these, under <Link href="/dashboard/hrms/organization" style={{ color: 'inherit', fontWeight: 600 }}>Organisation</Link>.</Note>
+          </div>
+        )}
         <Card>
           <Section eyebrow="1. Personal" hint="Contact details and who to call in an emergency." first>
             <PersonalFields d={d} set={set} errors={shown} narrow={narrow} p="new" />

@@ -1,37 +1,155 @@
 'use client';
 // Hard gate for the HRMS module. The sidebar already hides it, but the nav is not enforcement: deep links and
-// stale caches ignore it. Allowed today: the master admin only (see lib/hrms/access.ts). The module runs on sample
-// data and has no backend yet, so no customer and no other admin sees it.
+// stale caches ignore it. Allowed today: the master admin only (see lib/hrms/access.ts).
+//
+// The module has two data sources. Sample (the default) runs on made-up data kept in this browser and never calls the
+// server. Live saves people and organisation on the server (the rest of the module still stays in this browser). The
+// choice is remembered in localStorage and read after mount, so it never changes what the first render shows.
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { getStoredUser } from '../../../lib/auth';
 import { canUseHrms } from '../../../lib/hrms/access';
 import { resetDb } from '../../../lib/hrms/db';
 import { resetAllAreaStores } from '../../../lib/hrms/areaStore';
-import { Button, T } from '../../../components/hrms/ui';
+import { hydrate, initSource, setSource, useLiveStatus, type LiveStatus, type Source } from '../../../lib/hrms/live/store';
+import { Button, Card, EmptyState, Modal, Note, T } from '../../../components/hrms/ui';
 
 const allowed = (): boolean => canUseHrms(getStoredUser());
 
+/** Sections whose data is on the server in live mode. Every other section keeps its data in this browser. */
+const SERVER_BACKED = new Set(['', 'employees', 'organization', 'org-chart']);
+const PAYROLL_SECTIONS = new Set(['payroll', 'payslips', 'pay-checks', 'wage-access', 'compensation', 'incentives', 'benefits']);
+
+function sectionOf(pathname: string | null): string {
+  return (pathname ?? '').replace(/^\/dashboard\/hrms\/?/, '').split('/')[0] ?? '';
+}
+
+function SourceSwitch({ source, onSample, onLive }: { source: Source; onSample: () => void; onLive: () => void }) {
+  const btn = (on: boolean) => ({
+    height: 28, padding: '0 12px', border: 0, fontSize: 12.5, fontWeight: on ? 700 : 500, fontFamily: 'inherit', cursor: on ? 'default' : 'pointer',
+    background: on ? T.card : 'transparent', color: on ? T.text : 'inherit',
+  } as const);
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+      <span id="hrms-source-label">Data source</span>
+      <div role="group" aria-labelledby="hrms-source-label" style={{ display: 'inline-flex', borderRadius: 8, overflow: 'hidden', border: `1px solid ${T.borderStrong}` }}>
+        <button type="button" data-testid="hrms-source-sample" aria-pressed={source === 'sample'} onClick={onSample} style={btn(source === 'sample')}>Sample</button>
+        <button type="button" data-testid="hrms-source-live" aria-pressed={source === 'live'} onClick={onLive} style={btn(source === 'live')}>Live</button>
+      </div>
+    </div>
+  );
+}
+
+function SwitchToLive({ onClose, onConfirm }: { onClose: () => void; onConfirm: () => void }) {
+  return (
+    <Modal title="Switch to live data?" onClose={onClose} width={520}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={onConfirm} style={{ minHeight: 40 }}>Switch to live data</Button></>}>
+      <div style={{ fontSize: 14, color: T.text, lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p style={{ margin: 0 }}>
+          <b>What becomes real.</b> Legal entities, locations, departments, designations and employees are loaded from the server, and everything you add or change
+          there is saved on the server straight away. PAN and bank details are kept encrypted and shown masked; revealing one needs a reason and is written to an access log.
+        </p>
+        <p style={{ margin: 0 }}>
+          <b>What stays in this browser.</b> Payroll, time and leave, statutory filings and the other modules are not on the server yet. In live mode they start empty and are saved in this browser only.
+        </p>
+        <p style={{ margin: 0 }}>Your sample data is not touched, and you can switch back at any time.</p>
+      </div>
+    </Modal>
+  );
+}
+
+function LiveGate({ live, children }: { live: LiveStatus; children: React.ReactNode }) {
+  const pathname = usePathname();
+  const section = sectionOf(pathname);
+  if (live.phase === 'idle' || live.phase === 'loading') {
+    return <div role="status" data-testid="hrms-live-loading" style={{ padding: 24, color: T.dim, fontSize: 13.5 }}>Loading the HRMS data from the server…</div>;
+  }
+  if (live.phase === 'not_ready') {
+    return (
+      <div style={{ padding: '16px 24px' }} data-testid="hrms-live-not-ready">
+        <Card>
+          <EmptyState title="HRMS storage is not set up yet on the server"
+            description="The tables that hold live HRMS data have not been created on the server, so there is nothing to load or save yet. Sample data still works."
+            action={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <Button variant="primary" onClick={() => void hydrate()} style={{ minHeight: 40 }}>Try again</Button>
+              <Button onClick={() => setSource('sample')} style={{ minHeight: 40 }}>Use sample data</Button>
+            </div>} />
+        </Card>
+      </div>
+    );
+  }
+  if (live.phase === 'error') {
+    return (
+      <div style={{ padding: '16px 24px' }} data-testid="hrms-live-error">
+        <Card>
+          <EmptyState title="Could not load the live data"
+            description={<span data-testid="hrms-live-error-message">{live.message || 'Could not reach the server.'} Nothing was changed. Try again, or use the sample data meanwhile.</span>}
+            action={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <Button variant="primary" onClick={() => void hydrate()} style={{ minHeight: 40 }}>Retry</Button>
+              <Button onClick={() => setSource('sample')} style={{ minHeight: 40 }}>Use sample data</Button>
+            </div>} />
+        </Card>
+      </div>
+    );
+  }
+  return (
+    <>
+      {!SERVER_BACKED.has(section) && (
+        <div data-testid="hrms-local-note" style={{ margin: '12px 24px 0' }}>
+          <Note tone="warn">
+            Saved in this browser only: {PAYROLL_SECTIONS.has(section) ? 'payroll' : 'this part of HRMS'} is not on the server yet.
+          </Note>
+        </div>
+      )}
+      {children}
+    </>
+  );
+}
+
 export default function HrmsLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const live = useLiveStatus();
   const [state, setState] = useState<'checking' | 'allowed' | 'denied'>('checking');
+  const [askLive, setAskLive] = useState(false);
 
   useEffect(() => {
     const ok = allowed();
+    // Apply the remembered data source before the pages mount, so they never flash the wrong one.
+    if (ok) initSource();
     setState(ok ? 'allowed' : 'denied');
     if (!ok) router.replace('/dashboard');
   }, [router]);
 
   if (state === 'checking') return <div style={{ padding: 24, color: 'var(--dim)' }}>Checking access…</div>;
   if (state === 'denied') return <div style={{ padding: 24, color: 'var(--dim)' }}>HRMS is a preview and is not available for your account yet.</div>;
+
+  const isLive = live.source === 'live';
+  const tone = isLive ? { bg: T.infoWash, fg: T.info } : { bg: T.warnWash, fg: T.warn };
   return (
     <>
-      <div role="status" data-testid="hrms-preview-banner" style={{ margin: '12px 24px 0', padding: '8px 12px', borderRadius: 8, fontSize: 12.5, background: T.warnWash, color: T.warn, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-        <span><b>Preview.</b> This module runs on sample data kept in this browser. Nothing is saved to the server yet, and statutory rates are not confirmed for live payroll.</span>
-        <Button size="sm" variant="ghost" onClick={() => { if (window.confirm('Reset the sample data to its starting state? Your changes in this browser will be lost.')) { resetAllAreaStores(); resetDb(); } }}>Reset sample data</Button>
+      <div role="status" data-testid="hrms-preview-banner" data-source={live.source} style={{ margin: '12px 24px 0', padding: '8px 12px', borderRadius: 8, fontSize: 12.5, background: tone.bg, color: tone.fg, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        {isLive ? (
+          <span data-testid="hrms-banner-text" style={{ minWidth: 0, flex: '1 1 280px' }}>
+            <b>Live data.</b> People and organisation are saved on the server. Payroll, time and leave and the rest of the module still stay in this browser.
+            {live.syncing && <span data-testid="hrms-syncing" aria-live="polite"> Saving…</span>}
+          </span>
+        ) : (
+          <span data-testid="hrms-banner-text" style={{ minWidth: 0, flex: '1 1 280px' }}><b>Preview.</b> This module runs on sample data kept in this browser. Nothing is saved to the server yet, and statutory rates are not confirmed for live payroll.</span>
+        )}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <SourceSwitch source={live.source} onSample={() => { if (isLive) setSource('sample'); }} onLive={() => { if (!isLive) setAskLive(true); }} />
+          {isLive && (
+            <Button size="sm" data-testid="hrms-refresh" onClick={() => void hydrate()} disabled={live.refreshing || live.phase === 'loading'}>{live.refreshing ? 'Refreshing…' : 'Refresh'}</Button>
+          )}
+          <Button size="sm" variant="ghost" data-testid="hrms-reset" disabled={isLive}
+            title={isLive ? 'Reset is for sample data only. It never touches the server.' : undefined}
+            onClick={() => { if (window.confirm('Reset the sample data to its starting state? Your changes in this browser will be lost.')) { resetAllAreaStores(); resetDb(); } }}>Reset sample data</Button>
+          {isLive && <span data-testid="hrms-reset-reason" style={{ fontSize: 12 }}>Reset is for sample data only. It never touches the server.</span>}
+        </div>
       </div>
-      {children}
+      {isLive ? <LiveGate live={live}>{children}</LiveGate> : children}
+      {askLive && <SwitchToLive onClose={() => setAskLive(false)} onConfirm={() => { setAskLive(false); setSource('live'); }} />}
     </>
   );
 }

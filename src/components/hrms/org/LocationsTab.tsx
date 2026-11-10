@@ -7,7 +7,8 @@ import { toast } from 'sonner';
 import { Badge, Button, ConfidenceBadge, DataTable, Modal, SearchBox, Toolbar, T, useIsCompact, type Col } from '../ui';
 import { Select, FormGrid } from '../../ui';
 import type { HrmsDb, Id, Location } from '../../../lib/hrms/types';
-import { uid } from '../../../lib/hrms/types';
+import { newId } from '../../../lib/hrms/db';
+import { whenSynced } from '../../../lib/hrms/live/store';
 import { HRA_METROS, isMetroCity, rowOn } from '../../../lib/hrms/rules';
 import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import { fmtDate } from '../../../lib/hrms/format';
@@ -76,7 +77,7 @@ export function LocationsTab({ db }: { db: HrmsDb }) {
       {modal && <LocationModal db={db} edit={modal.edit} defaultEntityId={entityFilter !== 'all' ? entityFilter : db.entities[0]?.id ?? ''} onClose={() => setModal(null)} />}
       {confirm && (
         <ConfirmDialog title="Remove location" confirmLabel="Remove location" onCancel={() => setConfirm(null)}
-          onConfirm={() => { remove('locations', confirm.id); toast.success(`${confirm.name} removed`); setConfirm(null); }}>
+          onConfirm={() => { const gone = confirm.name; remove('locations', confirm.id); whenSynced((ok) => { if (ok) toast.success(`${gone} removed`); }); setConfirm(null); }}>
           Remove <b>{confirm.name}</b> ({confirm.city}, {confirm.state})? No employees are assigned to it.
         </ConfirmDialog>
       )}
@@ -115,11 +116,11 @@ function LocationModal({ db, edit, defaultEntityId, onClose }: { db: HrmsDb; edi
     setTried(true);
     if (Object.keys(errors).length) { focusFirstInvalid(formId); return; }
     const loc: Location = {
-      id: edit?.id ?? uid('loc'), name: f.name.trim(), entityId: f.entityId, state: f.state, city: f.city.trim(), address: f.address.trim() || undefined,
+      id: edit?.id ?? newId('loc'), name: f.name.trim(), entityId: f.entityId, state: f.state, city: f.city.trim(), address: f.address.trim() || undefined,
       metro: f.metro, holidayListId: f.holidayListId || undefined,
     };
     upsert('locations', loc);
-    toast.success(edit ? `${loc.name} updated` : `${loc.name} added`);
+    whenSynced((ok) => { if (ok) toast.success(edit ? `${loc.name} updated` : `${loc.name} added`); });
     onClose();
   };
 

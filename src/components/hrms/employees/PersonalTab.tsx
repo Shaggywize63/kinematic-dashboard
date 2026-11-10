@@ -5,6 +5,7 @@ import { Card, CardTitle, KeyValue, T, useIsCompact } from '../ui';
 import type { Employee, HrmsDb } from '../../../lib/hrms/types';
 import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import { fmtDate } from '../../../lib/hrms/format';
+import { isLive } from '../../../lib/hrms/live/store';
 import { ageOn, labelOf, personalPatch, validatePersonal, GENDERS, MARITAL } from './logic';
 import { PersonalFields } from './fields';
 import { EditBar, ErrorSummary } from './shared';
@@ -38,7 +39,11 @@ export default function PersonalTab({ e, db }: { e: Employee; db: HrmsDb }) {
         ]} />
       )}
       {f.dialog}
-      <div style={{ marginTop: 14, fontSize: 12.5, color: T.mute }}>Edits are written to the change log with the old and new value, under &quot;You (HR admin)&quot; in this preview.</div>
+      <div style={{ marginTop: 14, fontSize: 12.5, color: T.mute }}>
+        {isLive()
+          ? 'Edits are saved on the server, which writes them to the change log with the old and new value and your name.'
+          : <>Edits are written to the change log with the old and new value, under &quot;You (HR admin)&quot; in this preview.</>}
+      </div>
     </Card>
   );
 }

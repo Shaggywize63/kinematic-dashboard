@@ -4,11 +4,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Badge, Button, DataTable, EmployeeCell, HrmsPage, Loading, ProgressBar, SearchBox, Stat, StatGrid, StatusBadge, Toolbar, T, downloadRows, useIsCompact,
+  Badge, Button, Card, DataTable, EmployeeCell, EmptyState, HrmsPage, Loading, ProgressBar, SearchBox, Stat, StatGrid, StatusBadge, Toolbar, T, downloadRows, useIsCompact,
   type Col,
 } from '../../../../components/hrms/ui';
 import { Select } from '../../../../components/ui';
 import { useHrmsDb } from '../../../../lib/hrms/db';
+import { isLive } from '../../../../lib/hrms/live/store';
 import type { Employee } from '../../../../lib/hrms/types';
 import { fmtDate, fullName } from '../../../../lib/hrms/format';
 import ImportModal from '../../../../components/hrms/employees/ImportModal';
@@ -71,6 +72,9 @@ export default function EmployeesPage() {
   const incompleteCount = all.filter((r) => r.e.status !== 'exited' && r.missing.length > 0).length;
   const filtersOn = !!(q || entityId || locationId || departmentId || status || type || incompleteOnly);
   const locationOptions = db.locations.filter((l) => !entityId || l.entityId === entityId);
+  // Live data starts with nobody in it: say so plainly and offer the two ways to add people.
+  const liveEmpty = isLive() && all.length === 0;
+  const orgMissing = db.locations.length === 0 || db.departments.length === 0 || db.designations.length === 0;
 
   const columns: Col<Row>[] = [
     { key: 'name', label: 'Employee', render: (r) => <div style={{ maxWidth: 150 }} title={r.name}><EmployeeCell e={r.e} sub={r.e.code} /></div>, sortValue: (r) => r.name.toLowerCase() },
@@ -104,7 +108,7 @@ export default function EmployeesPage() {
   return (
     <HrmsPage
       title="Employees"
-      description={`${all.length} people across ${db.entities.length} legal entities. Sample data, not live.`}
+      description={`${all.length} people across ${db.entities.length} legal entities. ${isLive() ? 'Live data from the server.' : 'Sample data, not live.'}`}
       actions={
         <>
           <Button onClick={exportCsv} disabled={!rows.length}>Export CSV</Button>
@@ -120,50 +124,71 @@ export default function EmployeesPage() {
         <Stat label="Incomplete statutory data" value={incompleteCount} tone={incompleteCount ? 'red' : 'ok'} hint="Excludes people who have left" />
       </StatGrid>
 
-      <Toolbar>
-        <SearchBox value={q} onChange={setQ} placeholder="Search name, code or email" width={280} />
-        <Select aria-label="Legal entity" value={entityId} style={{ width: narrow ? '100%' : 190 }} onChange={(e) => { setEntityId(e.target.value); setLocationId(''); }}>
-          <option value="">All legal entities</option>
-          {db.entities.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-        </Select>
-        <Select aria-label="Location" value={locationId} style={{ width: narrow ? '100%' : 170 }} onChange={(e) => setLocationId(e.target.value)}>
-          <option value="">All locations</option>
-          {locationOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-        </Select>
-        <Select aria-label="Department" value={departmentId} style={{ width: narrow ? '100%' : 160 }} onChange={(e) => setDepartmentId(e.target.value)}>
-          <option value="">All departments</option>
-          {db.departments.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-        </Select>
-        <Select aria-label="Status" value={status} style={{ width: narrow ? '100%' : 150 }} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
-        </Select>
-        <Select aria-label="Employment type" value={type} style={{ width: narrow ? '100%' : 130 }} onChange={(e) => setType(e.target.value)}>
-          <option value="">All types</option>
-          {EMPLOYMENT_TYPES.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
-        </Select>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text, minHeight: 36, cursor: 'pointer' }}>
-          <input type="checkbox" checked={incompleteOnly} onChange={(e) => setIncompleteOnly(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--red)' }} />
-          Incomplete only
-        </label>
-        {filtersOn && <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
-      </Toolbar>
+      {liveEmpty ? (
+        <div data-testid="employees-live-empty">
+          <Card>
+            <EmptyState title="No employees on the server yet"
+              description={orgMissing
+                ? 'Set up the organisation first: a legal entity, a location, a department and a designation. Then add people one by one, or import a CSV file. Everyone you add is saved on the server.'
+                : 'Add the first person, or import a CSV file. Everyone you add is saved on the server, and the server assigns the employee codes.'}
+              action={(
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {orgMissing && <Button variant="primary" href="/dashboard/hrms/organization" style={{ minHeight: 40 }}>Set up the organisation</Button>}
+                  <Button variant={orgMissing ? 'secondary' : 'primary'} href="/dashboard/hrms/employees/new" style={{ minHeight: 40 }}>Add the first employee</Button>
+                  <Button onClick={() => setImporting(true)} style={{ minHeight: 40 }}>Import from a CSV file</Button>
+                </div>
+              )} />
+          </Card>
+        </div>
+      ) : (
+        <>
+          <Toolbar>
+            <SearchBox value={q} onChange={setQ} placeholder="Search name, code or email" width={280} />
+            <Select aria-label="Legal entity" value={entityId} style={{ width: narrow ? '100%' : 190 }} onChange={(e) => { setEntityId(e.target.value); setLocationId(''); }}>
+              <option value="">All legal entities</option>
+              {db.entities.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </Select>
+            <Select aria-label="Location" value={locationId} style={{ width: narrow ? '100%' : 170 }} onChange={(e) => setLocationId(e.target.value)}>
+              <option value="">All locations</option>
+              {locationOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </Select>
+            <Select aria-label="Department" value={departmentId} style={{ width: narrow ? '100%' : 160 }} onChange={(e) => setDepartmentId(e.target.value)}>
+              <option value="">All departments</option>
+              {db.departments.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </Select>
+            <Select aria-label="Status" value={status} style={{ width: narrow ? '100%' : 150 }} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">All statuses</option>
+              {STATUS_OPTIONS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+            </Select>
+            <Select aria-label="Employment type" value={type} style={{ width: narrow ? '100%' : 130 }} onChange={(e) => setType(e.target.value)}>
+              <option value="">All types</option>
+              {EMPLOYMENT_TYPES.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+            </Select>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text, minHeight: 36, cursor: 'pointer' }}>
+              <input type="checkbox" checked={incompleteOnly} onChange={(e) => setIncompleteOnly(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--red)' }} />
+              Incomplete only
+            </label>
+            {filtersOn && <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
+          </Toolbar>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13, color: T.dim }} aria-live="polite">
-        <span data-testid="employee-count">Showing {rows.length} of {all.length}</span>
-        {filtersOn && rows.length === 0 && <Badge tone="neutral">No match</Badge>}
-      </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13, color: T.dim }} aria-live="polite">
+            <span data-testid="employee-count">Showing {rows.length} of {all.length}</span>
+            {filtersOn && rows.length === 0 && <Badge tone="neutral">No match</Badge>}
+          </div>
 
-      <DataTable
-        columns={columns}
-        rows={rows}
-        minWidth={860}
-        onRowClick={(r) => router.push(profileHref(r.id))}
-        empty={filtersOn ? 'No employees match these filters. Clear a filter or change the search.' : 'No employees yet. Add the first one or import a CSV.'}
-      />
-      <p style={{ margin: 0, fontSize: 12.5, color: T.mute }}>
-        Export covers the filtered list and leaves out PAN, Aadhaar and bank details. Statutory completeness counts PAN, Aadhaar, UAN (and Aadhaar seeding), ESIC number where ESI applies at the current gross, bank account, mandatory documents and salary structure.
-      </p>
+          <DataTable
+            columns={columns}
+            rows={rows}
+            minWidth={860}
+            onRowClick={(r) => router.push(profileHref(r.id))}
+            empty={filtersOn ? 'No employees match these filters. Clear a filter or change the search.' : 'No employees yet. Add the first one or import a CSV.'}
+          />
+          <p style={{ margin: 0, fontSize: 12.5, color: T.mute }}>
+            Export covers the filtered list and leaves out PAN, Aadhaar and bank details. Statutory completeness counts PAN, Aadhaar, UAN (and Aadhaar seeding), ESIC number where ESI applies at the current gross, bank account, mandatory documents and salary structure.
+          </p>
+
+        </>
+      )}
 
       {importing && <ImportModal db={db} onClose={closeImport} />}
     </HrmsPage>

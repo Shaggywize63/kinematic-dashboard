@@ -136,12 +136,13 @@ export function EmploymentFields({ d, set, errors, narrow, p, db, selfId, showSt
 }
 
 // ───────────────────────────── statutory + bank ─────────────────────────────
-export function StatutoryFields({ d, set, errors, narrow, p, mode, hasAadhaar, hasBank }: GroupProps & { mode: 'create' | 'edit'; hasAadhaar?: boolean; hasBank?: boolean }) {
+export function StatutoryFields({ d, set, errors, narrow, p, mode, hasAadhaar, hasBank, maskedPan }: GroupProps & { mode: 'create' | 'edit'; hasAadhaar?: boolean; hasBank?: boolean; /** The PAN on file is masked (live data): the box is for a new one only. */ maskedPan?: string }) {
   const edit = mode === 'edit';
   return (
     <>
       <FormGrid narrow={narrow}>
-        <TextField id={`${p}-pan`} label="PAN" value={d.pan} onChange={(v) => set({ pan: v.toUpperCase() })} error={errors.pan} maxLength={10} hint="Format ABCDE1234F. Without a PAN, TDS goes at the higher rate." />
+        <TextField id={`${p}-pan`} label={edit && maskedPan ? 'Replace PAN' : 'PAN'} value={d.pan} onChange={(v) => set({ pan: v.toUpperCase() })} error={errors.pan} maxLength={10}
+          hint={edit && maskedPan ? `Leave blank to keep the PAN on file (${maskedPan}). Type the full PAN only to replace it.` : 'Format ABCDE1234F. Without a PAN, TDS goes at the higher rate.'} />
         <TextField id={`${p}-aadhaar`} label={edit && hasAadhaar ? 'Replace Aadhaar number' : 'Aadhaar number'} inputMode="numeric" maxLength={14} value={d.aadhaar} onChange={(v) => set({ aadhaar: v })} error={errors.aadhaar}
           hint={edit && hasAadhaar ? 'Leave blank to keep what is on file. Only the last four digits are stored.' : 'We check the 12 digits and their checksum, then keep only the last four (DPDP). The full number is not stored. Marked not verified until checked.'} />
         <TextField id={`${p}-uan`} label="UAN" inputMode="numeric" maxLength={14} value={d.uan} onChange={(v) => set({ uan: v })} error={errors.uan} hint="12 digits" />

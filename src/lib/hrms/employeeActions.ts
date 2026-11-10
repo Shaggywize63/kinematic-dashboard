@@ -5,7 +5,7 @@
 //  - has no helpers for documents or per-component pay overrides.
 // Everything here still goes through mutate() / updateEmployee(), so the later swap to API calls stays in db.ts + actions.ts.
 
-import { getDb, mutate } from './db';
+import { getDb, mutate, newId } from './db';
 import { ACTOR, updateEmployee } from './actions';
 import type { ChangeLogEntry, Employee, EmployeeDocument, Id } from './types';
 import { uid } from './types';
@@ -73,7 +73,7 @@ export function saveEmployee(id: Id, patch: Partial<Employee>): number {
 
 // ───────────── documents ─────────────
 export function addDocument(empId: Id, doc: Omit<EmployeeDocument, 'id'>): EmployeeDocument {
-  const item: EmployeeDocument = { ...doc, id: uid('doc') };
+  const item: EmployeeDocument = { ...doc, id: newId('doc') };
   mutate((db) => {
     const e = db.employees.find((x) => x.id === empId);
     if (!e) return;

@@ -9,6 +9,7 @@ import { Field, FormGrid, Input, Select } from '../../ui';
 import { Dialog } from './common';
 import { isIsoDate } from './common';
 import { EMPLOYMENT_TYPES, startOnboarding } from '../../../lib/hrms/lifecycleActions';
+import { whenSynced } from '../../../lib/hrms/live/store';
 import { TODAY } from '../overview/insights';
 import { addDays, diffDays } from '../../../lib/hrms/format';
 import { checkEmail, checkMobile } from '../../../lib/hrms/validators';
@@ -106,7 +107,8 @@ export default function NewJoinerModal({ db, onClose, onCreated }: { db: HrmsDb;
       annualCtc: f.annualCtc.trim() ? Number(f.annualCtc.replace(/,/g, '')) : undefined,
       contractEndDate: needsEnd ? f.contractEndDate : undefined,
     });
-    toast.success(`${employee.firstName} ${employee.lastName} added to onboarding with ${onboarding.tasks.length} tasks.`);
+    // Live data: the success message waits for the server (a refused person is taken out again, with an error toast saying why).
+    whenSynced((ok) => { if (ok) toast.success(`${employee.firstName} ${employee.lastName} added to onboarding with ${onboarding.tasks.length} tasks.`); });
     onCreated(onboarding.id);
   }
 
