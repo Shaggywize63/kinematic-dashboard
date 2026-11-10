@@ -10,6 +10,8 @@ import { ESI, LWF_RULES, PF, PT_NONE_STATES, PT_RULES, TDS, lwfFor, professional
 import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import { fmtDate, inr } from '../../../lib/hrms/format';
 import { maskAadhaar, maskAccount } from '../../../lib/hrms/validators';
+import { isLive, revealSensitive } from '../../../lib/hrms/live/store';
+import { looksMaskedPan } from '../../../lib/hrms/live/masking';
 import { DeclarationFields, StatutoryFields, TextAreaField } from './fields';
 import { EditBar, ErrorSummary, SubHeading } from './shared';
 import { useEditForm } from './useEditForm';
@@ -18,11 +20,12 @@ import { PAY_MODES, TAX_REGIMES, UAN_STATUSES, breakupFor, labelOf, statutoryPat
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const yesNo = (v: boolean) => (v ? 'Yes' : 'No');
 
-function RevealModal({ what, onConfirm, onClose }: { what: string; onConfirm: (reason: string) => void; onClose: () => void }) {
+function RevealModal({ what, onConfirm, onClose, busy, failure }: { what: string; onConfirm: (reason: string) => void; onClose: () => void; busy?: boolean; failure?: string }) {
   const [reason, setReason] = useState('');
   const [err, setErr] = useState('');
   useEffect(() => { document.getElementById('reveal-reason')?.focus(); }, []);
   const submit = () => {
+    if (busy) return;
     if (reason.trim().length < 5) { setErr('Enter a reason of at least 5 characters'); return; }
     onConfirm(reason.trim());
   };
@@ -30,12 +33,13 @@ function RevealModal({ what, onConfirm, onClose }: { what: string; onConfirm: (r
     <Modal title={`Reveal ${what}`} onClose={onClose} width={480} footer={
       <>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" onClick={submit} style={{ minHeight: 40 }}>Reveal for one minute</Button>
+        <Button variant="primary" onClick={submit} disabled={busy} style={{ minHeight: 40 }}>{busy ? 'Revealing' : 'Reveal for one minute'}</Button>
       </>
     }>
       <Note tone="info">This is personal data under the DPDP Act. The reveal is written to the access log with your name, the time and your reason. It hides again after a minute or when you leave this tab.</Note>
       <form onSubmit={(ev) => { ev.preventDefault(); submit(); }} noValidate>
         <TextAreaField id="reveal-reason" label="Reason" required value={reason} onChange={(v) => { setReason(v); setErr(''); }} error={err} hint="For example: checking against the PAN card" rows={3} />
+        {failure && <div role="alert" data-testid="reveal-error" style={{ marginTop: 10, color: T.red, fontSize: 13 }}>{failure}</div>}
       </form>
     </Modal>
   );
@@ -133,18 +137,39 @@ function AppliesToday({ e, db }: { e: Employee; db: HrmsDb }) {
 export default function StatutoryTab({ e, db }: { e: Employee; db: HrmsDb }) {
   const narrow = useIsCompact(900);
   const f = useEditForm({ key: 'statutory', e, validate: (d) => validateStatutory(d, { hasBank: !!e.bank }), toPatch: (d) => statutoryPatch(d, e) });
-  const [ask, setAsk] = useState<null | 'aadhaar' | 'bank'>(null);
-  const [shown, setShown] = useState({ aadhaar: false, bank: false });
-  const closeAsk = useCallback(() => setAsk(null), []);
+  const [ask, setAsk] = useState<null | 'aadhaar' | 'bank' | 'pan'>(null);
+  const [shown, setShown] = useState({ aadhaar: false, bank: false, pan: false });
+  // Live data only: the values the server returned for a reveal. They live in this component and nowhere else, and go after a minute.
+  const [revealed, setRevealed] = useState<{ aadhaar?: string; bank?: string; pan?: string }>({});
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState('');
+  const closeAsk = useCallback(() => { setAsk(null); setFailure(''); }, []);
 
   // A reveal lasts one minute, then masks again.
   useEffect(() => {
-    if (!shown.aadhaar && !shown.bank) return undefined;
-    const t = setTimeout(() => setShown({ aadhaar: false, bank: false }), 60_000);
+    if (!shown.aadhaar && !shown.bank && !shown.pan) return undefined;
+    const t = setTimeout(() => { setShown({ aadhaar: false, bank: false, pan: false }); setRevealed({}); }, 60_000);
     return () => clearTimeout(t);
   }, [shown]);
 
-  const confirmReveal = (reason: string) => {
+  const confirmReveal = async (reason: string) => {
+    if (!ask) return;
+    if (isLive()) {
+      // The server checks the reason, writes who / when / why to its access log, and only then returns the value.
+      setBusy(true); setFailure('');
+      try {
+        const value = await revealSensitive(e.id, ask, reason);
+        const text = ask === 'bank' ? String((value as { accountNumber?: string } | null)?.accountNumber ?? '') : String(value ?? '');
+        setRevealed((r) => ({ ...r, [ask]: text }));
+        setShown((s) => ({ ...s, [ask]: true }));
+        setAsk(null);
+      } catch (err) {
+        setFailure(err instanceof Error && err.message ? err.message : 'The server did not answer. Nothing was revealed.');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (ask === 'aadhaar') { logAccess(e.id, 'Aadhaar (last four digits)', reason); setShown((s) => ({ ...s, aadhaar: true })); }
     if (ask === 'bank') { logAccess(e.id, 'Bank account number', reason); setShown((s) => ({ ...s, bank: true })); }
     setAsk(null);
@@ -152,10 +177,13 @@ export default function StatutoryTab({ e, db }: { e: Employee; db: HrmsDb }) {
 
   const dec = e.declaration;
   const old = e.taxRegime === 'old';
-  const aadhaarText = !e.aadhaarLast4 ? 'Not on file' : shown.aadhaar ? maskAadhaar(e.aadhaarLast4) : 'XXXX XXXX ••••';
-  const bankText = !e.bank ? 'Not on file' : shown.bank ? e.bank.accountNumber : maskAccount(e.bank.accountNumber);
+  const aadhaarText = !e.aadhaarLast4 ? 'Not on file' : shown.aadhaar ? maskAadhaar(revealed.aadhaar ?? e.aadhaarLast4) : 'XXXX XXXX ••••';
+  const bankText = !e.bank ? 'Not on file' : shown.bank ? (revealed.bank ?? e.bank.accountNumber) : maskAccount(e.bank.accountNumber);
+  // Live data shows a masked PAN until it is revealed with a reason; sample data has no masking, so no button.
+  const panMasked = looksMaskedPan(e.pan);
+  const panText = shown.pan && revealed.pan ? revealed.pan : e.pan;
 
-  const revealBtn = (kind: 'aadhaar' | 'bank', label: string) => (
+  const revealBtn = (kind: 'aadhaar' | 'bank' | 'pan', label: string) => (
     <Button size="sm" style={{ marginLeft: 10, minHeight: 32 }} aria-label={label}
       onClick={() => (shown[kind] ? setShown((s) => ({ ...s, [kind]: false })) : setAsk(kind))}>{shown[kind] ? 'Hide' : 'Reveal'}</Button>
   );
@@ -168,7 +196,7 @@ export default function StatutoryTab({ e, db }: { e: Employee; db: HrmsDb }) {
           {f.editing ? (
             <form onSubmit={(ev) => { ev.preventDefault(); f.save(); }} noValidate aria-label="Edit statutory details" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <ErrorSummary errors={f.errors} />
-              <StatutoryFields d={f.d} set={f.set} errors={f.errors} narrow={narrow} p="se" mode="edit" hasAadhaar={!!e.aadhaarLast4} hasBank={!!e.bank} />
+              <StatutoryFields d={f.d} set={f.set} errors={f.errors} narrow={narrow} p="se" mode="edit" hasAadhaar={!!e.aadhaarLast4} hasBank={!!e.bank} maskedPan={panMasked ? e.pan : undefined} />
               <SubHeading>Tax declaration (Form 124)</SubHeading>
               <Note tone="info">These inputs are used only under the old tax regime. The new regime ignores them, but they are kept if you switch back.</Note>
               <DeclarationFields d={f.d} set={f.set} errors={f.errors} narrow={narrow} p="se" />
@@ -176,7 +204,15 @@ export default function StatutoryTab({ e, db }: { e: Employee; db: HrmsDb }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <KeyValue rows={[
-                { label: 'PAN', value: e.pan ? <span style={{ fontFamily: T.mono }}>{e.pan}</span> : <Badge tone="warn">Missing</Badge> },
+                {
+                  label: 'PAN',
+                  value: e.pan ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                      <span data-testid="pan-value" style={{ fontFamily: T.mono }}>{panText}</span>
+                      {panMasked && revealBtn('pan', shown.pan ? 'Hide PAN' : 'Reveal PAN')}
+                    </span>
+                  ) : <Badge tone="warn">Missing</Badge>,
+                },
                 {
                   label: 'Aadhaar',
                   value: (
@@ -251,7 +287,7 @@ export default function StatutoryTab({ e, db }: { e: Employee; db: HrmsDb }) {
 
       <AppliesToday e={e} db={db} />
 
-      {ask && <RevealModal what={ask === 'aadhaar' ? 'Aadhaar last four digits' : 'bank account number'} onClose={closeAsk} onConfirm={confirmReveal} />}
+      {ask && <RevealModal what={ask === 'aadhaar' ? 'Aadhaar last four digits' : ask === 'pan' ? 'PAN' : 'bank account number'} onClose={closeAsk} onConfirm={confirmReveal} busy={busy} failure={failure} />}
     </div>
   );
 }

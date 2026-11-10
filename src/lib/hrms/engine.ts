@@ -12,6 +12,7 @@ import type {
   SalaryComponent, SalaryStructure, Month, ISODate,
 } from './types';
 import { uid } from './types';
+import { looksMaskedAccount } from './live/masking';
 import {
   ESI, LABOUR_CODES, PF, TDS, isMetroCity, lwfFor, minWageFor, monthEnd, monthStart, professionalTax, slabTax, valueOn,
 } from './rules';
@@ -468,6 +469,8 @@ export function buildBankFile(db: HrmsDb, run: PayRun): { header: string[]; rows
     if (e.payMode !== 'bank') { skipped.push({ employeeId: e.id, reason: `Paid by ${e.payMode}` }); continue; }
     if (!e.bank) { skipped.push({ employeeId: e.id, reason: 'No bank account' }); continue; }
     if (s.net <= 0) { skipped.push({ employeeId: e.id, reason: 'Net pay is zero or negative' }); continue; }
+    // Live data keeps account numbers masked in the browser; a bank file with a mask in it would pay no one.
+    if (looksMaskedAccount(e.bank.accountNumber)) { skipped.push({ employeeId: e.id, reason: 'Account number is masked (live data): the full number is not held in this browser' }); continue; }
     rows.push([e.code, e.bank.accountHolder, e.bank.accountNumber, e.bank.ifsc, e.bank.bankName, String(r0(s.net)), `Salary ${run.month}`]);
   }
   return { header, rows, skipped };

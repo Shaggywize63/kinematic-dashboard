@@ -1,6 +1,8 @@
 // Format validators for Indian statutory identifiers. They check shape (and the Aadhaar checksum), not
 // existence: real verification (PAN-Aadhaar link, UAN activation, penny-drop) needs the backend and third parties.
 
+import { looksMaskedAccount, looksMaskedPan } from './live/masking';
+
 export type Check = { ok: true } | { ok: false; message: string };
 const ok: Check = { ok: true };
 const bad = (message: string): Check => ({ ok: false, message });
@@ -11,6 +13,8 @@ const clean = (s: string) => s.replace(/\s+/g, '').toUpperCase();
 export function checkPan(v: string): Check {
   const s = clean(v);
   if (!s) return bad('PAN is required');
+  // Live data: the server shows a PAN it holds as a mask (XXXXXX234F). A mask means "a PAN is on file", not "invalid".
+  if (looksMaskedPan(s)) return ok;
   return /^[A-Z]{3}[ABCFGHLJPTK][A-Z][0-9]{4}[A-Z]$/.test(s) ? ok : bad('PAN looks like ABCDE1234F');
 }
 
@@ -57,6 +61,8 @@ export function checkIfsc(v: string): Check {
 export function checkAccount(v: string): Check {
   const s = v.replace(/\s+/g, '');
   if (!s) return bad('Account number is required');
+  // Live data: an account number the server holds is shown masked (••••••1234); a mask means "on file".
+  if (looksMaskedAccount(s)) return ok;
   return /^[0-9]{9,18}$/.test(s) ? ok : bad('Account number is 9 to 18 digits');
 }
 export function checkMobile(v: string): Check {
@@ -85,7 +91,7 @@ export function checkGstin(v: string): Check {
 
 export const maskAadhaar = (last4?: string): string => (last4 ? `XXXX XXXX ${last4}` : '—');
 export const maskAccount = (n?: string): string => (n ? `${'•'.repeat(Math.max(0, n.length - 4))}${n.slice(-4)}` : '—');
-export const maskPan = (p?: string): string => (p ? `${p.slice(0, 2)}•••••${p.slice(-3)}` : '—');
+export const maskPan = (p?: string): string => (p ? (looksMaskedPan(p) ? p : `${p.slice(0, 2)}•••••${p.slice(-3)}`) : '—');
 export const maskMobile = (m?: string): string => (m ? `${m.slice(0, 2)}••••••${m.slice(-2)}` : '—');
 
 /** How much of the statutory file is complete, 0..100, plus what is missing. Drives the completeness bars. */

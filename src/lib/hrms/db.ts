@@ -1,11 +1,16 @@
 'use client';
-// Preview data store. The HRMS backend does not exist yet, so the module runs against a seeded copy of the
-// data kept in localStorage (per browser). Pages read it with useHrmsDb() and change it through actions.ts.
-// When the API lands, this file and actions.ts are the only things that swap: the pages keep the same shapes.
+// HRMS data store, the one seam between the pages and where the data lives. Pages read it with useHrmsDb() and change it
+// through actions.ts; they never know which source is active.
+//
+//  - Sample (the default): a seeded copy of the data kept in this browser's localStorage. No API call is ever made.
+//  - Live: people and organisation come from, and are saved to, the server (see ./live/store.ts). mutate() then applies the
+//    change at once, diffs it and sends the calls; the rest of the module stays on browser-local data.
 
 import { useSyncExternalStore } from 'react';
 import type { HrmsDb } from './types';
+import { uid } from './types';
 import { SEED_VERSION, makeSeed } from './seed';
+import { getLiveDb, isLive, isLiveReady, liveMutate, randomUuid, subscribeLive } from './live/store';
 
 const KEY = 'kinematic_hrms_preview_v3';
 let current: HrmsDb | null = null;
@@ -29,10 +34,11 @@ function ensure(): HrmsDb {
   return current;
 }
 
-export function getDb(): HrmsDb { return ensure(); }
+export function getDb(): HrmsDb { return isLive() ? getLiveDb() : ensure(); }
 
-/** Apply a change. The function gets a deep copy to mutate; subscribers re-render once it returns. */
+/** Apply a change. The function gets a deep copy to mutate; subscribers re-render once it returns. In live mode the change is also sent to the server. */
 export function mutate(fn: (db: HrmsDb) => void): void {
+  if (isLive()) { liveMutate(fn); return; }
   const next = structuredClone(ensure());
   fn(next);
   current = next;
@@ -40,20 +46,31 @@ export function mutate(fn: (db: HrmsDb) => void): void {
   listeners.forEach((l) => l());
 }
 
+/** Back to the sample seed. It never does anything in live mode: that data lives on the server and a browser button must not wipe it. */
 export function resetDb(): void {
+  if (isLive()) return;
   current = makeSeed();
   persist(current);
   listeners.forEach((l) => l());
 }
 
+/** An id for a new row: a UUID in live mode (the server only accepts those), the usual short sample id otherwise. */
+export const newId = (prefix: string): string => (isLive() ? randomUuid() : uid(prefix));
+
 function subscribe(l: () => void): () => void {
   listeners.add(l);
+  const offLive = subscribeLive(l);
   const onStorage = (e: StorageEvent) => { if (e.key === KEY) { current = null; l(); } };
   window.addEventListener('storage', onStorage);
-  return () => { listeners.delete(l); window.removeEventListener('storage', onStorage); };
+  return () => { listeners.delete(l); offLive(); window.removeEventListener('storage', onStorage); };
 }
 
-/** The whole preview database, or null during server render and the first client paint. */
+function snapshot(): HrmsDb | null {
+  if (isLive()) return isLiveReady() ? getLiveDb() : null;
+  return ensure();
+}
+
+/** The whole database for the active source, or null during server render, the first client paint, and while live data is loading. */
 export function useHrmsDb(): HrmsDb | null {
-  return useSyncExternalStore(subscribe, ensure, () => null);
+  return useSyncExternalStore(subscribe, snapshot, () => null);
 }

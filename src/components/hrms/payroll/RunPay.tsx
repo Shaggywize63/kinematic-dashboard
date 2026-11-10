@@ -9,6 +9,7 @@ import { buildBankFile, buildEcr, runTotals } from '../../../lib/hrms/engine';
 import { markRunPaid } from '../../../lib/hrms/actions';
 import { fmtDateTime, fmtMonth, fullName, inr } from '../../../lib/hrms/format';
 import { maskAccount } from '../../../lib/hrms/validators';
+import { looksMaskedAccount } from '../../../lib/hrms/live/masking';
 import { isLocked } from './logic';
 import { ConfirmModal, LinkButton, bigBtn, report } from './shared';
 import type { Step } from './RunStepper';
@@ -36,6 +37,9 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
     );
   }
 
+  // Live data: the server only ever sends account numbers masked, and payroll still runs in this browser. A bank file built
+  // from masks would carry numbers the bank cannot pay, so the file is refused until payroll runs where the full numbers are.
+  const maskedAccounts = bank.rows.filter((r) => looksMaskedAccount(r[2])).length;
   const fileTotal = bank.rows.reduce((s, r) => s + Number(r[5]), 0);
   const skippedNet = bank.skipped.reduce((s, k) => s + (run.payslips.find((p) => p.employeeId === k.employeeId)?.net ?? 0), 0);
   const reconciles = Math.round(fileTotal + skippedNet) === Math.round(totals.net);
@@ -70,7 +74,15 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
       {run.status === 'paid' && <Note tone="ok">Marked as paid on {fmtDateTime(run.paidAt)}. The files below can still be downloaded again.</Note>}
 
       <Card>
-        <CardTitle right={<Button variant="primary" style={{ height: 40 }} onClick={() => downloadRows(`bank-advice-${base}`, bank.header, bank.rows)} disabled={!bank.rows.length}>Download bank file (CSV)</Button>}>Bank transfer file</CardTitle>
+        <CardTitle right={<Button variant="primary" style={{ height: 40 }} onClick={() => { if (!maskedAccounts) downloadRows(`bank-advice-${base}`, bank.header, bank.rows); }} disabled={!bank.rows.length || maskedAccounts > 0}>Download bank file (CSV)</Button>}>Bank transfer file</CardTitle>
+        {maskedAccounts > 0 && (
+          <div data-testid="bank-masked-guard" style={{ marginBottom: 14 }}>
+            <Note tone="red">
+              The bank file cannot be made: {maskedAccounts} {maskedAccounts === 1 ? 'account number is' : 'account numbers are'} masked (live data, only the last four digits are held here).
+              A file with masked numbers cannot pay anyone. Payroll still runs in this browser, so the full numbers are not available to it yet.
+            </Note>
+          </div>
+        )}
         <StatGrid min={160}>
           <Stat label="Payments in the file" value={bank.rows.length} />
           <div data-testid="bank-total"><Stat label="File total" value={inr(fileTotal)} tone="ok" /></div>

@@ -5,7 +5,8 @@ import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Button, DataTable, Modal, SearchBox, Toolbar, T, type Col } from '../ui';
 import type { Department, Designation, Employee, HrmsDb } from '../../../lib/hrms/types';
-import { uid } from '../../../lib/hrms/types';
+import { newId } from '../../../lib/hrms/db';
+import { whenSynced } from '../../../lib/hrms/live/store';
 import { fullName } from '../../../lib/hrms/format';
 import { remove, upsert } from '../../../lib/hrms/actions';
 import { usageOf, usageText, validateName } from './orgLogic';
@@ -67,7 +68,7 @@ function ListTab({ db, kind }: { db: HrmsDb; kind: Kind }) {
       {modal && <RowModal db={db} kind={kind} edit={modal.edit} onClose={() => setModal(null)} />}
       {confirm && (
         <ConfirmDialog title={`Remove ${noun.toLowerCase()}`} confirmLabel={`Remove ${noun.toLowerCase()}`} onCancel={() => setConfirm(null)}
-          onConfirm={() => { remove(dept ? 'departments' : 'designations', confirm.id); toast.success(`${confirm.name} removed`); setConfirm(null); }}>
+          onConfirm={() => { const gone = confirm.name; remove(dept ? 'departments' : 'designations', confirm.id); whenSynced((ok) => { if (ok) toast.success(`${gone} removed`); }); setConfirm(null); }}>
           Remove the {noun.toLowerCase()} <b>{confirm.name}</b>? Nobody has it.
         </ConfirmDialog>
       )}
@@ -92,13 +93,14 @@ function RowModal({ db, kind, edit, onClose }: { db: HrmsDb; kind: Kind; edit?: 
     setTried(true);
     if (nameErr || gradeErr) { focusFirstInvalid(formId); return; }
     if (dept) {
-      const item: Department = { id: edit?.id ?? uid('dep'), name: f.name.trim(), headId: f.headId || undefined };
+      const item: Department = { id: edit?.id ?? newId('dep'), name: f.name.trim(), headId: f.headId || undefined };
       upsert('departments', item);
     } else {
-      const item: Designation = { id: edit?.id ?? uid('des'), name: f.name.trim(), grade: f.grade.trim() || undefined };
+      const item: Designation = { id: edit?.id ?? newId('des'), name: f.name.trim(), grade: f.grade.trim() || undefined };
       upsert('designations', item);
     }
-    toast.success(edit ? `${f.name.trim()} updated` : `${f.name.trim()} added`);
+    const name = f.name.trim();
+    whenSynced((ok) => { if (ok) toast.success(edit ? `${name} updated` : `${name} added`); });
     onClose();
   };
 

@@ -11,6 +11,7 @@ import {
 } from '../../../lib/hrms/validators';
 import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import { diffDays, fullName, inr } from '../../../lib/hrms/format';
+import { looksMaskedAccount, looksMaskedPan } from '../../../lib/hrms/live/masking';
 
 // ───────────────────────────── labels and option lists ─────────────────────────────
 export type Option<V extends string = string> = { value: V; label: string };
@@ -202,7 +203,7 @@ export function blankDraft(): EmployeeDraft {
   };
 }
 
-/** Existing employee → draft. Aadhaar and the bank account number stay blank: blank means "keep what is on file". */
+/** Existing employee → draft. Aadhaar, the bank account number and a masked PAN (live data) stay blank: blank means "keep what is on file". */
 export function employeeToDraft(e: Employee): EmployeeDraft {
   const d = e.declaration;
   return {
@@ -213,7 +214,7 @@ export function employeeToDraft(e: Employee): EmployeeDraft {
     entityId: e.entityId, locationId: e.locationId, departmentId: e.departmentId, designationId: e.designationId, reportingToId: e.reportingToId ?? '',
     employmentType: e.employmentType, status: e.status, joinDate: e.joinDate, confirmationDate: e.confirmationDate ?? '', lastWorkingDate: e.lastWorkingDate ?? '',
     probationMonths: String(e.probationMonths), noticeDays: String(e.noticeDays), contractEndDate: e.contractEndDate ?? '', shiftId: e.shiftId ?? '', costCentre: e.costCentre ?? '',
-    pan: e.pan ?? '', aadhaar: '', uan: e.uan ?? '', uanStatus: e.uanStatus, pfMember: e.pfMember, pfOnActualWage: e.pfOnActualWage, esicIp: e.esicIp ?? '',
+    pan: looksMaskedPan(e.pan) ? '' : e.pan ?? '', aadhaar: '', uan: e.uan ?? '', uanStatus: e.uanStatus, pfMember: e.pfMember, pfOnActualWage: e.pfOnActualWage, esicIp: e.esicIp ?? '',
     ptApplicable: e.ptApplicable, lwfApplicable: e.lwfApplicable, taxRegime: e.taxRegime, payMode: e.payMode,
     bankHolder: e.bank?.accountHolder ?? '', bankAccount: '', bankIfsc: e.bank?.ifsc ?? '', bankName: e.bank?.bankName ?? '', bankType: e.bank?.accountType ?? 'savings',
     declSec80C: showAmount(d.sec80C), declSec80D: showAmount(d.sec80D), declNps: showAmount(d.nps80CCD1B), declHomeLoan: showAmount(d.homeLoanInterest),
@@ -286,9 +287,13 @@ export function validateEmployment(d: EmployeeDraft, db: HrmsDb, selfId?: Id): E
   return errs;
 }
 
+// A masked value is what the server shows for a PAN or account number it holds. It is not something to type: leave the box blank to keep what is on file.
+const MASK_TYPED_PAN = 'That is a masked PAN. Type the full PAN, or leave this blank to keep the one on file';
+const MASK_TYPED_ACCOUNT = 'That is a masked account number. Type the full number, or leave this blank to keep the one on file';
+
 export function validateStatutory(d: EmployeeDraft, existing?: { hasBank: boolean }): Errors {
   const errs: Errors = {};
-  if (d.pan.trim()) put(errs, 'pan', fromCheck(checkPan(d.pan)));
+  if (d.pan.trim()) put(errs, 'pan', looksMaskedPan(cleanUpper(d.pan)) ? MASK_TYPED_PAN : fromCheck(checkPan(d.pan)));
   if (d.aadhaar.trim()) put(errs, 'aadhaar', fromCheck(checkAadhaar(d.aadhaar)));
   if (d.uan.trim()) put(errs, 'uan', fromCheck(checkUan(d.uan)));
   if (!d.uan.trim() && d.uanStatus !== 'none') put(errs, 'uan', 'UAN is required once the status is past "No UAN yet"');
@@ -299,7 +304,7 @@ export function validateStatutory(d: EmployeeDraft, existing?: { hasBank: boolea
     if (!d.bankHolder.trim()) put(errs, 'bankHolder', 'Account holder name is required');
     put(errs, 'bankIfsc', fromCheck(checkIfsc(d.bankIfsc)));
     if (!d.bankName.trim()) put(errs, 'bankName', 'Bank name is required');
-    if (d.bankAccount.trim() || !existing?.hasBank) put(errs, 'bankAccount', fromCheck(checkAccount(d.bankAccount)));
+    if (d.bankAccount.trim() || !existing?.hasBank) put(errs, 'bankAccount', looksMaskedAccount(d.bankAccount) ? MASK_TYPED_ACCOUNT : fromCheck(checkAccount(d.bankAccount)));
   }
   put(errs, 'declSec80C', amountCheck(d.declSec80C, 'Section 80C'));
   put(errs, 'declSec80D', amountCheck(d.declSec80D, 'Section 80D'));
@@ -362,7 +367,8 @@ export function declarationFrom(d: EmployeeDraft, prev?: Employee['declaration']
 export function statutoryPatch(d: EmployeeDraft, e: Employee): Partial<Employee> {
   const anyBank = [d.bankHolder, d.bankAccount, d.bankIfsc, d.bankName].some((v) => v.trim());
   const patch: Partial<Employee> = {
-    pan: d.pan.trim() ? cleanUpper(d.pan) : undefined, uan: d.uan.trim() ? digitsOnly(d.uan) : undefined, uanStatus: d.uanStatus,
+    // A masked PAN (live data) stays as it is when the box is blank; it is never sent back to the server.
+    pan: d.pan.trim() ? cleanUpper(d.pan) : looksMaskedPan(e.pan) ? e.pan : undefined, uan: d.uan.trim() ? digitsOnly(d.uan) : undefined, uanStatus: d.uanStatus,
     pfMember: d.pfMember, pfOnActualWage: d.pfMember ? d.pfOnActualWage : false, esicIp: d.esicIp.trim() ? digitsOnly(d.esicIp) : undefined,
     ptApplicable: d.ptApplicable, lwfApplicable: d.lwfApplicable, taxRegime: d.taxRegime, payMode: d.payMode,
     declaration: declarationFrom(d, e.declaration),
