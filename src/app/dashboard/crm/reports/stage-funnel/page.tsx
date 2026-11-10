@@ -20,6 +20,11 @@ interface StageRow extends Record<string, unknown> {
   value: number;
   pct_of_first: number;
   drop_from_prev_pct: number | null;
+  // Additive columns (also exported to CSV)
+  share_of_deals_pct: number;
+  avg_deal_size: number;
+  weighted_value: number;
+  avg_age_days: number | null;
 }
 
 // Raw underlying value per sortable column (numbers stay numeric).
@@ -31,6 +36,10 @@ const stageVal = (r: StageRow, key: string): unknown => {
     case 'value': return r.value;
     case 'pct_of_first': return r.pct_of_first;
     case 'drop_from_prev_pct': return r.drop_from_prev_pct;
+    case 'share_of_deals_pct': return r.share_of_deals_pct;
+    case 'avg_deal_size': return r.avg_deal_size;
+    case 'weighted_value': return r.weighted_value;
+    case 'avg_age_days': return r.avg_age_days;
     default: return r[key];
   }
 };
@@ -40,6 +49,8 @@ export default function StageFunnelPage() {
   const [selectedPipeline, setSelectedPipeline] = useState<string>('');
   const [rows, setRows] = useState<StageRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // The deals list is fetched 1,000 at a time: say so when the page may be looking at part of the book.
+  const [truncated, setTruncated] = useState(false);
   const cityKey = useReportCityKey();
 
   useEffect(() => {
@@ -78,22 +89,31 @@ export default function StageFunnelPage() {
         const stages = (stagesRes.data || []) as Stage[];
         const deals = (dealsRes.data || []) as Deal[];
 
-        const byStageId = new Map<string, { count: number; value: number }>();
+        setTruncated(deals.length >= 1000);
+        const stageProb = new Map<string, number>(stages.map((st) => [(st as any).id, Number((st as any).probability) || 0]));
+        const byStageId = new Map<string, { count: number; value: number; weighted: number; ages: number[] }>();
         for (const d of deals) {
           const sid = (d as any).stage_id;
           if (!sid) continue;
-          const cur = byStageId.get(sid) || { count: 0, value: 0 };
+          const cur = byStageId.get(sid) || { count: 0, value: 0, weighted: 0, ages: [] };
+          const amount = Number((d as any).amount || 0);
           cur.count++;
-          cur.value += Number((d as any).amount || 0);
+          cur.value += amount;
+          // weighted = amount x probability (the deal's own when set, else its stage's)
+          const own = Number((d as any).probability) || 0;
+          cur.weighted += (amount * (own > 0 ? own : stageProb.get(sid) ?? 0)) / 100;
+          const created = (d as any).created_at;
+          if (created) cur.ages.push(Math.max(0, (Date.now() - new Date(created).getTime()) / 86_400_000));
           byStageId.set(sid, cur);
         }
+        const totalDeals = deals.filter((d) => (d as any).stage_id).length;
 
         const sorted = [...stages].sort((a, b) => Number((a as any).position) - Number((b as any).position));
         const first = sorted.length > 0 ? (byStageId.get((sorted[0] as any).id)?.count || 0) : 0;
         const out: StageRow[] = [];
         let prevCount: number | null = null;
         for (const s of sorted) {
-          const agg = byStageId.get((s as any).id) || { count: 0, value: 0 };
+          const agg = byStageId.get((s as any).id) || { count: 0, value: 0, weighted: 0, ages: [] as number[] };
           const drop = prevCount !== null && prevCount > 0
             ? ((prevCount - agg.count) / prevCount) * 100
             : null;
@@ -106,6 +126,10 @@ export default function StageFunnelPage() {
             value: agg.value,
             pct_of_first: first > 0 ? (agg.count / first) * 100 : 0,
             drop_from_prev_pct: drop,
+            share_of_deals_pct: totalDeals > 0 ? (agg.count / totalDeals) * 100 : 0,
+            avg_deal_size: agg.count > 0 ? agg.value / agg.count : 0,
+            weighted_value: agg.weighted,
+            avg_age_days: agg.ages.length ? agg.ages.reduce((a, b) => a + b, 0) / agg.ages.length : null,
           });
           prevCount = agg.count;
         }
@@ -137,6 +161,11 @@ export default function StageFunnelPage() {
         </div>
       </div>
 
+      {truncated && (
+        <div role="status" style={{ fontSize: 12, color: '#b45309', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+          Showing the first 1,000 deals of this pipeline only, so these numbers may be partial.
+        </div>
+      )}
       {loading ? <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div> : pipelines.length === 0 ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 12 }}>No pipelines configured. Create one in Settings → Pipelines.</div>
       ) : rows.length === 0 ? (
@@ -170,8 +199,9 @@ export default function StageFunnelPage() {
             })}
           </div>
 
-          {/* Detailed table */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          {/* Detailed table (scrolls inside its own container on a narrow screen) */}
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 760 }}>
             <thead>
               <tr>
                 <th style={th}><SortLabel label="Stage" sortKey="stage_name" sort={sort} onToggle={toggle} /></th>
@@ -180,6 +210,10 @@ export default function StageFunnelPage() {
                 <th style={thNum}><SortLabel label="Total Value" sortKey="value" sort={sort} onToggle={toggle} align="right" /></th>
                 <th style={thNum}><SortLabel label="% of First Stage" sortKey="pct_of_first" sort={sort} onToggle={toggle} align="right" /></th>
                 <th style={thNum}><SortLabel label="Drop from Prev" sortKey="drop_from_prev_pct" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Share of Deals" sortKey="share_of_deals_pct" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Avg Deal" sortKey="avg_deal_size" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Weighted Value" sortKey="weighted_value" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Avg Age" sortKey="avg_age_days" sort={sort} onToggle={toggle} align="right" /></th>
               </tr>
             </thead>
             <tbody>
@@ -193,10 +227,18 @@ export default function StageFunnelPage() {
                   <td style={{ ...tdNum, color: r.drop_from_prev_pct !== null && r.drop_from_prev_pct > 50 ? '#ef4444' : 'var(--text)' }}>
                     {r.drop_from_prev_pct !== null ? `${r.drop_from_prev_pct.toFixed(1)}%` : '—'}
                   </td>
+                  <td style={tdNum}>{r.share_of_deals_pct.toFixed(1)}%</td>
+                  <td style={tdNum}>{r.count > 0 ? inr(r.avg_deal_size) : '—'}</td>
+                  <td style={tdNum}>{r.stage_type === 'open' ? inr(r.weighted_value) : '—'}</td>
+                  <td style={tdNum}>{r.avg_age_days !== null ? `${r.avg_age_days.toFixed(0)}d` : '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.5 }}>
+            Counts deals by the stage they are in now. Weighted value (open stages) = amount × probability, the deal&apos;s own probability when set, else its stage&apos;s. Avg age = days since the deals were created. Amounts are INR.
+          </div>
         </>
       )}
     </div>

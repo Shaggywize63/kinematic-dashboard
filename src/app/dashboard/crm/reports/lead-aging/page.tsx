@@ -8,6 +8,7 @@ import type { Lead } from '../../../../../types/crm';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
+import { useLeadFieldGate } from '../../../../../lib/crm/useLeadFieldGate';
 
 // "Lead aging" = open lead (status not in converted/lost/unqualified)
 // sorted by how long since stage_changed_at. Tells the rep who to call
@@ -24,6 +25,10 @@ interface LeadRow extends Record<string, unknown> {
   score: number;
   source: string;
   days_old: number;
+  // Additive columns (also exported to CSV)
+  days_since_touch: number | null;
+  never_touched: boolean;
+  created_on: string;
 }
 
 // Raw underlying value per sortable column (numbers stay numeric).
@@ -34,6 +39,9 @@ const agingVal = (l: LeadRow, key: string): unknown => {
     case 'status': return l.status;
     case 'score': return l.score;
     case 'days_old': return l.days_old;
+    case 'days_since_touch': return l.days_since_touch;
+    case 'created_on': return l.created_on;
+    case 'source': return l.source;
     default: return l[key];
   }
 };
@@ -42,7 +50,12 @@ export default function LeadAgingPage() {
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [threshold, setThreshold] = useState<number>(7);
+  // The leads list is fetched 1,000 at a time: say so when the page may be looking at part of the book.
+  const [truncated, setTruncated] = useState(false);
   const cityKey = useReportCityKey();
+  // Source is a built-in lead field: wait for the admin's settings, and drop the column when it is hidden.
+  const gate = useLeadFieldGate();
+  const sourceHidden = gate.didLoad && gate.isHidden('source_id');
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +68,7 @@ export default function LeadAgingPage() {
         ]);
         if (cancelled) return;
         const leads: Lead[] = leadsRes.data || [];
+        setTruncated(leads.length >= 1000);
         const users: Array<{ id: string; name?: string; full_name?: string; email?: string }> =
           usersRes.data || usersRes || [];
         const nameById = new Map<string, string>();
@@ -78,8 +92,11 @@ export default function LeadAgingPage() {
             owner_name: (l as any).owner_id ? (nameById.get((l as any).owner_id) || 'Unknown') : 'Unassigned',
             status,
             score: Number((l as any).score || 0),
-            source: (l as any).source || (l as any).source_id || '—',
+            source: (l as any).source_name || (l as any).source || '—',
             days_old: days,
+            days_since_touch: (l as any).last_activity_at ? Math.floor((now - new Date((l as any).last_activity_at).getTime()) / 86_400_000) : null,
+            never_touched: !(l as any).last_activity_at,
+            created_on: String((l as any).created_at || '').slice(0, 10),
           });
         }
         out.sort((a, b) => b.days_old - a.days_old);
@@ -117,7 +134,7 @@ export default function LeadAgingPage() {
               }}>{n}d</button>
             ))}
           </div>
-          <button onClick={() => downloadCsv(`lead-aging-${threshold}d`, rows)} disabled={loading || rows.length === 0} style={csvBtn}>⬇ CSV</button>
+          <button onClick={() => downloadCsv(`lead-aging-${threshold}d`, sourceHidden || !gate.didLoad ? rows.map(({ source: _s, ...rest }) => rest) : rows)} disabled={loading || rows.length === 0} style={csvBtn}>⬇ CSV</button>
         </div>
       </div>
 
@@ -127,13 +144,20 @@ export default function LeadAgingPage() {
         <Kpi label="Working" value={byStatus.get('working') || 0} />
         <Kpi label="Nurturing" value={byStatus.get('nurturing') || 0} />
         <Kpi label="Qualified" value={byStatus.get('qualified') || 0} />
+        <Kpi label="Never touched" value={rows.filter((r) => r.never_touched).length} />
+        <Kpi label="Avg days old" value={rows.length ? `${Math.round(rows.reduce((s, r) => s + r.days_old, 0) / rows.length)}d` : '—'} />
       </div>
+      {truncated && (
+        <div role="status" style={{ fontSize: 12, color: '#b45309', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+          Showing the first 1,000 leads only, so this list may be partial. Narrow the city filter for a complete view.
+        </div>
+      )}
 
       {loading ? <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div> : rows.length === 0 ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 12 }}>No open leads older than {threshold} days. Reps are on top of it.</div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 780 }}>
             <thead>
               <tr>
                 <th style={th}><SortLabel label="Lead" sortKey="name" sort={sort} onToggle={toggle} /></th>
@@ -141,6 +165,9 @@ export default function LeadAgingPage() {
                 <th style={th}><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></th>
                 <th style={thNum}><SortLabel label="Score" sortKey="score" sort={sort} onToggle={toggle} align="right" /></th>
                 <th style={thNum}><SortLabel label="Days Old" sortKey="days_old" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Last Touch" sortKey="days_since_touch" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Created" sortKey="created_on" sort={sort} onToggle={toggle} align="right" /></th>
+                {gate.didLoad && !sourceHidden && <th style={th}><SortLabel label={gate.labelFor('source_id', 'Source')} sortKey="source" sort={sort} onToggle={toggle} /></th>}
                 <th style={th}></th>
               </tr>
             </thead>
@@ -152,6 +179,9 @@ export default function LeadAgingPage() {
                   <td style={td}><StatusBadge status={l.status} /></td>
                   <td style={tdNum}>{l.score || '—'}</td>
                   <td style={{ ...tdNum, color: l.days_old > 30 ? '#ef4444' : 'var(--text)', fontWeight: 700 }}>{l.days_old}d</td>
+                  <td style={tdNum}>{l.never_touched ? 'Never' : l.days_since_touch === 0 ? 'Today' : `${l.days_since_touch}d ago`}</td>
+                  <td style={tdNum}>{l.created_on || '—'}</td>
+                  {gate.didLoad && !sourceHidden && <td style={td}>{l.source}</td>}
                   <td style={{ ...td, textAlign: 'right' }}>
                     <Link href={`/dashboard/crm/leads/${l.id}`} style={openBtn}>Open →</Link>
                   </td>

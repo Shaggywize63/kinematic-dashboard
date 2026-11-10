@@ -3,7 +3,7 @@
  * Embeddable Lead Analytics customizer for the dedicated Lead Analytics page.
  *
  * - "Edit layout" toggle puts the grid in drag/resize mode.
- * - "+ Add widget" opens a modal listing the 15-widget catalog.
+ * - "+ Add widget" opens a modal listing the full widget catalog.
  * - "Build chart" opens the custom chart builder (pick dataset + X/Y axes
  *   + chart type and save as a free-form widget).
  * - Per-tile menu: chart-type switcher, edit-chart (custom only),
@@ -242,7 +242,7 @@ export default function LeadAnalyticsSection() {
           <BarChart3 size={32} style={{ marginBottom: 10, opacity: 0.5 }} />
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>No analytics widgets added</div>
           <div style={{ fontSize: 12, margin: '6px 0 14px' }}>
-            Pick from 15 preset widgets, or build your own chart with custom X / Y axes.
+            Pick from {WIDGET_CATALOG.length} preset widgets, or build your own chart with custom X / Y axes.
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
             <button onClick={() => setAdding(true)} style={primaryBtn}>

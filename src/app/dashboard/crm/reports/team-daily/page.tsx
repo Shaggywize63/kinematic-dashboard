@@ -7,6 +7,11 @@ import type { TeamDailyCard } from '../../../../../types/crm';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { getStoredUser } from '../../../../../lib/auth';
 import { isBmwActive } from '../../../../../lib/clientFeatures';
+import { useLeadFieldGate } from '../../../../../lib/crm/useLeadFieldGate';
+import { downloadCsv } from '../../../../../lib/exportCsv';
+
+// The API now also returns open follow-ups per rep. Optional so an older backend / demo data still renders.
+type Card = TeamDailyCard & { open_followups_due_that_day?: number; open_followups_overdue?: number };
 
 /**
  * Team Daily Activity — per-rep snapshot for the chosen day, sourced
@@ -30,9 +35,13 @@ function todayIso(): string {
 
 export default function TeamDailyPage() {
   const [date, setDate] = useState(todayIso);
-  const [cards, setCards] = useState<TeamDailyCard[]>([]);
+  const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   const cityKey = useReportCityKey();
+  // The last-known-location address is built from the lead's address and city (built-in lead fields):
+  // wait for the admin's settings, and leave the address text out when City is hidden.
+  const gate = useLeadFieldGate();
+  const hideAddress = !gate.didLoad || gate.isHidden('city');
   // BMW has no close-as-won flow — hide the "Deals won today" tile.
   const bmwActive = isBmwActive(getStoredUser() as Parameters<typeof isBmwActive>[0]);
 
@@ -44,7 +53,7 @@ export default function TeamDailyPage() {
         if (cancelled) return;
         // Endpoint returns the array directly (no `{ success, data }`
         // envelope), so unwrap defensively.
-        const payload = (r as unknown as TeamDailyCard[] | { data?: TeamDailyCard[] });
+        const payload = (r as unknown as Card[] | { data?: Card[] });
         setCards(Array.isArray(payload) ? payload : (payload?.data ?? []));
       })
       .catch((e: any) => toast.error(e?.message || 'Failed to load Team Daily'))
@@ -59,10 +68,13 @@ export default function TeamDailyPage() {
   const totalActivities = cards.reduce((acc, c) => acc + c.activities_today.total, 0);
   const totalWon = cards.reduce((acc, c) => acc + c.deals_won_today_count, 0);
   const totalPipeline = cards.reduce((acc, c) => acc + c.pipeline_value, 0);
+  const hasFollowups = cards.some((c) => c.open_followups_overdue !== undefined);
+  const totalOverdue = cards.reduce((acc, c) => acc + (c.open_followups_overdue ?? 0), 0);
+  const totalDueToday = cards.reduce((acc, c) => acc + (c.open_followups_due_that_day ?? 0), 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <Header date={date} onChange={setDate} />
+      <Header date={date} onChange={setDate} canExport={!loading && cards.length > 0} onExport={() => downloadCsv(`team-daily-${date}`, cards.map((c) => dailyCsvRow(c, hideAddress)))} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
         <Kpi label="Active reps" value={loading ? '—' : String(active)}   accent="#26a69a" />
@@ -72,12 +84,14 @@ export default function TeamDailyPage() {
         <Kpi label="Activities today" value={loading ? '—' : String(totalActivities)} accent="#3E9EFF" />
         {!bmwActive && <Kpi label="Deals won today"  value={loading ? '—' : String(totalWon)}        accent="#10B981" />}
         <Kpi label="Pipeline value"   value={loading ? '—' : fmtNum(totalPipeline)}   accent="#F59E0B" />
+        {hasFollowups && <Kpi label="Follow-ups open that day" value={loading ? '—' : String(totalDueToday)} accent="#06B6D4" />}
+        {hasFollowups && <Kpi label="Follow-ups overdue" value={loading ? '—' : String(totalOverdue)} accent="#EF4444" />}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(380px, 100%), 1fr))', gap: 14 }}>
         {loading && cards.length === 0 && <Empty>Loading…</Empty>}
         {!loading && cards.length === 0 && <Empty>No reps in your subtree yet.</Empty>}
-        {cards.map((c) => <RepCard key={c.user_id} card={c} />)}
+        {cards.map((c) => <RepCard key={c.user_id} card={c} hideAddress={hideAddress} />)}
       </div>
     </div>
   );
@@ -85,7 +99,7 @@ export default function TeamDailyPage() {
 
 // ── Per-rep card ────────────────────────────────────────────────────
 
-function RepCard({ card }: { card: TeamDailyCard }) {
+function RepCard({ card, hideAddress }: { card: Card; hideAddress: boolean }) {
   const palette = card.status === 'active'
     ? { bg: 'linear-gradient(135deg, #2e7d32 0%, #43a047 100%)', name: '#fff', sub: 'rgba(255,255,255,0.85)' }
     : card.status === 'idle'
@@ -122,6 +136,10 @@ function RepCard({ card }: { card: TeamDailyCard }) {
         <Row label="Meetings"    left={String(card.activities_today.meetings)}     right="" />
         <Row label="Site Visits" left={String(card.activities_today.site_visits)}  right="" />
         <Row label="Tasks"       left={String(card.activities_today.tasks)}        right="" />
+        {card.activities_today.other > 0 && <Row label="Other" left={String(card.activities_today.other)} right="" />}
+        {card.open_followups_overdue !== undefined && (
+          <Row label="Follow-ups open" left={`${card.open_followups_due_that_day ?? 0} due that day`} right={`${card.open_followups_overdue} overdue`} header />
+        )}
         <Row label="Leads today" left={String(card.leads_today)} right={`${card.leads_today_qualified}Q / ${card.leads_today_converted}C`} header />
         <Row label="Open deals"  left={String(card.deals_open_count)} right={fmtNum(card.pipeline_value)} />
         <Row label="Won today"   left={String(card.deals_won_today_count)} right={fmtNum(card.deals_won_today_value)} />
@@ -137,7 +155,7 @@ function RepCard({ card }: { card: TeamDailyCard }) {
         ) : (
           <span style={{ fontSize: 12, color: palette.sub }}>No location captured</span>
         )}
-        {loc.address && <span style={{ fontSize: 11, color: palette.sub }}>{loc.address}</span>}
+        {loc.address && !hideAddress && <span style={{ fontSize: 11, color: palette.sub }}>{loc.address}</span>}
         {loc.captured_at && (
           <span style={{ fontSize: 11, color: palette.sub }}>· {fmtRelative(loc.captured_at)}</span>
         )}
@@ -176,7 +194,7 @@ function Row({ label, left, right, header }: { label: string; left: string; righ
 
 // ── Header / KPIs / atoms ──────────────────────────────────────────
 
-function Header({ date, onChange }: { date: string; onChange: (d: string) => void }) {
+function Header({ date, onChange, canExport, onExport }: { date: string; onChange: (d: string) => void; canExport: boolean; onExport: () => void }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
       <div>
@@ -186,11 +204,15 @@ function Header({ date, onChange }: { date: string; onChange: (d: string) => voi
           One CRM-only snapshot per rep — activities, leads, deals, location.
         </p>
       </div>
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>
-        Date
-        <input type="date" value={date} onChange={(e) => onChange(e.target.value)}
-          style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '8px 10px', fontSize: 13 }} />
-      </label>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>
+          Date
+          <input type="date" value={date} onChange={(e) => onChange(e.target.value)}
+            style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '8px 10px', fontSize: 13 }} />
+        </label>
+        <button onClick={onExport} disabled={!canExport} aria-label="Download CSV"
+          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55 }}>⬇ CSV</button>
+      </div>
     </div>
   );
 }
@@ -215,6 +237,22 @@ function Empty({ children }: { children: React.ReactNode }) {
       padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13,
     }}>{children}</div>
   );
+}
+
+/** One CSV row per rep: every figure on the card. The address is left out whenever the card hides it. */
+function dailyCsvRow(c: Card, hideAddress: boolean): Record<string, string | number> {
+  const a = c.activities_today;
+  const row: Record<string, string | number> = {
+    Rep: c.name, Status: c.status, 'Last activity': c.last_activity_at ?? '',
+    'Activities total': a.total, 'Activities completed': a.completed, Calls: a.calls, Emails: a.emails, Meetings: a.meetings,
+    'Site visits': a.site_visits, Tasks: a.tasks, Other: a.other,
+    'Leads today': c.leads_today, 'Leads qualified': c.leads_today_qualified, 'Leads converted': c.leads_today_converted,
+    'Open deals': c.deals_open_count, 'Pipeline value (INR)': c.pipeline_value,
+    'Deals won': c.deals_won_today_count, 'Won value (INR)': c.deals_won_today_value,
+    'Follow-ups open that day': c.open_followups_due_that_day ?? '', 'Follow-ups overdue': c.open_followups_overdue ?? '',
+  };
+  if (!hideAddress) row['Last known location'] = c.last_known_location.address ?? '';
+  return row;
 }
 
 function initials(name: string): string {

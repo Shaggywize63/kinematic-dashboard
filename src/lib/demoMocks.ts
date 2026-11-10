@@ -39,6 +39,8 @@ import {
   type DemoUser,
 } from './demo/routeAutoplanDemo';
 import { demoDailyReport, demoDailyReportTeam } from './demo/travelReportDemo';
+import { matchFfmPlusDemo } from './demo/ffmPlusDemo';
+import { demoCrmReportsPlus } from './demo/crmReportsPlusDemo';
 
 // Conversation rows must be stable across list → detail navigation, but the
 // active vertical can change at runtime — cache per seed identity.
@@ -1282,6 +1284,14 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     // id and a single lead object comes back, crashing the map's .map()).
     if (path === '/crm/leads/geo') return list(CRM_LEADS) as unknown as T;
 
+    // ── Lead Management plus widgets / reports + extra columns on the existing CRM reports (./demo/crmReportsPlusDemo) ──
+    {
+      const plus = demoCrmReportsPlus(path, query, {
+        users: mockUsers().data, leads: CRM_LEADS, sources: CRM_SOURCES,
+        base: { winRate: CRM_WIN_RATE, salesCycle: CRM_SALES_CYCLE, forecast: CRM_FORECAST, sourceRoi: CRM_LEAD_SOURCE_ROI },
+      });
+      if (plus !== undefined) return wrap(plus) as unknown as T;
+    }
     // ── Demo extras: report analytics, live trails, conversation intel ──
     if (path === '/crm/analytics/lead-tracker')     return wrap(mockLeadTracker(CRM_LEADS)) as unknown as T;
     if (path === '/crm/analytics/team-performance') return wrap(mockTeamPerformance(mockUsers().data)) as unknown as T;
@@ -1708,6 +1718,9 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/crm/dashboard-layouts/analytics')        return wrap(CRM_ANALYTICS_LAYOUT)       as unknown as T;
     if (path === '/crm/dashboard-layouts/overview')         return wrap(CRM_OVERVIEW_LAYOUT)        as unknown as T;
     if (path === '/crm/dashboard-layouts/ffm')              return wrap(null)                       as unknown as T;
+
+    // ── FFM analytics: added widgets + report endpoints (src/lib/demo/ffmPlusDemo.ts) ──
+    { const ffmPlus = matchFfmPlusDemo(path, query, { outletCoverage: mockOutletCoverage(), users: mockUsers().data as never }); if (ffmPlus !== undefined) return ffmPlus as unknown as T; }
 
     // ── FFM (Field Force Management) analytics — 16 widgets ─────────────
     if (path.startsWith('/analytics/ffm/')) {

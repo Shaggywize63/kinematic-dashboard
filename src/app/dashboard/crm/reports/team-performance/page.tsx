@@ -6,12 +6,78 @@ import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { TeamPerformanceRow } from '../../../../../types/crm';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
+import { downloadCsv } from '../../../../../lib/exportCsv';
+import { fmtChange, changeTone } from '../../../../../lib/crm/plusFormat';
+
+// The report API now also returns follow-through and previous-period columns.
+// They are optional so an older backend (or demo data without them) still renders.
+type Extras = {
+  lost_value: number; weighted_pipeline_value: number; overdue_followups: number; untouched_open_leads: number; idle_leads_14d: number;
+  calls_period: number; meetings_period: number;
+  new_leads_prev_period: number | null; won_count_prev_period: number | null; won_value_prev_period: number | null;
+};
+type PerfRow = TeamPerformanceRow & Partial<Extras>;
 
 // Raw underlying value per sortable column — sort keys match the row field
 // names, so this passthrough yields numbers as numbers and the last-activity
-// ISO string for chronological sorting.
-const teamVal = (r: TeamPerformanceRow, key: string): unknown =>
-  (r as unknown as Record<string, unknown>)[key];
+// ISO string for chronological sorting. The two "vs previous" columns sort by
+// the change between the period and the one before it.
+const teamVal = (r: PerfRow, key: string): unknown => {
+  if (key === 'new_leads_change') return changeValue(r.new_leads_period, r.new_leads_prev_period);
+  if (key === 'won_value_change') return changeValue(r.won_value, r.won_value_prev_period);
+  return (r as unknown as Record<string, unknown>)[key];
+};
+function changeValue(cur: number, prev: number | null | undefined): number | null {
+  if (prev === null || prev === undefined) return null;
+  return prev === 0 ? (cur === 0 ? 0 : null) : (cur - prev) / Math.abs(prev);
+}
+
+/** Follow-through & trend columns: one definition drives the header, the cell and the CSV. */
+const EXTRA_COLS: Array<{ key: string; label: string; csv: (r: PerfRow) => string | number | null; cell: (r: PerfRow) => React.ReactNode; tone?: (r: PerfRow) => string | undefined }> = [
+  { key: 'overdue_followups', label: 'Overdue Follow-ups', csv: (r) => r.overdue_followups ?? null, cell: (r) => r.overdue_followups ?? '—', tone: (r) => ((r.overdue_followups ?? 0) > 0 ? '#ef4444' : undefined) },
+  { key: 'untouched_open_leads', label: 'Untouched Open Leads', csv: (r) => r.untouched_open_leads ?? null, cell: (r) => r.untouched_open_leads ?? '—' },
+  { key: 'idle_leads_14d', label: 'Idle 14d+ Leads', csv: (r) => r.idle_leads_14d ?? null, cell: (r) => r.idle_leads_14d ?? '—' },
+  { key: 'calls_period', label: 'Calls (range)', csv: (r) => r.calls_period ?? null, cell: (r) => r.calls_period ?? '—' },
+  { key: 'meetings_period', label: 'Meetings (range)', csv: (r) => r.meetings_period ?? null, cell: (r) => r.meetings_period ?? '—' },
+  { key: 'lost_value', label: 'Lost Value', csv: (r) => r.lost_value ?? null, cell: (r) => (r.lost_value === undefined ? '—' : fmtNum(r.lost_value)) },
+  { key: 'weighted_pipeline_value', label: 'Weighted Pipeline', csv: (r) => r.weighted_pipeline_value ?? null, cell: (r) => (r.weighted_pipeline_value === undefined ? '—' : fmtNum(r.weighted_pipeline_value)) },
+  { key: 'new_leads_change', label: 'New Leads vs Prev Period', csv: (r) => r.new_leads_prev_period ?? null, cell: (r) => fmtChange(r.new_leads_period, r.new_leads_prev_period), tone: (r) => toneColor(changeTone(r.new_leads_period, r.new_leads_prev_period)) },
+  { key: 'won_value_change', label: 'Won Value vs Prev Period', csv: (r) => r.won_value_prev_period ?? null, cell: (r) => fmtChange(r.won_value, r.won_value_prev_period), tone: (r) => toneColor(changeTone(r.won_value, r.won_value_prev_period)) },
+];
+/** Whole-percent change vs the previous period for the CSV (a number, blank when there is nothing to compare). */
+function pctChange(cur: number, prev: number | null | undefined): number | string {
+  const v = changeValue(cur, prev);
+  return v === null ? '' : Math.round(v * 1000) / 10;
+}
+const toneColor = (t: 'good' | 'bad' | 'flat') => (t === 'good' ? '#10b981' : t === 'bad' ? '#ef4444' : undefined);
+const COLSPAN = 22 + EXTRA_COLS.length;
+
+/** CSV: every column on screen, raw numbers; the two "vs previous" columns export the previous-period value they compare against. */
+function csvRows(rows: PerfRow[]): Array<Record<string, string | number>> {
+  return rows.map((r) => {
+    const o: Record<string, string | number> = {
+      Rep: r.name, 'Total Leads': r.total_leads_owned, 'New Today': r.new_leads_today, 'New This Week': r.new_leads_week, 'New This Month': r.new_leads_month,
+      'New In Range': r.new_leads_period, Qualified: r.qualified_count, Converted: r.converted_count, Lost: r.lost_leads_count,
+      'Won Count': r.won_count, 'Won Value (INR)': r.won_value, 'Lost Count': r.lost_count, Open: r.open_count, 'Pipeline Value (INR)': r.open_pipeline_value,
+      'Conversion %': Math.round(r.conversion_rate * 1000) / 10, 'Avg Deal Size (INR)': Math.round(r.avg_deal_size), 'Sales Cycle (d)': Math.round(r.avg_sales_cycle_days),
+      'Avg Ageing (d)': Math.round(r.avg_ageing_days), 'Oldest Open (d)': Math.round(r.oldest_open_lead_days),
+      'Activities Done': r.activities_completed_period, 'Activities Total': r.activities_total_period,
+      'Last Activity': r.last_activity_at ?? '', 'Avg Lead Score': Math.round(r.avg_lead_score),
+    };
+    for (const c of EXTRA_COLS) {
+      if (c.key === 'new_leads_change') {
+        o['New Leads Prev Period'] = r.new_leads_prev_period ?? '';
+        o['New Leads vs Prev Period (%)'] = pctChange(r.new_leads_period, r.new_leads_prev_period);
+      } else if (c.key === 'won_value_change') {
+        o['Won Value Prev Period (INR)'] = r.won_value_prev_period ?? '';
+        o['Won Value vs Prev Period (%)'] = pctChange(r.won_value, r.won_value_prev_period);
+      } else {
+        o[c.label] = c.csv(r) ?? '';
+      }
+    }
+    return o;
+  });
+}
 
 /**
  * Team Performance — comprehensive per-rep KPI roll-up across the
@@ -38,8 +104,8 @@ function defaultRange(): { from: string; to: string } {
 
 export default function TeamPerformancePage() {
   const [range, setRange] = useState(defaultRange);
-  const [total, setTotal] = useState<TeamPerformanceRow | null>(null);
-  const [rows, setRows] = useState<TeamPerformanceRow[]>([]);
+  const [total, setTotal] = useState<PerfRow | null>(null);
+  const [rows, setRows] = useState<PerfRow[]>([]);
   const [loading, setLoading] = useState(true);
   // Subscribe to the global city picker so changing it triggers a
   // refetch — api.ts already appends `?city=` to the request, but
@@ -68,15 +134,15 @@ export default function TeamPerformancePage() {
   // Client-side column sorting for the per-rep rows. The pinned Total row is
   // rendered separately and stays out of the sorted set. No active column by
   // default, so the backend order is preserved.
-  const { sorted, sort, toggle } = useTableSort<TeamPerformanceRow>(rows, teamVal);
+  const { sorted, sort, toggle } = useTableSort<PerfRow>(rows, teamVal);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Header range={range} onChange={setRange} />
+      <Header range={range} onChange={setRange} canExport={!loading && rows.length > 0} onExport={() => downloadCsv('team-performance', csvRows(total ? [...sorted, total] : sorted))} />
       <KpiStrip total={total} loading={loading} />
       <TableCard title="Team Wise — Detailed">
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 1700 }}>
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 1700 + EXTRA_COLS.length * 130 }}>
             <thead>
               {/* Top header row — section grouping (Lead Funnel / Deals / Ops) */}
               <tr style={{ background: 'var(--s1)' }}>
@@ -84,6 +150,7 @@ export default function TeamPerformancePage() {
                 <Th colSpan={8} group="#3E9EFF">Lead Funnel</Th>
                 <Th colSpan={8} group="#10B981">Deal Performance</Th>
                 <Th colSpan={5} group="#F59E0B">Operational Health</Th>
+                <Th colSpan={EXTRA_COLS.length} group="#EC4899">Follow-through &amp; Trend</Th>
               </tr>
               <tr style={{ background: 'var(--s2)' }}>
                 <Th align="right"><SortLabel label="Total Leads" sortKey="total_leads_owned" sort={sort} onToggle={toggle} align="right" /></Th>
@@ -109,15 +176,19 @@ export default function TeamPerformancePage() {
                 <Th align="right"><SortLabel label="Activities Done" sortKey="activities_completed_period" sort={sort} onToggle={toggle} align="right" /></Th>
                 <Th align="right"><SortLabel label="Last Activity" sortKey="last_activity_at" sort={sort} onToggle={toggle} align="right" /></Th>
                 <Th align="right"><SortLabel label="Avg Lead Score" sortKey="avg_lead_score" sort={sort} onToggle={toggle} align="right" /></Th>
+
+                {EXTRA_COLS.map((c) => (
+                  <Th key={c.key} align="right"><SortLabel label={c.label} sortKey={c.key} sort={sort} onToggle={toggle} align="right" /></Th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {total && <Row r={total} sticky />}
               {loading && rows.length === 0 && (
-                <tr><Td colSpan={22} center dim>Loading…</Td></tr>
+                <tr><Td colSpan={COLSPAN} center dim>Loading…</Td></tr>
               )}
               {!loading && rows.length === 0 && (
-                <tr><Td colSpan={22} center dim>No team data for the selected window.</Td></tr>
+                <tr><Td colSpan={COLSPAN} center dim>No team data for the selected window.</Td></tr>
               )}
               {sorted.map((r) => <Row key={r.user_id ?? r.name} r={r} />)}
             </tbody>
@@ -130,7 +201,7 @@ export default function TeamPerformancePage() {
 
 // ── Header + range filter ──────────────────────────────────────────
 
-function Header({ range, onChange }: { range: { from: string; to: string }; onChange: (r: { from: string; to: string }) => void }) {
+function Header({ range, onChange, canExport, onExport }: { range: { from: string; to: string }; onChange: (r: { from: string; to: string }) => void; canExport: boolean; onExport: () => void }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
       <div>
@@ -140,9 +211,11 @@ function Header({ range, onChange }: { range: { from: string; to: string }; onCh
           Per-rep KPI roll-up across your hierarchy subtree.
         </p>
       </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <DateInput label="From" value={range.from} onChange={(v) => onChange({ ...range, from: v })} />
         <DateInput label="To"   value={range.to}   onChange={(v) => onChange({ ...range, to: v })} />
+        <button onClick={onExport} disabled={!canExport} aria-label="Download CSV"
+          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55 }}>⬇ CSV</button>
       </div>
     </div>
   );
@@ -160,7 +233,7 @@ function DateInput({ label, value, onChange }: { label: string; value: string; o
 
 // ── KPI strip ──────────────────────────────────────────────────────
 
-function KpiStrip({ total, loading }: { total: TeamPerformanceRow | null; loading: boolean }) {
+function KpiStrip({ total, loading }: { total: PerfRow | null; loading: boolean }) {
   const items = useMemo(() => [
     { label: 'Won Value',          value: total ? fmtNum(total.won_value) : '—',                accent: '#3E9EFF' },
     { label: 'Pipeline Value',     value: total ? fmtNum(total.open_pipeline_value) : '—',     accent: '#10B981' },
@@ -170,11 +243,14 @@ function KpiStrip({ total, loading }: { total: TeamPerformanceRow | null; loadin
     { label: 'New Leads (range)',  value: total ? String(total.new_leads_period) : '—',         accent: '#A855F7' },
     { label: 'Activities Done',    value: total ? String(total.activities_completed_period) : '—', accent: '#EC4899' },
     { label: 'Avg Lead Score',     value: total ? total.avg_lead_score.toFixed(0) : '—',         accent: '#8B5CF6' },
+    { label: 'Weighted Pipeline',  value: total && total.weighted_pipeline_value !== undefined ? fmtNum(total.weighted_pipeline_value) : '—', accent: '#14B8A6' },
+    { label: 'Overdue Follow-ups', value: total && total.overdue_followups !== undefined ? String(total.overdue_followups) : '—', accent: '#F43F5E' },
+    { label: 'Won Value vs Prev',  value: total ? fmtChange(total.won_value, total.won_value_prev_period) : '—', accent: '#22C55E' },
   ], [total]);
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
       {items.map((k) => (
-        <div key={k.label} style={{
+        <div key={k.label} data-testid="tp-kpi" style={{
           background: 'var(--s2)', border: '1px solid var(--border)', borderLeft: `3px solid ${k.accent}`,
           borderRadius: 12, padding: '12px 14px',
         }}>
@@ -201,7 +277,7 @@ function TableCard({ title, children }: { title: string; children: React.ReactNo
   );
 }
 
-function Row({ r, sticky }: { r: TeamPerformanceRow; sticky?: boolean }) {
+function Row({ r, sticky }: { r: PerfRow; sticky?: boolean }) {
   const ageingTone = r.avg_ageing_days >= 60 ? '#ef4444' : r.avg_ageing_days >= 30 ? '#f59e0b' : '#10b981';
   const conversionTone = r.conversion_rate >= 0.25 ? '#10b981' : r.conversion_rate >= 0.10 ? '#f59e0b' : '#ef4444';
   const bg = sticky ? 'var(--s1)' : 'transparent';
@@ -232,6 +308,8 @@ function Row({ r, sticky }: { r: TeamPerformanceRow; sticky?: boolean }) {
       <Td align="right">{r.activities_completed_period}/{r.activities_total_period}</Td>
       <Td align="right" dim>{fmtRelative(r.last_activity_at)}</Td>
       <Td align="right">{r.avg_lead_score > 0 ? r.avg_lead_score.toFixed(0) : '—'}</Td>
+
+      {EXTRA_COLS.map((c) => <Td key={c.key} align="right" tone={c.tone?.(r)}>{c.cell(r)}</Td>)}
     </tr>
   );
 }

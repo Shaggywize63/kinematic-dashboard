@@ -1,8 +1,8 @@
 'use client';
 import Link from 'next/link';
 import {
-  Activity, BarChart3, CalendarDays, CalendarRange, ChevronRight, ClipboardList, Clock, Filter, FlaskConical, Footprints, Hammer,
-  Hourglass, LineChart, Mail, MapPin, Phone, Route, Scale, Timer, TrendingUp, Trophy, Users,
+  Activity, BarChart3, BellRing, CalendarDays, CalendarRange, ChevronRight, ClipboardList, Clock, Filter, FlaskConical, Footprints, Gauge, Hammer,
+  Hourglass, Layers, LineChart, Mail, MapPin, Phone, PieChart, Route, Scale, Share2, Timer, TrendingUp, Trophy, Users, Zap,
 } from 'lucide-react';
 import { useAuth } from '../../../../hooks/useAuth';
 import { isConsumerChampion, canDownloadSrsReport, canViewFieldVisits, canViewTelecallerReport, leadReportLabel } from '../../../../lib/clientFeatures';
@@ -52,7 +52,13 @@ const REPORTS: ReportEntry[] = [
   { href: '/dashboard/crm/reports/lead-aging', title: 'Lead Aging', desc: 'Open leads sorted by how long they have been stuck.', icon: <Clock {...I} />, championHidden: true },
   { href: '/dashboard/crm/reports/activity-heatmap', title: 'Activity Heatmap', desc: 'When are reps most active?', icon: <LineChart {...I} />, championHidden: true },
   { href: '/dashboard/crm/reports/lead-source-roi', title: 'Lead Source ROI', desc: 'Revenue and ROI by acquisition source.', icon: <Route {...I} />, championHidden: true },
-  { href: '/dashboard/crm/reports/sales-cycle', title: 'Sales Cycle', desc: 'Average days deals spend in each stage.', icon: <Timer {...I} />, championHidden: true },
+  { href: '/dashboard/crm/reports/sales-cycle', title: 'Sales Cycle', desc: 'Average days from deal creation to close, by month the deal closed.', icon: <Timer {...I} />, championHidden: true },
+  { href: '/dashboard/crm/reports/source-performance', title: 'Lead Source Performance', desc: 'Leads by source and how far they got: qualified, converted, days to convert, won value and cost.', icon: <Share2 {...I} />, championHidden: true },
+  { href: '/dashboard/crm/reports/followup-compliance', title: 'Follow-up Compliance', desc: 'Scheduled follow-ups done on time, late, overdue or not yet due, per person and by week.', icon: <BellRing {...I} />, championHidden: true },
+  { href: '/dashboard/crm/reports/owner-workload', title: 'Owner Workload', desc: 'Open and idle leads, overdue follow-ups and first-touch speed per owner.', icon: <Gauge {...I} />, championHidden: true },
+  { href: '/dashboard/crm/reports/stage-velocity', title: 'Stage Velocity', desc: 'Average days deals spend in each pipeline stage, and how long open deals have been sitting.', icon: <Layers {...I} />, championHidden: true },
+  { href: '/dashboard/crm/reports/activity-mix', title: 'Activity Mix', desc: 'Calls, emails, meetings and more logged per person, with completion and call connect rate.', icon: <PieChart {...I} />, championHidden: true },
+  { href: '/dashboard/crm/reports/conversion-time', title: 'Lead Conversion Time', desc: 'Days from lead created to converted: distribution, and by month, owner and source.', icon: <Zap {...I} />, championHidden: true },
 ];
 
 // Champion-visible hrefs — only these three surfaces are relevant for the

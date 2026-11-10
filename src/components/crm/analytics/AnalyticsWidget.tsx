@@ -1,9 +1,11 @@
 'use client';
 /**
  * Polymorphic renderer for every Lead Analytics widget. One component
- * handles all 15 widget types — switches on `widget.widget_type` to
+ * handles every widget type — switches on `widget.widget_type` to
  * pick the right fetcher, then on `widget.chart_type` to pick the
- * Recharts visual.
+ * Recharts visual. The Lead Management "plus" widgets describe what to draw
+ * as a pure view model (plusWidgetViews.ts) which PlusBody maps onto the same
+ * chart primitives below.
  *
  * Special-case: widget_type === 'custom' reads its data source + X/Y
  * fields from widget.config (built via CustomChartBuilder). The
@@ -21,6 +23,11 @@ import { crmLeads } from '../../../lib/crmApi';
 import { widgetByType, datasetById, type ChartType, type WidgetMeta } from '../../../lib/crm/widgetCatalog';
 import TargetsLeaderboard from './TargetsLeaderboard';
 import { CHART_PALETTE } from '../../../lib/chartTheme';
+import { useLeadFieldGate } from '../../../lib/crm/useLeadFieldGate';
+import { GATED_FIELDS_BY_SURFACE, surfaceOf } from '../../../lib/crm/leadFieldGate';
+import { fmtInr } from '../../../lib/crm/plusFormat';
+import { isPlusWidget, plusWidgetView, type PlusView, type ValueFormat } from './plusWidgetViews';
+import { fetchPlusDataset, fetchPlusWidgetData } from './plusWidgetData';
 
 // leaflet.heat reaches for window.L on import, so the heatmap can only
 // load client-side. Dynamic-import with ssr:false keeps the analytics
@@ -88,6 +95,15 @@ export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onC
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
+  // Some widgets group by a built-in lead field an admin can hide (state / city, source, owner).
+  // Wait for the admin's settings before drawing them (otherwise they flash hidden data), then
+  // withhold a surface whose field is hidden. See lib/crm/leadFieldGate.ts.
+  const gate = useLeadFieldGate();
+  const surface = surfaceOf(widget.widget_type, (widget.config as CustomConfig | undefined)?.data_source);
+  const gatedSurface = surface in GATED_FIELDS_BY_SURFACE;
+  const blocked = gatedSurface && gate.didLoad ? gate.blockedBy(surface) : [];
+  const surfaceBlocked = blocked.length > 0;
+  const waitingForGate = gatedSurface && !gate.didLoad;
 
   // Re-fetch on widget type OR data-source change (custom widgets).
   const cfgKey = widget.widget_type === 'custom'
@@ -113,6 +129,8 @@ export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onC
 
   return (
     <div
+      data-testid="analytics-widget"
+      data-widget-type={widget.widget_type}
       style={cardStyle(hovered)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -165,14 +183,17 @@ export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onC
       </div>
 
       <div style={body}>
-        {loading && <div style={empty}>
+        {(loading || waitingForGate) && <div style={empty}>
           <div style={skeleton} />
         </div>}
-        {!loading && error && <div style={{ ...empty, color: '#ef4444' }}>
+        {!loading && !waitingForGate && error && <div style={{ ...empty, color: '#ef4444' }}>
           <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
           {error}
         </div>}
-        {!loading && !error && <WidgetBody widget={widget} data={data} accent={accent} />}
+        {!loading && !waitingForGate && !error && surfaceBlocked && (
+          <EmptyState label={`Hidden: an admin turned off the ${blocked.map((k) => gate.labelFor(k, FIELD_NAMES[k] ?? k)).join(' / ')} field in Settings`} />
+        )}
+        {!loading && !waitingForGate && !error && !surfaceBlocked && <WidgetBody widget={widget} data={data} accent={accent} />}
       </div>
     </div>
   );
@@ -184,6 +205,7 @@ async function fetchWidgetData(widget: WidgetInstance): Promise<unknown> {
     if (!dsId) return [];
     return fetchCustomDataset(dsId);
   }
+  if (isPlusWidget(widget.widget_type)) return fetchPlusWidgetData(widget.widget_type);
   switch (widget.widget_type) {
     case 'lead_velocity':            return (await crmAnalyticsExt.leadVelocity()).data;
     case 'time_to_first_touch':      return (await crmAnalyticsExt.timeToFirstTouch()).data;
@@ -229,7 +251,12 @@ async function fetchCustomDataset(id: string): Promise<unknown> {
     case 'touchpoints_to_response':          return (await crmAnalyticsExt.touchpointsToResponse()).data;
     case 'leads_at_risk':                    return (await crmAnalyticsExt.leadsAtRisk()).data;
     case 'stuck_leads_top_owners':           return (await crmAnalyticsExt.stuckLeads()).data.top_owners;
-    default: throw new Error(`Unknown dataset: ${id}`);
+    default: {
+      // Lead Management "plus" datasets (source performance, follow-ups, workload, ...).
+      const rows = await fetchPlusDataset(id);
+      if (rows) return rows;
+      throw new Error(`Unknown dataset: ${id}`);
+    }
   }
 }
 
@@ -268,6 +295,10 @@ function WidgetBody({ widget, data, accent }: { widget: WidgetInstance; data: un
     if (chart === 'line') return <LineSeries data={series} keys={[y]} accent={accent} />;
     if (chart === 'area') return <AreaSeries data={series} keys={[y]} accent={accent} />;
     return <BarSeries data={series} keys={[y]} accent={accent} />;
+  }
+
+  if (isPlusWidget(widget.widget_type)) {
+    return <PlusBody view={plusWidgetView(widget.widget_type, chart, data)} accent={accent} />;
   }
 
   switch (widget.widget_type) {
@@ -381,6 +412,29 @@ function WidgetBody({ widget, data, accent }: { widget: WidgetInstance; data: un
 
 function ds(id: string) { return datasetById(id); }
 
+const FIELD_NAMES: Record<string, string> = { state: 'State', city: 'City', source_id: 'Lead source', owner_id: 'Owner' };
+
+// Value formatting for the plus widgets' axes and tooltips (units on every number).
+const VALUE_FORMATS: Record<ValueFormat, (v: number) => string> = {
+  inr: (v) => fmtInr(v),
+  pct: (v) => `${v}%`,
+  days: (v) => `${v} d`,
+};
+
+/** Draws a plus-widget view model with the shared chart primitives. */
+function PlusBody({ view, accent }: { view: PlusView; accent: string }) {
+  switch (view.kind) {
+    case 'empty':  return <EmptyState label={view.label} />;
+    case 'number': return <NumberTile main={view.main} sub={view.sub} accent={accent} />;
+    case 'table':  return <TableView rows={view.rows} />;
+    case 'pie':    return <PieSeries data={view.data} donut={view.donut} />;
+    case 'hbar':   return <HBarSeries data={view.data} fmt={view.format ? VALUE_FORMATS[view.format] : undefined} accent={accent} />;
+    case 'bar':    return <BarSeries data={view.data} keys={view.keys} fmt={view.format ? VALUE_FORMATS[view.format] : undefined} accent={accent} />;
+    case 'line':   return <LineSeries data={view.data} keys={view.keys} fmt={view.format ? VALUE_FORMATS[view.format] : undefined} accent={accent} />;
+    case 'area':   return <AreaSeries data={view.data} keys={view.keys} fmt={view.format ? VALUE_FORMATS[view.format] : undefined} accent={accent} />;
+  }
+}
+
 // Format a minute count into a compact "Xh Ym" or "Y min" string.
 // Used by the Time-to-First-Touch tile so big values aren't shown as
 // raw three-digit minutes (e.g. 155 → "2h 35m" instead of "155m").
@@ -407,7 +461,8 @@ const tooltipStyle: React.CSSProperties = {
   boxShadow: '0 10px 28px rgba(0,0,0,0.38)',
 };
 
-function BarSeries({ data, keys, suffix, accent }: { data: any[]; keys: string[]; suffix?: string; accent?: string }) {
+function BarSeries({ data, keys, suffix, accent, fmt }: { data: any[]; keys: string[]; suffix?: string; accent?: string; fmt?: (v: number) => string }) {
+  const show = (v: any) => (fmt && typeof v === 'number' ? fmt(v) : `${v}${suffix ?? ''}`);
   const gid = `barGrad-${Math.random().toString(36).slice(2, 8)}`;
   const base = accent ?? COLORS[0];
   return (
@@ -426,14 +481,16 @@ function BarSeries({ data, keys, suffix, accent }: { data: any[]; keys: string[]
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-dim)' }} axisLine={false} tickLine={false} />
-        <YAxis tick={{ fontSize: 10, fill: 'var(--text-dim)' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}${suffix ?? ''}`} />
-        <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} formatter={(v: any) => `${v}${suffix ?? ''}`} contentStyle={tooltipStyle} />
+        <YAxis tick={{ fontSize: 10, fill: 'var(--text-dim)' }} axisLine={false} tickLine={false} tickFormatter={show} />
+        <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} formatter={show} contentStyle={tooltipStyle} />
+        {keys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="circle" />}
         {keys.map((k, i) => <Bar key={k} dataKey={k} fill={`url(#${gid}-${i})`} radius={[6, 6, 0, 0]} maxBarSize={48} />)}
       </BarChart>
     </ResponsiveContainer>
   );
 }
-function HBarSeries({ data, valueLabel, accent }: { data: Array<{ name: string; value: number }>; valueLabel?: string; accent?: string }) {
+function HBarSeries({ data, valueLabel, accent, fmt }: { data: Array<{ name: string; value: number }>; valueLabel?: string; accent?: string; fmt?: (v: number) => string }) {
+  const show = (v: any) => (fmt && typeof v === 'number' ? fmt(v) : `${v}${valueLabel ?? ''}`);
   const gid = `hbarGrad-${Math.random().toString(36).slice(2, 8)}`;
   const base = accent ?? COLORS[0];
   return (
@@ -446,23 +503,24 @@ function HBarSeries({ data, valueLabel, accent }: { data: Array<{ name: string; 
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-        <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-dim)' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}${valueLabel ?? ''}`} />
+        <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-dim)' }} axisLine={false} tickLine={false} tickFormatter={show} />
         <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-dim)' }} axisLine={false} tickLine={false} width={110} />
-        <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} formatter={(v: any) => `${v}${valueLabel ?? ''}`} contentStyle={tooltipStyle} />
+        <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} formatter={show} contentStyle={tooltipStyle} />
         <Bar dataKey="value" fill={`url(#${gid})`} radius={[0, 6, 6, 0]} maxBarSize={26} />
       </BarChart>
     </ResponsiveContainer>
   );
 }
-function LineSeries({ data, keys, accent }: { data: any[]; keys: string[]; accent?: string }) {
+function LineSeries({ data, keys, accent, fmt }: { data: any[]; keys: string[]; accent?: string; fmt?: (v: number) => string }) {
   const base = accent ?? COLORS[0];
+  const show = (v: any) => (fmt && typeof v === 'number' ? fmt(v) : v);
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-dim)' }} axisLine={false} tickLine={false} />
-        <YAxis tick={{ fontSize: 10, fill: 'var(--text-dim)' }} axisLine={false} tickLine={false} />
-        <Tooltip contentStyle={tooltipStyle} />
+        <YAxis tick={{ fontSize: 10, fill: 'var(--text-dim)' }} axisLine={false} tickLine={false} tickFormatter={show} />
+        <Tooltip contentStyle={tooltipStyle} formatter={show} />
         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} iconType="circle" />
         {keys.map((k, i) => {
           const c = i === 0 ? base : COLORS[i % COLORS.length];
@@ -472,9 +530,10 @@ function LineSeries({ data, keys, accent }: { data: any[]; keys: string[]; accen
     </ResponsiveContainer>
   );
 }
-function AreaSeries({ data, keys, accent }: { data: any[]; keys: string[]; accent?: string }) {
+function AreaSeries({ data, keys, accent, fmt }: { data: any[]; keys: string[]; accent?: string; fmt?: (v: number) => string }) {
   const gid = `areaGrad-${Math.random().toString(36).slice(2, 8)}`;
   const base = accent ?? COLORS[0];
+  const show = (v: any) => (fmt && typeof v === 'number' ? fmt(v) : v);
   return (
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
@@ -491,8 +550,8 @@ function AreaSeries({ data, keys, accent }: { data: any[]; keys: string[]; accen
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-dim)' }} axisLine={false} tickLine={false} />
-        <YAxis tick={{ fontSize: 10, fill: 'var(--text-dim)' }} axisLine={false} tickLine={false} />
-        <Tooltip contentStyle={tooltipStyle} />
+        <YAxis tick={{ fontSize: 10, fill: 'var(--text-dim)' }} axisLine={false} tickLine={false} tickFormatter={show} />
+        <Tooltip contentStyle={tooltipStyle} formatter={show} />
         {keys.map((k, i) => {
           const c = i === 0 ? base : COLORS[i % COLORS.length];
           return <Area key={k} type="monotone" dataKey={k} stroke={c} strokeWidth={2} fill={`url(#${gid}-${i})`} />;

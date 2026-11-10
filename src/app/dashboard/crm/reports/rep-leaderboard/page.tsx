@@ -19,6 +19,13 @@ interface RepRow {
   revenue: number;
   avg_deal: number;
   avg_cycle_days: number | null;
+  // Additive columns (also exported to CSV): value view, size, ageing and slippage.
+  lost_value: number;
+  open_value: number;
+  largest_won: number;
+  win_rate_by_value: number;
+  avg_open_age_days: number | null;
+  past_close_date: number;
 }
 
 // Raw underlying value per sortable column (numbers stay numeric).
@@ -32,6 +39,12 @@ const repVal = (r: RepRow, key: string): unknown => {
     case 'revenue': return r.revenue;
     case 'avg_deal': return r.avg_deal;
     case 'avg_cycle_days': return r.avg_cycle_days;
+    case 'lost_value': return r.lost_value;
+    case 'open_value': return r.open_value;
+    case 'largest_won': return r.largest_won;
+    case 'win_rate_by_value': return r.win_rate_by_value;
+    case 'avg_open_age_days': return r.avg_open_age_days;
+    case 'past_close_date': return r.past_close_date;
     default: return undefined;
   }
 };
@@ -44,6 +57,8 @@ export default function RepLeaderboardPage() {
   const [rows, setRows] = useState<RepRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'revenue' | 'won' | 'win_rate' | 'avg_deal'>('revenue');
+  // The deals list is fetched 1,000 at a time: say so when the page may be looking at part of the book.
+  const [truncated, setTruncated] = useState(false);
   // Refetch when the global city picker changes — crmDeals.list is
   // city-aware via the auto-attached `?city=` query.
   const cityKey = useReportCityKey();
@@ -59,6 +74,9 @@ export default function RepLeaderboardPage() {
         ]);
         if (cancelled) return;
         const deals: Deal[] = dealsRes.data || [];
+        setTruncated(deals.length >= 1000);
+        const today = new Date().toISOString().slice(0, 10);
+        const openAges = new Map<string, number[]>();
         const users: Array<{ id: string; name?: string; full_name?: string; email?: string }> =
           usersRes.data || usersRes || [];
         const nameById = new Map<string, string>();
@@ -75,6 +93,7 @@ export default function RepLeaderboardPage() {
               name: ownerId === 'unassigned' ? 'Unassigned' : (nameById.get(ownerId) || 'Unknown'),
               total: 0, won: 0, lost: 0, open: 0,
               win_rate: 0, revenue: 0, avg_deal: 0, avg_cycle_days: null,
+              lost_value: 0, open_value: 0, largest_won: 0, win_rate_by_value: 0, avg_open_age_days: null, past_close_date: 0,
             };
             byOwner.set(key, row);
           }
@@ -84,6 +103,7 @@ export default function RepLeaderboardPage() {
           if (status === 'won') {
             row.won++;
             row.revenue += amount;
+            if (amount > row.largest_won) row.largest_won = amount;
             const closed = (d as any).actual_close_date;
             if (closed && (d as any).created_at) {
               const days = (new Date(closed).getTime() - new Date((d as any).created_at).getTime()) / 86_400_000;
@@ -91,14 +111,27 @@ export default function RepLeaderboardPage() {
             }
           } else if (status === 'lost') {
             row.lost++;
+            row.lost_value += amount;
           } else {
             row.open++;
+            row.open_value += amount;
+            const created = (d as any).created_at;
+            if (created) {
+              const ages = openAges.get(key) ?? [];
+              ages.push(Math.max(0, (Date.now() - new Date(created).getTime()) / 86_400_000));
+              openAges.set(key, ages);
+            }
+            const exp = (d as any).expected_close_date;
+            if (exp && String(exp).slice(0, 10) < today) row.past_close_date++;
           }
         }
         for (const r of byOwner.values()) {
           const denom = r.won + r.lost;
           r.win_rate = denom > 0 ? (r.won / denom) * 100 : 0;
           r.avg_deal = r.won > 0 ? r.revenue / r.won : 0;
+          r.win_rate_by_value = r.revenue + r.lost_value > 0 ? (r.revenue / (r.revenue + r.lost_value)) * 100 : 0;
+          const ages = openAges.get(r.user_id);
+          r.avg_open_age_days = ages && ages.length ? ages.reduce((a, b) => a + b, 0) / ages.length : null;
         }
         setRows(Array.from(byOwner.values()));
       } catch (e: any) { toast.error(e.message || 'Load failed'); }
@@ -118,8 +151,8 @@ export default function RepLeaderboardPage() {
   const { sorted: view, sort, toggle } = useTableSort<RepRow>(sorted, repVal);
 
   const totals = useMemo(() => rows.reduce(
-    (acc, r) => ({ won: acc.won + r.won, revenue: acc.revenue + r.revenue, open: acc.open + r.open }),
-    { won: 0, revenue: 0, open: 0 },
+    (acc, r) => ({ won: acc.won + r.won, revenue: acc.revenue + r.revenue, open: acc.open + r.open, lost: acc.lost + r.lost, lostValue: acc.lostValue + r.lost_value, openValue: acc.openValue + r.open_value }),
+    { won: 0, revenue: 0, open: 0, lost: 0, lostValue: 0, openValue: 0 },
   ), [rows]);
 
   return (
@@ -144,7 +177,15 @@ export default function RepLeaderboardPage() {
         <Kpi label="Total Deals Won" value={totals.won} />
         <Kpi label="Total Revenue" value={inr(totals.revenue)} />
         <Kpi label="Open Pipeline (count)" value={totals.open} />
+        <Kpi label="Open Pipeline Value" value={inr(totals.openValue)} />
+        <Kpi label="Lost Value" value={inr(totals.lostValue)} />
+        <Kpi label="Win Rate by Value" value={totals.revenue + totals.lostValue > 0 ? `${((totals.revenue / (totals.revenue + totals.lostValue)) * 100).toFixed(1)}%` : '—'} />
       </div>
+      {truncated && (
+        <div role="status" style={{ fontSize: 12, color: '#b45309', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+          Showing the first 1,000 deals only, so these numbers may be partial. Narrow the city filter for a complete view.
+        </div>
+      )}
 
       {loading ? <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div> : sorted.length === 0 ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 12 }}>No deals to aggregate yet.</div>
@@ -162,6 +203,12 @@ export default function RepLeaderboardPage() {
                 <th style={thNum}><SortLabel label="Revenue" sortKey="revenue" sort={sort} onToggle={toggle} align="right" /></th>
                 <th style={thNum}><SortLabel label="Avg Deal" sortKey="avg_deal" sort={sort} onToggle={toggle} align="right" /></th>
                 <th style={thNum}><SortLabel label="Avg Cycle" sortKey="avg_cycle_days" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Largest Won" sortKey="largest_won" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Lost Value" sortKey="lost_value" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Win Rate by Value" sortKey="win_rate_by_value" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Open Value" sortKey="open_value" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Avg Open Age" sortKey="avg_open_age_days" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Past Close Date" sortKey="past_close_date" sort={sort} onToggle={toggle} align="right" /></th>
               </tr>
             </thead>
             <tbody>
@@ -176,6 +223,12 @@ export default function RepLeaderboardPage() {
                   <td style={{ ...tdNum, fontWeight: 700, color: 'var(--text)' }}>{inr(r.revenue)}</td>
                   <td style={tdNum}>{r.avg_deal > 0 ? inr(r.avg_deal) : '—'}</td>
                   <td style={tdNum}>{r.avg_cycle_days !== null ? `${r.avg_cycle_days.toFixed(0)}d` : '—'}</td>
+                  <td style={tdNum}>{r.largest_won > 0 ? inr(r.largest_won) : '—'}</td>
+                  <td style={tdNum}>{inr(r.lost_value)}</td>
+                  <td style={tdNum}>{r.revenue + r.lost_value > 0 ? `${r.win_rate_by_value.toFixed(1)}%` : '—'}</td>
+                  <td style={tdNum}>{inr(r.open_value)}</td>
+                  <td style={tdNum}>{r.avg_open_age_days !== null ? `${r.avg_open_age_days.toFixed(0)}d` : '—'}</td>
+                  <td style={{ ...tdNum, color: r.past_close_date > 0 ? '#ef4444' : 'var(--text)' }}>{r.past_close_date}</td>
                 </tr>
               ))}
             </tbody>
