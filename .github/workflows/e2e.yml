@@ -7,9 +7,11 @@ on:
     branches: [main]
 
 jobs:
+  # Pinned to Ubuntu 24.04: the `ubuntu-latest` image moved to 26.04, which this Playwright version does not support
+  # ("Playwright does not support chromium on ubuntu26.04-x64"), so every browser install failed before any test ran.
   e2e:
     name: Playwright E2E
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Backstop: cap the whole job so a stalled step fails fast (and is
     # diagnosable) instead of hanging for hours. The serial suite now runs
     # ~15 min, so keep comfortable headroom above the E2E step's own cap.
@@ -84,7 +86,7 @@ jobs:
 
   e2e-hrms:
     name: Playwright E2E (HRMS)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -140,7 +142,7 @@ jobs:
 
   e2e-hrmsx:
     name: Playwright E2E (HRMS modules ${{ matrix.shard }}/4)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     # About 630 specs: split into four runs that go side by side, so no single run nears its cap.
     strategy:
