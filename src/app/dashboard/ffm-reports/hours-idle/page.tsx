@@ -2,6 +2,9 @@
 import { useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { istToday } from '../../../../components/attendance/RangePresets';
+import { ffmReports, type TimeTravelRow } from '../../../../components/ffm/reports/ffmReportsApi';
+import { csvLine, fmtIstTime } from '../../../../components/ffm/reports/reportUtils';
 
 /**
  * Hours & Idle Time — working hours by rep against an 8-hour shift,
@@ -13,16 +16,22 @@ import { useTableSort, SortLabel } from '../../../../lib/tableSort';
  * Data source: /api/v1/attendance/team. Demo mock fills five rows
  * with varied total_hours so the colour bands paint visibly on the
  * demo account.
+ *
+ * Extra columns (check-in / check-out time, visits, time on site, on-site share of the
+ * working day, km) come from GET /api/v1/analytics/ffm/reports/time-and-travel for today,
+ * joined by user id. Best-effort: if that call fails the report still shows and those cells
+ * read "—". Time on site counts only visits with both a check-in and a check-out.
  */
 
 type Row = {
   id: string;
+  user_id?: string;
   name: string;
   employee_id?: string;
   checkin_at?: string | null;
   checkout_at?: string | null;
   total_hours?: number | null;
-  users?: { name?: string; employee_id?: string };
+  users?: { id?: string; name?: string; employee_id?: string };
 };
 
 interface Computed {
@@ -33,6 +42,12 @@ interface Computed {
   shiftHours: number;
   idleHours: number;
   utilisationPct: number;
+  checkin: string;
+  checkout: string;
+  visits: number | null;
+  onsiteHours: number | null;
+  onsiteSharePct: number | null;
+  km: number | null;
 }
 
 const SHIFT_HOURS = 8;
@@ -54,8 +69,12 @@ export default function HoursIdleReport() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.getAttendanceTeam() as { success: boolean; data: Row[] };
+        const [res, tt] = await Promise.all([
+          api.getAttendanceTeam() as Promise<{ success: boolean; data: Row[] }>,
+          ffmReports.timeAndTravel({ from: istToday(), to: istToday() }).then((r) => r?.data?.rows ?? null).catch(() => null),
+        ]);
         const team = res?.data ?? [];
+        const extras = new Map<string, TimeTravelRow>((tt ?? []).map((x) => [x.fe_id, x]));
         const computed: Computed[] = team.map((r) => {
           const hours = Number(r.total_hours ?? 0);
           const idle = Math.max(0, SHIFT_HOURS - hours);
@@ -68,6 +87,12 @@ export default function HoursIdleReport() {
             shiftHours: SHIFT_HOURS,
             idleHours: idle,
             utilisationPct: util,
+            checkin: fmtIstTime(r.checkin_at),
+            checkout: fmtIstTime(r.checkout_at),
+            visits: extras.get(String(r.user_id ?? r.users?.id ?? ''))?.visited_stops ?? null,
+            onsiteHours: extras.get(String(r.user_id ?? r.users?.id ?? ''))?.onsite_hours ?? null,
+            onsiteSharePct: extras.get(String(r.user_id ?? r.users?.id ?? ''))?.onsite_share_pct ?? null,
+            km: extras.get(String(r.user_id ?? r.users?.id ?? ''))?.km_total ?? null,
           };
         });
         // Sort low → high so the worst utilisation surfaces at the top
@@ -83,10 +108,14 @@ export default function HoursIdleReport() {
   }, []);
 
   const exportCsv = () => {
-    const header = 'Name,Employee ID,Working hours,Shift hours,Idle hours,Utilisation %';
-    const lines = rows.map((r) =>
-      [r.name, r.employeeId, r.hours.toFixed(2), r.shiftHours, r.idleHours.toFixed(2), r.utilisationPct].join(','),
-    );
+    const header = csvLine([
+      'Name', 'Employee ID', 'Working hours', 'Shift hours', 'Idle hours', 'Utilisation %',
+      'Check-in (IST)', 'Check-out (IST)', 'Visits', 'On site (h)', 'On-site share %', 'Km',
+    ]);
+    const lines = rows.map((r) => csvLine([
+      r.name, r.employeeId, r.hours.toFixed(2), r.shiftHours, r.idleHours.toFixed(2), r.utilisationPct,
+      r.checkin === '—' ? '' : r.checkin, r.checkout === '—' ? '' : r.checkout, r.visits, r.onsiteHours, r.onsiteSharePct, r.km,
+    ]));
     const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -106,6 +135,8 @@ export default function HoursIdleReport() {
   const totalWorking = rows.reduce((s, r) => s + r.hours, 0);
   const totalIdle = rows.reduce((s, r) => s + r.idleHours, 0);
   const avgUtil = rows.length ? Math.round(rows.reduce((s, r) => s + r.utilisationPct, 0) / rows.length) : 0;
+  const totalVisits = rows.reduce((s, r) => s + (r.visits ?? 0), 0);
+  const totalOnsite = rows.reduce((s, r) => s + (r.onsiteHours ?? 0), 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -134,10 +165,12 @@ export default function HoursIdleReport() {
         <Stat label="Working hrs"     value={totalWorking.toFixed(1)} />
         <Stat label="Idle hrs"        value={totalIdle.toFixed(1)} accent={totalIdle > 0 ? '#F59E0B' : undefined} />
         <Stat label="Avg utilisation" value={`${avgUtil}%`} accent={pctColor(avgUtil)} />
+        <Stat label="Visits today" value={totalVisits} />
+        <Stat label="On site" value={`${totalOnsite.toFixed(1)} h`} />
       </div>
 
       <div style={{ overflowX: 'auto', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse', fontSize: 13 }}>
           <thead style={{ background: 'var(--s3)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 }}>
             <tr>
               <Th><SortLabel label="Name" sortKey="name" sort={sort} onToggle={toggle} /></Th>
@@ -146,6 +179,12 @@ export default function HoursIdleReport() {
               <Th align="right"><SortLabel label="Idle" sortKey="idleHours" sort={sort} onToggle={toggle} align="right" /></Th>
               <Th align="right"><SortLabel label="Utilisation" sortKey="utilisationPct" sort={sort} onToggle={toggle} align="right" /></Th>
               <Th>Progress</Th>
+              <Th align="right"><SortLabel label="Check-in" sortKey="checkin" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Check-out" sortKey="checkout" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Visits" sortKey="visits" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="On site (h)" sortKey="onsiteHours" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="On-site share" sortKey="onsiteSharePct" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Km" sortKey="km" sort={sort} onToggle={toggle} align="right" /></Th>
             </tr>
           </thead>
           <tbody>
@@ -161,10 +200,20 @@ export default function HoursIdleReport() {
                     <div style={{ width: `${r.utilisationPct}%`, height: '100%', background: pctColor(r.utilisationPct), borderRadius: 99 }} />
                   </div>
                 </Td>
+                <Td align="right">{r.checkin}</Td>
+                <Td align="right">{r.checkout}</Td>
+                <Td align="right">{r.visits ?? '—'}</Td>
+                <Td align="right">{r.onsiteHours != null ? r.onsiteHours.toFixed(1) : '—'}</Td>
+                <Td align="right">{r.onsiteSharePct != null ? `${r.onsiteSharePct}%` : '—'}</Td>
+                <Td align="right">{r.km != null ? r.km : '—'}</Td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+        Visits, time on site and km are today&apos;s route-plan activity; time on site counts only visits with both a check-in and a check-out, so it is a floor.
+        On-site share = time on site ÷ working hours. The rest of the day is travel, breaks and work that is not checked in.
       </div>
     </div>
   );

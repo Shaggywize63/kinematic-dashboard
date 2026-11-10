@@ -42,9 +42,39 @@ const REPORTS = [
     desc: 'Working hours, on-site hours and idle minutes per rep across the selected window.',
   },
   {
+    href: '/dashboard/ffm-reports/rep-activity',
+    title: 'Rep Activity Comparison',
+    desc: 'Coverage, productive calls, orders, distance, time on site and attendance per rep, beside the team median.',
+  },
+  {
+    href: '/dashboard/ffm-reports/beat-compliance',
+    title: 'Beat Compliance',
+    desc: 'Planned vs visited calls week by week, per rep, and the plan days on which nothing was visited.',
+  },
+  {
+    href: '/dashboard/ffm-reports/outlet-visit-gaps',
+    title: 'Outlet Visit Gaps',
+    desc: 'Which outlets have not been visited, and for how long, with the rep who plans them and their recent orders.',
+  },
+  {
+    href: '/dashboard/ffm-reports/time-and-travel',
+    title: 'Time & Travel',
+    desc: 'Kilometres, km per visit, time on site, first and last call of the day and on-site share of working hours.',
+  },
+  {
+    href: '/dashboard/ffm-reports/geo-exceptions',
+    title: 'Geo-fence Exceptions',
+    desc: 'Check-ins made outside the outlet geofence, plus mock-location, VPN and GPS-jump alerts, per rep.',
+  },
+  {
+    href: '/dashboard/ffm-reports/supervisor-teams',
+    title: 'Supervisor Teams',
+    desc: 'Team size, coverage and output per supervisor, with per-rep measures that do not favour bigger teams.',
+  },
+  {
     href: '/dashboard/ffm-analytics',
     title: 'Productivity Analytics',
-    desc: 'KPIs, trends, heatmaps and weekly contacts — the live FFM analytics dashboard.',
+    desc: 'KPIs, trends, heatmaps and weekly contacts, plus a customisable grid of field-force widgets.',
   },
   {
     href: '/dashboard/attendance-overview',
