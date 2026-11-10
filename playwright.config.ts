@@ -42,7 +42,12 @@ export default defineConfig({
   // outgrew the 25-minute cap). PW_SKIP_HRMS=1 leaves those files out of the main run; `playwright test hrms-` runs only them.
   // `hrms-*` is the core module, `hrmsx-*` the field-force, compliance, talent and workplace modules built on top of it
   // (their own job too). `playwright test hrmsx-` runs only those.
-  testIgnore: process.env.PW_SKIP_HRMS ? /e2e\/hrmsx?-.*\.spec\.ts$/ : undefined,
+  // The report and widget specs for Lead Management and Field Force (about 400 specs) have their own job as well:
+  // PW_SKIP_PLUS=1 leaves them out of the main run; `playwright test "(crm|ffm)-(reports|widgets)-plus"` runs only them.
+  testIgnore: [
+    ...(process.env.PW_SKIP_HRMS ? [/e2e\/hrmsx?-.*\.spec\.ts$/] : []),
+    ...(process.env.PW_SKIP_PLUS ? [/e2e\/(crm|ffm)-(reports|widgets)-plus\.spec\.ts$/] : []),
+  ],
   // First-time `next dev` route compiles can be slow; keep generous timeouts.
   timeout: 90_000,
   expect: { timeout: 15_000 },
