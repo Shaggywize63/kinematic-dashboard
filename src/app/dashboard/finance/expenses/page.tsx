@@ -268,14 +268,20 @@ function ExpenseModal({ bill, businessState, onClose, onSaved }: { bill: Expense
       if (sc?.merchant && !vendor.trim()) { setVendor(sc.merchant); read.push(sc.merchant); }
       if (sc?.amount != null && amount.trim() === '') { setAmount(String(sc.amount)); setIncl('incl'); read.push(inr(sc.amount)); }
       if (sc?.txn_date && !bill && date === todayIso()) setDate(sc.txn_date);
+      // A tax invoice names its seller's GSTIN and its own number: fill those too, only where still empty.
+      if (sc?.supplier_gstin && !gstin.trim()) { setGstin(sc.supplier_gstin); read.push(sc.supplier_gstin); }
+      if (sc?.invoice_number && !billNo.trim()) { setBillNo(sc.invoice_number); read.push(`Inv ${sc.invoice_number}`); }
       if (sc?.category && category === 'other' && EXPENSE_CATEGORIES.some((c) => c.value === sc.category)) setCategory(sc.category);
       if (sc?.tax_amount != null && sc.tax_amount > 0 && gstAmt.trim() === '') {
         setGstAmt(String(sc.tax_amount));
         const total = amount.trim() ? num(amount) : sc.amount ?? NaN;
-        if (Number.isFinite(total) && total > sc.tax_amount) {
-          const slab = GST_SLABS.find((r) => Math.abs(r - (sc.tax_amount! / (total - sc.tax_amount!)) * 100) <= 1.5);
-          if (slab) setRate(slab);
-        }
+        const guess = Number.isFinite(total) && total > sc.tax_amount ? GST_SLABS.find((r) => Math.abs(r - (sc.tax_amount! / (total - sc.tax_amount!)) * 100) <= 1.5) : undefined;
+        const slab = sc.gst_rate != null && GST_SLABS.includes(sc.gst_rate) ? sc.gst_rate : guess;
+        if (slab) setRate(slab);
+      } else if (!bill && gstAmt.trim() === '' && sc?.amount != null && (sc.tax_amount === 0 || sc.gst_rate === 0)) {
+        // The document says 0% / no tax (for example a foreign supplier): do not leave the default 18% on it.
+        setRate(0);
+        read.push('0% GST');
       }
       setScanNote(read.length ? `Read from the receipt: ${read.join(' · ')}. Check it looks right.` : null);
       toast.success(read.length ? 'Receipt attached and read' : 'Receipt attached');

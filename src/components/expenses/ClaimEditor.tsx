@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { Camera, Eye, FileText, MapPin, Plus, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
 import { Badge, Button, Card, FormGrid, IconButton, Input, Select, T, Textarea, useIsCompact } from '../ui';
 import {
-  CATEGORIES, ClaimItem, ClaimItemInput, ClaimCheck, ExpenseClaim, ItemCategory, LinkableSubmission, MyPolicy,
+  CATEGORIES, ClaimItem, ClaimItemInput, ClaimCheck, ExpenseClaim, ItemCategory, LinkableSubmission, MyPolicy, ReceiptFields,
   VehicleRate, categoryLabel, enabledCategories, expensesApi, gpsDistanceOn, lineVehicle, odometerCameraOnly, policyVehicles, routeFieldsOn, singleCategory,
   singleLineOn, soleVehicleId,
 } from '../../lib/expensesApi';
@@ -78,13 +78,20 @@ const reading = (v: string) => Number.isFinite(n(v)) && n(v) >= 0;
 const round2 = (x: number) => Math.round(x * 100) / 100;
 const GST_SLABS = [5, 12, 18, 28];
 /** When the receipt shows its GST, pre-fill the rate (snapped to a standard slab) and amount — only on lines nobody has typed GST on. */
-function gstFromScan(l: Line, s: { amount: number | null; tax_amount: number | null } | null | undefined): Partial<Line> {
-  if (!s || s.tax_amount == null || s.tax_amount <= 0 || l.gst_rate.trim() || l.gst_amount.trim()) return {};
+function gstFromScan(l: Line, s: ReceiptFields | null | undefined): Partial<Line> {
+  if (!s) return {};
+  const out: Partial<Line> = {};
+  // Seller GSTIN and invoice number come straight off a tax invoice.
+  if (s.supplier_gstin && !l.supplier_gstin.trim()) out.supplier_gstin = s.supplier_gstin;
+  if (s.invoice_number && !l.supplier_invoice_no.trim()) out.supplier_invoice_no = s.invoice_number;
+  if (l.gst_rate.trim() || l.gst_amount.trim()) return out;
+  if (s.tax_amount == null || s.tax_amount <= 0) return out;
+  out.gst_amount = String(s.tax_amount);
   const total = l.amount.trim() ? n(l.amount) : s.amount ?? NaN;
-  if (!Number.isFinite(total) || total <= s.tax_amount) return { gst_amount: String(s.tax_amount) };
-  const pct = (s.tax_amount / (total - s.tax_amount)) * 100;
-  const slab = GST_SLABS.find((r) => Math.abs(r - pct) <= 1.5);
-  return slab ? { gst_rate: String(slab), gst_amount: String(s.tax_amount) } : { gst_amount: String(s.tax_amount) };
+  const pct = Number.isFinite(total) && total > s.tax_amount ? (s.tax_amount / (total - s.tax_amount)) * 100 : NaN;
+  const slab = s.gst_rate != null && GST_SLABS.includes(s.gst_rate) ? s.gst_rate : GST_SLABS.find((r) => Math.abs(r - pct) <= 1.5);
+  if (slab) out.gst_rate = String(slab);
+  return out;
 }
 /** Distance for a vehicle line, or null until both readings are in and in order. */
 const odoKm = (l: Line): number | null => (reading(l.odo_start) && reading(l.odo_end) && n(l.odo_end) >= n(l.odo_start) ? round2(n(l.odo_end) - n(l.odo_start)) : null);
@@ -376,7 +383,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
           merchant: l.merchant.trim() ? l.merchant : s?.merchant ?? '',
           ...gstFromScan(l, s),
           item_date: fresh && s?.txn_date ? s.txn_date : l.item_date,
-          category: fresh && s?.category && l.category !== 'mileage' ? s.category : l.category,
+          category: fresh && s?.category && l.category !== 'mileage' ? (s.category as ItemCategory) : l.category,
           scanNote: read ? `Read from the receipt: ${[s?.amount != null ? money(s.amount, s.currency || currency) : null, s?.merchant].filter(Boolean).join(' · ')}. Check it looks right.` : null,
         };
       }));

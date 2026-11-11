@@ -253,7 +253,12 @@ export interface ReceiptFields {
   amount: number | null;
   currency: string | null;
   tax_amount: number | null;
-  category: ItemCategory | null;
+  /** A claim category for field claims; a Finance expense category for business bills. */
+  category: string | null;
+  /** Tax-invoice details, when the document shows them (read off photos and PDFs). */
+  supplier_gstin?: string | null;
+  invoice_number?: string | null;
+  gst_rate?: number | null;
 }
 
 export interface UploadedReceipt {
