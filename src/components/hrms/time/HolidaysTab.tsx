@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { Badge, Button, Card, DataTable, EmptyState, Modal, Note, Stat, StatGrid, Toolbar, T, useIsCompact, type Col } from '../ui';
 import { FormGrid, Segmented, Select } from '../../ui';
 import type { Holiday, HolidayList, HrmsDb } from '../../../lib/hrms/types';
-import { uid } from '../../../lib/hrms/types';
+import { newId } from '../../../lib/hrms/db';
 import { fmtDate, fmtMonthLong } from '../../../lib/hrms/format';
 import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import { remove, upsert } from '../../../lib/hrms/actions';
@@ -245,7 +245,7 @@ function ListModal({ db, lists, copyFrom, onClose, onCreated }: { db: HrmsDb; li
     if (Object.keys(errors).length) { focusFirstInvalid(formId); return; }
     const year = Number(f.year);
     const holidays = from ? from.holidays.map((h) => ({ ...h, date: shiftToYear(h.date, year) })) : [];
-    const created: HolidayList = { id: uid('hol'), name: f.name.trim(), state: f.state, year, holidays };
+    const created: HolidayList = { id: newId('hol'), name: f.name.trim(), state: f.state, year, holidays };
     upsert('holidayLists', created);
     toast.success(from ? `Copied ${holidays.length} holiday${holidays.length === 1 ? '' : 's'} from ${from.name}. Check the festival dates.` : `${created.name} created`);
     onCreated(created.id);

@@ -12,6 +12,7 @@ import {
   bankFileFromWire, checksFromWire, ecrFromWire, fnfFromWire, fnfResultFromWire, payrollFromWire, runFlagFromWire, runFromWire,
   type BankFileData, type EcrData, type PayrollData, type RunFlag,
 } from './payrollWire';
+import { timeFromWire, type TimeData } from './timeWire';
 import type { FnfResult, PreRunCheck } from '../engine';
 import type { FnfCase, PayRun } from '../types';
 
@@ -20,6 +21,8 @@ const BASE = '/api/v1/hrms';
 export type MasterKind = 'entities' | 'locations' | 'departments' | 'designations';
 /** The payroll records the diff-sync saves one by one. Attendance and the payroll settings have their own calls. */
 export type PayrollKind = 'structures' | 'adjustments' | 'loans' | 'fnf';
+/** The time-and-leave records the diff-sync saves one by one. The roster and balances have their own two-key PUT. */
+export type TimeKind = 'shifts' | 'leave-types' | 'holiday-lists';
 /** The commands on a pay run. Each one is a call to the server whose answer replaces the run held here. */
 export type RunCommand = 'compute' | 'freeze' | 'unfreeze' | 'mark-paid';
 
@@ -37,6 +40,7 @@ export class HrmsApiError extends Error {
 
 export const NOT_READY_MESSAGE = 'HRMS storage is not set up yet on the server';
 export const PAYROLL_NOT_READY_MESSAGE = 'Payroll storage is not set up yet on the server';
+export const TIME_NOT_READY_MESSAGE = 'Time and leave storage is not set up yet on the server';
 
 function toError(e: unknown): HrmsApiError {
   if (e instanceof HrmsApiError) return e;
@@ -65,12 +69,20 @@ async function call<T>(run: () => Promise<unknown>): Promise<T> {
 }
 
 const PAYROLL = `${BASE}/payroll`;
+const TIME = `${BASE}/time`;
 const enc = encodeURIComponent;
 
 /** Payroll-only trouble: a server that predates payroll answers 404 for the route, which reads the same as "not set up yet". */
 function payrollError(e: unknown): HrmsApiError {
   const err = toError(e);
   if (err.notReady || err.status === 404) return new HrmsApiError(PAYROLL_NOT_READY_MESSAGE, err.status || 503, true);
+  return err;
+}
+
+/** Time-only trouble: a server that predates the time tables answers 404 or 503, which both read as "not set up yet". */
+function timeError(e: unknown): HrmsApiError {
+  const err = toError(e);
+  if (err.notReady || err.status === 404) return new HrmsApiError(TIME_NOT_READY_MESSAGE, err.status || 503, true);
   return err;
 }
 
@@ -137,5 +149,23 @@ export const hrmsApi = {
       return fnfFromWire(await call<Row>(() => api.post(`${PAYROLL}/fnf/${enc(id)}/${command}`, {})) ?? {});
     },
     async fnfCompute(id: string): Promise<FnfResult> { return fnfResultFromWire(await payrollGet<Row>(`/fnf/${enc(id)}/compute`).catch((e) => { throw toError(e); }) ?? {}); },
+  },
+
+  time: {
+    async bootstrap(): Promise<TimeData> {
+      try {
+        const data = await call<Row>(() => api.get(`${TIME}/bootstrap`, { noCache: true } as RequestInit));
+        return timeFromWire(data ?? {});
+      } catch (e) { throw timeError(e); }
+    },
+
+    /** Shifts, leave types and holiday lists: create, change and remove one record. */
+    create: (kind: TimeKind, body: Row): Promise<Row> => call<Row>(() => api.post(`${TIME}/${kind}`, body)),
+    update: (kind: TimeKind, id: string, body: Row): Promise<Row> => call<Row>(() => api.put(`${TIME}/${kind}/${enc(id)}`, body)),
+    remove: (kind: TimeKind, id: string): Promise<Row> => call<Row>(() => api.delete(`${TIME}/${kind}/${enc(id)}`)),
+    /** One roster row per employee and week; a create and an update are the same PUT. */
+    putRoster: (employeeId: string, weekStart: string, body: Row): Promise<Row> => call<Row>(() => api.put(`${TIME}/roster/${enc(employeeId)}/${enc(weekStart)}`, body)),
+    /** One leave balance per employee and leave type; a create and an update are the same PUT. */
+    putBalance: (employeeId: string, leaveTypeId: string, body: Row): Promise<Row> => call<Row>(() => api.put(`${TIME}/balances/${enc(employeeId)}/${enc(leaveTypeId)}`, body)),
   },
 };

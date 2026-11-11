@@ -6,8 +6,10 @@
 // `documents` (they have their own endpoints, so they are compared row by row).
 // Not diffed at all: pay runs and settlement status. Those change through commands (live/payrollCommands.ts).
 
-import type { Adjustment, AttendanceSummary, Department, Designation, Employee, FnfCase, HrmsDb, LegalEntity, Loan, Location, SalaryStructure } from '../types';
-import { fmtMonth, fullName } from '../format';
+import type {
+  Adjustment, AttendanceSummary, Department, Designation, Employee, FnfCase, HolidayList, HrmsDb, LeaveBalance, LeaveType, LegalEntity, Loan, Location, RosterRow, SalaryStructure, Shift,
+} from '../types';
+import { fmtDate, fmtMonth, fullName } from '../format';
 import {
   departmentCreateBody, departmentPatch, designationCreateBody, designationPatch, documentCreateBody, documentPatch, employeeCreateBody, employeePatch,
   entityCreateBody, entityPatch, locationCreateBody, locationPatch, same, type Row,
@@ -16,6 +18,9 @@ import {
   adjustmentCreateBody, adjustmentPatch, attendanceBody, attendanceKey, fnfCreateBody, fnfPatch, loanCreateBody, loanPatch, settingsBody,
   structureCreateBody, structurePatch,
 } from './payrollWire';
+import {
+  holidayListCreateBody, holidayListPatch, leaveBalanceBody, leaveBalanceKey, leaveTypeCreateBody, leaveTypePatch, rosterBody, rosterKey, shiftCreateBody, shiftPatch,
+} from './timeWire';
 
 /** People and organisation: saved on the server since phase 1. */
 export type PeopleCollections = Pick<HrmsDb, 'entities' | 'locations' | 'departments' | 'designations' | 'employees'>;
@@ -24,15 +29,24 @@ export type PeopleCollections = Pick<HrmsDb, 'entities' | 'locations' | 'departm
  * only through its commands (compute, freeze ...), whose answers replace the local run.
  */
 export type PayrollCollections = Pick<HrmsDb, 'structures' | 'attendance' | 'adjustments' | 'loans' | 'payRuns' | 'fnfCases' | 'overtimeRules'>;
-export type ServerCollections = PeopleCollections & PayrollCollections;
+/** Time and leave: on the server since phase 3. All simple records (no server "commands"). */
+export type TimeCollections = Pick<HrmsDb, 'shifts' | 'roster' | 'leaveTypes' | 'holidayLists' | 'leaveBalances'>;
+export type ServerCollections = PeopleCollections & PayrollCollections & TimeCollections;
 export type Collection = keyof ServerCollections;
 export type Verb = 'create' | 'update' | 'delete';
 
-export type SyncKind = 'entity' | 'location' | 'department' | 'designation' | 'employee' | 'document' | 'structure' | 'attendance' | 'adjustment' | 'loan' | 'fnf' | 'settings';
+export type SyncKind =
+  | 'entity' | 'location' | 'department' | 'designation' | 'employee' | 'document'
+  | 'structure' | 'attendance' | 'adjustment' | 'loan' | 'fnf' | 'settings'
+  | 'shift' | 'roster' | 'leaveType' | 'holidayList' | 'leaveBalance';
 /** The kinds that are payroll records: they need the payroll data to have loaded, and they can change what a run computes. */
 export const PAYROLL_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['structure', 'attendance', 'adjustment', 'loan', 'fnf', 'settings']);
-/** Changes to these can make a computed run stale (an employee's pay, a structure, attendance, an adjustment, a loan, the overtime rule). */
-export const RUN_INPUT_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['structure', 'attendance', 'adjustment', 'loan', 'settings', 'employee']);
+/** The kinds that are time-and-leave records: they need the time data to have loaded. */
+export const TIME_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['shift', 'roster', 'leaveType', 'holidayList', 'leaveBalance']);
+/** Time records that are ordinary {id} rows (not keyed by two path parts): a server answer for one must carry an id. */
+export const TIME_RECORD_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['shift', 'leaveType', 'holidayList']);
+/** Changes to these can make a computed run stale (an employee's pay, a structure, attendance, an adjustment, a loan, the overtime rule, a shift's hours). */
+export const RUN_INPUT_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['structure', 'attendance', 'adjustment', 'loan', 'settings', 'employee', 'shift']);
 
 export interface SyncOp {
   /** Which collection the row lives in; documents live inside an employee. */
@@ -41,10 +55,14 @@ export interface SyncOp {
   verb: Verb;
   /** The row's id. For attendance, which has none, `employeeId:month`. */
   rowId: string;
-  /** Documents: the employee that holds them. Attendance: the employee the row is about. */
+  /** Documents: the employee that holds them. Attendance / roster / leave balance: the employee the row is about. */
   employeeId?: string;
   /** Attendance only. */
   month?: string;
+  /** Roster only: the Monday the row is for (second path part of the PUT). */
+  weekStart?: string;
+  /** Leave balance only: the leave type (second path part of the PUT). */
+  leaveTypeId?: string;
   body?: Row;
   /** Dashboard-side names of the fields an update touches (rollback restores exactly these). */
   keys: string[];
@@ -66,6 +84,9 @@ const LABEL = {
   designation: (d: Designation) => `designation "${d.name}"`,
   employee: (e: Employee) => (e.firstName || e.lastName ? fullName(e) : 'the employee'),
   structure: (s: SalaryStructure) => `salary structure "${s.name}"`,
+  shift: (s: Shift) => `shift "${s.name}"`,
+  leaveType: (l: LeaveType) => `leave type "${l.name}"`,
+  holidayList: (h: HolidayList) => `holiday list "${h.name}"`,
 };
 
 function simple<T extends { id: string }>(
@@ -131,6 +152,36 @@ function attendanceOps(prev: AttendanceSummary[], next: AttendanceSummary[], nam
   return ops;
 }
 
+/** Roster rows: one PUT per employee + week whose `days` changed (or is new). There is no delete call and no screen removes a whole row. */
+function rosterOps(prev: RosterRow[], next: RosterRow[], names: Map<string, string>): SyncOp[] {
+  const before = new Map(prev.map((r) => [rosterKey(r), r]));
+  const ops: SyncOp[] = [];
+  for (const r of next) {
+    const old = before.get(rosterKey(r));
+    const label = `roster of ${names.get(r.employeeId) ?? 'the employee'} for the week of ${fmtDate(r.weekStart)}`;
+    const base = { collection: 'roster' as const, kind: 'roster' as const, rowId: rosterKey(r), employeeId: r.employeeId, weekStart: r.weekStart, addedHistory: [] as string[], label };
+    if (!old) { ops.push({ ...base, verb: 'create', body: rosterBody(r).body, keys: ['days'] }); continue; }
+    const { body, keys } = rosterBody(r, old);
+    if (keys.length) ops.push({ ...base, verb: 'update', body, keys, prev: old });
+  }
+  return ops;
+}
+
+/** Leave balances: one PUT per employee + leave type that changed (or is new). Like attendance and roster, there is no delete. */
+function balanceOps(prev: LeaveBalance[], next: LeaveBalance[], names: Map<string, string>): SyncOp[] {
+  const before = new Map(prev.map((b) => [leaveBalanceKey(b), b]));
+  const ops: SyncOp[] = [];
+  for (const b of next) {
+    const old = before.get(leaveBalanceKey(b));
+    const label = `leave balance of ${names.get(b.employeeId) ?? 'the employee'}`;
+    const base = { collection: 'leaveBalances' as const, kind: 'leaveBalance' as const, rowId: leaveBalanceKey(b), employeeId: b.employeeId, leaveTypeId: b.leaveTypeId, addedHistory: [] as string[], label };
+    if (!old) { ops.push({ ...base, verb: 'create', body: leaveBalanceBody(b).body, keys: [] }); continue; }
+    const { body, keys } = leaveBalanceBody(b, old);
+    if (keys.length) ops.push({ ...base, verb: 'update', body, keys, prev: old });
+  }
+  return ops;
+}
+
 /** The overtime rule is the one payroll setting. It is saved as a whole with PUT /settings/payroll. */
 function settingsOps(prev: HrmsDb['overtimeRules'], next: HrmsDb['overtimeRules']): SyncOp[] {
   const a = prev[0];
@@ -147,7 +198,10 @@ function settingsOps(prev: HrmsDb['overtimeRules'], next: HrmsDb['overtimeRules'
  * Document calls for an employee created in the same change are left out: the create body already carries them.
  * Payroll collections missing from `prev` or `next` count as empty.
  */
-export function diffServer(prev: PeopleCollections & Partial<PayrollCollections>, next: PeopleCollections & Partial<PayrollCollections>): SyncOp[] {
+export function diffServer(
+  prev: PeopleCollections & Partial<PayrollCollections> & Partial<TimeCollections>,
+  next: PeopleCollections & Partial<PayrollCollections> & Partial<TimeCollections>,
+): SyncOp[] {
   const ent = simple('entities', 'entity', prev.entities, next.entities, LABEL.entity, entityCreateBody, entityPatch);
   const loc = simple('locations', 'location', prev.locations, next.locations, LABEL.location, locationCreateBody, locationPatch);
   const dep = simple('departments', 'department', prev.departments, next.departments, LABEL.department, departmentCreateBody, departmentPatch);
@@ -161,6 +215,14 @@ export function diffServer(prev: PeopleCollections & Partial<PayrollCollections>
   const fnf = simple<FnfCase>('fnfCases', 'fnf', prev.fnfCases ?? [], next.fnfCases ?? [], (c) => `settlement of ${nameOf(c.employeeId)}`, fnfCreateBody, fnfPatch);
   const att = attendanceOps(prev.attendance ?? [], next.attendance ?? [], names);
   const settings = settingsOps(prev.overtimeRules ?? [], next.overtimeRules ?? []);
+
+  // Time and leave. Shifts, leave types and holiday lists are ordinary {id} records (reference data people point at); the roster
+  // and the leave balances are keyed by two path parts and upserted with a PUT, like attendance.
+  const shift = simple<Shift>('shifts', 'shift', prev.shifts ?? [], next.shifts ?? [], LABEL.shift, shiftCreateBody, shiftPatch);
+  const leaveType = simple<LeaveType>('leaveTypes', 'leaveType', prev.leaveTypes ?? [], next.leaveTypes ?? [], LABEL.leaveType, leaveTypeCreateBody, leaveTypePatch);
+  const holidayList = simple<HolidayList>('holidayLists', 'holidayList', prev.holidayLists ?? [], next.holidayLists ?? [], LABEL.holidayList, holidayListCreateBody, holidayListPatch);
+  const roster = rosterOps(prev.roster ?? [], next.roster ?? [], names);
+  const balance = balanceOps(prev.leaveBalances ?? [], next.leaveBalances ?? [], names);
 
   const emp: SyncOp[] = [];
   const empDeletes: SyncOp[] = [];
@@ -184,12 +246,18 @@ export function diffServer(prev: PeopleCollections & Partial<PayrollCollections>
     ...ent.creates, ...ent.updates,
     ...des.creates, ...des.updates, ...loc.creates, ...loc.updates, ...dep.creates, ...dep.updates,
     ...str.creates, ...str.updates,
+    // Shifts, leave types and holiday lists before the people and rows that reference them (a roster day names a shift id,
+    // a leave balance names a leave type id, an employee names a shift id).
+    ...shift.creates, ...shift.updates, ...leaveType.creates, ...leaveType.updates, ...holidayList.creates, ...holidayList.updates,
     ...emp,
-    ...att, ...adj.creates, ...adj.updates, ...loan.creates, ...loan.updates, ...fnf.creates, ...fnf.updates, ...settings,
+    ...att, ...roster, ...balance, ...adj.creates, ...adj.updates, ...loan.creates, ...loan.updates, ...fnf.creates, ...fnf.updates, ...settings,
     ...fnf.deletes, ...loan.deletes, ...adj.deletes,
     ...empDeletes,
+    // A leave type goes after the balances that referenced it; a shift after the people and roster rows that used it.
+    ...holidayList.deletes, ...leaveType.deletes,
     ...loc.deletes, ...dep.deletes, ...des.deletes,
     ...str.deletes,
+    ...shift.deletes,
     ...ent.deletes,
   ];
 }

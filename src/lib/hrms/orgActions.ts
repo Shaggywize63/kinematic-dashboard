@@ -2,9 +2,10 @@
 // Changes for the Organisation and Time & leave screens that the generic upsert/remove in actions.ts cannot express:
 // registrations live inside a legal entity, and roster rows are created on demand per employee per week.
 
-import { mutate } from './db';
-import type { HrmsDb, Id, ISODate, Registration, RosterCell, RosterRow } from './types';
+import { getDb, mutate, newId } from './db';
+import type { HolidayList, HrmsDb, Id, ISODate, LeaveType, Registration, RosterCell, RosterRow, Shift } from './types';
 import { addDays } from './format';
+import { makeSeed } from './seed';
 
 // ───────────── organisation ─────────────
 /** Add a registration to an entity, or replace the one with the same id. */
@@ -21,6 +22,35 @@ export function removeRegistration(entityId: Id, regId: Id): void {
     const ent = db.entities.find((e) => e.id === entityId);
     if (ent) ent.registrations = ent.registrations.filter((r) => r.id !== regId);
   });
+}
+
+// ───────────── time and leave: the standard set ─────────────
+export type TimeSetResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * The shifts, leave policies and a holiday list the sample company uses, as new rows with fresh ids. A new organisation (live
+ * mode) starts with none of these; this is a sensible, editable start, mirroring payroll's "Add the standard structures".
+ * Anything already there under the same name / code / (state, year) is left alone. New ids are UUIDs in live mode (via newId).
+ */
+export function addStandardTimeSet(): TimeSetResult {
+  const db = getDb();
+  const seed = makeSeed();
+  const haveShift = new Set(db.shifts.map((s) => s.name.trim().toLowerCase()));
+  const haveLeave = new Set(db.leaveTypes.map((l) => l.code.trim().toUpperCase()));
+  const haveHol = new Set(db.holidayLists.map((h) => `${h.state}|${h.year}`));
+  const shifts: Shift[] = seed.shifts.filter((s) => !haveShift.has(s.name.trim().toLowerCase())).map((s) => ({ ...s, id: newId('sh') }));
+  const leaveTypes: LeaveType[] = seed.leaveTypes.filter((l) => !haveLeave.has(l.code.trim().toUpperCase()))
+    .map((l) => ({ ...l, id: newId('lv'), accrual: { ...l.accrual }, carryForward: { ...l.carryForward }, encashment: { ...l.encashment } }));
+  const firstList = seed.holidayLists[0];
+  const holidayLists: HolidayList[] = firstList && !haveHol.has(`${firstList.state}|${firstList.year}`)
+    ? [{ ...firstList, id: newId('hol'), holidays: firstList.holidays.map((h) => ({ ...h })) }] : [];
+  if (!shifts.length && !leaveTypes.length && !holidayLists.length) return { ok: false, error: 'The standard set is already there.' };
+  mutate((db) => {
+    for (const s of shifts) db.shifts.push(s);
+    for (const l of leaveTypes) db.leaveTypes.push(l);
+    for (const h of holidayLists) db.holidayLists.push(h);
+  });
+  return { ok: true };
 }
 
 // ───────────── roster ─────────────

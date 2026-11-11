@@ -128,6 +128,12 @@ class FakeHrms {
       await this.ok(route, { structures: [], attendance: [], adjustments: [], loans: [], runs: [], fnf_cases: [], settings: { payroll: {} }, server_time: '2026-11-10T09:00:00Z' });
       return true;
     }
+    // Time and leave (phase 3) is covered by hrmsx-livetime.spec.ts. Here the server answers an empty set, so the Time page loads
+    // to its "Add the standard set" empty state (no "saved in this browser" note any more).
+    if (method === 'GET' && path === '/time/bootstrap') {
+      await this.ok(route, { shifts: [], roster: [], leave_types: [], holiday_lists: [], leave_balances: [], server_time: '2026-11-10T09:00:00Z' });
+      return true;
+    }
 
     if (method === 'GET' && path === '/bootstrap') {
       if (this.bootstrapDelay) await new Promise((r) => setTimeout(r, this.bootstrapDelay));
@@ -1079,14 +1085,13 @@ test.describe('live: new joiner', () => {
 
 // ═════════════════════════════ guards ═════════════════════════════
 test.describe('live: guards', () => {
-  test('pages that are not on the server yet say so; the server-backed ones (people, organisation and payroll) do not', async ({ page }) => {
+  test('pages that are not on the server yet say so; the server-backed ones (people, organisation, payroll and time) do not', async ({ page }) => {
     const fake = new FakeHrms().seedOrg().seedAsha();
-    await open(page, fake, '/dashboard/hrms/time');
+    await open(page, fake, '/dashboard/hrms/lifecycle');
     await expect(page.getByTestId('hrms-local-note')).toContainText('Saved in this browser only: this part of HRMS is not on the server yet', { timeout: 30_000 });
-    await page.goto('/dashboard/hrms/lifecycle');
-    await expect(page.getByTestId('hrms-local-note')).toContainText('Saved in this browser only: this part of HRMS is not on the server yet', { timeout: 30_000 });
-    // payroll moved to the server in phase 2 (see hrmsx-livepay.spec.ts): the old "payroll is not on the server yet" note is gone
-    for (const path of [EMPLOYEES, ORG, '/dashboard/hrms', '/dashboard/hrms/payroll']) {
+    // payroll moved to the server in phase 2 (hrmsx-livepay.spec.ts) and time and leave in phase 3 (hrmsx-livetime.spec.ts): their
+    // old "not on the server yet" notes are gone.
+    for (const path of [EMPLOYEES, ORG, '/dashboard/hrms', '/dashboard/hrms/payroll', '/dashboard/hrms/time']) {
       await page.goto(path);
       await waitLoaded(page);
       await expect(page.getByTestId('hrms-local-note')).toHaveCount(0);
@@ -1168,7 +1173,7 @@ test.describe('live: no errors, narrow screens', () => {
       await expect(page.getByText('Asha Rao').first()).toBeVisible({ timeout: 30_000 });
       await noSidewaysScroll(page);
       await page.goto('/dashboard/hrms/time');
-      await expect(page.getByTestId('hrms-local-note')).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId('time-live-empty')).toBeVisible({ timeout: 30_000 });   // time is on the server now: the empty-org offer, not the local note
       await noSidewaysScroll(page);
       // The lifecycle page has wide tables of its own (it scrolls sideways in sample mode too); the banner and the note must still fit.
       await page.goto('/dashboard/hrms/lifecycle');

@@ -10,6 +10,7 @@ import type { Employee, HrmsDb, Id, ISODate, RosterCell, RosterRow, Shift } from
 import { addDays } from '../../../lib/hrms/format';
 import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import { addToRoster, copyRosterFromPreviousWeek, setRosterCell } from '../../../lib/hrms/orgActions';
+import { whenSynced } from '../../../lib/hrms/live/store';
 import { ConfirmDialog } from '../org/Confirm';
 import { primaryStyle } from '../org/formKit';
 import { DAYS, DAYS_LONG, MAX_CONSECUTIVE_DAYS, MAX_WEEKLY_HOURS, analyseRow, dayCoverage, dayShort, durationText, fmtWeek, mondayOf, paidMinutes, weekDates, type RowAnalysis } from './timeLogic';
@@ -55,7 +56,8 @@ export function RosterTab({ db }: { db: HrmsDb }) {
 
   const doCopy = () => {
     const n = copyRosterFromPreviousWeek(weekStart);
-    toast.success(`Copied ${n} roster row${n === 1 ? '' : 's'} from last week`);
+    // On live data the success message waits until the per-row PUTs reach the server; in sample mode it shows at once.
+    whenSynced((ok) => { if (ok) toast.success(`Copied ${n} roster row${n === 1 ? '' : 's'} from last week`); });
     setConfirmCopy(null);
   };
   const askCopy = () => {
@@ -79,7 +81,7 @@ export function RosterTab({ db }: { db: HrmsDb }) {
         <div style={{ flex: 1 }} />
         <Button onClick={askCopy} disabled={prevRows.length === 0} title={prevRows.length === 0 ? 'Last week has no roster to copy' : `Copy ${fmtWeek(prevWeek)}`}>Copy last week</Button>
         {missing.length > 0 && entries.length > 0 && (
-          <Button variant="primary" style={primaryStyle} onClick={() => { const n = addToRoster(weekStart, missing.map((e) => e.id)); toast.success(`Added ${n} ${n === 1 ? 'person' : 'people'} to this week`); }}>
+          <Button variant="primary" style={primaryStyle} onClick={() => { const n = addToRoster(weekStart, missing.map((e) => e.id)); whenSynced((ok) => { if (ok) toast.success(`Added ${n} ${n === 1 ? 'person' : 'people'} to this week`); }); }}>
             Add {missing.length} not on this week
           </Button>
         )}
@@ -98,7 +100,7 @@ export function RosterTab({ db }: { db: HrmsDb }) {
             description={prevRows.length ? 'Copy last week to start from the same pattern, or give everyone their default shift with Sunday off.' : 'Give everyone their default shift with Sunday off, then adjust the cells.'}
             action={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
               <Button onClick={askCopy} disabled={prevRows.length === 0}>Copy last week</Button>
-              <Button variant="primary" style={primaryStyle} onClick={() => { const n = addToRoster(weekStart, rosterable.map((e) => e.id)); toast.success(`Created ${n} roster rows`); }}>Create from default shifts</Button>
+              <Button variant="primary" style={primaryStyle} onClick={() => { const n = addToRoster(weekStart, rosterable.map((e) => e.id)); whenSynced((ok) => { if (ok) toast.success(`Created ${n} roster rows`); }); }}>Create from default shifts</Button>
             </div>} />
         </div>
       ) : (

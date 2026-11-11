@@ -242,6 +242,11 @@ class FakePayroll {
       });
       return true;
     }
+    // Time and leave (phase 3) is covered by hrmsx-livetime.spec.ts; here it answers an empty set so a live load has it ready.
+    if (method === 'GET' && path === '/time/bootstrap') {
+      await this.ok(route, { shifts: [], roster: [], leave_types: [], holiday_lists: [], leave_balances: [], server_time: '2026-11-10T09:00:00Z' });
+      return true;
+    }
     const emp = path.match(/^\/employees\/([^/]+)$/);
     if (emp && method === 'PUT') {
       const e = this.employees.find((x) => x.id === emp[1]);
@@ -1326,7 +1331,8 @@ test.describe('live payroll: browser storage', () => {
     expect(stored).not.toContain('123456789');
     expect(stored).not.toContain('987654321');
     expect(stored).not.toContain('payRuns');
-    expect(stored).toContain('shifts');                                          // the local-only reference data is kept
+    expect(stored).not.toContain('shifts');                                      // shifts moved to the server in phase 3: no longer kept in the browser
+    expect(stored).toContain('letterTemplates');                                 // the still-local reference data (letter templates, retention) is kept
   });
 });
 

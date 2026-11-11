@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { Badge, Button, DataTable, Modal, Note, SearchBox, Toolbar, T, useIsCompact, type Col } from '../ui';
 import { Field, FormGrid } from '../../ui';
 import type { HrmsDb, Shift } from '../../../lib/hrms/types';
-import { uid } from '../../../lib/hrms/types';
+import { newId } from '../../../lib/hrms/db';
 import { remove, upsert } from '../../../lib/hrms/actions';
 import { BlockedDialog, ConfirmDialog } from '../org/Confirm';
 import { TextField, focusFirstInvalid, primaryStyle, srOnly } from '../org/formKit';
@@ -124,7 +124,7 @@ function ShiftModal({ db, edit, onClose }: { db: HrmsDb; edit?: Shift; onClose: 
     ev.preventDefault();
     setTried(true);
     if (Object.keys(errors).length) { focusFirstInvalid(formId); return; }
-    const saved = formToShift(f, edit?.id ?? uid('sh'));
+    const saved = formToShift(f, edit?.id ?? newId('sh'));
     upsert('shifts', saved);
     toast.success(edit ? `${saved.name} updated` : `${saved.name} added`);
     onClose();
