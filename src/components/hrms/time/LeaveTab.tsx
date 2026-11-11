@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { Badge, Button, ConfidenceBadge, DataTable, Modal, Note, SearchBox, Toolbar, T, useIsCompact, type Col } from '../ui';
 import { Field, FormGrid, Section, Textarea } from '../../ui';
 import type { HrmsDb, LeaveType } from '../../../lib/hrms/types';
-import { uid } from '../../../lib/hrms/types';
+import { newId } from '../../../lib/hrms/db';
 import { remove, upsert } from '../../../lib/hrms/actions';
 import { BlockedDialog, ConfirmDialog } from '../org/Confirm';
 import { CheckField, SelectField, TextField, focusFirstInvalid, primaryStyle, srOnly } from '../org/formKit';
@@ -118,7 +118,7 @@ function LeaveModal({ db, edit, onClose }: { db: HrmsDb; edit?: LeaveType; onClo
     ev.preventDefault();
     setTried(true);
     if (Object.keys(errors).length) { focusFirstInvalid(formId); return; }
-    const saved = formToLeave(f, edit?.id ?? uid('lv'));
+    const saved = formToLeave(f, edit?.id ?? newId('lv'));
     upsert('leaveTypes', saved);
     toast.success(edit ? `${saved.name} updated` : `${saved.name} added`);
     onClose();
