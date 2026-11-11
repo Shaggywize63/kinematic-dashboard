@@ -134,24 +134,27 @@ export interface GrowthRole {
   monthly_salary: number; monthly_loaded: number; one_time: number; unlock_mrr: number; unlock_alone: number; gap_mrr: number; more_customers: number | null;
   hire_month: string | null; hire_label: string | null; status: 'now' | 'planned' | 'beyond'; year1_cost: number; blocker: string | null;
 }
-export interface GrowthTimelineRow { month: string; label: string; mrr: number; customers: number; billings: number; payroll: number; one_time: number; existing: number; founder: number; net: number; cum_net: number; hires: string[]; payroll_pct: number }
+export interface GrowthTimelineRow { month: string; label: string; mrr: number; customers: number; billings: number; payroll: number; one_time: number; existing: number; founder: number; opex: number; net: number; cum_net: number; hires: string[]; payroll_pct: number }
+export interface PnlMonth { month: string; label: string; revenue: number; expenses: number; payroll: number; founder: number; net: number; cum_net: number }
+export interface GrowthPnl { revenue: number; expenses: number; founder: number; other: number; payroll: number; net: number; months: PnlMonth[] }
 export interface GrowthPlan {
-  roles: GrowthRole[]; timeline: GrowthTimelineRow[];
+  roles: GrowthRole[]; timeline: GrowthTimelineRow[]; pnl: GrowthPnl;
   budget: { year1_total: number; payroll: number; one_time: number; peak_monthly: number; founder_year1: number; end_net: number };
   headline: { hires: number; first_hire: { title: string; month: string; label: string; status: string } | null; next_unlock: { title: string; unlock_mrr: number; gap_mrr: number; more_customers: number | null } | null };
 }
 export interface ProjectionData {
   as_of: string; horizon: { from: string; to: string };
   options: { churn_pct: number; growth: number; growth_up: number };
-  summary: { billed_to_date: number; billed_incl_gst: number; collected: number; outstanding: number; recurring_customers: number; mrr: number; arr: number; top2_share: number; one_off_total: number; gst_factor: number };
+  summary: { billed_to_date: number; billed_incl_gst: number; collected: number; outstanding: number; recurring_customers: number; mrr: number; arr: number; top2_share: number; one_off_total: number; gst_factor: number; monthly_expense: number; expense_trailing_total: number };
   scenarios: { contracted: number; conservative: number; base: number; upside: number };
   months: ProjectionMonth[];
-  history: Array<{ month: string; label: string; billed: number; collected: number }>;
+  history: Array<{ month: string; label: string; billed: number; collected: number; expenses: number; net: number }>;
   customers: ProjectionCustomer[];
   one_off: Array<{ customer: string; amount: number; date: string }>;
   pipeline: { quotes: Array<{ number: string; customer: string; amount: number }>; total: number };
+  expenses: { run_rate: number; months_counted: number; history: Array<{ month: string; label: string; cost: number }>; by_category: Array<{ category: string; cost: number }>; trailing_total: number };
   growth: {
-    options: { cap_pct: number; oncost_pct: number; existing: number; founder: number; costs: Record<string, number> };
+    options: { cap_pct: number; oncost_pct: number; existing: number; founder: number; opex: number; costs: Record<string, number> };
     current: { mrr: number; customers: number; avg_mrr_per_customer: number; outstanding: number };
     assumptions: string[];
     plans: Record<Scenario, GrowthPlan>;

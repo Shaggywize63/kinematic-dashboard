@@ -2,7 +2,7 @@
 // Charts for the Finance projection and hiring plan (recharts). Every chart sits in a role="img" wrapper with a
 // text alternative; the numbers are also available in the tables on the page.
 
-import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, LineChart, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, LineChart, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { T } from '../ui';
 import { inr } from '../../lib/financeFormat';
 import { inrAxis } from './SalesReceiptsChart';
@@ -136,7 +136,7 @@ export function MrrHiringChart({ plan, current, compact }: { plan: GrowthPlan; c
 
 /** Billings vs the team's cost, and what is left after payroll (cumulative). */
 export function PayrollChart({ plan, compact }: { plan: GrowthPlan; compact?: boolean }) {
-  const rows = plan.timeline.map((t) => ({ label: monthName(t.month), billings: t.billings, cost: t.payroll + t.one_time + t.existing + t.founder, cum_net: t.cum_net }));
+  const rows = plan.timeline.map((t) => ({ label: monthName(t.month), billings: t.billings, cost: t.payroll + t.one_time + t.existing + t.founder + t.opex, cum_net: t.cum_net }));
   return (
     <Frame height={compact ? 280 : 320} alt={`Monthly billings against team and other costs, and the running balance after those costs. Year-one hiring budget ${inr(plan.budget.year1_total)}.`}>
       <ComposedChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={2} barCategoryGap="26%">
@@ -153,3 +153,23 @@ export function PayrollChart({ plan, compact }: { plan: GrowthPlan; compact?: bo
   );
 }
 
+/** Monthly profit or loss (revenue minus every cost) as bars, with the running profit/loss line. */
+export function ProfitChart({ plan, compact }: { plan: GrowthPlan; compact?: boolean }) {
+  const rows = plan.pnl.months.map((t) => ({ label: monthName(t.month), net: t.net, cum_net: t.cum_net }));
+  return (
+    <Frame height={compact ? 280 : 320} alt={`Monthly profit or loss and the running total across the year. Year profit or loss ${inr(plan.pnl.net)}.`}>
+      <ComposedChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barCategoryGap="22%">
+        <CartesianGrid stroke="var(--border)" vertical={false} />
+        <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: 'var(--border)' }} tick={AXIS} interval={compact ? 1 : 0} />
+        <YAxis tickFormatter={inrAxis} tickLine={false} axisLine={false} width={58} tick={AXIS} />
+        <Tooltip content={<Tip />} cursor={{ fill: 'var(--s3)', opacity: 0.6 }} />
+        <Legend wrapperStyle={{ fontSize: 12.5 }} />
+        <ReferenceLine y={0} stroke="var(--border)" />
+        <Bar dataKey="net" name="Monthly profit / (loss)" radius={[4, 4, 0, 0]} maxBarSize={22} isAnimationActive={false}>
+          {rows.map((r, i) => <Cell key={i} fill={r.net >= 0 ? T.ok : T.red} fillOpacity={0.85} />)}
+        </Bar>
+        <Line dataKey="cum_net" name="Running profit / (loss)" stroke={C.mrr} strokeWidth={2.5} dot={false} isAnimationActive={false} />
+      </ComposedChart>
+    </Frame>
+  );
+}

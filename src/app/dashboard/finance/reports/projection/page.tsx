@@ -16,13 +16,14 @@ const CumulativeChart = chart('CumulativeChart') as unknown as React.ComponentTy
 const CustomerBars = chart('CustomerBars') as unknown as React.ComponentType<{ data: ProjectionData; compact?: boolean }>;
 const MrrHiringChart = chart('MrrHiringChart') as unknown as React.ComponentType<{ plan: ProjectionData['growth']['plans']['base']; current: number; compact?: boolean }>;
 const PayrollChart = chart('PayrollChart') as unknown as React.ComponentType<{ plan: ProjectionData['growth']['plans']['base']; compact?: boolean }>;
+const ProfitChart = chart('ProfitChart') as unknown as React.ComponentType<{ plan: ProjectionData['growth']['plans']['base']; compact?: boolean }>;
 
 const rs = (n: unknown) => `₹${Math.round(num(n)).toLocaleString('en-IN')}`;
 const monthLong = (ym: string) => new Date(`${ym}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 const SOURCE: Record<string, string> = { schedule: 'Repeat schedule', duration: 'Line duration', history: 'Invoice history' };
 
-interface Params { churn: string; growth: string; growth_up: string; cap: string; oncost: string; existing: string; founder: string; costs: Record<string, string> }
-const DEFAULTS: Params = { churn: '15', growth: '2500', growth_up: '5000', cap: '50', oncost: '12', existing: '0', founder: '200000', costs: {} };
+interface Params { churn: string; growth: string; growth_up: string; cap: string; oncost: string; existing: string; founder: string; opex: string; costs: Record<string, string> }
+const DEFAULTS: Params = { churn: '15', growth: '2500', growth_up: '5000', cap: '50', oncost: '12', existing: '0', founder: '200000', opex: '', costs: {} };
 
 function useDebounced<T>(v: T, ms = 500): T {
   const [d, setD] = useState(v);
@@ -59,6 +60,7 @@ export default function ProjectionPage() {
 
   const query = useMemo(() => {
     const q: Record<string, string> = { churn: dp.churn, growth: dp.growth, growth_up: dp.growth_up, cap: dp.cap, oncost: dp.oncost, existing: dp.existing, founder: dp.founder };
+    if (dp.opex.trim() !== '') q.opex = dp.opex;
     for (const [k, v] of Object.entries(dp.costs)) if (v.trim() !== '') q[`cost_${k}`] = v;
     return q;
   }, [dp]);
@@ -112,6 +114,7 @@ export default function ProjectionPage() {
                   <Stat label="Monthly recurring revenue" value={rs(data.summary.mrr)} tone="info" hint={`${rs(data.summary.arr)} a year`} />
                   <Stat label="Recurring customers" value={data.summary.recurring_customers} hint={`Top 2 = ${data.summary.top2_share}% of revenue`} />
                   <Stat label="Billed so far" value={rs(data.summary.billed_to_date)} hint={`${rs(data.summary.collected)} collected · ${rs(data.summary.outstanding)} unpaid`} />
+                  <Stat label="Monthly expenses" value={rs(data.summary.monthly_expense)} tone="warn" hint={data.expenses.months_counted ? `Avg of last ${data.expenses.months_counted} month${data.expenses.months_counted === 1 ? '' : 's'} · ${rs(data.expenses.trailing_total)} in a year` : 'No bills recorded yet'} />
                   <Stat label="Next 12 months · low" value={rs(data.scenarios.conservative)} tone="red" hint={`${rs(data.scenarios.conservative * gst)} with GST`} />
                   <Stat label="Next 12 months · base" value={rs(data.scenarios.base)} tone="warn" hint={`${rs(data.scenarios.base * gst)} with GST`} />
                   <Stat label="Next 12 months · high" value={rs(data.scenarios.upside)} tone="ok" hint={`${rs(data.scenarios.upside * gst)} with GST`} />
@@ -190,6 +193,7 @@ export default function ProjectionPage() {
                     <Field label="Team cost cap (% of revenue)" htmlFor="g-cap"><Input id="g-cap" type="number" min={10} max={100} value={params.cap} onChange={set('cap')} /></Field>
                     <Field label="Employer cost on salary (%)" htmlFor="g-on"><Input id="g-on" type="number" min={0} max={60} value={params.oncost} onChange={set('oncost')} /></Field>
                     <Field label="Founder salary (₹ / month)" htmlFor="g-fd"><Input id="g-fd" type="number" min={0} value={params.founder} onChange={set('founder')} /></Field>
+                    <Field label="Operating expenses (₹ / month)" hint="From your bills; leave blank to use the average of recent months" htmlFor="g-opex"><Input id="g-opex" type="number" min={0} placeholder={String(Math.round(data.summary.monthly_expense))} value={params.opex} onChange={set('opex')} /></Field>
                     <Field label="Other monthly costs (₹)" htmlFor="g-ex"><Input id="g-ex" type="number" min={0} value={params.existing} onChange={set('existing')} /></Field>
                   </div>
                 </div>
@@ -211,7 +215,8 @@ export default function ProjectionPage() {
                   <Stat label="Hiring budget, next 12 months" value={rs(plan.budget.year1_total)} tone="warn" hint={`${rs(plan.budget.payroll)} pay + ${rs(plan.budget.one_time)} one-time`} />
                   <Stat label="Peak monthly team cost" value={rs(plan.budget.peak_monthly)} hint="Salary plus employer cost" />
                   <Stat label="Hires planned" value={plan.headline.hires} hint={`of ${plan.roles.length} roles`} />
-                  <Stat label="Left after costs, 12 months" value={rs(plan.budget.end_net)} tone={plan.budget.end_net >= 0 ? 'ok' : 'red'} hint={`Billings − founder pay (${rs(plan.budget.founder_year1)}) − team − other costs`} />
+                  <Stat label="Operating expenses, 12 months" value={rs(plan.pnl.expenses + plan.pnl.other)} tone="warn" hint="Your bills + other monthly costs" />
+                  <Stat label="Profit / (loss), 12 months" value={rs(plan.pnl.net)} tone={plan.pnl.net >= 0 ? 'ok' : 'red'} hint={`Revenue − expenses − founder (${rs(plan.budget.founder_year1)}) − team`} />
                 </div>
               </Card>
 
@@ -221,8 +226,44 @@ export default function ProjectionPage() {
               </Card>
 
               <Card>
-                <CardTitle hint="Monthly billings against the cost of the planned team, one-time hiring cost and your other costs, with the running balance.">Billings vs team cost</CardTitle>
+                <CardTitle hint="Monthly billings against every cost — the planned team, one-time hiring, founder pay and your operating expenses — with the running balance.">Billings vs total cost</CardTitle>
                 <PayrollChart plan={plan} compact={narrow} />
+              </Card>
+
+              <Card>
+                <CardTitle hint="Revenue minus every cost each month (operating expenses, founder pay and the team), and the running profit or loss across the year.">Profit &amp; loss across the year</CardTitle>
+                <ProfitChart plan={plan} compact={narrow} />
+              </Card>
+
+              <Card padding={0} style={{ overflow: 'hidden' }}>
+                <div style={{ padding: '16px 16px 4px' }}><CardTitle hint="Revenue (projected billings) less operating expenses, founder pay and the team, month by month.">Profit &amp; loss by month</CardTitle></div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+                    <thead><tr><th style={th}>Month</th><th style={{ ...th, ...right }}>Revenue</th><th style={{ ...th, ...right }}>Expenses</th><th style={{ ...th, ...right }}>Founder</th><th style={{ ...th, ...right }}>Team</th><th style={{ ...th, ...right }}>Profit / (loss)</th><th style={{ ...th, ...right }}>Cumulative</th></tr></thead>
+                    <tbody>
+                      {plan.pnl.months.map((t) => (
+                        <tr key={t.month}>
+                          <td style={{ ...td, fontWeight: 600 }}>{monthLong(t.month)}</td>
+                          <td style={{ ...td, ...right }}>{rs(t.revenue)}</td>
+                          <td style={{ ...td, ...right }}>{rs(t.expenses)}</td>
+                          <td style={{ ...td, ...right }}>{rs(t.founder)}</td>
+                          <td style={{ ...td, ...right }}>{rs(t.payroll)}</td>
+                          <td style={{ ...td, ...right, color: t.net < 0 ? T.red : T.ok, fontWeight: 600 }}>{rs(t.net)}</td>
+                          <td style={{ ...td, ...right, color: t.cum_net < 0 ? T.red : T.text }}>{rs(t.cum_net)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot><tr style={{ fontWeight: 700 }}>
+                      <td style={{ ...td, borderTop: `2px solid ${T.border}` }}>Year</td>
+                      <td style={{ ...td, ...right, borderTop: `2px solid ${T.border}` }}>{rs(plan.pnl.revenue)}</td>
+                      <td style={{ ...td, ...right, borderTop: `2px solid ${T.border}` }}>{rs(plan.pnl.expenses + plan.pnl.other)}</td>
+                      <td style={{ ...td, ...right, borderTop: `2px solid ${T.border}` }}>{rs(plan.pnl.founder)}</td>
+                      <td style={{ ...td, ...right, borderTop: `2px solid ${T.border}` }}>{rs(plan.pnl.payroll)}</td>
+                      <td style={{ ...td, ...right, borderTop: `2px solid ${T.border}`, color: plan.pnl.net < 0 ? T.red : T.ok }}>{rs(plan.pnl.net)}</td>
+                      <td style={{ ...td, ...right, borderTop: `2px solid ${T.border}` }} />
+                    </tr></tfoot>
+                  </table>
+                </div>
               </Card>
 
               <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(auto-fill, minmax(360px, 1fr))', gap: 14 }}>
