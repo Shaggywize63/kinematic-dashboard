@@ -20,7 +20,8 @@ import type { Employee, HrmsDb } from '../types';
 import { SEED_VERSION, makeSeed } from '../seed';
 import { HrmsApiError, hrmsApi } from './client';
 import {
-  diffServer, PAYROLL_KINDS, RUN_INPUT_KINDS, TIME_KINDS, TIME_RECORD_KINDS, VERB_TEXT, type PayrollCollections, type PeopleCollections, type SyncOp, type TimeCollections,
+  diffServer, LIFECYCLE_KINDS, LIFECYCLE_RECORD_KINDS, PAYROLL_KINDS, RUN_INPUT_KINDS, TIME_KINDS, TIME_RECORD_KINDS, VERB_TEXT,
+  type LifecycleCollections, type PayrollCollections, type PeopleCollections, type SyncOp, type TimeCollections,
 } from './diff';
 import {
   documentFromWire, employeeFromWire, entityFromWire, departmentFromWire, designationFromWire, locationFromWire, str, UUID_RE, type ImportOutcome, type Row, type ServerData,
@@ -31,6 +32,9 @@ import {
 import {
   holidayListFromWire, leaveBalanceFromWire, leaveTypeFromWire, rosterFromWire, shiftFromWire, type TimeData,
 } from './timeWire';
+import {
+  exitFromWire, issuedLetterFromWire, letterTemplateFromWire, onboardingFromWire, type LifecycleData,
+} from './lifecycleWire';
 
 export type Source = 'sample' | 'live';
 export type Phase = 'idle' | 'loading' | 'ready' | 'not_ready' | 'error';
@@ -39,6 +43,8 @@ export type Phase = 'idle' | 'loading' | 'ready' | 'not_ready' | 'error';
 export type PayrollPhase = 'idle' | 'ok' | 'not_ready' | 'error';
 /** Time and leave loads next to the people data and can fail on its own too (its tables may not be set up yet). */
 export type TimePhase = 'idle' | 'ok' | 'not_ready' | 'error';
+/** Lifecycle and letters loads next to the people data and can fail on its own too (its tables may not be set up yet). */
+export type LifecyclePhase = 'idle' | 'ok' | 'not_ready' | 'error';
 
 export interface LiveStatus {
   source: Source;
@@ -55,6 +61,9 @@ export interface LiveStatus {
   timePhase: TimePhase;
   /** Why the time phase is `error` or `not_ready`. */
   timeMessage: string;
+  lifecyclePhase: LifecyclePhase;
+  /** Why the lifecycle phase is `error` or `not_ready`. */
+  lifecycleMessage: string;
   /** Goes up whenever saved changes could alter what a run's checks or compute see, and after every load: the server checks are asked again. */
   inputsVersion: number;
 }
@@ -65,7 +74,7 @@ export const LOCAL_KEY = 'kinematic_hrms_live_local_v1';
 export const PENDING_CODE = '…';
 
 // ───────────────────────────── status and subscriptions ─────────────────────────────
-let status: LiveStatus = { source: 'sample', phase: 'idle', refreshing: false, syncing: false, message: '', payrollPhase: 'idle', payrollMessage: '', timePhase: 'idle', timeMessage: '', inputsVersion: 0 };
+let status: LiveStatus = { source: 'sample', phase: 'idle', refreshing: false, syncing: false, message: '', payrollPhase: 'idle', payrollMessage: '', timePhase: 'idle', timeMessage: '', lifecyclePhase: 'idle', lifecycleMessage: '', inputsVersion: 0 };
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 function setStatus(patch: Partial<LiveStatus>): void {
@@ -102,10 +111,12 @@ const PEOPLE_KEYS = ['entities', 'locations', 'departments', 'designations', 'em
 const PAYROLL_KEYS = ['structures', 'attendance', 'adjustments', 'loans', 'payRuns', 'fnfCases', 'overtimeRules'] as const;
 /** On the server since phase 3. Held in memory only: never written to browser storage. */
 const TIME_KEYS = ['shifts', 'roster', 'leaveTypes', 'holidayLists', 'leaveBalances'] as const;
+/** On the server since phase 4 (lifecycle and letters). Held in memory only: never written to browser storage. */
+const LIFECYCLE_KEYS = ['onboarding', 'exits', 'letterTemplates', 'letters'] as const;
 /** Defaults that are reference data (taken from the sample seed once). */
-const REFERENCE_KEYS = ['letterTemplates', 'retention'] as const;
+const REFERENCE_KEYS = ['retention'] as const;
 /** Transactional data that is not on the server yet: starts empty, kept in this browser only. */
-const TRANSACTIONAL_KEYS = ['onboarding', 'exits', 'letters', 'compliance', 'consents', 'accessLog'] as const;
+const TRANSACTIONAL_KEYS = ['compliance', 'consents', 'accessLog'] as const;
 const LOCAL_KEYS = [...REFERENCE_KEYS, ...TRANSACTIONAL_KEYS] as const;
 type LocalParts = Pick<HrmsDb, (typeof LOCAL_KEYS)[number]>;
 
@@ -116,6 +127,8 @@ const pickPayroll = (db: HrmsDb): PayrollCollections =>
   Object.fromEntries(PAYROLL_KEYS.map((k) => [k, db[k]])) as unknown as PayrollCollections;
 const pickTime = (db: HrmsDb): TimeCollections =>
   Object.fromEntries(TIME_KEYS.map((k) => [k, db[k]])) as unknown as TimeCollections;
+const pickLifecycle = (db: HrmsDb): LifecycleCollections =>
+  Object.fromEntries(LIFECYCLE_KEYS.map((k) => [k, db[k]])) as unknown as LifecycleCollections;
 
 function freshLocal(): LocalParts {
   const seed = makeSeed();
@@ -131,6 +144,11 @@ function emptyPayroll(): PayrollCollections {
 /** No time and leave yet: a brand-new org starts with no shifts, roster, leave types, holiday lists or balances (the empty state offers "Add the standard set"). */
 function emptyTime(): TimeCollections {
   return { shifts: [], roster: [], leaveTypes: [], holidayLists: [], leaveBalances: [] };
+}
+
+/** No lifecycle or letters yet: a brand-new org starts with no onboarding cases, exits, templates or issued letters (the empty state offers "Add the standard letter templates"). */
+function emptyLifecycle(): LifecycleCollections {
+  return { onboarding: [], exits: [], letterTemplates: [], letters: [] };
 }
 
 function readLocal(): LocalParts {
@@ -161,8 +179,8 @@ function persistLocal(db: HrmsDb): void { persistLocalParts(pickLocal(db)); }
 /** The company name has no home on the server yet: use the first legal entity's name so live mode never shows the sample company. */
 const companyOf = (entities: HrmsDb['entities']): HrmsDb['company'] => ({ name: entities[0]?.name ?? 'Your company', currency: 'INR', fyStartMonth: 4 });
 
-function build(people: PeopleCollections, payroll: PayrollCollections, time: TimeCollections, local: LocalParts): HrmsDb {
-  return { version: SEED_VERSION, company: companyOf(people.entities), ...local, ...time, ...people, ...payroll } as HrmsDb;
+function build(people: PeopleCollections, payroll: PayrollCollections, time: TimeCollections, lifecycle: LifecycleCollections, local: LocalParts): HrmsDb {
+  return { version: SEED_VERSION, company: companyOf(people.entities), ...local, ...time, ...lifecycle, ...people, ...payroll } as HrmsDb;
 }
 
 const EMPTY_PEOPLE: PeopleCollections = { entities: [], locations: [], departments: [], designations: [], employees: [] };
@@ -170,7 +188,7 @@ let liveDb: HrmsDb | null = null;
 
 /** The live database. Before the first load it is empty (the layout shows a loading state instead of the pages). */
 export function getLiveDb(): HrmsDb {
-  if (!liveDb) liveDb = build(EMPTY_PEOPLE, emptyPayroll(), emptyTime(), readLocal());
+  if (!liveDb) liveDb = build(EMPTY_PEOPLE, emptyPayroll(), emptyTime(), emptyLifecycle(), readLocal());
   return liveDb;
 }
 
@@ -205,6 +223,8 @@ const asError = (e: unknown): HrmsApiError => (e instanceof HrmsApiError ? e : n
 const PAYROLL_RESOURCE = { structure: 'structures', adjustment: 'adjustments', loan: 'loans', fnf: 'fnf' } as const;
 /** The time resource each simple time-and-leave record is saved under. */
 const TIME_RESOURCE = { shift: 'shifts', leaveType: 'leave-types', holidayList: 'holiday-lists' } as const;
+/** The lifecycle resource each simple lifecycle-and-letters record is saved under. */
+const LIFECYCLE_RESOURCE = { onboarding: 'onboarding', exit: 'exits', letterTemplate: 'letter-templates', letter: 'letters' } as const;
 
 async function execute(op: SyncOp): Promise<Row> {
   const body = op.body ?? {};
@@ -230,6 +250,12 @@ async function execute(op: SyncOp): Promise<Row> {
   }
   if (op.kind === 'roster') return hrmsApi.time.putRoster(op.employeeId!, op.weekStart!, body);
   if (op.kind === 'leaveBalance') return hrmsApi.time.putBalance(op.employeeId!, op.leaveTypeId!, body);
+  if (op.kind === 'onboarding' || op.kind === 'exit' || op.kind === 'letterTemplate' || op.kind === 'letter') {
+    const kind = LIFECYCLE_RESOURCE[op.kind];
+    if (op.verb === 'create') return hrmsApi.lifecycle.create(kind, body);
+    if (op.verb === 'update') return hrmsApi.lifecycle.update(kind, op.rowId, body);
+    return hrmsApi.lifecycle.remove(kind, op.rowId);
+  }
   const collection = op.collection as 'entities' | 'locations' | 'departments' | 'designations' | 'employees';
   if (op.verb === 'create') return hrmsApi.create(collection, body);
   if (op.verb === 'update') return hrmsApi.update(collection, op.rowId, body);
@@ -240,6 +266,7 @@ const FROM_WIRE = {
   entity: entityFromWire, location: locationFromWire, department: departmentFromWire, designation: designationFromWire,
   structure: structureFromWire, adjustment: adjustmentFromWire, loan: loanFromWire, fnf: fnfFromWire,
   shift: shiftFromWire, leaveType: leaveTypeFromWire, holidayList: holidayListFromWire,
+  onboarding: onboardingFromWire, exit: exitFromWire, letterTemplate: letterTemplateFromWire, letter: issuedLetterFromWire,
 } as const;
 
 /** Put the server's version of a row into local state, without triggering another sync. */
@@ -287,8 +314,8 @@ function reconcile(op: SyncOp, data: Row): void {
       if (i >= 0) db.leaveBalances[i] = leaveBalanceFromWire(data);
       return;
     }
-    // Payroll and time records are replaced by the server's row only when it really is one (an answer without an id is left alone).
-    if ((PAYROLL_KINDS.has(op.kind) || TIME_RECORD_KINDS.has(op.kind)) && !str(data.id)) return;
+    // Payroll, time and lifecycle records are replaced by the server's row only when it really is one (an answer without an id is left alone).
+    if ((PAYROLL_KINDS.has(op.kind) || TIME_RECORD_KINDS.has(op.kind) || LIFECYCLE_RECORD_KINDS.has(op.kind)) && !str(data.id)) return;
     const list = db[op.collection] as Array<{ id: string }>;
     const i = list.findIndex((x) => x.id === op.rowId);
     if (i >= 0 && alone) list[i] = FROM_WIRE[op.kind as keyof typeof FROM_WIRE](data);
@@ -465,6 +492,10 @@ export function liveMutate(fn: (db: HrmsDb) => void): boolean {
     toast.error(`Time and leave has not loaded from the server, so this change was not made.${status.timeMessage ? ` ${status.timeMessage}.` : ''}`);
     return false;
   }
+  if (ops.some((o) => LIFECYCLE_KINDS.has(o.kind)) && status.lifecyclePhase !== 'ok') {
+    toast.error(`Lifecycle has not loaded from the server, so this change was not made.${status.lifecycleMessage ? ` ${status.lifecycleMessage}.` : ''}`);
+    return false;
+  }
   const had = new Set(prev.employees.map((e) => e.id));
   for (const e of next.employees) if (!had.has(e.id)) e.code = PENDING_CODE;
   next.company = companyOf(next.entities);
@@ -481,9 +512,12 @@ let hydrateSeq = 0;
  * is reported as the payroll phase, so the people pages keep working while the payroll pages say what is wrong.
  */
 async function loadAll(): Promise<{
-  people: ServerData; payroll: PayrollData | null; payrollError: HrmsApiError | null; time: TimeData | null; timeError: HrmsApiError | null;
+  people: ServerData;
+  payroll: PayrollData | null; payrollError: HrmsApiError | null;
+  time: TimeData | null; timeError: HrmsApiError | null;
+  lifecycle: LifecycleData | null; lifecycleError: HrmsApiError | null;
 }> {
-  const [people, payroll, time] = await Promise.allSettled([hrmsApi.bootstrap(), hrmsApi.payroll.bootstrap(), hrmsApi.time.bootstrap()]);
+  const [people, payroll, time, lifecycle] = await Promise.allSettled([hrmsApi.bootstrap(), hrmsApi.payroll.bootstrap(), hrmsApi.time.bootstrap(), hrmsApi.lifecycle.bootstrap()]);
   if (people.status === 'rejected') throw people.reason;
   return {
     people: people.value,
@@ -491,6 +525,8 @@ async function loadAll(): Promise<{
     payrollError: payroll.status === 'fulfilled' ? null : asError(payroll.reason),
     time: time.status === 'fulfilled' ? time.value : null,
     timeError: time.status === 'fulfilled' ? null : asError(time.reason),
+    lifecycle: lifecycle.status === 'fulfilled' ? lifecycle.value : null,
+    lifecycleError: lifecycle.status === 'fulfilled' ? null : asError(lifecycle.reason),
   };
 }
 
@@ -519,16 +555,24 @@ export async function hydrate(): Promise<void> {
     const time: TimeCollections = got.time
       ? { shifts: got.time.shifts, roster: got.time.roster, leaveTypes: got.time.leaveTypes, holidayLists: got.time.holidayLists, leaveBalances: got.time.leaveBalances }
       : keepTime ? pickTime(held) : emptyTime();
-    commit(build(pickPeople(got.people), payroll, time, pickLocal(held)));
+    // And for lifecycle and letters: a read that failed on a quiet refresh keeps what is held; a first load has none to keep.
+    const keepLifecycle = !got.lifecycle && refreshing && status.lifecyclePhase === 'ok';
+    const lifecycle: LifecycleCollections = got.lifecycle
+      ? { onboarding: got.lifecycle.onboarding, exits: got.lifecycle.exits, letterTemplates: got.lifecycle.letterTemplates, letters: got.lifecycle.letters }
+      : keepLifecycle ? pickLifecycle(held) : emptyLifecycle();
+    commit(build(pickPeople(got.people), payroll, time, lifecycle, pickLocal(held)));
     noteRunChanged();
     const failed = got.payrollError;
     if (failed && keepHeld) toast.error(`Could not refresh payroll: ${failed.message}`);
     const timeFailed = got.timeError;
     if (timeFailed && keepTime) toast.error(`Could not refresh time and leave: ${timeFailed.message}`);
+    const lifecycleFailed = got.lifecycleError;
+    if (lifecycleFailed && keepLifecycle) toast.error(`Could not refresh lifecycle: ${lifecycleFailed.message}`);
     setStatus({
       phase: 'ready', refreshing: false, message: '', inputsVersion: status.inputsVersion + 1,
       ...(keepHeld ? {} : { payrollPhase: failed ? (failed.notReady ? 'not_ready' : 'error') : 'ok', payrollMessage: failed?.message ?? '' }),
       ...(keepTime ? {} : { timePhase: timeFailed ? (timeFailed.notReady ? 'not_ready' : 'error') : 'ok', timeMessage: timeFailed?.message ?? '' }),
+      ...(keepLifecycle ? {} : { lifecyclePhase: lifecycleFailed ? (lifecycleFailed.notReady ? 'not_ready' : 'error') : 'ok', lifecycleMessage: lifecycleFailed?.message ?? '' }),
     });
   } catch (e) {
     if (seq !== hydrateSeq) return;
@@ -545,7 +589,7 @@ export async function hydrate(): Promise<void> {
 function applySource(next: Source): void {
   if (next === 'live') {
     getLiveDb();
-    setStatus({ source: 'live', phase: 'loading', message: '', refreshing: false, payrollPhase: 'idle', payrollMessage: '', timePhase: 'idle', timeMessage: '' });
+    setStatus({ source: 'live', phase: 'loading', message: '', refreshing: false, payrollPhase: 'idle', payrollMessage: '', timePhase: 'idle', timeMessage: '', lifecyclePhase: 'idle', lifecycleMessage: '' });
     void hydrate();
   } else {
     hydrateSeq++;

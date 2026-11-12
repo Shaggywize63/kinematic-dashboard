@@ -1332,7 +1332,9 @@ test.describe('live payroll: browser storage', () => {
     expect(stored).not.toContain('987654321');
     expect(stored).not.toContain('payRuns');
     expect(stored).not.toContain('shifts');                                      // shifts moved to the server in phase 3: no longer kept in the browser
-    expect(stored).toContain('letterTemplates');                                 // the still-local reference data (letter templates, retention) is kept
+    expect(stored).not.toContain('letterTemplates');                             // letter templates moved to the server in phase 4: no longer kept in the browser
+    expect(stored).not.toContain('onboarding');                                  // onboarding moved to the server in phase 4 too
+    expect(stored).toContain('retention');                                       // the still-local reference data (retention) is kept
   });
 });
 

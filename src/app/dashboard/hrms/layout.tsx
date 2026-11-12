@@ -18,11 +18,13 @@ import { Button, Card, EmptyState, Modal, Note, T } from '../../../components/hr
 const allowed = (): boolean => canUseHrms(getStoredUser());
 
 /** Sections whose data is on the server in live mode. Every other section keeps its data in this browser. */
-const SERVER_BACKED = new Set(['', 'employees', 'organization', 'org-chart', 'payroll', 'payslips', 'time']);
+const SERVER_BACKED = new Set(['', 'employees', 'organization', 'org-chart', 'payroll', 'payslips', 'time', 'lifecycle']);
 /** Sections that cannot show anything useful without the payroll data: they say so instead when payroll could not be loaded. */
 const NEEDS_PAYROLL = new Set(['payroll', 'payslips', 'statutory']);
 /** Sections that cannot show anything useful without the time-and-leave data: they say so instead when it could not be loaded. */
 const NEEDS_TIME = new Set(['time']);
+/** Sections that cannot show anything useful without the lifecycle data: they say so instead when it could not be loaded. */
+const NEEDS_LIFECYCLE = new Set(['lifecycle']);
 /** Sections that read some payroll figures: they stay usable but warn that those figures are missing. */
 const READS_PAYROLL = new Set(['my', 'reports']);
 
@@ -54,11 +56,12 @@ function SwitchToLive({ onClose, onConfirm }: { onClose: () => void; onConfirm: 
         <p style={{ margin: 0 }}>
           <b>What becomes real.</b> Legal entities, locations, departments, designations and employees are loaded from the server, and everything you add or change
           there is saved on the server straight away. So is payroll: salary structures, attendance, adjustments, loans, pay runs and payslips, and full and final settlements.
-          Time and leave too: shifts, the weekly roster, leave policies, holiday lists and leave balances. The server works out the payslips and builds the bank file.
+          Time and leave too: shifts, the weekly roster, leave policies, holiday lists and leave balances. Lifecycle and letters as well: onboarding, exits,
+          letter templates and the letters you issue. The server works out the payslips and builds the bank file.
           PAN and bank details are kept encrypted and shown masked; revealing one needs a reason and is written to an access log.
         </p>
         <p style={{ margin: 0 }}>
-          <b>What stays in this browser.</b> Statutory filings, lifecycle, letters and the other modules are not on the server yet. In live mode they start empty and are saved in this browser only.
+          <b>What stays in this browser.</b> Statutory filings and the other modules are not on the server yet. In live mode they start empty and are saved in this browser only.
         </p>
         <p style={{ margin: 0 }}>Your sample data is not touched, and you can switch back at any time.</p>
       </div>
@@ -93,6 +96,24 @@ function TimeUnavailable({ live }: { live: LiveStatus }) {
           description={notReady
             ? 'The tables that hold live time and leave have not been created on the server, so there is nothing to load or save yet. People, organisation and payroll still work, and so does the sample data.'
             : <span data-testid="hrms-time-error-message">{live.timeMessage || 'Could not reach the server.'} Nothing was changed. Try again, or use the sample data meanwhile.</span>}
+          action={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <Button variant="primary" onClick={() => void hydrate()} style={{ minHeight: 40 }}>Try again</Button>
+            <Button onClick={() => setSource('sample')} style={{ minHeight: 40 }}>Use sample data</Button>
+          </div>} />
+      </Card>
+    </div>
+  );
+}
+
+function LifecycleUnavailable({ live }: { live: LiveStatus }) {
+  const notReady = live.lifecyclePhase === 'not_ready';
+  return (
+    <div style={{ padding: '16px 24px' }} data-testid={notReady ? 'hrms-lifecycle-not-ready' : 'hrms-lifecycle-error'}>
+      <Card>
+        <EmptyState title={notReady ? 'Lifecycle storage is not set up yet on the server' : 'Could not load lifecycle'}
+          description={notReady
+            ? 'The tables that hold live lifecycle and letters have not been created on the server, so there is nothing to load or save yet. People, organisation, payroll and time still work, and so does the sample data.'
+            : <span data-testid="hrms-lifecycle-error-message">{live.lifecycleMessage || 'Could not reach the server.'} Nothing was changed. Try again, or use the sample data meanwhile.</span>}
           action={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
             <Button variant="primary" onClick={() => void hydrate()} style={{ minHeight: 40 }}>Try again</Button>
             <Button onClick={() => setSource('sample')} style={{ minHeight: 40 }}>Use sample data</Button>
@@ -140,6 +161,8 @@ function LiveGate({ live, children }: { live: LiveStatus; children: React.ReactN
   if (payrollDown && NEEDS_PAYROLL.has(section)) return <PayrollUnavailable live={live} />;
   const timeDown = live.timePhase === 'not_ready' || live.timePhase === 'error';
   if (timeDown && NEEDS_TIME.has(section)) return <TimeUnavailable live={live} />;
+  const lifecycleDown = live.lifecyclePhase === 'not_ready' || live.lifecyclePhase === 'error';
+  if (lifecycleDown && NEEDS_LIFECYCLE.has(section)) return <LifecycleUnavailable live={live} />;
   return (
     <>
       {!SERVER_BACKED.has(section) && (
@@ -185,7 +208,7 @@ export default function HrmsLayout({ children }: { children: React.ReactNode }) 
       <div role="status" data-testid="hrms-preview-banner" data-source={live.source} style={{ margin: '12px 24px 0', padding: '8px 12px', borderRadius: 8, fontSize: 12.5, background: tone.bg, color: tone.fg, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         {isLive ? (
           <span data-testid="hrms-banner-text" style={{ minWidth: 0, flex: '1 1 280px' }}>
-            <b>Live data.</b> People, organisation and payroll are saved on the server, and so are time and leave. The rest of the module still stays in this browser.
+            <b>Live data.</b> People, organisation and payroll are saved on the server, and so are time and leave, and lifecycle and letters. The rest of the module still stays in this browser.
             {live.syncing && <span data-testid="hrms-syncing" aria-live="polite"> Saving…</span>}
           </span>
         ) : (

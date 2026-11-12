@@ -8,6 +8,7 @@ import { Button, T, useIsCompact } from '../ui';
 import { Field, FormGrid, Input, Select } from '../../ui';
 import { Dialog, CheckRow, isIsoDate } from './common';
 import { EXIT_REASONS, startExit } from '../../../lib/hrms/lifecycleActions';
+import { whenSynced } from '../../../lib/hrms/live/store';
 import { TODAY } from '../overview/insights';
 import { addDays, diffDays, fmtDate, fullName } from '../../../lib/hrms/format';
 import type { ExitCase, HrmsDb } from '../../../lib/hrms/types';
@@ -45,7 +46,8 @@ export default function StartExitModal({ db, onClose, onStarted }: { db: HrmsDb;
     setErrors(e);
     if (Object.keys(e).length) { document.getElementById(id(Object.keys(e)[0]!))?.focus(); return; }
     const c = startExit({ employeeId: emp!.id, reason, resignationDate, noticeWaived: waived, lastWorkingDate: lwd });
-    toast.success(`Exit started for ${fullName(emp!)}. Last working day ${fmtDate(lwd)}.`);
+    // Live data: the exit case is saved on the server; the success message waits for it (a refused case is taken out again).
+    whenSynced((ok) => { if (ok) toast.success(`Exit started for ${fullName(emp!)}. Last working day ${fmtDate(lwd)}.`); });
     onStarted(c.id);
   }
 

@@ -10,9 +10,10 @@ import { Dialog } from './common';
 import { LetterPaper, formatAddress } from './LetterPaper';
 import { DEFAULT_TEMPLATES, LETTER_TYPES, MERGE_FIELDS, analyse, mergeValues } from './letters';
 import { upsert } from '../../../lib/hrms/actions';
+import { newId } from '../../../lib/hrms/db';
+import { whenSynced } from '../../../lib/hrms/live/store';
 import { TODAY } from '../overview/insights';
 import { fullName } from '../../../lib/hrms/format';
-import { uid } from '../../../lib/hrms/types';
 import type { HrmsDb, LetterTemplate, LetterType } from '../../../lib/hrms/types';
 
 export default function TemplateEditor({ db, template, onClose }: { db: HrmsDb; template: LetterTemplate | null; onClose: () => void }) {
@@ -59,8 +60,8 @@ export default function TemplateEditor({ db, template, onClose }: { db: HrmsDb; 
     else if (unknown.length) e.body = `Unknown merge field${unknown.length > 1 ? 's' : ''}: ${unknown.map((k) => `{{${k}}}`).join(', ')}. Use the palette to insert valid fields.`;
     setErrors(e);
     if (e.name || e.body) { document.getElementById(id(e.name ? 'name' : 'body'))?.focus(); return; }
-    upsert('letterTemplates', { id: template?.id ?? uid('lt'), type, name: name.trim(), body });
-    toast.success(`Template "${name.trim()}" saved.`);
+    upsert('letterTemplates', { id: template?.id ?? newId('lt'), type, name: name.trim(), body });
+    whenSynced((ok) => { if (ok) toast.success(`Template "${name.trim()}" saved.`); });
     onClose();
   }
 

@@ -48,6 +48,12 @@ class FakeHrms {
   departments: Row[] = [];
   designations: Row[] = [];
   employees: Row[] = [];
+  // Lifecycle and letters (phase 4) are covered by hrmsx-livelifecycle.spec.ts. Here the server just keeps them, starting
+  // empty, so the lifecycle page loads and a new joiner's onboarding case is accepted (no "saved in this browser" note any more).
+  onboarding: Row[] = [];
+  exits: Row[] = [];
+  letterTemplates: Row[] = [];
+  letters: Row[] = [];
   secrets = new Map<string, { pan?: string; bank?: Row }>();
   failures: Failure[] = [];
   delays: Array<{ when: (c: Call) => boolean; ms: number }> = [];
@@ -133,6 +139,30 @@ class FakeHrms {
     if (method === 'GET' && path === '/time/bootstrap') {
       await this.ok(route, { shifts: [], roster: [], leave_types: [], holiday_lists: [], leave_balances: [], server_time: '2026-11-10T09:00:00Z' });
       return true;
+    }
+    // Lifecycle and letters (phase 4): an empty set, so the lifecycle page loads to its boards (and the onboarding case a new
+    // joiner creates is accepted here). The full behaviour is in hrmsx-livelifecycle.spec.ts.
+    if (method === 'GET' && path === '/lifecycle/bootstrap') {
+      await this.ok(route, { onboarding_cases: this.onboarding, exit_cases: this.exits, letter_templates: this.letterTemplates, issued_letters: this.letters, server_time: '2026-11-10T09:00:00Z' });
+      return true;
+    }
+    const lc = path.match(/^\/lifecycle\/(onboarding|exits|letter-templates|letters)(?:\/([^/]+))?$/);
+    if (lc) {
+      const store: Record<string, Row[]> = { onboarding: this.onboarding, exits: this.exits, 'letter-templates': this.letterTemplates, letters: this.letters };
+      const list = store[lc[1]!]!;
+      const id = lc[2];
+      if (method === 'POST') {
+        const b = body ?? {};
+        if (list.some((r) => r.id === b.id)) { await this.ok(route, list.find((r) => r.id === b.id)); return true; }
+        const row: Row = { created_at: '2026-11-10T09:00:00Z', updated_at: '2026-11-10T09:00:00Z', ...b };
+        list.push(row);
+        await this.ok(route, row, 201);
+        return true;
+      }
+      const i = list.findIndex((r) => r.id === id);
+      if (i < 0) { await this.err(route, 404, 'Not found', 'NOT_FOUND'); return true; }
+      if (method === 'PUT') { list[i] = { ...list[i], ...body, updated_at: '2026-11-10T10:00:00Z' }; await this.ok(route, list[i]); return true; }
+      if (method === 'DELETE') { list.splice(i, 1); await this.ok(route, { id }); return true; }
     }
 
     if (method === 'GET' && path === '/bootstrap') {
@@ -1085,13 +1115,14 @@ test.describe('live: new joiner', () => {
 
 // ═════════════════════════════ guards ═════════════════════════════
 test.describe('live: guards', () => {
-  test('pages that are not on the server yet say so; the server-backed ones (people, organisation, payroll and time) do not', async ({ page }) => {
+  test('pages that are not on the server yet say so; the server-backed ones (people, organisation, payroll, time and lifecycle) do not', async ({ page }) => {
     const fake = new FakeHrms().seedOrg().seedAsha();
-    await open(page, fake, '/dashboard/hrms/lifecycle');
+    await open(page, fake, '/dashboard/hrms/statutory');
+    // Statutory filings are still kept in this browser, so the note is shown there.
     await expect(page.getByTestId('hrms-local-note')).toContainText('Saved in this browser only: this part of HRMS is not on the server yet', { timeout: 30_000 });
-    // payroll moved to the server in phase 2 (hrmsx-livepay.spec.ts) and time and leave in phase 3 (hrmsx-livetime.spec.ts): their
-    // old "not on the server yet" notes are gone.
-    for (const path of [EMPLOYEES, ORG, '/dashboard/hrms', '/dashboard/hrms/payroll', '/dashboard/hrms/time']) {
+    // payroll moved to the server in phase 2 (hrmsx-livepay.spec.ts), time and leave in phase 3 (hrmsx-livetime.spec.ts) and
+    // lifecycle and letters in phase 4 (hrmsx-livelifecycle.spec.ts): their old "not on the server yet" notes are gone.
+    for (const path of [EMPLOYEES, ORG, '/dashboard/hrms', '/dashboard/hrms/payroll', '/dashboard/hrms/time', '/dashboard/hrms/lifecycle']) {
       await page.goto(path);
       await waitLoaded(page);
       await expect(page.getByTestId('hrms-local-note')).toHaveCount(0);
@@ -1175,8 +1206,8 @@ test.describe('live: no errors, narrow screens', () => {
       await page.goto('/dashboard/hrms/time');
       await expect(page.getByTestId('time-live-empty')).toBeVisible({ timeout: 30_000 });   // time is on the server now: the empty-org offer, not the local note
       await noSidewaysScroll(page);
-      // The lifecycle page has wide tables of its own (it scrolls sideways in sample mode too); the banner and the note must still fit.
-      await page.goto('/dashboard/hrms/lifecycle');
+      // Statutory filings are still kept in this browser and the page has wide tables of its own; the banner and the note must still fit.
+      await page.goto('/dashboard/hrms/statutory');
       await expect(page.getByTestId('hrms-local-note')).toBeVisible({ timeout: 30_000 });
       for (const id of ['hrms-preview-banner', 'hrms-local-note']) {
         const box = await page.getByTestId(id).boundingBox();

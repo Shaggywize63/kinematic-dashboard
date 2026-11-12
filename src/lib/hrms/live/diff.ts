@@ -7,7 +7,7 @@
 // Not diffed at all: pay runs and settlement status. Those change through commands (live/payrollCommands.ts).
 
 import type {
-  Adjustment, AttendanceSummary, Department, Designation, Employee, FnfCase, HolidayList, HrmsDb, LeaveBalance, LeaveType, LegalEntity, Loan, Location, RosterRow, SalaryStructure, Shift,
+  Adjustment, AttendanceSummary, Department, Designation, Employee, ExitCase, FnfCase, HolidayList, HrmsDb, IssuedLetter, LeaveBalance, LeaveType, LegalEntity, LetterTemplate, Loan, Location, OnboardingCase, RosterRow, SalaryStructure, Shift,
 } from '../types';
 import { fmtDate, fmtMonth, fullName } from '../format';
 import {
@@ -21,6 +21,9 @@ import {
 import {
   holidayListCreateBody, holidayListPatch, leaveBalanceBody, leaveBalanceKey, leaveTypeCreateBody, leaveTypePatch, rosterBody, rosterKey, shiftCreateBody, shiftPatch,
 } from './timeWire';
+import {
+  exitCreateBody, exitPatch, issuedLetterCreateBody, issuedLetterPatch, letterTemplateCreateBody, letterTemplatePatch, onboardingCreateBody, onboardingPatch,
+} from './lifecycleWire';
 
 /** People and organisation: saved on the server since phase 1. */
 export type PeopleCollections = Pick<HrmsDb, 'entities' | 'locations' | 'departments' | 'designations' | 'employees'>;
@@ -31,20 +34,27 @@ export type PeopleCollections = Pick<HrmsDb, 'entities' | 'locations' | 'departm
 export type PayrollCollections = Pick<HrmsDb, 'structures' | 'attendance' | 'adjustments' | 'loans' | 'payRuns' | 'fnfCases' | 'overtimeRules'>;
 /** Time and leave: on the server since phase 3. All simple records (no server "commands"). */
 export type TimeCollections = Pick<HrmsDb, 'shifts' | 'roster' | 'leaveTypes' | 'holidayLists' | 'leaveBalances'>;
-export type ServerCollections = PeopleCollections & PayrollCollections & TimeCollections;
+/** Lifecycle and letters: on the server since phase 4. All simple records, diffed and synced by id like the above. */
+export type LifecycleCollections = Pick<HrmsDb, 'onboarding' | 'exits' | 'letterTemplates' | 'letters'>;
+export type ServerCollections = PeopleCollections & PayrollCollections & TimeCollections & LifecycleCollections;
 export type Collection = keyof ServerCollections;
 export type Verb = 'create' | 'update' | 'delete';
 
 export type SyncKind =
   | 'entity' | 'location' | 'department' | 'designation' | 'employee' | 'document'
   | 'structure' | 'attendance' | 'adjustment' | 'loan' | 'fnf' | 'settings'
-  | 'shift' | 'roster' | 'leaveType' | 'holidayList' | 'leaveBalance';
+  | 'shift' | 'roster' | 'leaveType' | 'holidayList' | 'leaveBalance'
+  | 'onboarding' | 'exit' | 'letterTemplate' | 'letter';
 /** The kinds that are payroll records: they need the payroll data to have loaded, and they can change what a run computes. */
 export const PAYROLL_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['structure', 'attendance', 'adjustment', 'loan', 'fnf', 'settings']);
 /** The kinds that are time-and-leave records: they need the time data to have loaded. */
 export const TIME_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['shift', 'roster', 'leaveType', 'holidayList', 'leaveBalance']);
 /** Time records that are ordinary {id} rows (not keyed by two path parts): a server answer for one must carry an id. */
 export const TIME_RECORD_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['shift', 'leaveType', 'holidayList']);
+/** The kinds that are lifecycle-and-letters records: they need the lifecycle data to have loaded. */
+export const LIFECYCLE_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['onboarding', 'exit', 'letterTemplate', 'letter']);
+/** Lifecycle records are all ordinary {id} rows: a server answer for one must carry an id (like the time record kinds). */
+export const LIFECYCLE_RECORD_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['onboarding', 'exit', 'letterTemplate', 'letter']);
 /** Changes to these can make a computed run stale (an employee's pay, a structure, attendance, an adjustment, a loan, the overtime rule, a shift's hours). */
 export const RUN_INPUT_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['structure', 'attendance', 'adjustment', 'loan', 'settings', 'employee', 'shift']);
 
@@ -87,6 +97,7 @@ const LABEL = {
   shift: (s: Shift) => `shift "${s.name}"`,
   leaveType: (l: LeaveType) => `leave type "${l.name}"`,
   holidayList: (h: HolidayList) => `holiday list "${h.name}"`,
+  letterTemplate: (t: LetterTemplate) => `letter template "${t.name}"`,
 };
 
 function simple<T extends { id: string }>(
@@ -199,8 +210,8 @@ function settingsOps(prev: HrmsDb['overtimeRules'], next: HrmsDb['overtimeRules'
  * Payroll collections missing from `prev` or `next` count as empty.
  */
 export function diffServer(
-  prev: PeopleCollections & Partial<PayrollCollections> & Partial<TimeCollections>,
-  next: PeopleCollections & Partial<PayrollCollections> & Partial<TimeCollections>,
+  prev: PeopleCollections & Partial<PayrollCollections> & Partial<TimeCollections> & Partial<LifecycleCollections>,
+  next: PeopleCollections & Partial<PayrollCollections> & Partial<TimeCollections> & Partial<LifecycleCollections>,
 ): SyncOp[] {
   const ent = simple('entities', 'entity', prev.entities, next.entities, LABEL.entity, entityCreateBody, entityPatch);
   const loc = simple('locations', 'location', prev.locations, next.locations, LABEL.location, locationCreateBody, locationPatch);
@@ -223,6 +234,13 @@ export function diffServer(
   const holidayList = simple<HolidayList>('holidayLists', 'holidayList', prev.holidayLists ?? [], next.holidayLists ?? [], LABEL.holidayList, holidayListCreateBody, holidayListPatch);
   const roster = rosterOps(prev.roster ?? [], next.roster ?? [], names);
   const balance = balanceOps(prev.leaveBalances ?? [], next.leaveBalances ?? [], names);
+
+  // Lifecycle and letters. All ordinary {id} records. Letter templates are reference data a letter points at; onboarding,
+  // exit and letter rows all reference an employee by id, so they go after the people (and before the people are removed).
+  const onboarding = simple<OnboardingCase>('onboarding', 'onboarding', prev.onboarding ?? [], next.onboarding ?? [], (c) => `onboarding of ${c.name || nameOf(c.employeeId ?? '')}`, onboardingCreateBody, onboardingPatch);
+  const exits = simple<ExitCase>('exits', 'exit', prev.exits ?? [], next.exits ?? [], (c) => `exit of ${nameOf(c.employeeId)}`, exitCreateBody, exitPatch);
+  const letterTemplate = simple<LetterTemplate>('letterTemplates', 'letterTemplate', prev.letterTemplates ?? [], next.letterTemplates ?? [], LABEL.letterTemplate, letterTemplateCreateBody, letterTemplatePatch);
+  const letter = simple<IssuedLetter>('letters', 'letter', prev.letters ?? [], next.letters ?? [], (l) => `letter for ${nameOf(l.employeeId)}`, issuedLetterCreateBody, issuedLetterPatch);
 
   const emp: SyncOp[] = [];
   const empDeletes: SyncOp[] = [];
@@ -247,13 +265,21 @@ export function diffServer(
     ...des.creates, ...des.updates, ...loc.creates, ...loc.updates, ...dep.creates, ...dep.updates,
     ...str.creates, ...str.updates,
     // Shifts, leave types and holiday lists before the people and rows that reference them (a roster day names a shift id,
-    // a leave balance names a leave type id, an employee names a shift id).
+    // a leave balance names a leave type id, an employee names a shift id). Letter templates are reference data too: a letter
+    // names a template id, so templates are created before the letters that point at them.
     ...shift.creates, ...shift.updates, ...leaveType.creates, ...leaveType.updates, ...holidayList.creates, ...holidayList.updates,
+    ...letterTemplate.creates, ...letterTemplate.updates,
     ...emp,
     ...att, ...roster, ...balance, ...adj.creates, ...adj.updates, ...loan.creates, ...loan.updates, ...fnf.creates, ...fnf.updates, ...settings,
+    // Lifecycle rows reference the people created just above (onboarding and exit by employee id, a letter by employee and template).
+    ...onboarding.creates, ...onboarding.updates, ...exits.creates, ...exits.updates, ...letter.creates, ...letter.updates,
     ...fnf.deletes, ...loan.deletes, ...adj.deletes,
+    // Remove the rows that point at a person before the person: letters, then onboarding and exit cases.
+    ...letter.deletes, ...onboarding.deletes, ...exits.deletes,
     ...empDeletes,
-    // A leave type goes after the balances that referenced it; a shift after the people and roster rows that used it.
+    // A leave type goes after the balances that referenced it; a shift after the people and roster rows that used it; a letter
+    // template after the letters that named it.
+    ...letterTemplate.deletes,
     ...holidayList.deletes, ...leaveType.deletes,
     ...loc.deletes, ...dep.deletes, ...des.deletes,
     ...str.deletes,
