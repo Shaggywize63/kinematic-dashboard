@@ -17,8 +17,10 @@ import { Button, Card, EmptyState, Modal, Note, T } from '../../../components/hr
 
 const allowed = (): boolean => canUseHrms(getStoredUser());
 
-/** Sections whose data is on the server in live mode. Every other section keeps its data in this browser. */
-const SERVER_BACKED = new Set(['', 'employees', 'organization', 'org-chart', 'payroll', 'payslips', 'time', 'lifecycle']);
+/** Sections whose data is on the server in live mode. Every other section keeps its data in this browser.
+ * Privacy is server-backed for its compliance / consent / retention collections; its Requests and Roles tabs stay local
+ * and the page degrades on its own when the privacy tables are missing, so it is not gated as a whole section here. */
+const SERVER_BACKED = new Set(['', 'employees', 'organization', 'org-chart', 'payroll', 'payslips', 'time', 'lifecycle', 'privacy']);
 /** Sections that cannot show anything useful without the payroll data: they say so instead when payroll could not be loaded. */
 const NEEDS_PAYROLL = new Set(['payroll', 'payslips', 'statutory']);
 /** Sections that cannot show anything useful without the time-and-leave data: they say so instead when it could not be loaded. */
@@ -57,11 +59,12 @@ function SwitchToLive({ onClose, onConfirm }: { onClose: () => void; onConfirm: 
           <b>What becomes real.</b> Legal entities, locations, departments, designations and employees are loaded from the server, and everything you add or change
           there is saved on the server straight away. So is payroll: salary structures, attendance, adjustments, loans, pay runs and payslips, and full and final settlements.
           Time and leave too: shifts, the weekly roster, leave policies, holiday lists and leave balances. Lifecycle and letters as well: onboarding, exits,
-          letter templates and the letters you issue. The server works out the payslips and builds the bank file.
+          letter templates and the letters you issue. Privacy as well: the compliance calendar, the consent ledger and the retention rules, with the access log read
+          from the server. The server works out the payslips and builds the bank file.
           PAN and bank details are kept encrypted and shown masked; revealing one needs a reason and is written to an access log.
         </p>
         <p style={{ margin: 0 }}>
-          <b>What stays in this browser.</b> Statutory filings and the other modules are not on the server yet. In live mode they start empty and are saved in this browser only.
+          <b>What stays in this browser.</b> The other modules, and the Privacy page's data-subject requests and role matrix, are not on the server yet. In live mode they start empty and are saved in this browser only.
         </p>
         <p style={{ margin: 0 }}>Your sample data is not touched, and you can switch back at any time.</p>
       </div>
@@ -208,7 +211,7 @@ export default function HrmsLayout({ children }: { children: React.ReactNode }) 
       <div role="status" data-testid="hrms-preview-banner" data-source={live.source} style={{ margin: '12px 24px 0', padding: '8px 12px', borderRadius: 8, fontSize: 12.5, background: tone.bg, color: tone.fg, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         {isLive ? (
           <span data-testid="hrms-banner-text" style={{ minWidth: 0, flex: '1 1 280px' }}>
-            <b>Live data.</b> People, organisation and payroll are saved on the server, and so are time and leave, and lifecycle and letters. The rest of the module still stays in this browser.
+            <b>Live data.</b> People, organisation and payroll are saved on the server, and so are time and leave, lifecycle and letters, and privacy. The rest of the module still stays in this browser.
             {live.syncing && <span data-testid="hrms-syncing" aria-live="polite"> Saving…</span>}
           </span>
         ) : (
