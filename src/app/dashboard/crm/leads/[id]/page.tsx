@@ -504,7 +504,7 @@ export default function LeadDetailPage() {
                 onActivitiesChanged={() => { void reload(); }}
               />
             )}
-            {activeTab === 'deals' && <DealsTab leadId={id} deals={deals} canConvert={!isClosed} onConvert={onConvert} hideWon={isBmw} showFulfillBalance={isBmw} newDealHref={isB2bClientActive() ? `/dashboard/crm/deals/new?lead_id=${id}${lead.converted_account_id ? `&account_id=${lead.converted_account_id}` : ''}` : undefined} />}
+            {activeTab === 'deals' && <DealsTab leadId={id} deals={deals} canConvert={!isClosed} onConvert={onConvert} hideWon={isBmw} showFulfillBalance={isBmw} spark={isB2bClientActive()} newDealHref={isB2bClientActive() ? `/dashboard/crm/deals/new?lead_id=${id}${lead.converted_account_id ? `&account_id=${lead.converted_account_id}` : ''}` : undefined} />}
             {activeTab === 'insights' && hasInsights && <InsightsTab conversations={conversations} />}
           </div>
         </div>

@@ -55,7 +55,7 @@ test.describe('Spark deals/new', () => {
 
     // Line 1: catalogue product prefills name + price; quantity is editable.
     await page.getByRole('button', { name: 'Add line' }).click();
-    await page.getByLabel('Line 1 product').selectOption({ label: 'Spark Plug SP-100' });
+    await page.getByLabel('Line 1 product').selectOption({ label: 'SP100 \u00b7 Spark Plug SP-100' }); // the product select shows "reference \u00b7 name"
     await expect(page.getByLabel('Line 1 name')).toHaveValue('Spark Plug SP-100');
     await expect(page.getByLabel('Line 1 unit price')).toHaveValue('1200');
     await page.getByLabel('Line 1 quantity').fill('3');

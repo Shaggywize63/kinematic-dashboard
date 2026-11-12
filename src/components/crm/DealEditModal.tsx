@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { crmDeals, crmSettings, crmPipelines, crmAccounts, crmContacts } from '../../lib/crmApi';
-import type { Deal, Stage, Pipeline, Account, Contact } from '../../types/crm';
+import { crmDeals, crmSettings, crmPipelines, crmAccounts, crmContacts, crmLineItems, crmProducts } from '../../lib/crmApi';
+import type { Deal, DealLineItem, Stage, Pipeline, Account, Contact, Product } from '../../types/crm';
 import CustomFieldsSection from './CustomFieldsSection';
 import ProductLinesSection from './ProductLinesSection';
 import Modal from './shared/Modal';
@@ -15,7 +15,9 @@ import { isHorizonOrg } from '../../lib/crmFeatureGates';
 import { isTataTiscanActive, isBmwActive } from '../../lib/clientFeatures';
 import { isB2bClientActive } from '../../lib/b2bClient';
 import DealSections, { useAssignableUsers, useDealSections } from './spark/DealSections';
-import { buildDealSectionPayload, seedDealSectionValues, validateDealSections, type DealSectionErrors } from '../../lib/sparkDealSections';
+import { DealItemsEditor } from './spark/DealItemsEditor';
+import { arr, buildDealItems, dealLineErrors, lineDraftFromItem, type DealLineDraft } from '../../lib/sparkAccounts';
+import { buildDealSectionPayload, isDealSectionOn, seedDealSectionValues, validateDealSections, type DealSectionErrors } from '../../lib/sparkDealSections';
 
 interface Props { deal: Deal; stages: Stage[]; open: boolean; onClose: () => void; onSaved: (updated: Deal) => void; }
 
@@ -47,6 +49,13 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
   const { sections } = useDealSections(spark && open);
   const [sectionValues, setSectionValues] = useState(() => seedDealSectionValues(deal));
   const [sectionErrors, setSectionErrors] = useState<DealSectionErrors>({});
+  // Spark: the deal's product lines (make, brand, funnel reference, order value). `lineBase` is the stored copy the
+  // save diffs against; `linesReady` is false until the lines are loaded (so a slow load can never wipe them).
+  const quotationOn = spark && isDealSectionOn(sections, 'quotation');
+  const [lines, setLines] = useState<DealLineDraft[]>([]);
+  const [lineBase, setLineBase] = useState<DealLineDraft[]>([]);
+  const [linesReady, setLinesReady] = useState(false);
+  const [catalogue, setCatalogue] = useState<Product[]>([]);
   const knownPeople = useMemo(() => {
     const d = deal as unknown as Record<string, string | null | undefined>;
     return (['technical_approval_by', 'prepared_by', 'checked_by', 'supervisor_id'] as const)
@@ -90,6 +99,28 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
       setSectionErrors({});
     }
   }, [open, deal]);
+
+  // Spark: load the deal's lines (and the catalogue for the product picker) when the modal opens.
+  const loadLines = async (): Promise<boolean> => {
+    try {
+      const r = await crmDeals.listLineItems(deal.id);
+      const drafts = arr<DealLineItem>(r?.data).map(lineDraftFromItem);
+      setLines(drafts); setLineBase(drafts); setLinesReady(true);
+      return true;
+    } catch { return false; }
+  };
+  useEffect(() => {
+    if (!open || !spark) { setLinesReady(false); return; }
+    let off = false;
+    setLinesReady(false);
+    crmDeals.listLineItems(deal.id)
+      .then((r) => { if (off) return; const drafts = arr<DealLineItem>(r?.data).map(lineDraftFromItem); setLines(drafts); setLineBase(drafts); setLinesReady(true); })
+      .catch(() => { if (!off) { setLines([]); setLineBase([]); setLinesReady(false); } });
+    crmProducts.list({ limit: 200 } as never)
+      .then((r) => { if (!off) setCatalogue(arr<Product>(r?.data).filter((p) => p.is_active !== false)); })
+      .catch(() => { if (!off) setCatalogue([]); });
+    return () => { off = true; };
+  }, [open, spark, deal.id]);
 
   // Load the override map once the modal opens. Kept separate from the
   // seed effect so re-opening for a different deal doesn't refetch.
@@ -150,6 +181,41 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
     setForm((f) => ({ ...f, pipeline_id: pid, stage_id: firstOpen?.id ?? ordered[0]?.id ?? '' }));
   };
 
+  // Diff the editor against the stored lines: delete what was removed, PATCH what changed, POST what is new. A server
+  // error is shown with its line number ("Line 2: MAC funnel reference is required for MAC products").
+  const saveLines = async () => {
+    const baseById = new Map(lineBase.filter((l) => l.id).map((l) => [l.id as string, l]));
+    const sig = (l: DealLineDraft) => JSON.stringify(buildDealItems([l], 'patch')[0] ?? null);
+    const keptIds = new Set(lines.filter((l) => l.id).map((l) => l.id as string));
+    const lineErr = (n: number, e: unknown) => {
+      const m = (e as { message?: string } | null)?.message || 'Could not save the line';
+      return new Error(/^Line \d+:/.test(m) ? m : `Line ${n}: ${m}`);
+    };
+    try {
+      for (const b of lineBase) if (b.id && !keptIds.has(b.id)) await crmLineItems.remove(b.id);
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i];
+        const item = buildDealItems([l], 'patch')[0];
+        if (!item) continue; // a half-typed new row
+        const body: Omit<typeof item, 'id'> & { id?: string } = { ...item };
+        delete body.id;
+        try {
+          if (l.id) {
+            const base = baseById.get(l.id);
+            if (base && sig(base) === sig(l)) continue;
+            await crmLineItems.update(l.id, body as Partial<DealLineItem>);
+          } else {
+            await crmDeals.addLineItem(deal.id, body as Partial<DealLineItem> & { quantity: number });
+          }
+        } catch (e) { throw lineErr(i + 1, e); }
+      }
+    } catch (e) {
+      await loadLines(); // resync with what the server now holds, then report
+      throw e;
+    }
+    await loadLines();
+  };
+
   const submit = async () => {
     if (fields.requiredFor('name', true) && !form.name.trim()) { toast.error('Deal name is required'); return; }
     if (spark) {
@@ -157,8 +223,18 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
       setSectionErrors(errs);
       if (Object.keys(errs).length) { toast.error(Object.values(errs)[0] as string); return; }
     }
+    const editLines = quotationOn && linesReady;
+    if (editLines) {
+      const lineErrs = Object.values(dealLineErrors(lines));
+      if (lineErrs.length) { toast.error(lineErrs[0]); return; }
+      const bad = lines.findIndex((l) => l.id && buildDealItems([l]).length === 0);
+      if (bad >= 0) { toast.error(`Line ${bad + 1}: add an item name and a quantity above 0, or remove the line`); return; }
+    }
     setBusy(true);
     try {
+      // Spark: save the product lines first (the server recomputes the deal amount from them), so the deal we get
+      // back below already carries the new value. Existing lines are PATCHed only when changed.
+      if (editLines) await saveLines();
       // Follow-up → deal.custom_fields { next_action_type, next_action_at }.
       // The backend spawns a planned reminder when this changes. Send nulls
       // when cleared so the rep can remove a follow-up.
@@ -297,6 +373,12 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
             users={sectionUsers}
             errors={sectionErrors}
             fields={fields}
+            quotationExtra={linesReady ? (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>Products</div>
+                <DealItemsEditor lines={lines} onChange={setLines} products={catalogue} narrow />
+              </div>
+            ) : undefined}
           />
         </div>
       )}

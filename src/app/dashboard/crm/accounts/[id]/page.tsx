@@ -20,6 +20,8 @@ import AccountAddresses from '../../../../../components/crm/spark/AccountAddress
 import { Button } from '../../../../../components/ui';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { accountLocationLines } from '../../../../../lib/accountLocation';
+import { dealRollup } from '../../../../../lib/sparkAccounts';
+import { BrandChips } from '../../../../../components/crm/spark/BrandChips';
 
 export default function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -221,13 +223,31 @@ export default function AccountDetailPage() {
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No deals.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Spark & Ray: what was quoted and what was ordered across the customer's deals. */}
+              {isB2bClientActive() && (() => {
+                const r = dealRollup(deals);
+                return (
+                  <div data-testid="deals-summary" style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+                    <strong style={{ color: 'var(--text)' }}>{r.count} {r.count === 1 ? 'deal' : 'deals'}</strong>
+                    {' \u00b7 '}{formatINR(r.quoted)} quoted{r.ordered !== null && <>{' \u00b7 '}{formatINR(r.ordered)} ordered</>}
+                  </div>
+                );
+              })()}
               {deals.map((d) => (
                 <Link key={d.id} href={`/dashboard/crm/deals/${d.id}`} style={rowLink}>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: 'var(--text)', fontWeight: 600 }}>{d.name}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{d.stage_name || '—'} · {d.status}{d.quotation_no ? ` · Quotation ${d.quotation_no}` : ''}</div>
+                    {isB2bClientActive() && <BrandChips brands={d.brands} style={{ marginTop: 4 }} />}
                   </div>
-                  <div style={{ color: 'var(--text)', fontWeight: 700 }}>{formatINR(d.amount || 0)}</div>
+                  {isB2bClientActive() ? (
+                    <div style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text)', fontSize: 13 }}>
+                      <div data-testid="deal-quoted"><span style={{ color: 'var(--text-dim)', fontWeight: 500 }}>Quoted </span>{formatINR(d.quoted_amount ?? d.amount ?? 0)}</div>
+                      <div data-testid="deal-ordered"><span style={{ color: 'var(--text-dim)', fontWeight: 500 }}>Ordered </span>{d.order_amount == null ? '\u2014' : formatINR(d.order_amount)}</div>
+                    </div>
+                  ) : (
+                    <div style={{ color: 'var(--text)', fontWeight: 700 }}>{formatINR(d.amount || 0)}</div>
+                  )}
                 </Link>
               ))}
             </div>
