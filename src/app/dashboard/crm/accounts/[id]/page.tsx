@@ -197,7 +197,7 @@ export default function AccountDetailPage() {
           ) : undefined}
         >
           {contacts.length === 0 ? (
-            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No contacts linked yet. Use + Add contact to add the first one.</div>
+            <div data-testid="account-contacts-empty" style={{ color: 'var(--text-dim)', fontSize: 13 }}>No contacts yet.{spark ? ' Use + Add contact to add the first one.' : ''}</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {contacts.map((c) => {

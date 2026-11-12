@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Search } from 'lucide-react';
+import { GitMerge, Plus, Search } from 'lucide-react';
 import { crmAccounts } from '../../../../lib/crmApi';
 import type { Account } from '../../../../types/crm';
 import AccountsTable, { ACCOUNT_COLUMNS } from '../../../../components/crm/AccountsTable';
@@ -54,6 +54,7 @@ export default function AccountsListPage() {
         onSetMode={view.setMode}
         onReset={view.reset}
       />
+      <Button href="/dashboard/crm/accounts/duplicates" icon={<GitMerge size={16} strokeWidth={2} />}>Find duplicates</Button>
       <Button href="/dashboard/crm/accounts/new" variant="primary" icon={<Plus size={16} strokeWidth={2} />}>New account</Button>
     </>
   );

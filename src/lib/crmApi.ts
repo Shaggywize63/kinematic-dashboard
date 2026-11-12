@@ -13,6 +13,7 @@ import type {
   CrmState, CrmCity,
   Product, ProductCategory, DealLineItem,
   WhatsappTemplate, WhatsappLog,
+  SimilarAccountsResult, AccountMergeBody, AccountMergeResult,
   TargetKind, TargetType, TargetProgress, TargetEntry, TargetEntryInput, TargetEntryQuery, RupeeLeaderboard,
   AfterSalesTelecaller, AfterSalesConfig, AfterSalesRecordInput, AfterSalesImportResult, AfterSalesRecordRow,
 } from '../types/crm';
@@ -357,6 +358,11 @@ export const crmAccounts = {
     api.delete<unknown>(`${BASE}/accounts/${id}/updates/${updateId}`),
   // The whole path of a customer — lead → account → contacts → visits & forms → tasks → deals → expenses.
   journey: (id: string) => api.get<Wrapped<AccountJourney>>(`${BASE}/accounts/${id}/journey`),
+  // Duplicate accounts: groups of look-alike names (min_score 0..1, 1 = exact), then merge one group into a kept account.
+  // merge is admin-only (403 -> ApiError with a message); dry_run:true previews what would move without changing anything.
+  similar: (params?: { min_score?: number }) =>
+    api.get<Wrapped<SimilarAccountsResult>>(`${BASE}/accounts/similar${qs(params)}`),
+  merge: (body: AccountMergeBody) => api.post<Wrapped<AccountMergeResult>>(`${BASE}/accounts/merge`, body),
 };
 
 export const crmDeals = {
