@@ -11,7 +11,7 @@ import type {
   KiniContext, KiniCard, UpdateSuggestion,
   CrmSettings, BusinessType,
   CrmState, CrmCity,
-  Product, ProductCategory, DealLineItem,
+  Product, ProductCategory, Make, Brand, ProductBulkRow, ProductBulkResult, DealLineItem,
   WhatsappTemplate, WhatsappLog,
   SimilarAccountsResult, AccountMergeBody, AccountMergeResult,
   TargetKind, TargetType, TargetProgress, TargetEntry, TargetEntryInput, TargetEntryQuery, RupeeLeaderboard,
@@ -726,7 +726,16 @@ export const crmLookup = {
 
 // Phase 2: Products + WhatsApp
 export const crmProductCategories = crud<ProductCategory>(`${BASE}/product-categories`);
-export const crmProducts = crud<Product>(`${BASE}/products`);
+export const crmProducts = {
+  ...crud<Product>(`${BASE}/products`),
+  // Connected-B2B: import a spreadsheet of products (max 2000 rows per call). Makes / brands that are not in the lists
+  // yet are added when `create_missing` is on; products whose reference already exists are updated when `update_existing` is on.
+  bulk: (body: { rows: ProductBulkRow[]; create_missing?: boolean; update_existing?: boolean }) =>
+    api.post<Wrapped<ProductBulkResult>>(`${BASE}/products/bulk`, body),
+};
+// Connected-B2B: the manufacturers ("Makes") and product brands a product is filed under. A brand is not a make.
+export const crmMakes = crud<Make>(`${BASE}/makes`);
+export const crmBrands = crud<Brand>(`${BASE}/brands`);
 
 // Google Places proxy — the backend fronts the Places API so the key stays
 // server-side. `search` returns a WIDER result set (up to 20) than the

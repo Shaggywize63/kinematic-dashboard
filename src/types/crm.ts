@@ -781,6 +781,28 @@ export interface Product {
   tax_rate_pct?: number | null; hsn_code?: string | null;
   image_url?: string | null; is_active: boolean;
   tags?: string[] | null; created_at: string; updated_at: string;
+  // Connected-B2B (Spark & Ray): the manufacturer and the product brand. `sku` is the product reference.
+  make_id?: string | null; brand_id?: string | null;
+  make_name?: string | null; brand_name?: string | null;
+}
+
+/** A manufacturer ("Make") or a product brand: the same small master-list shape. A brand is not a make. */
+export interface NamedListItem {
+  id: string; name: string; description?: string | null; is_active: boolean;
+  sort_order?: number | null; product_count?: number; created_at?: string;
+}
+export type Make = NamedListItem;
+export type Brand = NamedListItem;
+
+/** One spreadsheet row sent to POST /crm/products/bulk. */
+export interface ProductBulkRow {
+  reference: string; name: string; make?: string; brand?: string; unit?: string; price?: number; category?: string; description?: string;
+}
+/** `errors` lists every row that was not imported; rows passed over on purpose are also counted in `skipped` (do not add the two). */
+export interface ProductBulkResult {
+  created: number; updated: number; skipped: number;
+  errors: Array<{ row: number; reference?: string | null; message: string }>;
+  makes_created: string[]; brands_created: string[];
 }
 
 export interface DealLineItem {
