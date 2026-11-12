@@ -12,6 +12,7 @@ import NewJoinerModal from './NewJoinerModal';
 import {
   ONBOARDING_STAGES, STAGE_LABEL, TASK_OWNERS, addTask, markJoined, removeTask, setOnboardingStage, setTaskDone,
 } from '../../../lib/hrms/lifecycleActions';
+import { whenSynced } from '../../../lib/hrms/live/store';
 import { TODAY, relDays } from '../overview/insights';
 import { diffDays, fmtDate } from '../../../lib/hrms/format';
 import type { HrmsDb, OnboardingCase } from '../../../lib/hrms/types';
@@ -73,7 +74,7 @@ function CaseDetail({ db, caseId, onClose }: { db: HrmsDb; caseId: string; onClo
     if (e.label || e.due) return;
     addTask(c!.id, { label, owner, dueOn: due || undefined });
     setLabel(''); setDue('');
-    toast.success('Task added.');
+    whenSynced((ok) => { if (ok) toast.success('Task added.'); });
   }
 
   return (
@@ -149,7 +150,7 @@ function CaseDetail({ db, caseId, onClose }: { db: HrmsDb; caseId: string; onClo
 
       {confirmJoin && (
         <ConfirmDialog title="Confirm joining" confirmLabel="Mark as joined" onCancel={() => setConfirmJoin(false)}
-          onConfirm={() => { markJoined(c.id); setConfirmJoin(false); toast.success(`${c.name} is marked as joined and the employee is now active.`); onClose(); }}>
+          onConfirm={() => { markJoined(c.id); setConfirmJoin(false); whenSynced((ok) => { if (ok) toast.success(`${c.name} is marked as joined and the employee is now active.`); }); onClose(); }}>
           <span>{c.name}&rsquo;s employee record changes from Onboarding to Active, and this case moves to Done.</span>
           {open > 0 && <span style={{ color: T.warn }}>{open} {open === 1 ? 'task is' : 'tasks are'} still open.</span>}
           {diffDays(TODAY, c.joinDate) > 0 && <span style={{ color: T.warn }}>The join date, {fmtDate(c.joinDate)}, is {relDays(diffDays(TODAY, c.joinDate))}.</span>}

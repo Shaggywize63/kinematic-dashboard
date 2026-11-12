@@ -2,13 +2,14 @@
 // Changes made by the Lifecycle screens (joiners, exits, issued letters) on the preview store.
 // Everything goes through mutate()/upsert(), so when the API lands this file swaps with actions.ts.
 
-import { getDb, mutate } from './db';
+import { getDb, mutate, newId } from './db';
 import { addEmployee, issueLetter, updateEmployee, upsert } from './actions';
-import { PREVIEW_TODAY } from './seed';
+import { PREVIEW_TODAY, makeSeed } from './seed';
 import { addDays, fullName } from './format';
 import { LWF_RULES } from './rules';
+import { isLive, whenSynced } from './live/store';
 import type {
-  ChecklistTask, ClearanceItem, Employee, EmploymentType, ExitCase, Gender, HrmsDb, Id, ISODate, IssuedLetter, LetterType, OnboardingCase,
+  ChecklistTask, ClearanceItem, Employee, EmploymentType, ExitCase, Gender, HrmsDb, Id, ISODate, IssuedLetter, LetterTemplate, LetterType, OnboardingCase,
 } from './types';
 import { uid } from './types';
 
@@ -59,7 +60,11 @@ export function standardOnboardingTasks(joinDate: ISODate): ChecklistTask[] {
   ];
 }
 
-/** Creates the draft employee (status onboarding, minimal fields) and its onboarding case. */
+/**
+ * Creates the draft employee (status onboarding, minimal fields) and its onboarding case.
+ * On live data the employee is created on the server first; the onboarding case is written only once that create has
+ * reached the server, so a refused employee leaves no joining case pointing at nobody (both ends roll back together).
+ */
 export function startOnboarding(input: JoinerInput): { employee: Employee; onboarding: OnboardingCase } {
   const db = getDb();
   const loc = db.locations.find((l) => l.id === input.locationId);
@@ -79,10 +84,11 @@ export function startOnboarding(input: JoinerInput): { employee: Employee; onboa
     payMode: 'bank', annualCtc: input.annualCtc || undefined,
   });
   const onboarding: OnboardingCase = {
-    id: uid('onb'), employeeId: employee.id, name: fullName(employee), role: des.name, joinDate: input.joinDate,
+    id: newId('onb'), employeeId: employee.id, name: fullName(employee), role: des.name, joinDate: input.joinDate,
     stage: 'offer', tasks: standardOnboardingTasks(input.joinDate),
   };
-  upsert('onboarding', onboarding);
+  if (isLive()) whenSynced((ok) => { if (ok) upsert('onboarding', onboarding); });
+  else upsert('onboarding', onboarding);
   return { employee, onboarding };
 }
 
@@ -98,13 +104,19 @@ export const removeTask = (caseId: Id, taskId: Id): void =>
 export const setOnboardingStage = (caseId: Id, stage: OnboardingCase['stage']): void =>
   withCase(caseId, (c) => { c.stage = stage; });
 
-/** The linked employee becomes active (change-logged by updateEmployee) and the case moves to Done. */
+/**
+ * The linked employee becomes active (change-logged by updateEmployee) and the case moves to Done. On live data the case
+ * is moved to Done only once the employee's "active" change has reached the server, so a refused flip does not leave a case
+ * marked Done next to a person still in onboarding.
+ */
 export function markJoined(caseId: Id): void {
   const c = getDb().onboarding.find((x) => x.id === caseId);
   if (!c) return;
   const emp = c.employeeId ? getDb().employees.find((e) => e.id === c.employeeId) : undefined;
-  if (emp && emp.status === 'onboarding') updateEmployee(emp.id, { status: 'active' });
-  setOnboardingStage(caseId, 'done');
+  const flipping = !!emp && emp.status === 'onboarding';
+  if (flipping) updateEmployee(emp!.id, { status: 'active' });
+  if (isLive() && flipping) whenSynced((ok) => { if (ok) setOnboardingStage(caseId, 'done'); });
+  else setOnboardingStage(caseId, 'done');
 }
 
 // ───────────────────────────── exits ─────────────────────────────
@@ -132,11 +144,14 @@ export function startExit(input: ExitInput): ExitCase {
   const emp = db.employees.find((e) => e.id === input.employeeId);
   if (!emp) throw new Error('Employee not found.');
   const c: ExitCase = {
-    id: uid('exit'), employeeId: emp.id, reason: input.reason, resignationDate: input.resignationDate, lastWorkingDate: input.lastWorkingDate,
+    id: newId('exit'), employeeId: emp.id, reason: input.reason, resignationDate: input.resignationDate, lastWorkingDate: input.lastWorkingDate,
     noticeWaived: input.noticeWaived, stage: 'notice', clearance: defaultClearance(db, emp), assets: [], interviewDone: false,
   };
   upsert('exits', c);
-  updateEmployee(emp.id, { status: 'on_notice', lastWorkingDate: input.lastWorkingDate });
+  // On live data put the employee on notice only once the exit case has reached the server, so a refused case does not
+  // leave an employee marked on-notice with no exit behind it.
+  if (isLive()) whenSynced((ok) => { if (ok) updateEmployee(emp.id, { status: 'on_notice', lastWorkingDate: input.lastWorkingDate }); });
+  else updateEmployee(emp.id, { status: 'on_notice', lastWorkingDate: input.lastWorkingDate });
   return c;
 }
 
@@ -191,13 +206,24 @@ export function exitChecks(db: HrmsDb, c: ExitCase): ExitCheck[] {
 }
 
 export type CloseResult = { ok: true } | { ok: false; blockers: string[] };
-/** Closes the exit and marks the employee exited, re-checking the rules here so the UI cannot bypass them. */
+/**
+ * Closes the exit and marks the employee exited, re-checking the rules here so the UI cannot bypass them.
+ * On live data the server enforces the same blockers (it reads the F&F case and the clearance): the stage is moved to
+ * `closed` optimistically, and if the server refuses the change rolls back and the sync machinery shows the server's plain
+ * reason. The employee is marked exited only once the close is confirmed. `{ ok: true }` in live mode is the optimistic
+ * answer: the caller should defer its own success message with `whenSynced`.
+ */
 export function closeExit(id: Id): CloseResult {
   const db = getDb();
   const c = db.exits.find((x) => x.id === id);
   if (!c) return { ok: false, blockers: ['The exit case no longer exists.'] };
   const blockers = exitChecks(db, c).filter((k) => !k.ok).map((k) => k.text);
   if (blockers.length) return { ok: false, blockers };
+  if (isLive()) {
+    setExitStage(id, 'closed');
+    whenSynced((ok) => { if (ok) updateEmployee(c.employeeId, { status: 'exited', lastWorkingDate: c.lastWorkingDate }); });
+    return { ok: true };
+  }
   setExitStage(id, 'closed');
   updateEmployee(c.employeeId, { status: 'exited', lastWorkingDate: c.lastWorkingDate });
   return { ok: true };
@@ -222,4 +248,19 @@ export function issueLetterNow(l: { employeeId: Id; templateId: Id; type: Letter
 }
 export function markLetterSigned(id: Id): void {
   mutate((db) => { const x = db.letters.find((y) => y.id === id); if (x) x.signed = true; });
+}
+
+export type TemplateSetResult = { ok: true } | { ok: false; error: string };
+/**
+ * The standard letter templates the sample company ships with, as new rows with fresh ids. A new organisation (live mode)
+ * starts with none; this is an editable start, mirroring payroll's "Add the standard structures" and time's "Add the
+ * standard set". A type already present is left alone. New ids are UUIDs in live mode (via newId).
+ */
+export function addStandardLetterTemplates(): TemplateSetResult {
+  const db = getDb();
+  const have = new Set(db.letterTemplates.map((t) => t.type));
+  const toAdd: LetterTemplate[] = makeSeed().letterTemplates.filter((t) => !have.has(t.type)).map((t) => ({ ...t, id: newId('lt') }));
+  if (!toAdd.length) return { ok: false, error: 'The standard letter templates are already there.' };
+  mutate((d) => { for (const t of toAdd) d.letterTemplates.push(t); });
+  return { ok: true };
 }

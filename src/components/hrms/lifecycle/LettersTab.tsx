@@ -9,7 +9,8 @@ import { Dialog, useOneShotParam } from './common';
 import TemplateEditor from './TemplateEditor';
 import GenerateLetterModal, { IssuedLetterView } from './GenerateLetterModal';
 import { LETTER_TYPES, ensureLetterTemplates, letterTypeLabel } from './letters';
-import { markLetterSigned } from '../../../lib/hrms/lifecycleActions';
+import { addStandardLetterTemplates, markLetterSigned } from '../../../lib/hrms/lifecycleActions';
+import { useLiveStatus, whenSynced } from '../../../lib/hrms/live/store';
 import { isLive } from '../overview/insights';
 import { fmtDate, fullName } from '../../../lib/hrms/format';
 import type { HrmsDb, IssuedLetter, LetterTemplate } from '../../../lib/hrms/types';
@@ -21,8 +22,18 @@ export default function LettersTab({ db }: { db: HrmsDb }) {
   const [q, setQ] = useState('');
   const [type, setType] = useState('');
   const [signed, setSigned] = useState('');
+  const live = useLiveStatus();
+  const liveMode = live.source === 'live';
   useOneShotParam('generate', () => setGenerate({}));
-  useEffect(() => { ensureLetterTemplates(); }, []);   // every LetterType gets a template; only missing ones are added
+  // Sample mode seeds every LetterType with a default template (only missing ones are added). In live mode templates live on
+  // the server and are added on purpose from the empty state below, so this never writes to the server behind the user's back.
+  useEffect(() => { if (!liveMode) ensureLetterTemplates(); }, [liveMode]);
+
+  const addStandard = () => {
+    const r = addStandardLetterTemplates();
+    if (!r.ok) { toast.error(r.error); return; }
+    whenSynced((ok) => { if (ok) toast.success('Standard letter templates added'); });
+  };
 
   const closeEditor = useMemo(() => () => setEditor(null), []);
   const closeGenerate = useMemo(() => () => setGenerate(null), []);
@@ -58,7 +69,7 @@ export default function LettersTab({ db }: { db: HrmsDb }) {
           <Button size="sm" style={{ height: 36 }} aria-label={`View ${letterTypeLabel(r.l.type)} letter for ${fullName(r.emp)}`} onClick={() => setViewing(r.l.id)}>View</Button>
           {!r.l.signed && (
             <Button size="sm" style={{ height: 36 }} aria-label={`Mark ${letterTypeLabel(r.l.type)} letter for ${fullName(r.emp)} as signed`}
-              onClick={() => { markLetterSigned(r.l.id); toast.success('Marked as signed.'); }}>Mark signed</Button>
+              onClick={() => { markLetterSigned(r.l.id); whenSynced((ok) => { if (ok) toast.success('Marked as signed.'); }); }}>Mark signed</Button>
           )}
         </span>
       ),
@@ -84,7 +95,15 @@ export default function LettersTab({ db }: { db: HrmsDb }) {
             <Button variant="primary" style={{ height: 44 }} onClick={() => setGenerate({})}>Generate letter</Button>
           </div>
         )}>Templates</CardTitle>
-        {templates.length === 0 ? <EmptyState title="No templates" description="Create a template to start issuing letters." /> : (
+        {templates.length === 0 ? (
+          liveMode ? (
+            <div data-testid="letters-live-empty">
+              <EmptyState title="No letter templates yet"
+                description="Letters are saved on the server. Start with the standard templates — offer, appointment, confirmation, increment, relieving and experience — and edit them to suit your company, or add your own with New template."
+                action={<Button variant="primary" data-testid="add-standard-letter-templates" style={{ height: 40 }} onClick={addStandard}>Add the standard letter templates</Button>} />
+            </div>
+          ) : <EmptyState title="No templates" description="Create a template to start issuing letters." />
+        ) : (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {templates.map((t, i) => (
               <li key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '10px 0', borderTop: i ? `1px solid ${T.border}` : 0 }}>

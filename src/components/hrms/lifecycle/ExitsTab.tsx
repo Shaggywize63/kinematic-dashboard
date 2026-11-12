@@ -13,6 +13,7 @@ import {
   EXIT_REASONS, EXIT_STAGES, STAGE_LABEL, addAsset, addClearance, closeExit, exitChecks, fnfFor, patchClearance, removeAsset, removeClearance,
   reopenExit, setAssetReturned, setClearanceDone, setExitLastWorkingDate, setExitStage, setInterviewDone, setNoticeWaived,
 } from '../../../lib/hrms/lifecycleActions';
+import { whenSynced } from '../../../lib/hrms/live/store';
 import { TODAY, relDays } from '../overview/insights';
 import { addWorkingDays, computeFnf } from '../../../lib/hrms/engine';
 import { LABOUR_CODES } from '../../../lib/hrms/rules';
@@ -99,7 +100,10 @@ function ExitDetail({ db, exitId, onClose }: { db: HrmsDb; exitId: string; onClo
   function doClose() {
     const r = closeExit(c!.id);
     setConfirm(null);
-    if (r.ok) { toast.success(`${fullName(emp!)} is marked as exited.`); onClose(); } else toast.error(r.blockers.join(' '));
+    if (!r.ok) { toast.error(r.blockers.join(' ')); return; }
+    // Sample: succeeds at once. Live: the close was applied optimistically; wait for the server to confirm it before the
+    // success message and before leaving the window. A server refusal (a blocker) is shown by the sync machinery.
+    whenSynced((ok) => { if (ok) { toast.success(`${fullName(emp!)} is marked as exited.`); onClose(); } });
   }
 
   const rowGrid = narrow ? '1fr' : 'minmax(150px, 1.1fr) minmax(120px, 1fr) minmax(150px, 1.4fr) 44px';
@@ -267,7 +271,7 @@ function ExitDetail({ db, exitId, onClose }: { db: HrmsDb; exitId: string; onClo
       )}
       {confirm === 'reopen' && (
         <ConfirmDialog title="Reopen exit" confirmLabel="Reopen" onCancel={() => setConfirm(null)}
-          onConfirm={() => { reopenExit(c.id); setConfirm(null); toast.success(`${fullName(emp)} is back on notice.`); }}>
+          onConfirm={() => { reopenExit(c.id); setConfirm(null); whenSynced((ok) => { if (ok) toast.success(`${fullName(emp)} is back on notice.`); }); }}>
           <span>Put {fullName(emp)} back on notice and return this case to the settlement stage?</span>
         </ConfirmDialog>
       )}

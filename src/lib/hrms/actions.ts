@@ -182,7 +182,8 @@ export const saveFnf = (c: Omit<FnfCase, 'id'> & { id?: Id }) => upsert('fnfCase
 
 // ───────────── letters, access log, compliance ─────────────
 export function issueLetter(l: Omit<IssuedLetter, 'id' | 'issuedOn' | 'signed'>): IssuedLetter {
-  const item: IssuedLetter = { ...l, id: uid('let'), issuedOn: PREVIEW_TODAY, signed: false };
+  // newId() gives a UUID in live mode (the server only accepts those) and the usual short id in sample mode.
+  const item: IssuedLetter = { ...l, id: newId('let'), issuedOn: PREVIEW_TODAY, signed: false };
   upsert('letters', item);
   return item;
 }

@@ -11,6 +11,7 @@ import { CheckRow, Dialog, isIsoDate } from './common';
 import { LetterActions, LetterPaper, formatAddress } from './LetterPaper';
 import { analyse, issueBlockers, letterTypeLabel, mergeValues, signatoryFor, type Segment } from './letters';
 import { issueLetterNow } from '../../../lib/hrms/lifecycleActions';
+import { whenSynced } from '../../../lib/hrms/live/store';
 import { TODAY } from '../overview/insights';
 import { fullName } from '../../../lib/hrms/format';
 import type { HrmsDb, IssuedLetter } from '../../../lib/hrms/types';
@@ -60,7 +61,9 @@ export default function GenerateLetterModal({ db, initialTemplateId, onClose }: 
     if (!canIssue || !tpl || !emp || !analysis) return;
     const letter = issueLetterNow({ employeeId: emp.id, templateId: tpl.id, type: tpl.type, body: analysis.text });
     setIssued(letter);
-    toast.success(`${tpl.name} issued to ${fullName(emp)}.`);
+    // Live data: the letter is saved on the server; the success message waits for it (a refused letter is taken out of the
+    // register with an error toast saying why).
+    whenSynced((ok) => { if (ok) toast.success(`${tpl.name} issued to ${fullName(emp)}.`); });
   }
 
   // ───── after issuing ─────
