@@ -14,8 +14,8 @@ jobs:
     runs-on: ubuntu-24.04
     # Backstop: cap the whole job so a stalled step fails fast (and is
     # diagnosable) instead of hanging for hours. The serial suite now runs
-    # ~15 min, so keep comfortable headroom above the E2E step's own cap.
-    timeout-minutes: 45
+    # ~33 min, so keep comfortable headroom above the E2E step's own cap.
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
 
@@ -64,11 +64,11 @@ jobs:
 
       - name: Run E2E tests
         # The suite runs serially (workers: 1, one shared dev server) and has grown with the app: it was
-        # ~8 min, then ~12 min, then ~15 min (599 specs), and it now takes 24 to 26 minutes (about 900 specs)
-        # depending on runner load, so a 25-minute cap timed out at spec 895 of 899 with every spec passing.
-        # 33 leaves headroom inside the 45-minute job limit. Splitting the suite into shards is the next step
-        # if it keeps growing.
-        timeout-minutes: 33
+        # ~8 min, then ~12 min, then ~15 min (599 specs), ~24 to 26 min (about 900 specs), and with the
+        # deals-per-lead and sample-invoice specs it reached ~33 min and tipped over the old 33-minute cap
+        # (every spec passing). 40 leaves headroom inside the 50-minute job limit. Splitting the suite into
+        # shards is the next step if it keeps growing.
+        timeout-minutes: 40
         env:
           # HRMS specs and the report/widget specs run in their own jobs below so this one keeps its headroom.
           PW_SKIP_HRMS: '1'
