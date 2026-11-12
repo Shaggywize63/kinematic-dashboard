@@ -5,7 +5,8 @@ import {
   Hourglass, Layers, LineChart, Mail, MapPin, Phone, PieChart, Route, Scale, Share2, Timer, TrendingUp, Trophy, Users, Zap,
 } from 'lucide-react';
 import { useAuth } from '../../../../hooks/useAuth';
-import { isConsumerChampion, canDownloadSrsReport, canViewFieldVisits, canViewTelecallerReport, leadReportLabel } from '../../../../lib/clientFeatures';
+import { isConsumerChampion, canDownloadSrsReport, canViewFieldVisits, canViewTelecallerReport, leadReportLabel, isManagerOrAdmin } from '../../../../lib/clientFeatures';
+import { isB2bClientActive } from '../../../../lib/b2bClient';
 import { Badge, Eyebrow, PageHeader, T, useIsCompact } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
 
@@ -26,6 +27,9 @@ type ReportEntry = {
   /** When true, this report only shows for tenants running telecallers
    *  (see canViewTelecallerReport — currently Rajkamal). */
   telecallerOnly?: boolean;
+  /** When true, this report only shows for the connected-B2B workspace
+   *  (Spark & Ray) AND to admin / manager ranks — see scorecardVisible. */
+  b2bScorecardOnly?: boolean;
 };
 
 const I = { size: 18, strokeWidth: 1.6 } as const;
@@ -39,6 +43,7 @@ const REPORTS: ReportEntry[] = [
   { href: '/dashboard/crm/reports/daywise-report', title: 'Day-Wise Report', desc: 'Per-rep, per-day rollup: activity split, unique leads, deals and tonnage, with a grand total.', icon: <CalendarRange {...I} />, srsOnly: true },
   { href: '/dashboard/crm/reports/field-visits', title: 'Field Visits', desc: 'Per field-executive rollup of ad-hoc Marketing Visits — total, in-progress, completed, areas covered, last visit.', icon: <Footprints {...I} />, fieldVisitsOnly: true },
   { href: '/dashboard/crm/reports/area-leads', title: 'Area-wise Leads', desc: 'Lead distribution by area (fallback city): total, open and converted leads per area.', icon: <MapPin {...I} />, fieldVisitsOnly: true },
+  { href: '/dashboard/crm/reports/engineer-scorecard', title: 'Engineer Scorecard', desc: 'Per-engineer leads, orders, quoted and order value over a date range, with a day / week / month toggle.', icon: <Gauge {...I} />, b2bScorecardOnly: true },
   { href: '/dashboard/crm/reports/team-performance', title: 'Team Performance', desc: 'Won volume, conversion rate, lead ageing and new leads per rep across your hierarchy subtree.', icon: <Users {...I} /> },
   { href: '/dashboard/crm/reports/telecaller-performance', title: 'Telecaller Performance', desc: 'Per-telecaller calls, connected, interested, follow-ups and scheme ₹ — with a daily trend. Replaces the Excel Call Tracker.', icon: <Phone {...I} />, telecallerOnly: true },
   { href: '/dashboard/crm/reports/campaign-insights', title: 'Campaign Insights', desc: 'Per-campaign roll-up: DigiGold / gold-scheme enrolment, app ratings, after-sales satisfaction, complaints, next-purchase & referral.', icon: <TrendingUp {...I} />, telecallerOnly: true },
@@ -80,6 +85,8 @@ export default function ReportsIndex() {
   const srs = canDownloadSrsReport(user as any);
   const fieldVisits = canViewFieldVisits(user as any);
   const telecaller = canViewTelecallerReport(user as any);
+  // Engineer Scorecard: connected-B2B workspace (Spark & Ray) + admin/manager only.
+  const scorecard = isB2bClientActive() && isManagerOrAdmin(user as any);
   // The field lead-report tile is named for the tenant (BMW sees "BMW Lead
   // Report"); the CSV format is identical. Keep in sync with the report page.
   const SRS_REPORT_HREF = '/dashboard/crm/reports/srs-lead-report';
@@ -100,7 +107,8 @@ export default function ReportsIndex() {
     : REPORTS
   ).filter((r) => !r.srsOnly || srs)
    .filter((r) => !r.fieldVisitsOnly || fieldVisits)
-   .filter((r) => !r.telecallerOnly || telecaller);
+   .filter((r) => !r.telecallerOnly || telecaller)
+   .filter((r) => !r.b2bScorecardOnly || scorecard);
 
   const tools = visible.filter((r) => r.highlight);
   const reports = visible.filter((r) => !r.highlight);

@@ -1396,6 +1396,55 @@ export const crmAfterSales = {
     api.get<Wrapped<AfterSalesRecordRow[]>>(`${BASE}/after-sales/records${qs(params)}`),
 };
 
+// ── Reports — Engineer Scorecard (connected-B2B / Spark & Ray only) ──────────
+// Directors' view of each sales engineer over a date range, bucketed by
+// day / week / month. Backend: GET /api/v1/crm/reports/engineer-scorecard
+// (404 { code:'NOT_AVAILABLE' } on a non-B2B tenant). Values are rupees (2dp).
+export type ScorecardGranularity = 'day' | 'week' | 'month';
+
+export interface EngineerScorecardBucket {
+  bucket_start: string;
+  leads_count: number;
+  orders_won: number;
+  order_value: number;
+}
+
+export interface EngineerScorecardRow {
+  user_id: string;
+  name: string;
+  /** Null when attendance is not wired for this tenant — render as "—". */
+  attendance_days: number | null;
+  leads_count: number;
+  orders_won: number;
+  quoted_value: number;
+  order_value: number;
+  brands: string[];
+  buckets: EngineerScorecardBucket[];
+}
+
+export interface EngineerScorecardTotals {
+  leads_count: number;
+  orders_won: number;
+  quoted_value: number;
+  order_value: number;
+  brands: string[];
+}
+
+export interface EngineerScorecardPayload {
+  range: { from: string; to: string; granularity: ScorecardGranularity };
+  engineers: EngineerScorecardRow[];
+  totals: EngineerScorecardTotals;
+  /** False when attendance isn't available for the workspace — render "—". */
+  attendance_available: boolean;
+}
+
+export const crmReports = {
+  // `/reports` is a city-aware CRM prefix, so api.get auto-appends the global
+  // `?city=` scope just like every other report. from/to are ISO YYYY-MM-DD.
+  engineerScorecard: (params?: { from?: string; to?: string; granularity?: ScorecardGranularity }) =>
+    api.get<Wrapped<EngineerScorecardPayload>>(`${BASE}/reports/engineer-scorecard${qs(params)}`),
+};
+
 const crmApi = {
   leads: crmLeads, contacts: crmContacts, accounts: crmAccounts, deals: crmDeals,
   consent: crmConsent, marketingVisits: crmMarketingVisits, afterSales: crmAfterSales,
@@ -1409,7 +1458,7 @@ const crmApi = {
   whatsappTemplates: crmWhatsappTemplates, whatsapp: crmWhatsapp, broadcasts: crmBroadcasts,
   locations: crmStatesApi, cities: crmCitiesApi,
   import: crmImport, analytics: crmAnalytics, ai: crmAi, settings: crmSettings,
-  integrations: crmIntegrations,
+  integrations: crmIntegrations, reports: crmReports,
 };
 
 export default crmApi;

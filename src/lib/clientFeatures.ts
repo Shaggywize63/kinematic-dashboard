@@ -62,7 +62,29 @@ type AnyUser = {
   org_id?: string | null;
   org_role?: { name?: string | null } | null;
   org_role_name?: string | null;
+  role?: string | null;
+  org_role_data_scope?: 'own' | 'team' | 'all' | null;
 } | null | undefined;
+
+/** Platform roles that administer or manage (not a frontline rep). Mirrors the
+ *  `isPlatformAdmin` ranks in useAuth plus the manager/supervisor designations. */
+const MANAGER_ADMIN_ROLES = [
+  'super_admin', 'main_admin', 'admin', 'sub_admin', 'hr', 'program_manager', 'city_manager', 'supervisor',
+];
+
+/**
+ * Admin / manager visibility used to gate directors'-level report screens. True
+ * for a platform admin/manager rank, or for any org-role whose data scope spans
+ * a team or the whole org (a manager/director). A frontline rep (field_executive
+ * / a `data_scope:'own'` designation like Consumer Champion) is excluded — the
+ * same way other admin-only report tiles gate.
+ */
+export function isManagerOrAdmin(user: AnyUser): boolean {
+  const role = (user?.role ?? '').toString().trim().toLowerCase();
+  if (MANAGER_ADMIN_ROLES.includes(role)) return true;
+  const scope = (user?.org_role_data_scope ?? '').toString().trim().toLowerCase();
+  return scope === 'team' || scope === 'all';
+}
 
 export function isTataTiscon(user: AnyUser): boolean {
   return STEEL_DEALER_CLIENT_IDS.includes(user?.client_id ?? '');
