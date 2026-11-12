@@ -1,6 +1,8 @@
 // CRM module types — mirror backend resource shapes.
 
 export type LeadStatus = 'new' | 'working' | 'qualified' | 'unqualified' | 'converted' | 'lost';
+/** Connected-B2B: Requirement = the customer has a specific need; Discussion = talked, no work yet. */
+export type LeadType = 'requirement' | 'discussion';
 export type DealStatus = 'open' | 'won' | 'lost';
 // Built-ins plus any custom slug an admin adds in Settings -> Activity Types (e.g. 'industry_visit').
 export type ActivityType = 'call' | 'email' | 'meeting' | 'task' | 'note' | 'sms' | 'whatsapp' | (string & {});
@@ -43,6 +45,10 @@ export interface Lead extends B2CFields {
   company?: string | null;
   title?: string | null;
   status: LeadStatus;
+  /** Connected-B2B (Spark & Ray): the unique, read-only reference such as `SR/LD/2627-12`. Never sent on create / patch. */
+  ref_no?: string | null;
+  /** Connected-B2B built-in field `lead_type` (gated like every built-in); null / absent = not set. */
+  lead_type?: LeadType | null;
   source_id?: string | null;
   source_name?: string | null;
   /** Computed on the leads list: the lead arrived from a lead-source
@@ -138,6 +144,19 @@ export interface SimilarAccountGroup {
 }
 
 export interface SimilarAccountsResult { groups: SimilarAccountGroup[] }
+
+/** POST /crm/leads/ref-numbers/backfill (admin only, connected-B2B). dry_run defaults to true: it only counts. */
+export interface LeadRefBackfillBody { dry_run?: boolean; limit?: number }
+export interface LeadRefBackfillResult {
+  dry_run: boolean;
+  /** Leads that had no number when the call started. */
+  total_missing: number;
+  /** Leads numbered by this call (0 on a dry run). */
+  processed: number;
+  /** Leads still without a number after this call. */
+  remaining: number;
+  sample: Array<{ id: string; name: string; ref_no: string | null }>;
+}
 
 export interface AccountMergeBody {
   keep_id: string;

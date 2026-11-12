@@ -24,6 +24,8 @@ export interface LeadFiltersValue {
   unassigned?: boolean;
   // Leads with an open follow-up that is due or overdue → `followup_due=true`.
   followupDue?: boolean;
+  // Connected-B2B built-in field `lead_type` → `lead_type=requirement|discussion`.
+  leadType?: 'requirement' | 'discussion';
 }
 
 // The lead statuses that can be filtered on. Mirrors the LeadStatus enum minus

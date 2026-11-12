@@ -396,7 +396,9 @@ export default function LeadDetailPage() {
 
   const me = getStoredUser();
   const meCtx = { id: me?.id ?? null, isAdmin: !!me?.role && UPDATE_ADMIN_ROLES.has(me.role) };
-  const outcome = isLost ? 'lost' : isUnqualified ? 'unqualified' : null;
+  // A custom stage flagged is_lost (e.g. Spark's "Trash") closes the journey like "lost": no step reads as current.
+  const customLost = !!leadStatuses?.find((o) => o.value === String(lead.status || '').toLowerCase())?.is_lost;
+  const outcome = isLost || customLost ? 'lost' : isUnqualified ? 'unqualified' : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -407,6 +409,7 @@ export default function LeadDetailPage() {
         segment={segmentName(leadForm, isB2C ? 'b2c' : 'b2b')}
         isB2C={isB2C}
         fields={fields}
+        settingsLoaded={settingsLoaded}
         leadStatuses={leadStatuses}
         closed={{ converted: isConverted, unqualified: isUnqualified, lost: isLost }}
         narrow={narrow}

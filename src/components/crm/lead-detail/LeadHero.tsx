@@ -12,6 +12,8 @@ import InlineEditText from '../InlineEditText';
 import LeadAvatar from '../leads/LeadAvatar';
 import { IndustryBadge } from '../spark/IndustrySelect';
 import { isB2bClientActive } from '../../../lib/b2bClient';
+import LeadNo from '../spark/LeadNo';
+import { LEAD_TYPE_DEFAULT_LABEL, leadTypeLabel } from '../../../lib/leadType';
 import { Avatar, Badge, Button, Card, IconButton, T, buttonStyle } from '../../ui';
 import StatusControl from './StatusControl';
 import { fmtDate, fmtIST } from './format';
@@ -27,6 +29,8 @@ export interface LeadHeroProps {
   segment: string;
   isB2C: boolean;
   fields: FieldHelpers;
+  /** The settings round-trip has finished: gated rows that are not hidden by default (Lead type) wait for it. */
+  settingsLoaded?: boolean;
   leadStatuses: LeadStatusOption[] | null;
   closed: { converted: boolean; unqualified: boolean; lost: boolean };
   narrow: boolean;
@@ -60,6 +64,9 @@ export default function LeadHero(p: LeadHeroProps) {
   const canWa = phoneShown && isValidWaPhone(lead.phone);
   const firstName = (lead.first_name || p.fullName).split(' ')[0];
   const ownerName = lead.owner_name || 'Unassigned';
+  // Connected-B2B: the reference number beside the name, and the built-in Lead type (hide / relabel via the field overrides).
+  const b2b = isB2bClientActive();
+  const showLeadType = b2b && !!p.settingsLoaded && !fields.isHidden('lead_type') && !!leadTypeLabel(lead.lead_type);
 
   return (
     <Card padding={p.narrow ? 16 : 20}>
@@ -76,6 +83,7 @@ export default function LeadHero(p: LeadHeroProps) {
                 inputStyle={{ fontSize: 20, fontWeight: 700, minWidth: 220 }}
                 onSave={p.onRename}
               />
+              {b2b && lead.ref_no && <LeadNo value={lead.ref_no} copy testId="detail-lead-no" />}
               <Badge tone={p.isB2C ? 'neutral' : 'info'}>{p.segment}</Badge>
               {/* Spark & Ray: the lead's industry, in the same colour the dashboard map uses. */}
               {isB2bClientActive() && !fields.isHidden('industry') && <IndustryBadge name={lead.industry} />}
@@ -100,6 +108,9 @@ export default function LeadHero(p: LeadHeroProps) {
                   <span style={{ color: T.text }}>{`${fields.labelFor('owner_id', 'Owner')}: ${ownerName}`}</span>
                   {p.canAssign && <AssignMenu users={p.users} loading={p.usersLoading} onOpen={p.onLoadUsers} onPick={p.onAssign} />}
                 </span>
+              )}
+              {showLeadType && (
+                <span data-field="lead_type">{fields.labelFor('lead_type', LEAD_TYPE_DEFAULT_LABEL)} <span style={{ color: T.text, fontWeight: 600 }}>{leadTypeLabel(lead.lead_type)}</span></span>
               )}
               {!fields.isHidden('source_id') && lead.source_name && (
                 <span data-field="source_id">{fields.labelFor('source_id', 'Source')} <span style={{ color: T.text, fontWeight: 600 }}>{lead.source_name}</span></span>

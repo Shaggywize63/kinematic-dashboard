@@ -21,6 +21,7 @@ import { clearSubIndustryOnChange, industryOptions, subIndustryOptions, useIndus
 import { isKinematicTenant, STEEL_DEALER_CLIENT_IDS } from '../../lib/clientFeatures';
 import { useAuth } from '../../hooks/useAuth';
 import { useLeadOwnerAccess } from '../../lib/leadOwnerAccess';
+import { LEAD_TYPE_DEFAULT_LABEL, LEAD_TYPE_OPTIONS, leadTypeForApi } from '../../lib/leadType';
 import { LocateFixed } from 'lucide-react';
 import { Button, Field, Input, Segmented, Select, Textarea, eyebrowStyle, labelStyle, requiredMark } from '../ui';
 
@@ -133,6 +134,9 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // built-in lead fields. Loaded from crm_settings alongside business_type
   // so a single round-trip drives both. Empty until first fetch.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  // True once the settings round-trip has finished (success or failure). Admin-gated rows that are shown by default
+  // (Lead type) wait for it, so a field the admin hid never flashes up and then disappears.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   // Per-client custom lead-status set (crm_settings.config.lead_statuses).
   // Null = use the built-in list (no change for existing tenants). Loaded
   // from the same settings round-trip as fieldOverrides.
@@ -180,6 +184,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // fields are dropped (people live in Contacts & requirements) and the lead's
   // name comes from the Company. Mirrors the new-lead form.
   const companyLead = b2bAccounts && !form.is_b2c;
+  // Lead type (connected-B2B only for now): a built-in field, so hide / relabel / required all come from the overrides.
+  const showLeadType = sparkLead && settingsLoaded && !fields.isHidden('lead_type');
   const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
   // Additive "Contacts & requirements" capture on edit — new people met on this
   // revisit. Starts empty (existing contacts show on the lead detail page); each
@@ -215,6 +221,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           api.getUsers({ limit: '500', scope: 'assignable' }) as Promise<{ data?: Array<{ id: string; name?: string; full_name?: string; email?: string }> }>,
         ]);
         if (cancelled) return;
+        setSettingsLoaded(true);
         if (s.status === 'fulfilled') {
           const t: BusinessType = s.value.data?.business_type ?? 'both';
           setBusinessType(t);
@@ -243,6 +250,9 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     return () => { cancelled = true; };
   }, [open]);
 
+  // A lost / unqualified status (built-in, or a custom stage flagged is_lost such as Spark's "Trash") asks for a reason.
+  const closesLost = form.status === 'lost' || form.status === 'unqualified'
+    || !!leadStatuses?.find((o) => o.value === form.status)?.is_lost;
   const submit = async (overrideSiteVisit?: boolean) => {
     // Required-field guards. Walked top-to-bottom matching the form layout
     // so the toast points at the first thing the rep needs to fix.
@@ -279,6 +289,9 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         return toast.error(g.message);
       }
     }
+    if (showLeadType && fields.requiredFor('lead_type', false) && !form.lead_type) {
+      return toast.error(`${fields.labelFor('lead_type', LEAD_TYPE_DEFAULT_LABEL)} is required.`);
+    }
     // Phone, when present, must be a clean 10-digit number — the F(phone)
     // input has already stripped junk, but reject explicitly so we don't
     // POST a 7-digit half-typed value.
@@ -305,9 +318,11 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         // Send the lost-reason only when the lead is in a terminal
         // status that justifies it. Sending it for working/qualified
         // leads would pollute the column.
-        lost_reason: (form.status === 'lost' || form.status === 'unqualified')
+        lost_reason: closesLost
           ? (form.lost_reason.trim() || null)
           : null,
+        // null clears the type; hidden / unavailable => key omitted so nothing is touched.
+        ...(showLeadType ? { lead_type: leadTypeForApi(form.lead_type) } : {}),
         // Send null when the rep clears the picker, so the column actually
         // clears (sending undefined would leave the existing value untouched).
         source_id: form.source_id || null,
@@ -506,14 +521,14 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         ), 'phone')}
         </>)}
 
-        {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked)) && (
+        {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked) || showLeadType) && (
           <><SL>Assignment</SL><Grid>
             {show('status', <div data-field="status" style={{ display: 'contents' }}><SF label={lbl('status', 'Status')} style={os('status')} value={form.status} options={leadStatuses ? leadStatuses.map((s) => ({ value: s.value, label: s.label })) : [{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }, { value: 'lost', label: 'Lost' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} /></div>)}
             {/* Lost-reason capture — appears only when the rep is
                 moving the lead into a terminal status that needs an
                 explanation. Free-text for now; analytics rolls up by
                 normalising lowercase + trimming common variants. */}
-            {(form.status === 'lost' || form.status === 'unqualified') && (
+            {closesLost && (
               <SF
                 label="Reason"
                 value={form.lost_reason}
@@ -539,6 +554,18 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             {/* Owner reassignment — was previously absent from the modal
                 entirely. Hidden when the /users endpoint comes back empty
                 (e.g. client-role users without manpower read access). */}
+            {showLeadType && (
+              <div data-field="lead_type" style={{ display: 'contents' }}>
+                <SF
+                  label={fields.labelFor('lead_type', LEAD_TYPE_DEFAULT_LABEL)}
+                  style={os('lead_type')}
+                  required={fields.requiredFor('lead_type', false)}
+                  value={form.lead_type}
+                  options={[{ value: '', label: '— None —' }, ...LEAD_TYPE_OPTIONS]}
+                  onChange={(v) => setForm({ ...form, lead_type: v as '' | 'requirement' | 'discussion' })}
+                />
+              </div>
+            )}
             {!fields.isHidden('owner_id') && users.length > 0 && canReassign && ownerAccess.canAssign && (
               <label style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, ...os('owner_id') }}>
                 <span style={labelStyle}>
@@ -787,6 +814,8 @@ function seed(l: Lead) {
     email: l.email || '', phone: l.phone || '',
     status: l.status,
     source_id: (l as any).source_id || '',
+    // Connected-B2B built-in field; '' = not set.
+    lead_type: (l.lead_type === 'requirement' || l.lead_type === 'discussion' ? l.lead_type : '') as '' | 'requirement' | 'discussion',
     owner_id: anyL.owner_id || '',
     alternate_mobiles: Array.isArray(anyL.alternate_mobiles) ? anyL.alternate_mobiles : [],
     custom_fields: (anyL.custom_fields && typeof anyL.custom_fields === 'object') ? { ...(anyL.custom_fields as Record<string, unknown>) } : {} as Record<string, unknown>,

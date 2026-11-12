@@ -32,6 +32,7 @@ export function leadFilterParams(f: LeadFiltersValue, o: LeadParamOptions = {}):
   if (f.grade)    p.score_grade = f.grade;
   if (f.unassigned) p.unassigned = 'true';
   if (f.followupDue) p.followup_due = 'true';
+  if (f.leadType) p.lead_type = f.leadType;
   if (f.quietDays && f.quietDays > 0) p.no_activity_days = String(f.quietDays);
   if (f.addedDays && f.addedDays > 0) p.created_within_days = String(f.addedDays);
   if (o.campaign) p.campaign = o.campaign;
@@ -47,6 +48,7 @@ export function activeFilterCount(f: LeadFiltersValue): number {
   if (f.source) n += 1;
   if (f.owner || f.unassigned) n += 1;
   if (f.followupDue) n += 1;
+  if (f.leadType) n += 1;
   if (f.state || f.city || f.district || f.block) n += 1;
   if (f.quietDays) n += 1;
   if (f.addedDays) n += 1;

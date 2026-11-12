@@ -7,6 +7,7 @@ import type { LeadStatusOption } from '../../lib/crmLeadStatuses';
 import type { FieldHelpers } from '../../lib/crmFieldOverrides';
 import OwnerAvatar from './shared/OwnerAvatar';
 import { IndustryBadge } from './spark/IndustrySelect';
+import LeadNo from './spark/LeadNo';
 import { isB2bClientActive } from '../../lib/b2bClient';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
 import WhatsAppButton from './shared/WhatsAppButton';
@@ -118,6 +119,8 @@ function SortTh({ label, sortKey, sort, onSort, align = 'left' }: {
 // under each lead's name, and these toggles still show / hide them.)
 export const LEAD_COLUMNS = [
   { key: 'name', label: 'Name', locked: true },
+  // Connected-B2B (Spark & Ray) only: the lead's reference number. The page leaves it out of the customiser elsewhere.
+  { key: 'lead_no', label: 'Lead No.' },
   { key: 'company', label: 'Company' },
   { key: 'phone', label: 'Phone' },
   { key: 'status', label: 'Status' },
@@ -135,7 +138,7 @@ export const LEAD_COLUMNS = [
   { key: 'action', label: 'Action' },
 ] as const;
 
-const SLIM_HIDDEN = new Set(['latest_update', 'source', 'owner', 'created_by', 'created_at']);
+const SLIM_HIDDEN = new Set(['lead_no', 'latest_update', 'source', 'owner', 'created_by', 'created_at']);
 
 /**
  * Leads list table. Renders bare (no card) so the page can wrap it in a
@@ -174,11 +177,14 @@ export default function LeadsTable({
   const isVisible = (key: string) => !hidden.has(key);
   const showStatus = isVisible('status') && !hid('status');
   const showScore = isVisible('score') && !hid('score');
+  // Connected-B2B only: the monospace Lead No. column right after the lead's name.
+  const showLeadNo = showIndustry && isVisible('lead_no');
   const showSource = isVisible('source') && !hid('source_id');
   const showOwner = isVisible('owner') && !hid('owner_id');
 
   // Cells before the last: checkbox, lead, [status], [score], … + the zero-width actions anchor.
   let colCount = 3;
+  if (showLeadNo) colCount += 1;
   if (showStatus) colCount += 1;
   if (showScore) colCount += 1;
   if (isVisible('latest_update')) colCount += 1;
@@ -196,6 +202,7 @@ export default function LeadsTable({
               <input ref={headCheck} type="checkbox" checked={allSelected} onChange={onToggleAll} aria-label="Select all on this page" style={{ width: 15, height: 15, display: 'block' }} />
             </th>
             <SortTh label="Lead" sortKey="name" sort={sort} onSort={onSort} />
+            {showLeadNo && <th style={thStyle}>Lead No.</th>}
             {showStatus && <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} />}
             {showScore && <SortTh label={label('score', 'Score')} sortKey="score" sort={sort} onSort={onSort} />}
             {isVisible('latest_update') && <th style={thStyle}>Latest update</th>}
@@ -233,6 +240,7 @@ export default function LeadsTable({
               statusLookup={statusLookup}
               fieldHelpers={fieldHelpers}
               showIndustry={showIndustry}
+              showLeadNo={showLeadNo}
             />
           ))}
         </tbody>
@@ -260,10 +268,12 @@ interface LeadRowProps {
   fieldHelpers?: FieldHelpers;
   /** Spark & Ray: show the lead's coloured industry badge beside its name. */
   showIndustry?: boolean;
+  /** Connected-B2B: render the Lead No. cell. */
+  showLeadNo?: boolean;
 }
 
 const LeadRow = memo(function LeadRow({
-  lead: l, isSelected, isOpen, dim, onToggle, onPreview, onScoreClick, onAssign, onEdit, onApprove, onToggleImportant, isB2C, hidden, statusLookup, fieldHelpers, showIndustry,
+  lead: l, isSelected, isOpen, dim, onToggle, onPreview, onScoreClick, onAssign, onEdit, onApprove, onToggleImportant, isB2C, hidden, statusLookup, fieldHelpers, showIndustry, showLeadNo,
 }: LeadRowProps) {
   const fullName = leadDisplayName(l);
   const handleToggle = useCallback(() => onToggle(l.id), [onToggle, l.id]);
@@ -343,6 +353,12 @@ const LeadRow = memo(function LeadRow({
           </div>
         </div>
       </td>
+
+      {showLeadNo && (
+        <td style={{ ...tdStyle, whiteSpace: 'nowrap' }} data-label="Lead No.">
+          {l.ref_no ? <LeadNo value={l.ref_no} /> : <Dash />}
+        </td>
+      )}
 
       {showStatus && (
         <td style={tdStyle} data-label="Status">

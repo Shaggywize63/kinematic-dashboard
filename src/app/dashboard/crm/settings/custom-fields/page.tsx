@@ -7,6 +7,7 @@ import type { CustomField } from '../../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../../lib/auth';
 import { composeOptions, isProductSourceOptions, OPTION_SEARCHABLE, visibleOptions } from '../../../../../lib/customFieldOptions';
 import { extractLeadForm, segmentName } from '../../../../../lib/crmLeadForm';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import { hasFormOrder, type FieldOverride, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import {
   applyBuiltinOrder, canStep, mergeFieldOrder, moveStep, moveTo, nextPosition, renumber,
@@ -136,6 +137,9 @@ const LOOKUP_FIELDS: Record<string, Array<{ value: string; label: string }>> = {
   ],
 };
 
+// Built-in lead fields that only the connected-B2B client has; the other tenants' settings list does not offer them.
+const CONNECTED_B2B_LEAD_FIELDS = new Set(['lead_type']);
+
 // Built-in standard fields for each entity
 type BuiltinField = { key: string; label: string; type: string; required?: boolean };
 
@@ -161,6 +165,9 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'industry', label: 'Industry', type: 'text' },
     { key: 'status', label: 'Lead Status', type: 'select', required: true },
     { key: 'source_id', label: 'Lead Source', type: 'select' },
+    // Requirement / Discussion. Connected-B2B (Spark & Ray) only for now: other clients do not see this row
+    // (see CONNECTED_B2B_LEAD_FIELDS) because their forms do not render it.
+    { key: 'lead_type', label: 'Lead type', type: 'select' },
     { key: 'owner_id', label: 'Assigned To', type: 'select' },
     { key: 'score', label: 'Lead Score', type: 'number' },
     { key: 'is_b2c', label: 'B2C Lead', type: 'boolean' },
@@ -262,6 +269,9 @@ export default function CustomFieldsPage() {
   const [savingOverride, setSavingOverride] = useState<string | null>(null);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [accessDenied, setAccessDenied] = useState(false);
+  // Connected-B2B (Spark & Ray) only: read after mount (it looks at localStorage).
+  const [b2b, setB2b] = useState(false);
+  useEffect(() => { setB2b(isB2bClientActive()); }, []);
   const [editing, setEditing] = useState<{ entity: string; key: string; label: string; required: boolean; hidden: boolean } | null>(null);
   // Edit dialog for true custom fields (id-keyed in the table, separate
   // from the built-in override editor above which keys off entity+key).
@@ -733,7 +743,7 @@ export default function CustomFieldsPage() {
       ? [...known.filter((e) => present.has(e)), ...Array.from(present).filter((e) => !known.includes(e)).sort()]
       : [filter as string];
     return entities.map((ent) => {
-      const defs = BUILTIN_FIELDS[ent] || [];
+      const defs = (BUILTIN_FIELDS[ent] || []).filter((d) => b2b || ent !== 'lead' || !CONNECTED_B2B_LEAD_FIELDS.has(d.key));
       const defByKey = new Map(defs.map((d) => [d.key, d]));
       const customs = items.filter((i) => i.entity_type === ent);
       const byId = new Map(customs.map((c) => [c.id, c]));
@@ -748,7 +758,7 @@ export default function CustomFieldsPage() {
         ordered: hasFormOrder(overrides, ent),
       };
     });
-  }, [filter, items, overrides]);
+  }, [filter, items, overrides, b2b]);
   // The "System Fields" toggle hides system rows from the table; reordering still works on the full list.
   const isShown = (r: FieldRow) => showBuiltin || r.kind === 'custom';
   const entityOfRid = (rid: string) => groups.find((g) => g.rows.some((r) => r.rid === rid))?.entity;
