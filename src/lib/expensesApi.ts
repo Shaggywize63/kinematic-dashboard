@@ -216,6 +216,11 @@ export interface ExpenseClaim {
   form_id?: string | null;
   account_name?: string | null;
   form_title?: string | null;
+  /** The CRM lead / deal this expense was spent on (connected-B2B); names are stamped server-side for display. */
+  lead_id?: string | null;
+  deal_id?: string | null;
+  lead_name?: string | null;
+  deal_name?: string | null;
   created_at: string;
   updated_at?: string;
   // stamped for display
@@ -343,6 +348,9 @@ export interface ClaimInput {
   clarification?: string | null;
   account_id?: string | null;
   form_submission_id?: string | null;
+  /** The CRM lead / deal this expense is against (null clears). The server fills the lead from a deal and the account from a lead. */
+  lead_id?: string | null;
+  deal_id?: string | null;
   items?: ClaimItemInput[];
 }
 
@@ -383,6 +391,9 @@ export interface ClaimFilters {
   policy_id?: string;
   q?: string;
   city?: string;
+  /** Connected-B2B: only the claims linked to this lead / deal. */
+  lead_id?: string;
+  deal_id?: string;
   page?: number;
   limit?: number;
 }
@@ -421,7 +432,8 @@ export const expensesApi = {
   policyPeople: (q: string) => api.get<Wrapped<PolicyPerson[]>>(`${BASE}/policies/people${qs({ q })}`),
 
   // Claims (mine)
-  listClaims: (status?: string) => api.get<Wrapped<ExpenseClaim[]>>(`${BASE}/claims${qs({ status })}`),
+  listClaims: (status?: string, link?: { lead_id?: string; deal_id?: string }) =>
+    api.get<Wrapped<ExpenseClaim[]>>(`${BASE}/claims${qs({ status, ...link })}`),
   getClaim: (id: string) => api.get<Wrapped<ExpenseClaim>>(`${BASE}/claims/${id}`),
   createClaim: (body: ClaimInput) => api.post<Wrapped<ExpenseClaim>>(`${BASE}/claims`, body),
   updateClaim: (id: string, body: ClaimInput) => api.patch<Wrapped<ExpenseClaim>>(`${BASE}/claims/${id}`, body),

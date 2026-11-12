@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -135,6 +135,9 @@ export default function ClaimDetailPage() {
                 // Connected-B2B links (shown only when set): the account + the filled form's reference and date
                 // (the form's name for an older claim that has no reference).
                 c.account_name ? ['Company', c.account_name] : null,
+                // The CRM lead / deal the money was spent on — links to their pages (where the total spend shows).
+                c.lead_id ? ['Lead', <Link key="lead" href={`/dashboard/crm/leads/${c.lead_id}`} style={{ color: T.info }}>{c.lead_name || 'View lead'}</Link>] : null,
+                c.deal_id ? ['Deal', <Link key="deal" href={`/dashboard/crm/deals/${c.deal_id}`} style={{ color: T.info }}>{c.deal_name || 'View deal'}</Link>] : null,
                 c.form_ref_no ? ['Form', formRefTitle(c.form_ref_no, c.form_submitted_at)] : c.form_title ? ['Form', c.form_title] : null,
                 c.clarification ? ['Clarification', c.clarification] : null,
                 ['Claimed', money(c.total_amount, c.currency)],
@@ -145,7 +148,7 @@ export default function ClaimDetailPage() {
                 c.gps_derived_km != null ? ['GPS trail', `${c.gps_derived_km} km`] : null,
                 c.reimbursed_at ? ['Reimbursed', `${fmtDate(c.reimbursed_at)}${c.reimbursed_ref ? ` · ${c.reimbursed_ref}` : ''}`] : null,
                 (c.submit_count ?? 1) > 1 ? ['Attempts', String(c.submit_count)] : null,
-              ] as Array<[string, string] | null>).filter((r): r is [string, string] => !!r).map(([k, v]) => (
+              ] as Array<[string, ReactNode] | null>).filter((r): r is [string, ReactNode] => !!r).map(([k, v]) => (
                 <div key={k} style={{ display: 'contents' }}>
                   <dt style={{ color: T.mute }}>{k}</dt><dd style={{ margin: 0, color: T.text, fontWeight: 500, overflowWrap: 'anywhere' }}>{v}</dd>
                 </div>

@@ -30,6 +30,7 @@ import OverviewTab from '../../../../../components/crm/lead-detail/OverviewTab';
 import TimelineTab from '../../../../../components/crm/lead-detail/TimelineTab';
 import DealsTab from '../../../../../components/crm/lead-detail/DealsTab';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import EntityExpensesCard from '../../../../../components/crm/EntityExpensesCard';
 import InsightsTab from '../../../../../components/crm/lead-detail/InsightsTab';
 import ScoreCard from '../../../../../components/crm/lead-detail/ScoreCard';
 import DisqualifiedBanner from '../../../../../components/crm/lead-detail/DisqualifiedBanner';
@@ -506,6 +507,8 @@ export default function LeadDetailPage() {
         </div>
 
         <aside aria-label="Lead intelligence" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Connected-B2B: what was spent on this lead (claims linked to it) vs. the deal value. Renders nothing for other clients. */}
+          <EntityExpensesCard kind="lead" id={id} />
           {/* Score + boost suggestions are hidden for Consumer Champion reps AND for the Tata Tiscon tenant —
               their flow doesn't use the AI score-boost loop. The NBA card stays visible since it's an action
               prompt the FE can act on directly. */}

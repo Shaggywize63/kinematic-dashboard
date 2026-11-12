@@ -21,6 +21,7 @@ import { formatINR, formatKg, type DashboardUnit } from '../../../../../lib/form
 import { useAuth } from '../../../../../hooks/useAuth';
 import { isConsumerChampion, isBmwActive } from '../../../../../lib/clientFeatures';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import EntityExpensesCard from '../../../../../components/crm/EntityExpensesCard';
 import { DealSectionsView, useDealSections } from '../../../../../components/crm/spark/DealSections';
 
 const LOST_REASONS = [
@@ -791,6 +792,8 @@ export default function DealDetailPage() {
         </div>
 
         <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {/* Connected-B2B: what was spent to win this deal (claims linked to it) vs. its value. Renders nothing for other clients. */}
+          <SafeRender label="expenses"><EntityExpensesCard kind="deal" id={id} /></SafeRender>
           {primary && primary.contact_id && (
             <Card title="Primary Contact">
               <Link href={`/dashboard/crm/contacts/${primary.contact_id}`} style={chipLink}>
