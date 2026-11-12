@@ -4,14 +4,20 @@
 // Core people and payroll data stay in the core database: the only writes there are the two clearly labelled ones,
 // "Send to payroll" (adjustments tagged `[benefits <month>]`) and "Issue increment" (updateEmployee + issueLetter).
 
-import { createAreaStore } from '../areaStore';
+import { useMemo } from 'react';
+import { createAreaStore, type AreaStore } from '../areaStore';
 import { ACTOR, addAdjustment, remove } from '../actions';
 import { getDb } from '../db';
+import { isLive } from '../live/store';
 import { PREVIEW_TODAY } from '../seed';
 import { addDays, fullName } from '../format';
 import { uid } from '../types';
 import type { Id, ISODate, Month } from '../types';
 import { makeRewardsSeed } from './seed';
+import {
+  getLiveAssets, liveAddAsset, liveBackFromRepair, liveIssueAsset, liveMarkLost, liveRetireAsset, liveReturnAsset,
+  liveSendToRepair, liveTransferAsset, useLiveAssetsSnapshot, useLiveSource,
+} from './live/assetsSource';
 import {
   CLAIM_NEXT, benefitsTag, deductionPreview, enrolmentEligibility, planOf, tierOf, validateBand, validateDependants, validateFlex, validateGuideline,
   windowStatus, nextTag, checkProposal, cycleMembership, baseCtcFor, submitBlockers, addMonthsISO,
@@ -23,7 +29,28 @@ import type {
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
-export const rewardsStore = createAreaStore<RewardsState>('rewards', 1, makeRewardsSeed);
+// The Rewards area store. Benefits and compensation always live in this browser-local store (the "saved in this browser only"
+// note stays on their pages). The ASSETS slice has a Sample | Live concept (phase 6): in live mode it comes from, and is saved
+// to, the server (live/assetsSource.ts), while this local store still holds benefits, compensation and the activity log.
+const baseRewardsStore = createAreaStore<RewardsState>('rewards', 1, makeRewardsSeed);
+
+/** The whole Rewards state for the active source: in live mode the assets slice is the server's, the rest is this local store. */
+const mergeLive = (base: RewardsState, assets: RewardsState['assets']): RewardsState => ({ ...base, assets });
+
+export const rewardsStore: AreaStore<RewardsState> = {
+  name: 'rewards',
+  get: () => (isLive() ? mergeLive(baseRewardsStore.get(), getLiveAssets()) : baseRewardsStore.get()),
+  // Benefits, compensation and the log always change locally. Asset actions never call mutate in live mode (they are server
+  // commands), so the local assets slice is ignored there and the live register is never written to browser storage.
+  mutate: (fn) => baseRewardsStore.mutate(fn),
+  reset: () => baseRewardsStore.reset(),
+  use() {
+    const base = baseRewardsStore.use();
+    const source = useLiveSource();
+    const assets = useLiveAssetsSnapshot();
+    return useMemo(() => (base && source === 'live' ? mergeLive(base, assets) : base), [base, source, assets]);
+  },
+};
 
 const logTo = (d: RewardsState, area: LogEntry['area'], action: string) => {
   d.log.unshift({ on: PREVIEW_TODAY, by: ACTOR, area, action });
@@ -46,7 +73,13 @@ const findAsset = (d: RewardsState, id: Id) => d.assets.items.find((x) => x.id =
 const note = (s?: string) => (s ?? '').trim() || undefined;
 
 export interface NewAssetInput { type: AssetType; make: string; model: string; serial: string; purchaseDate: ISODate; cost: number; warrantyMonths: number; condition: AssetCondition }
-export function addAsset(input: NewAssetInput): Result<{ id: Id; tag: string }> {
+
+// Each asset action is a server command in live mode and the local sample flow otherwise. They return a promise so the call
+// sites can await the server (sample mode resolves at once). The sample flows below are unchanged.
+export function addAsset(input: NewAssetInput): Promise<Result<{ id: Id; tag: string }>> {
+  return isLive() ? liveAddAsset(input) : Promise.resolve(addAssetSample(input));
+}
+function addAssetSample(input: NewAssetInput): Result<{ id: Id; tag: string }> {
   const s = rewardsStore.get();
   if (!input.make.trim() || !input.model.trim()) return fail('Enter the make and the model.');
   if (!input.serial.trim()) return fail('Enter the serial number.');
@@ -68,7 +101,10 @@ export function addAsset(input: NewAssetInput): Result<{ id: Id; tag: string }> 
   return { ok: true, id, tag };
 }
 
-export function issueAsset(i: { assetId: Id; personId: Id; condition: AssetCondition; ack: boolean; note?: string }): Result {
+export function issueAsset(i: { assetId: Id; personId: Id; condition: AssetCondition; ack: boolean; note?: string }): Promise<Result> {
+  return isLive() ? liveIssueAsset(i) : Promise.resolve(issueAssetSample(i));
+}
+function issueAssetSample(i: { assetId: Id; personId: Id; condition: AssetCondition; ack: boolean; note?: string }): Result {
   const a = findAsset(rewardsStore.get(), i.assetId);
   if (!a) return fail('That asset is not in the register.');
   if (a.status !== 'in_stock') return fail(`${a.tag} is ${a.status.replace('_', ' ')}, so it cannot be issued.`);
@@ -83,7 +119,10 @@ export function issueAsset(i: { assetId: Id; personId: Id; condition: AssetCondi
   return { ok: true };
 }
 
-export function returnAsset(i: { assetId: Id; condition: AssetCondition; next: Extract<AssetStatus, 'in_stock' | 'in_repair' | 'retired'>; note?: string }): Result {
+export function returnAsset(i: { assetId: Id; condition: AssetCondition; next: Extract<AssetStatus, 'in_stock' | 'in_repair' | 'retired'>; note?: string }): Promise<Result> {
+  return isLive() ? liveReturnAsset(i) : Promise.resolve(returnAssetSample(i));
+}
+function returnAssetSample(i: { assetId: Id; condition: AssetCondition; next: Extract<AssetStatus, 'in_stock' | 'in_repair' | 'retired'>; note?: string }): Result {
   const a = findAsset(rewardsStore.get(), i.assetId);
   if (!a || a.status !== 'issued') return fail('Only an issued asset can be returned.');
   rewardsStore.mutate((d) => {
@@ -96,7 +135,10 @@ export function returnAsset(i: { assetId: Id; condition: AssetCondition; next: E
   return { ok: true };
 }
 
-export function transferAsset(i: { assetId: Id; toId: Id; condition: AssetCondition; ack: boolean; note?: string }): Result {
+export function transferAsset(i: { assetId: Id; toId: Id; condition: AssetCondition; ack: boolean; note?: string }): Promise<Result> {
+  return isLive() ? liveTransferAsset(i) : Promise.resolve(transferAssetSample(i));
+}
+function transferAssetSample(i: { assetId: Id; toId: Id; condition: AssetCondition; ack: boolean; note?: string }): Result {
   const a = findAsset(rewardsStore.get(), i.assetId);
   if (!a || a.status !== 'issued') return fail('Only an issued asset can be transferred.');
   if (a.holderId === i.toId) return fail('It is already with this person.');
@@ -112,7 +154,10 @@ export function transferAsset(i: { assetId: Id; toId: Id; condition: AssetCondit
   return { ok: true };
 }
 
-export function sendToRepair(assetId: Id, text?: string): Result {
+export function sendToRepair(assetId: Id, text?: string): Promise<Result> {
+  return isLive() ? liveSendToRepair(assetId, text) : Promise.resolve(sendToRepairSample(assetId, text));
+}
+function sendToRepairSample(assetId: Id, text?: string): Result {
   const a = findAsset(rewardsStore.get(), assetId);
   if (!a || (a.status !== 'in_stock' && a.status !== 'issued')) return fail('Only an asset in stock or issued can go for repair.');
   rewardsStore.mutate((d) => {
@@ -125,7 +170,10 @@ export function sendToRepair(assetId: Id, text?: string): Result {
   return { ok: true };
 }
 
-export function backFromRepair(assetId: Id, condition: AssetCondition, text?: string): Result {
+export function backFromRepair(assetId: Id, condition: AssetCondition, text?: string): Promise<Result> {
+  return isLive() ? liveBackFromRepair(assetId, condition, text) : Promise.resolve(backFromRepairSample(assetId, condition, text));
+}
+function backFromRepairSample(assetId: Id, condition: AssetCondition, text?: string): Result {
   const a = findAsset(rewardsStore.get(), assetId);
   if (!a || a.status !== 'in_repair') return fail('Only an asset in repair can come back from repair.');
   rewardsStore.mutate((d) => {
@@ -137,7 +185,10 @@ export function backFromRepair(assetId: Id, condition: AssetCondition, text?: st
   return { ok: true };
 }
 
-export function markLost(assetId: Id, text?: string): Result {
+export function markLost(assetId: Id, text?: string): Promise<Result> {
+  return isLive() ? liveMarkLost(assetId, text) : Promise.resolve(markLostSample(assetId, text));
+}
+function markLostSample(assetId: Id, text?: string): Result {
   const a = findAsset(rewardsStore.get(), assetId);
   if (!a || (a.status !== 'in_stock' && a.status !== 'issued')) return fail('Only an asset in stock or issued can be marked lost.');
   rewardsStore.mutate((d) => {
@@ -150,7 +201,10 @@ export function markLost(assetId: Id, text?: string): Result {
   return { ok: true };
 }
 
-export function retireAsset(assetId: Id, text?: string): Result {
+export function retireAsset(assetId: Id, text?: string): Promise<Result> {
+  return isLive() ? liveRetireAsset(assetId, text) : Promise.resolve(retireAssetSample(assetId, text));
+}
+function retireAssetSample(assetId: Id, text?: string): Result {
   const a = findAsset(rewardsStore.get(), assetId);
   if (!a || (a.status !== 'in_stock' && a.status !== 'in_repair')) return fail('Only an asset in stock or in repair can be retired.');
   rewardsStore.mutate((d) => {
