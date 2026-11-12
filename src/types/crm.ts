@@ -115,6 +115,52 @@ export interface Contact extends B2CFields {
   updated_at: string;
 }
 
+/** One account inside a duplicate group (GET /crm/accounts/similar). */
+export interface SimilarAccount {
+  id: string;
+  name: string;
+  city?: string | null;
+  state?: string | null;
+  industry?: string | null;
+  owner_id?: string | null;
+  owner_name?: string | null;
+  created_at: string;
+  contact_count: number;
+  lead_count: number;
+  deal_count: number;
+}
+
+/** A set of accounts that look like the same company. `score` is 0..1 (1 = identical name). */
+export interface SimilarAccountGroup {
+  key: string;
+  score: number;
+  accounts: SimilarAccount[];
+}
+
+export interface SimilarAccountsResult { groups: SimilarAccountGroup[] }
+
+export interface AccountMergeBody {
+  keep_id: string;
+  merge_ids: string[];
+  /** true = report what would move, change nothing. */
+  dry_run?: boolean;
+}
+
+/** What a merge moved (or, for a dry run, would move) onto the kept account. */
+export interface AccountMergeMoved {
+  contacts: number; leads: number; converted_leads: number; deals: number; activities: number; notes: number;
+  sites: number; visits: number; account_updates: number; expenses: number; form_submissions: number; child_accounts: number;
+}
+
+export interface AccountMergeResult {
+  dry_run: boolean;
+  kept: Account;
+  merged_ids: string[];
+  moved: AccountMergeMoved;
+  skipped: string[];
+  duplicate_contacts: Array<{ keep_contact_id: string; other_contact_id: string; reason: 'same_email' | 'same_phone' }>;
+}
+
 export interface Account {
   id: string;
   org_id: string;
