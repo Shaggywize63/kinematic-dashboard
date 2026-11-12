@@ -271,6 +271,9 @@ export interface Deal {
   dealer_name?: string | null;
   lead_name?: string | null;
   lead_phone?: string | null;
+  // Connected-B2B (Spark & Ray): rolled up from the deal's product lines by the deals endpoints. `quoted_amount` is the
+  // amount; `order_amount` is the sum of the lines' order values (null when none is filled); `brands` the line brands.
+  line_count?: number | null; quoted_amount?: number | null; order_amount?: number | null; brands?: string[] | null;
   // Admin-defined custom fields plus the bespoke keys other surfaces
   // read/write (next_action_type / next_action_at / volume_kg /
   // line_items / closed_quantities). Backend PATCH merges partial objects.
@@ -830,6 +833,12 @@ export interface DealLineItem {
   quantity: number; unit_price: number; discount_pct?: number | null;
   tax_pct?: number | null; line_total: number; position?: number | null;
   crm_products?: { name: string; sku: string; image_url?: string | null; currency?: string | null } | null;
+  // Connected-B2B (Spark & Ray): `reference` is the product sku; `line_total` is the QUOTED value (qty x unit price);
+  // `order_value` is what was actually ordered (filled when the deal is won); `funnel_ref` is the typed MAC funnel
+  // reference (required for MAC products). A brand is not a make.
+  reference?: string | null;
+  make_id?: string | null; brand_id?: string | null; make_name?: string | null; brand_name?: string | null;
+  funnel_ref?: string | null; order_value?: number | null;
   created_at: string; updated_at: string;
 }
 

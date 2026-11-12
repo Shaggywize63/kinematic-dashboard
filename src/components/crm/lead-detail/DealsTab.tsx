@@ -9,6 +9,8 @@ import { crmLeads } from '../../../lib/crmApi';
 import { getStoredUser } from '../../../lib/auth';
 import { isBmwActive } from '../../../lib/clientFeatures';
 import { formatINR } from '../../../lib/formatCurrency';
+import { dealRollup } from '../../../lib/sparkAccounts';
+import { BrandChips } from '../spark/BrandChips';
 import UpsellsSection from '../UpsellsSection';
 import { Badge, Button, EmptyState, T, eyebrowStyle, type Tone } from '../../ui';
 import SectionCard from './SectionCard';
@@ -24,7 +26,7 @@ const asTonnes = (kg: number) => {
 };
 
 /** Deals opened from this lead, with a Total / Won / Balance rollup, plus the upsells logged against it. */
-export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon = false, showFulfillBalance = false, newDealHref }: { leadId: string; deals: Deal[]; canConvert: boolean; onConvert: () => void; hideWon?: boolean; showFulfillBalance?: boolean; newDealHref?: string }) {
+export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon = false, showFulfillBalance = false, newDealHref, spark = false }: { leadId: string; deals: Deal[]; canConvert: boolean; onConvert: () => void; hideWon?: boolean; showFulfillBalance?: boolean; newDealHref?: string; spark?: boolean }) {
   const router = useRouter();
   // BMW does not use the upsell flow — hide the Upsells section entirely for them.
   const hideUpsells = isBmwActive(getStoredUser());
@@ -61,6 +63,8 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon
   const won = sum(deals.filter((d) => d.status === 'won'));
   const balance = sum(deals.filter((d) => d.status === 'open'));
   // BMW (hideWon) has no close-as-won flow, so the "Won" rollup column is dropped for them.
+  // Spark & Ray: one lead has a deal per requirement; the header line totals what was quoted and what was ordered.
+  const sparkRoll = dealRollup(deals);
   const rollup: Array<[string, number, string]> = [
     ['Total', total, T.text],
     ...(hideWon ? [] : [['Won', won, T.ok] as [string, number, string]]),
@@ -75,7 +79,13 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon
         // Spark & Ray: several deals can be opened for one lead / customer — the link carries lead_id (+ account_id when converted).
         aside={newDealHref ? <Button size="sm" variant="primary" href={newDealHref} icon={<Plus size={14} strokeWidth={2} />}>New deal</Button> : undefined}
       >
-        {deals.length === 0 ? (
+        {deals.length === 0 && spark ? (
+          <EmptyState
+            icon={<Handshake size={20} strokeWidth={1.6} />}
+            title="No deals yet. Add one for each requirement."
+            style={{ padding: '28px 16px' }}
+          />
+        ) : deals.length === 0 ? (
           <EmptyState
             icon={<Handshake size={20} strokeWidth={1.6} />}
             title="No deals from this lead yet"
@@ -85,14 +95,21 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon
           />
         ) : (
           <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 1, background: T.border, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden', marginBottom: 14 }}>
+            {spark && (
+              <div data-testid="deals-summary" style={{ fontSize: 13, color: T.dim, marginBottom: 12 }}>
+                <strong style={{ color: T.text }}>{sparkRoll.count} {sparkRoll.count === 1 ? 'deal' : 'deals'}</strong>
+                {' \u00b7 '}<span style={{ fontFamily: T.mono, color: T.text }}>{formatINR(sparkRoll.quoted)}</span> quoted
+                {sparkRoll.ordered !== null && <>{' \u00b7 '}<span style={{ fontFamily: T.mono, color: T.text }}>{formatINR(sparkRoll.ordered)}</span> ordered</>}
+              </div>
+            )}
+            {!spark && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 1, background: T.border, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden', marginBottom: 14 }}>
               {rollup.map(([label, value, color]) => (
                 <div key={label} style={{ background: T.card, padding: '10px 14px', flex: '1 1 110px', minWidth: 0 }}>
                   <div style={{ ...eyebrowStyle, fontSize: 10 }}>{label}</div>
                   <div style={{ marginTop: 3, fontFamily: T.mono, fontSize: 15, fontWeight: 650, color, whiteSpace: 'nowrap' }}>{formatINR(value)}</div>
                 </div>
               ))}
-            </div>
+            </div>}
             {showFulfillBalance && bal?.has_interest && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 14px', background: 'var(--s3)', border: `1px solid ${T.border}`, borderRadius: 10, marginBottom: 14 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -120,8 +137,16 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon
                       {d.expected_close_date && <span>Closes {fmtDate(d.expected_close_date)}</span>}
                       {d.quotation_no && <span data-testid="deal-quotation-no" style={{ fontFamily: T.mono, fontSize: 11.5, fontWeight: 600, padding: '1px 8px', borderRadius: 999, background: T.infoWash, color: T.info }}>Quotation {d.quotation_no}</span>}
                     </div>
+                    {spark && <BrandChips brands={d.brands} style={{ marginTop: 6 }} />}
                   </div>
-                  <div style={{ color: T.text, fontWeight: 650, fontFamily: T.mono, whiteSpace: 'nowrap', fontSize: 14 }}>{formatINR(d.amount || 0)}</div>
+                  {spark ? (
+                    <div style={{ textAlign: 'right', whiteSpace: 'nowrap', fontFamily: T.mono, fontSize: 13 }}>
+                      <div data-testid="deal-quoted" style={{ color: T.text, fontWeight: 650 }}><span style={{ color: T.dim, fontWeight: 500 }}>Quoted </span>{formatINR(d.quoted_amount ?? d.amount ?? 0)}</div>
+                      <div data-testid="deal-ordered" style={{ color: T.text, fontWeight: 650, marginTop: 2 }}><span style={{ color: T.dim, fontWeight: 500 }}>Ordered </span>{d.order_amount == null ? '\u2014' : formatINR(d.order_amount)}</div>
+                    </div>
+                  ) : (
+                    <div style={{ color: T.text, fontWeight: 650, fontFamily: T.mono, whiteSpace: 'nowrap', fontSize: 14 }}>{formatINR(d.amount || 0)}</div>
+                  )}
                 </Link>
               ))}
             </div>

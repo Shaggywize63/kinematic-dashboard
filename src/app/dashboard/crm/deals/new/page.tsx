@@ -12,7 +12,7 @@ import { isTataTiscanActive } from '../../../../../lib/clientFeatures';
 import ProductLinesSection from '../../../../../components/crm/ProductLinesSection';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
-import { buildDealItems, type DealLineDraft } from '../../../../../lib/sparkAccounts';
+import { buildDealItems, dealLineErrors, type DealLineDraft } from '../../../../../lib/sparkAccounts';
 import { AccountPicker, DealItemsEditor } from '../../../../../components/crm/spark/DealItemsEditor';
 import { useIsCompact } from '../../../../../components/ui';
 import DealSections, { useAssignableUsers, useDealSections } from '../../../../../components/crm/spark/DealSections';
@@ -251,6 +251,9 @@ function NewDealPageInner() {
       const errs = validateDealSections(sectionValues, sections);
       setSectionErrors(errs);
       if (Object.keys(errs).length) { toast.error(Object.values(errs)[0] as string); return; }
+      // A MAC product line needs its funnel reference (the editor shows the message on the row).
+      const lineErrs = quotationOn ? Object.values(dealLineErrors(lines)) : [];
+      if (lineErrs.length) { toast.error(lineErrs[0]); return; }
     }
     setBusy(true);
     try {

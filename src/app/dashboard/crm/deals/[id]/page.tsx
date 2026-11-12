@@ -23,6 +23,7 @@ import { isConsumerChampion, isBmwActive } from '../../../../../lib/clientFeatur
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import EntityExpensesCard from '../../../../../components/crm/EntityExpensesCard';
 import { DealSectionsView, useDealSections } from '../../../../../components/crm/spark/DealSections';
+import { DealLinesCard, OrderValueStep } from '../../../../../components/crm/spark/DealLinesCard';
 
 const LOST_REASONS = [
   'Price too high',
@@ -182,6 +183,10 @@ export default function DealDetailPage() {
   const [closeAmount, setCloseAmount] = useState('');
   const [closeCreateBalance, setCloseCreateBalance] = useState(true);
   const [closing, setClosing] = useState(false);
+  // Spark & Ray: the deal's product lines (null until loaded) and, for the Won dialog, the order value typed per line.
+  const [lineItems, setLineItems] = useState<DealLineItem[] | null>(null);
+  const [lineItemsFailed, setLineItemsFailed] = useState(false);
+  const [closeOrders, setCloseOrders] = useState<Record<string, string>>({});
   const [reopening, setReopening] = useState(false);
 
   // Remainder for a partial close — only meaningful when the rep typed a
@@ -204,6 +209,10 @@ export default function DealDetailPage() {
     setCloseLostOther('');
     setCloseAmount(deal?.amount != null ? String(deal.amount) : '');
     setCloseCreateBalance(true);
+    // Order values start at what is already recorded, else at the quoted value of the line.
+    const seeded: Record<string, string> = {};
+    for (const l of lineItems ?? []) seeded[l.id] = String(l.order_value != null ? l.order_value : (Number(l.line_total) || 0));
+    setCloseOrders(seeded);
     setCloseOpen(true);
   };
 
@@ -211,13 +220,19 @@ export default function DealDetailPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const [d, h, c, a, pp] = await Promise.allSettled([
+      const [d, h, c, a, pp, li] = await Promise.allSettled([
         crmDeals.get(id),
         crmDeals.history(id),
         crmDeals.contacts(id),
         crmDeals.activities(id),
         crmPipelines.list(),
+        // Spark & Ray only: the product lines (make, brand, order value ...). No other tenant makes this call.
+        spark ? crmDeals.listLineItems(id) : Promise.resolve(null),
       ]);
+      if (spark) {
+        setLineItems(li.status === 'fulfilled' && Array.isArray(li.value?.data) ? (li.value!.data as DealLineItem[]) : null);
+        setLineItemsFailed(li.status !== 'fulfilled');
+      }
       if (d.status === 'fulfilled' && d.value?.data) {
         const dealData = d.value.data as Deal;
         setDeal(dealData);
@@ -316,6 +331,8 @@ export default function DealDetailPage() {
     }
   };
 
+  // Spark & Ray: Won shows the "Confirm the ordered value" step while any line has no order value.
+  const needOrderStep = spark && !!lineItems && lineItems.length > 0 && lineItems.some((l) => l.order_value == null);
   const closeDeal = async () => {
     if (!deal) return;
     if (!closeReason) { toast.error('Pick a reason from the dropdown'); return; }
@@ -332,8 +349,22 @@ export default function DealDetailPage() {
         wonAmount = amt;
       }
     }
+    // Spark & Ray: lines without an order value get one confirmed here (blank = leave unset).
+    const orderEdits: Array<{ id: string; value: number }> = [];
+    if (closeOutcome === 'won' && needOrderStep) {
+      for (const l of lineItems ?? []) {
+        const t = (closeOrders[l.id] ?? '').trim();
+        if (t === '') continue;
+        const n = Number(t);
+        if (!Number.isFinite(n) || n < 0) { toast.error(`Enter a valid ordered value for ${l.name || 'the line'}`); return; }
+        if (l.order_value == null || Number(l.order_value) !== n) orderEdits.push({ id: l.id, value: n });
+      }
+    }
     setClosing(true);
     try {
+      if (orderEdits.length) {
+        for (const e of orderEdits) await crmLineItems.update(e.id, { order_value: e.value });
+      }
       if (closeOutcome === 'won') {
         const body: { reason?: string; amount?: number; create_balance_deal?: boolean } = { reason: finalReason };
         if (wonAmount !== undefined) {
@@ -719,7 +750,7 @@ export default function DealDetailPage() {
           )}
 
           <SafeRender label="products">
-            <DealProductsCard deal={deal} />
+            {spark ? <DealLinesCard items={lineItems} error={lineItemsFailed} /> : <DealProductsCard deal={deal} />}
           </SafeRender>
 
           {/* Read-only admin-defined custom fields. The keys this page
@@ -883,6 +914,9 @@ export default function DealDetailPage() {
               </div>
             ) : (
               <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {needOrderStep && lineItems && (
+                  <OrderValueStep items={lineItems} values={closeOrders} onChange={(lid, v) => setCloseOrders((m) => ({ ...m, [lid]: v }))} />
+                )}
                 <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Closed Amount (₹)</span>
                 <input
                   type="number"

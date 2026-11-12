@@ -135,6 +135,18 @@ export interface DealLineDraft {
   name: string;
   quantity: string;
   unit_price: string;
+  /** Server id of a line that already exists (edit flow); new rows have none. */
+  id?: string;
+  /** Manufacturer / brand picked on the row (uuid, '' = None). A brand is not a make. */
+  make_id?: string;
+  brand_id?: string;
+  /** Names kept alongside the ids so a make / brand that is no longer in the active list still shows and still drives the MAC rule. */
+  make_name?: string;
+  brand_name?: string;
+  /** Typed MAC funnel reference: required when the brand is MAC, optional otherwise. */
+  funnel_ref?: string;
+  /** What was actually ordered (filled when the deal is won), as typed; '' = not set. */
+  order_value?: string;
 }
 
 export const lineTotal = (l: Pick<DealLineDraft, 'quantity' | 'unit_price'>): number =>
@@ -143,16 +155,108 @@ export const lineTotal = (l: Pick<DealLineDraft, 'quantity' | 'unit_price'>): nu
 export const grandTotal = (lines: Array<Pick<DealLineDraft, 'quantity' | 'unit_price'>>): number =>
   Math.round(arr<DealLineDraft>(lines).reduce((s, l) => s + lineTotal(l), 0) * 100) / 100;
 
-/** A line is sent only if it has a name and a positive quantity; price must be >= 0. Half-typed rows are dropped. */
-export function buildDealItems(lines: DealLineDraft[]): Array<{ product_id?: string; name: string; quantity: number; unit_price: number }> {
+/** The order value typed on a row: a finite number >= 0, or null when blank / not a valid amount. */
+export function orderValueOf(l: Pick<DealLineDraft, 'order_value'>): number | null {
+  const t = (l.order_value ?? '').toString().trim();
+  if (t === '') return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** Does any row carry an order value? (Drives whether the "Ordered" total is shown.) */
+export const hasAnyOrderValue = (lines: Array<Pick<DealLineDraft, 'order_value'>>): boolean =>
+  arr<DealLineDraft>(lines).some((l) => orderValueOf(l) !== null);
+
+export const orderedTotal = (lines: Array<Pick<DealLineDraft, 'order_value'>>): number =>
+  Math.round(arr<DealLineDraft>(lines).reduce((s, l) => s + (orderValueOf(l) ?? 0), 0) * 100) / 100;
+
+export const MAC_FUNNEL_REQUIRED = 'MAC funnel reference is required for MAC products';
+
+/** Brand "MAC" (trimmed, case-insensitive) is the one that needs a funnel reference. */
+export const isMacBrand = (brandName: string | null | undefined): boolean => (brandName ?? '').trim().toUpperCase() === 'MAC';
+
+/** The inline error of a row: MAC brand with a blank funnel reference. `brandName` is the row's resolved brand name. */
+export function macFunnelError(l: Pick<DealLineDraft, 'funnel_ref'>, brandName: string | null | undefined): string | null {
+  return isMacBrand(brandName) && !(l.funnel_ref ?? '').trim() ? MAC_FUNNEL_REQUIRED : null;
+}
+
+/** Errors that block saving, per row key (MAC funnel reference, negative / invalid order value). */
+export function dealLineErrors(
+  lines: DealLineDraft[],
+  brandNameOf: (l: DealLineDraft) => string | null | undefined = (l) => l.brand_name,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const l of arr<DealLineDraft>(lines)) {
+    const mac = macFunnelError(l, brandNameOf(l));
+    if (mac) { out[l.key] = mac; continue; }
+    const ov = (l.order_value ?? '').toString().trim();
+    if (ov !== '' && orderValueOf(l) === null) out[l.key] = 'Order value must be 0 or more';
+  }
+  return out;
+}
+
+export interface DealItemPayload {
+  id?: string;
+  product_id?: string | null;
+  name: string;
+  quantity: number;
+  unit_price: number;
+  make_id?: string | null;
+  brand_id?: string | null;
+  funnel_ref?: string | null;
+  order_value?: number | null;
+}
+
+/**
+ * A line is sent only if it has a name and a positive quantity; price must be >= 0. Half-typed rows are dropped.
+ * make_id / brand_id / funnel_ref / order_value are sent only when set. In `patch` mode (editing a deal) a line that
+ * already exists (has an `id`) also sends an explicit null for each of them (and the product) that was cleared, so
+ * the server clears it; new rows keep the omit-when-blank rule.
+ */
+export function buildDealItems(lines: DealLineDraft[], mode: 'create' | 'patch' = 'create'): DealItemPayload[] {
   return arr<DealLineDraft>(lines)
     .filter((l) => (l.name ?? '').trim() !== '' && num(l.quantity) > 0 && num(l.unit_price) >= 0)
-    .map((l) => ({
-      ...(l.product_id ? { product_id: l.product_id } : {}),
-      name: l.name.trim(),
-      quantity: num(l.quantity),
-      unit_price: num(l.unit_price),
-    }));
+    .map((l) => {
+      const clear = mode === 'patch' && !!l.id;
+      const funnel = (l.funnel_ref ?? '').trim();
+      const order = orderValueOf(l);
+      const out: DealItemPayload = { name: l.name.trim(), quantity: num(l.quantity), unit_price: num(l.unit_price) };
+      if (l.id && mode === 'patch') out.id = l.id;
+      if (l.product_id) out.product_id = l.product_id; else if (clear) out.product_id = null;
+      if (l.make_id) out.make_id = l.make_id; else if (clear) out.make_id = null;
+      if (l.brand_id) out.brand_id = l.brand_id; else if (clear) out.brand_id = null;
+      if (funnel) out.funnel_ref = funnel; else if (clear) out.funnel_ref = null;
+      if (order !== null) out.order_value = order; else if (clear) out.order_value = null;
+      return out;
+    });
+}
+
+/** Seed an editor row from a stored line (edit flow). */
+export function lineDraftFromItem(it: {
+  id: string; product_id?: string | null; name?: string | null; quantity?: number | string | null; unit_price?: number | string | null;
+  make_id?: string | null; brand_id?: string | null; make_name?: string | null; brand_name?: string | null;
+  funnel_ref?: string | null; order_value?: number | string | null;
+}): DealLineDraft {
+  const s = (v: unknown) => (v === null || v === undefined ? '' : String(v));
+  return {
+    key: `srv-${it.id}`, id: it.id, product_id: s(it.product_id), name: s(it.name), quantity: s(it.quantity ?? 1), unit_price: s(it.unit_price),
+    make_id: s(it.make_id), brand_id: s(it.brand_id), make_name: s(it.make_name), brand_name: s(it.brand_name),
+    funnel_ref: s(it.funnel_ref), order_value: s(it.order_value),
+  };
+}
+
+type RollupDeal = { amount?: number | string | null; quoted_amount?: number | string | null; order_amount?: number | string | null };
+/** Deal count, quoted total and ordered total (null when no deal has an order amount) of a list of deals. */
+export function dealRollup(deals: RollupDeal[]): { count: number; quoted: number; ordered: number | null } {
+  const list = rows<RollupDeal>(deals);
+  let quoted = 0;
+  let ordered = 0;
+  let anyOrdered = false;
+  for (const d of list) {
+    quoted += num(d.quoted_amount ?? d.amount);
+    if (d.order_amount !== null && d.order_amount !== undefined && d.order_amount !== '') { ordered += num(d.order_amount); anyOrdered = true; }
+  }
+  return { count: list.length, quoted: Math.round(quoted * 100) / 100, ordered: anyOrdered ? Math.round(ordered * 100) / 100 : null };
 }
 
 // ── Journey ─────────────────────────────────────────────────────────────────
