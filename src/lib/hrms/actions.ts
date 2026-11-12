@@ -3,7 +3,7 @@
 
 import { mutate, getDb, newId } from './db';
 import type {
-  Employee, HrmsDb, PayRun, Month, ChangeLogEntry, Id, AccessLogEntry, Adjustment, Loan, FnfCase, IssuedLetter, ComplianceTask,
+  Employee, HrmsDb, PayRun, Month, ChangeLogEntry, Id, AccessLogEntry, Adjustment, Loan, FnfCase, IssuedLetter, ComplianceTask, LeaveBalance,
 } from './types';
 import { uid } from './types';
 import { computePayRunPayslips } from './engine';
@@ -205,3 +205,28 @@ export const employeeName = (id: Id | undefined): string => {
   const e = getDb().employees.find((x) => x.id === id);
   return e ? fullName(e) : '—';
 };
+
+// ───────────── time and leave ─────────────
+/** The five numbers a leave balance holds (its key is employee + leave type, so it carries no id of its own). */
+export type LeaveBalanceValues = Pick<LeaveBalance, 'opening' | 'accrued' | 'taken' | 'encashed' | 'lapsed'>;
+
+const nonNeg = (v: number): number => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
+
+/**
+ * Insert or update one employee's balance in a leave type. A leave balance is keyed by employee + leave type and has no id,
+ * so it cannot go through the generic upsert(); it is found and changed in place like attendance and the roster. It goes
+ * through mutate(), so in live mode the diff-sync (balanceOps) sends PUT /time/balances/:employeeId/:leaveTypeId and in
+ * sample mode the change is written to the browser store. Each number is clamped to be non-negative (balances never are),
+ * which matches the server's own validation; the derived "available" may still be negative when more was taken than held.
+ */
+export function setLeaveBalance(employeeId: Id, leaveTypeId: Id, values: LeaveBalanceValues): void {
+  const v: LeaveBalanceValues = {
+    opening: nonNeg(values.opening), accrued: nonNeg(values.accrued), taken: nonNeg(values.taken),
+    encashed: nonNeg(values.encashed), lapsed: nonNeg(values.lapsed),
+  };
+  mutate((db) => {
+    const b = db.leaveBalances.find((x) => x.employeeId === employeeId && x.leaveTypeId === leaveTypeId);
+    if (b) { b.opening = v.opening; b.accrued = v.accrued; b.taken = v.taken; b.encashed = v.encashed; b.lapsed = v.lapsed; }
+    else db.leaveBalances.push({ employeeId, leaveTypeId, ...v });
+  });
+}
