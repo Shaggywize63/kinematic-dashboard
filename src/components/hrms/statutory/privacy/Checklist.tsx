@@ -2,9 +2,11 @@
 // DPDP readiness checklist. Statuses are worked out from the sample data and worded honestly: "Partly" and "Not built"
 // are normal answers for a preview. The dates are as reported and need confirming with counsel.
 
+import { useEffect, useState } from 'react';
 import type { HrmsDb } from '../../../../lib/hrms/types';
 import { PREVIEW_TODAY } from '../../../../lib/hrms/seed';
 import { diffDays, fmtDate } from '../../../../lib/hrms/format';
+import { fetchAccessLog, useLiveStatus } from '../../../../lib/hrms/live/store';
 import { Badge, Card, CardTitle, Note, T, useIsCompact, type Tone } from '../../ui';
 import { DPDP_DATES, READY_LABEL, readinessItems, type ReadyStatus } from './model';
 
@@ -12,7 +14,24 @@ const TONE: Record<ReadyStatus, Tone> = { in_place: 'ok', partial: 'warn', not_b
 
 export default function Checklist({ db }: { db: HrmsDb }) {
   const narrow = useIsCompact(900);
-  const items = readinessItems(db);
+  const live = useLiveStatus();
+  const liveMode = live.source === 'live';
+
+  // In live mode the local access log stays empty (the Access tab reads the server), so the count must come from the server
+  // too — the same fetch the Access tab uses. null means "not known yet" (loading or failed): the item then shows a neutral
+  // state instead of a misleading "0 entries". Sample mode never fetches and keeps reading the local collection.
+  const [serverAccessCount, setServerAccessCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!liveMode) { setServerAccessCount(null); return undefined; }
+    let cancelled = false;
+    setServerAccessCount(null);
+    fetchAccessLog()
+      .then((r) => { if (!cancelled) setServerAccessCount(r.length); })
+      .catch(() => { if (!cancelled) setServerAccessCount(null); });   // leave it unknown → neutral, never a misleading 0
+    return () => { cancelled = true; };
+  }, [liveMode, live.inputsVersion]);
+
+  const items = readinessItems(db, liveMode ? { accessLogCount: serverAccessCount } : undefined);
   const n = (s: ReadyStatus) => items.filter((i) => i.status === s).length;
   const toFirst = diffDays(PREVIEW_TODAY, DPDP_DATES.firstProvisions);
   const toCore = diffDays(PREVIEW_TODAY, DPDP_DATES.coreDuties);

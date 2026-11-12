@@ -37,6 +37,7 @@ export function ActionModal({ db, st, asset, kind, onClose }: { db: HrmsDb; st: 
   const [ack, setAck] = useState(false);
   const [text, setText] = useState('');
   const [next, setNext] = useState<'in_stock' | 'in_repair' | 'retired'>('in_stock');
+  const [busy, setBusy] = useState(false);
 
   const holder = holderOf(db, asset);
   const dup = kind === 'issue' && personId ? duplicateIssue(st.assets.items, personId, asset) : undefined;
@@ -56,16 +57,19 @@ export function ActionModal({ db, st, asset, kind, onClose }: { db: HrmsDb; st: 
   else if ((kind === 'return' || kind === 'repair_back') && !condition) { ready = false; reason = 'Record the condition first.'; }
   else if (kind === 'lost' && !text.trim()) { ready = false; reason = 'Say how it was lost.'; }
 
-  function submit() {
-    if (!ready) return;
+  async function submit() {
+    if (!ready || busy) return;
+    setBusy(true);
     let ok = false;
-    if (kind === 'issue') ok = report(issueAsset({ assetId: asset.id, personId, condition: condition as AssetCondition, ack, note: text }), `${asset.tag} issued to ${nameOf(db, personId)}.`);
-    if (kind === 'transfer') ok = report(transferAsset({ assetId: asset.id, toId: personId, condition: condition as AssetCondition, ack, note: text }), `${asset.tag} transferred to ${nameOf(db, personId)}.`);
-    if (kind === 'return') ok = report(returnAsset({ assetId: asset.id, condition: condition as AssetCondition, next, note: text }), `${asset.tag} recorded as returned.`);
-    if (kind === 'repair') ok = report(sendToRepair(asset.id, text), `${asset.tag} sent for repair.`);
-    if (kind === 'repair_back') ok = report(backFromRepair(asset.id, condition as AssetCondition, text), `${asset.tag} is back in stock.`);
-    if (kind === 'lost') ok = report(markLost(asset.id, text), `${asset.tag} marked as lost.`);
-    if (kind === 'retire') ok = report(retireAsset(asset.id, text), `${asset.tag} retired.`);
+    try {
+      if (kind === 'issue') ok = report(await issueAsset({ assetId: asset.id, personId, condition: condition as AssetCondition, ack, note: text }), `${asset.tag} issued to ${nameOf(db, personId)}.`);
+      if (kind === 'transfer') ok = report(await transferAsset({ assetId: asset.id, toId: personId, condition: condition as AssetCondition, ack, note: text }), `${asset.tag} transferred to ${nameOf(db, personId)}.`);
+      if (kind === 'return') ok = report(await returnAsset({ assetId: asset.id, condition: condition as AssetCondition, next, note: text }), `${asset.tag} recorded as returned.`);
+      if (kind === 'repair') ok = report(await sendToRepair(asset.id, text), `${asset.tag} sent for repair.`);
+      if (kind === 'repair_back') ok = report(await backFromRepair(asset.id, condition as AssetCondition, text), `${asset.tag} is back in stock.`);
+      if (kind === 'lost') ok = report(await markLost(asset.id, text), `${asset.tag} marked as lost.`);
+      if (kind === 'retire') ok = report(await retireAsset(asset.id, text), `${asset.tag} retired.`);
+    } finally { setBusy(false); }
     if (ok) onClose();
   }
 
@@ -81,7 +85,7 @@ export function ActionModal({ db, st, asset, kind, onClose }: { db: HrmsDb; st: 
         <>
           {!ready && <span style={{ flex: 1, minWidth: 160, alignSelf: 'center', fontSize: 12.5, color: T.dim }}>{reason}</span>}
           <Button style={{ height: 40 }} onClick={onClose}>Cancel</Button>
-          <Button variant={kind === 'lost' ? 'danger' : 'primary'} style={{ height: 40 }} disabled={!ready} onClick={submit}>{TITLE[kind]}</Button>
+          <Button variant={kind === 'lost' ? 'danger' : 'primary'} style={{ height: 40 }} disabled={!ready || busy} onClick={submit}>{busy ? 'Saving…' : TITLE[kind]}</Button>
         </>
       )}>
       <div style={{ fontSize: 13.5, color: T.dim }}>
@@ -239,6 +243,7 @@ export function AddAssetModal({ onClose }: { onClose: () => void }) {
   const [warranty, setWarranty] = useState('12');
   const [cond, setCond] = useState<AssetCondition>('new');
   const [tried, setTried] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const errs: Record<string, string> = {};
   if (!make.trim()) errs.make = 'Enter the make.';
@@ -248,14 +253,16 @@ export function AddAssetModal({ onClose }: { onClose: () => void }) {
   if (!bought || bought > PREVIEW_TODAY) errs.bought = 'The date cannot be in the future.';
   const show = (k: string) => (tried ? errs[k] : undefined);
 
-  function submit() {
+  async function submit() {
     setTried(true);
-    if (Object.keys(errs).length) return;
-    const r = addAsset({ type, make, model, serial, purchaseDate: bought, cost: Number(cost), warrantyMonths: Number(warranty) || 0, condition: cond });
+    if (Object.keys(errs).length || busy) return;
+    setBusy(true);
+    const r = await addAsset({ type, make, model, serial, purchaseDate: bought, cost: Number(cost), warrantyMonths: Number(warranty) || 0, condition: cond });
+    setBusy(false);
     if (report(r, r.ok ? `${r.tag} added to the register.` : '')) onClose();
   }
   return (
-    <ConfirmModal title="Add asset" confirmLabel="Add to register" onConfirm={submit} onClose={onClose} width={600}>
+    <ConfirmModal title="Add asset" confirmLabel={busy ? 'Saving…' : 'Add to register'} onConfirm={submit} onClose={onClose} disabled={busy} width={600}>
       <FormGrid narrow={narrow}>
         <Field label="Type" required htmlFor={id('type')}>
           <Select id={id('type')} value={type} onChange={(e) => setType(e.target.value as AssetType)}>{ASSET_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</Select>

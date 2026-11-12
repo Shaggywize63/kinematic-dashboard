@@ -81,13 +81,31 @@ export const READY_LABEL: Record<ReadyStatus, string> = { in_place: 'In place', 
 /** The first provisions and the core duties, as reported. Both need confirming with counsel. */
 export const DPDP_DATES = { firstProvisions: '2026-11-13', coreDuties: '2027-05-13' } as const;
 
-export function readinessItems(db: HrmsDb): ReadyItem[] {
+/**
+ * The readiness items. `opts.accessLogCount` lets live mode pass the server access-log count (the local collection is empty
+ * in live mode, so reading db.accessLog.length would always say "0 entries"). When it is a number the Access logs item uses
+ * it; `null` means the server count is not known yet (loading or failed) and the item shows a neutral, count-free state.
+ * Omitting opts (sample mode) keeps the exact previous behaviour: the Access logs item reads db.accessLog.
+ */
+export function readinessItems(db: HrmsDb, opts?: { accessLogCount?: number | null }): ReadyItem[] {
   const versions = [...new Set(db.consents.map((c) => c.noticeVersion))].sort();
   const purposes = new Set(db.consents.map((c) => c.purpose));
   const active = db.employees.filter((e) => e.status === 'active');
   const covered = active.filter((e) => db.consents.some((c) => c.employeeId === e.id));
   const withdrawn = db.consents.filter((c) => c.withdrawnAt).length;
   const allCovered = active.length > 0 && covered.length === active.length;
+  // Sample (opts undefined): the local access log. Live: the server count if known, else "unknown" → a neutral state.
+  const accessCountKnown = opts === undefined || typeof opts.accessLogCount === 'number';
+  const accessCount = opts === undefined ? db.accessLog.length : opts.accessLogCount ?? 0;
+  const accessItem: ReadyItem = accessCountKnown
+    ? {
+      key: 'access', title: 'Access logs', status: accessCount ? 'in_place' : 'partial',
+      detail: `${accessCount} entries. Revealing a sensitive field in Employees, or exporting a file that holds one in full, writes a row here.`,
+    }
+    : {
+      key: 'access', title: 'Access logs', status: 'partial',
+      detail: 'Reading the access log from the server. Revealing a sensitive field in Employees, or exporting a file that holds one in full, writes a row here.',
+    };
   return [
     {
       key: 'notice', title: 'Privacy notice', status: versions.length ? 'partial' : 'not_built',
@@ -111,9 +129,6 @@ export function readinessItems(db: HrmsDb): ReadyItem[] {
       key: 'breach', title: 'Breach log', status: 'not_built',
       detail: 'There is no breach register in the data model yet: no record of incidents, who was told, or when.',
     },
-    {
-      key: 'access', title: 'Access logs', status: db.accessLog.length ? 'in_place' : 'partial',
-      detail: `${db.accessLog.length} entries. Revealing a sensitive field in Employees, or exporting a file that holds one in full, writes a row here.`,
-    },
+    accessItem,
   ];
 }
