@@ -19,13 +19,21 @@ import {
 } from './kit';
 import { isB2bClientActive } from '../../lib/b2bClient';
 import { formRefTitle } from '../../lib/formRef';
-import { crmAccounts } from '../../lib/crmApi';
+import { crmAccounts, crmDeals, crmLeads } from '../../lib/crmApi';
+import LinkPicker, { type LinkOption } from './LinkPicker';
 
 // "SRPR2627-1 · 02 Nov 2026 — Site visit — Acme Corp" (the company only when the list isn't already narrowed to one).
 function submissionLabel(x: LinkableSubmission, withAccount: boolean): string {
   return [formRefTitle(x.ref_no, x.submitted_at), x.form_title?.trim(), withAccount ? x.account_name?.trim() : '']
     .filter(Boolean).join(' — ');
 }
+
+// "Asha Rao · 98765 43210" — the name plus the phone, the way the Log Activity picker labels a lead.
+function leadLabel(x: any): string {
+  const name = [x?.first_name, x?.last_name].filter(Boolean).join(' ') || x?.full_name || x?.company || x?.email || 'Lead';
+  return x?.phone ? `${name} · ${x.phone}` : name;
+}
+interface DealOption extends LinkOption { lead_id: string; lead_label: string }
 
 interface Line {
   key: number;
@@ -195,6 +203,13 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   const [accountName, setAccountName] = useState('');
   const [accountQuery, setAccountQuery] = useState('');
   const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
+  // The CRM lead / deal the money was spent on. A deal belongs to one lead, so picking a deal fills the lead, and
+  // picking another lead drops a deal that isn't theirs. `dealLeadId` is the lead the picked deal belongs to.
+  const [leadId, setLeadId] = useState('');
+  const [leadName, setLeadName] = useState('');
+  const [dealId, setDealId] = useState('');
+  const [dealName, setDealName] = useState('');
+  const [dealLeadId, setDealLeadId] = useState('');
   const [submissionId, setSubmissionId] = useState('');
   const [submissions, setSubmissions] = useState<LinkableSubmission[]>([]);
   // The entry already saved on the claim — kept as an option even if it has aged out of the newest-50 list.
@@ -236,6 +251,11 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
       setClarification(c.clarification ?? '');
       setAccountId(c.account_id ?? '');
       setAccountName(c.account_name ?? '');
+      setLeadId(c.lead_id ?? '');
+      setLeadName(c.lead_name ?? '');
+      setDealId(c.deal_id ?? '');
+      setDealName(c.deal_name ?? '');
+      setDealLeadId(c.deal_id ? c.lead_id ?? '' : '');
       setSubmissionId(c.form_submission_id ?? '');
       savedSubmission.current = c.form_submission_id
         ? { id: c.form_submission_id, ref_no: c.form_ref_no ?? null, submitted_at: c.form_submitted_at ?? null, form_title: c.form_title ?? null, account_id: c.account_id ?? null, account_name: c.account_name ?? null }
@@ -280,6 +300,37 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
     }, 300);
     return () => { off = true; clearTimeout(t); };
   }, [b2b, accountQuery, accountName]);
+
+  // ── lead / deal links ──
+  const loadLeads = useCallback(async (q: string): Promise<LinkOption[]> => {
+    const r = await crmLeads.list({ q: q || undefined, limit: 20 });
+    return (r.data || []).filter((x: any) => x?.id).map((x: any) => ({ id: x.id, label: leadLabel(x) }));
+  }, []);
+  const loadDeals = useCallback(async (q: string): Promise<DealOption[]> => {
+    const r = await crmDeals.list({ q: q || undefined, limit: 20, lead_id: leadId || undefined });
+    return (r.data || []).filter((x: any) => x?.id).map((x: any) => ({
+      id: x.id, label: x.title || x.name || 'Deal', lead_id: x.lead_id || '', lead_label: x.lead_name || '',
+    }));
+  }, [leadId]);
+  const pickLead = (o: LinkOption) => {
+    setLeadId(o.id); setLeadName(o.label);
+    // A deal of some other lead no longer fits.
+    if (dealId && dealLeadId && dealLeadId !== o.id) { setDealId(''); setDealName(''); setDealLeadId(''); }
+  };
+  const clearLead = () => {
+    setLeadId(''); setLeadName('');
+    // A deal that belongs to the lead goes with it (the server would just fill the lead back in from it).
+    if (dealId && dealLeadId) { setDealId(''); setDealName(''); setDealLeadId(''); }
+  };
+  const pickDeal = (o: DealOption) => {
+    setDealId(o.id); setDealName(o.label); setDealLeadId(o.lead_id);
+    if (!o.lead_id || o.lead_id === leadId) return;
+    // Show the deal's lead right away; look its name up when the list didn't carry it.
+    setLeadId(o.lead_id); setLeadName(o.lead_label);
+    if (!o.lead_label) {
+      crmLeads.get(o.lead_id).then((r) => setLeadName((cur) => (cur ? cur : leadLabel(r.data)))).catch(() => { /* keeps "Linked lead" */ });
+    }
+  };
 
   // The entries on offer, plus the claim's saved one when it is not in the list (so editing never silently drops it).
   const submissionOptions = useMemo(() => {
@@ -472,7 +523,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
     const body = {
       title: title.trim() || null,
       items: filled.map((l) => toInput(l, vf, vehicles, gpsOn)),
-      ...(b2b ? { clarification: clarification.trim() || null, account_id: accountId || null, form_submission_id: submissionId || null } : {}),
+      ...(b2b ? { clarification: clarification.trim() || null, account_id: accountId || null, form_submission_id: submissionId || null, lead_id: leadId || null, deal_id: dealId || null } : {}),
     };
     if (savedId.current) { await expensesApi.updateClaim(savedId.current, body); return savedId.current; }
     const r = await expensesApi.createClaim(body);
@@ -591,6 +642,14 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
                     )}
                   </div>
                 )}
+              </Field>
+              <Field label="Lead" hint="The CRM lead this expense was spent on.">
+                <LinkPicker ariaLabel="Lead" icon="👤" placeholder="Search leads by name or phone…" selectedId={leadId} selectedLabel={leadName} fallbackLabel="Linked lead"
+                  load={loadLeads} onPick={pickLead} onClear={clearLead} />
+              </Field>
+              <Field label="Deal" hint={leadId ? 'Only this lead’s deals are listed.' : 'The deal it was spent to win — picking one fills in its lead.'}>
+                <LinkPicker ariaLabel="Deal" icon="💼" placeholder={leadId ? 'Search this lead’s deals…' : 'Search deals…'} selectedId={dealId} selectedLabel={dealName} fallbackLabel="Linked deal"
+                  load={loadDeals} reloadKey={leadId} onPick={pickDeal} onClear={() => { setDealId(''); setDealName(''); setDealLeadId(''); }} />
               </Field>
               <Field label="Linked form entry" hint={submissionOptions.length ? 'The filled form this expense relates to — its reference and date show wherever the link appears.' : 'No filled forms with a reference yet — fill a form first.'}>
                 <Select value={submissionId} onChange={(e) => setSubmissionId(e.target.value)} disabled={!submissionOptions.length}>

@@ -851,3 +851,32 @@ export interface RupeeLeaderboard {
   entries: Array<{ user_id: string; name: string; role: string | null; target: number | null; achieved: number; pct: number | null }>;
   role_id: string | null;
 }
+
+/**
+ * Spend on one lead or deal (connected-B2B): GET /crm/leads/:id/expenses and /crm/deals/:id/expenses.
+ * `totals` cover every claim linked; `claims` may list only the caller's own rows (privacy), so the totals can
+ * exceed the listed rows. `spent_pct_of_value` is spend as a % of the opportunity value (null without a value).
+ */
+export interface EntityExpenseClaim {
+  id: string;
+  claim_no: string | null;
+  title: string | null;
+  status: string;
+  total_amount: number;
+  currency: string;
+  created_at: string;
+  user_id: string;
+  user_name: string | null;
+  lead_id: string | null;
+  deal_id: string | null;
+  deal_name: string | null;
+}
+
+export interface EntityExpenses {
+  currency: string;
+  totals: { claim_count: number; spent_amount: number; pending_amount: number; draft_amount: number; rejected_amount: number };
+  visit_count: number;
+  opportunity_value: number | null;
+  spent_pct_of_value: number | null;
+  claims: EntityExpenseClaim[];
+}

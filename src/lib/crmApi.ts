@@ -4,7 +4,7 @@ import type {
   Pipeline, Stage, Activity, Note, Task,
   EmailTemplate, EmailLog,
   LeadSource, AssignmentRule, Territory, Automation, CustomField,
-  ImportJob, LeadScore, NextBestAction, WinProbability,
+  EntityExpenses, ImportJob, LeadScore, NextBestAction, WinProbability,
   AnalyticsSummary, FunnelPoint, PipelineValuePoint, WinRatePoint, ForecastPoint,
   TeamPerformanceRow, TelecallerPerfRow, TelecallerPerfDaily, CampaignInsightsPayload, LeadTrackerPayload, TeamDailyCard,
   ActivityHeatPoint, SourceROIRow, ScoreDistributionPoint, StateCount,
@@ -95,6 +95,8 @@ export const crmLeads = {
   scoreHistory: (id: string) => api.get<Wrapped<LeadScore[]>>(`${BASE}/leads/${id}/score-history`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/leads/${id}/activities`),
   deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/leads/${id}/deals`),
+  // Connected-B2B: what was spent on this lead (expense claims linked to it), its visits and spend as a % of the deal value.
+  expenses: (id: string) => api.get<Wrapped<EntityExpenses>>(`${BASE}/leads/${id}/expenses`),
   // Contact-persons captured on this lead (B2B: name/title/phone/email + the
   // free-text `requirement` each one gave). Backend is org-scoped and NOT
   // owner-filtered, so a revisit shows everyone logged on the lead — including
@@ -387,6 +389,8 @@ export const crmDeals = {
   setNextAction: (id: string, body: { action: string; due_at?: string }) =>
     api.post<Wrapped<Deal>>(`${BASE}/deals/${id}/next-action`, body),
   history: (id: string) => api.get<Wrapped<DealHistoryEntry[]>>(`${BASE}/deals/${id}/history`),
+  // Connected-B2B: what was spent to win this deal (expense claims linked to it), its visits and spend as a % of the deal value.
+  expenses: (id: string) => api.get<Wrapped<EntityExpenses>>(`${BASE}/deals/${id}/expenses`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/deals/${id}/activities`),
   contacts: (id: string) => api.get<Wrapped<DealContact[]>>(`${BASE}/deals/${id}/contacts`),
   notes: (id: string) => api.get<Wrapped<Note[]>>(`${BASE}/deals/${id}/notes`),
