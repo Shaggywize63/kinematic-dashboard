@@ -1,10 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
-  Blocks, Boxes, ChevronRight, ClipboardList, Database, GitBranch, Layers, ListChecks, MapPinned, Moon, Network, Palette, Phone, Plug, Shuffle,
-  Sparkles, Sun, Target, UserCircle, Users, Workflow, Zap,
+  Blocks, Boxes, ChevronRight, ClipboardList, Database, Factory, GitBranch, Layers, ListChecks, MapPinned, Moon, Network, Palette, Phone, Plug, Shuffle,
+  Sparkles, Sun, Tag, Target, UserCircle, Users, Workflow, Zap,
 } from 'lucide-react';
 import { crmSettings } from '../../../../lib/crmApi';
 import api from '../../../../lib/api';
@@ -299,7 +299,16 @@ export default function SettingsIndex() {
         <Eyebrow>Configuration</Eyebrow>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
           {SECTIONS.map((s) => (
-            <SettingCard key={s.href} href={s.href} title={s.title} desc={s.desc} icon={s.icon} />
+            <Fragment key={s.href}>
+              <SettingCard href={s.href} title={s.title} desc={s.desc} icon={s.icon} />
+              {/* Spark & Ray only: Makes and Brands sit right after Lead Sources. */}
+              {spark && s.href === '/dashboard/crm/settings/sources' && (
+                <>
+                  <SettingCard href="/dashboard/crm/settings/makes" title="Makes" desc="The manufacturers your products come from." icon={<Factory {...ICON_PROPS} />} />
+                  <SettingCard href="/dashboard/crm/settings/brands" title="Brands" desc="The product brands you sell, such as MAC, PHD or BEKO. A brand is not a make." icon={<Tag {...ICON_PROPS} />} />
+                </>
+              )}
+            </Fragment>
           ))}
           {spark && (
             <SettingCard

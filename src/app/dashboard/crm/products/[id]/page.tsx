@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmProducts, crmProductCategories } from '../../../../../lib/crmApi';
-import type { Product, ProductCategory } from '../../../../../types/crm';
+import { crmProducts, crmProductCategories, crmMakes, crmBrands } from '../../../../../lib/crmApi';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import type { Product, ProductCategory, Make, Brand } from '../../../../../types/crm';
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -12,6 +13,19 @@ export default function ProductDetailPage() {
   const [cats, setCats] = useState<ProductCategory[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Connected-B2B (Spark & Ray): Make / Brand selects and "Product reference" wording. Read after mount (localStorage).
+  const [b2b, setB2b] = useState(false);
+  const [makes, setMakes] = useState<Make[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [refError, setRefError] = useState('');
+
+  useEffect(() => {
+    const on = isB2bClientActive();
+    setB2b(on);
+    if (!on) return;
+    crmMakes.list().then((r) => setMakes(r.data || [])).catch(() => setMakes([]));
+    crmBrands.list().then((r) => setBrands(r.data || [])).catch(() => setBrands([]));
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -27,18 +41,24 @@ export default function ProductDetailPage() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product) return;
-    setBusy(true);
+    setBusy(true); setRefError('');
     try {
       const r = await crmProducts.update(product.id, {
         sku: product.sku, name: product.name, description: product.description,
-        category_id: product.category_id, unit: product.unit, price: Number(product.price),
+        category_id: product.category_id,
+        ...(b2b ? { make_id: product.make_id ?? null, brand_id: product.brand_id ?? null } : {}),
+        unit: product.unit, price: Number(product.price),
         weight_kg: product.weight_kg != null ? Number(product.weight_kg) : null,
         currency: product.currency, tax_rate_pct: Number(product.tax_rate_pct ?? 0),
         hsn_code: product.hsn_code, image_url: product.image_url, is_active: product.is_active,
       } as any);
       setProduct(r.data);
       toast.success('Product saved');
-    } catch (err: any) { toast.error(err.message || 'Save failed'); } finally { setBusy(false); }
+    } catch (err: any) {
+      // A repeated product reference is shown on the reference field itself.
+      if (b2b && err?.status === 409) setRefError(err.message || 'A product with this reference already exists');
+      else toast.error(err.message || 'Save failed');
+    } finally { setBusy(false); }
   };
 
   const remove = async () => {
@@ -61,7 +81,7 @@ export default function ProductDetailPage() {
         <button type="button" onClick={remove} style={{ background: 'transparent', border: '1px solid #E01E2C', color: '#E01E2C', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Delete</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        <Field label="SKU"><input value={product.sku} onChange={(e) => setProduct({ ...product, sku: e.target.value })} required style={input} /></Field>
+        <Field label={b2b ? 'Product reference' : 'SKU'} error={refError}><input value={product.sku} onChange={(e) => { setProduct({ ...product, sku: e.target.value }); setRefError(''); }} required aria-invalid={refError ? true : undefined} style={refError ? { ...input, borderColor: '#E01E2C' } : input} /></Field>
         <Field label="Name"><input value={product.name} onChange={(e) => setProduct({ ...product, name: e.target.value })} required style={input} /></Field>
         <Field label="Category">
           <select value={product.category_id ?? ''} onChange={(e) => setProduct({ ...product, category_id: e.target.value || null })} style={input}>
@@ -69,6 +89,22 @@ export default function ProductDetailPage() {
             {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Field>
+        {b2b && (
+          <Field label="Make">
+            <select value={product.make_id ?? ''} onChange={(e) => setProduct({ ...product, make_id: e.target.value || null })} style={input}>
+              <option value="">— None —</option>
+              {makes.filter((m) => m.is_active || m.id === product.make_id).map((m) => <option key={m.id} value={m.id}>{m.name}{m.is_active ? '' : ' (off)'}</option>)}
+            </select>
+          </Field>
+        )}
+        {b2b && (
+          <Field label="Brand">
+            <select value={product.brand_id ?? ''} onChange={(e) => setProduct({ ...product, brand_id: e.target.value || null })} style={input}>
+              <option value="">— None —</option>
+              {brands.filter((m) => m.is_active || m.id === product.brand_id).map((m) => <option key={m.id} value={m.id}>{m.name}{m.is_active ? '' : ' (off)'}</option>)}
+            </select>
+          </Field>
+        )}
         <Field label="Unit"><input value={product.unit ?? 'each'} onChange={(e) => setProduct({ ...product, unit: e.target.value })} style={input} /></Field>
         <Field label="Price per unit (INR)"><input type="number" step="0.01" value={product.price} onChange={(e) => setProduct({ ...product, price: Number(e.target.value) })} style={input} /></Field>
         <Field label="Weight per unit (kg)"><input type="number" step="0.001" value={product.weight_kg ?? ''} onChange={(e) => setProduct({ ...product, weight_kg: e.target.value === '' ? null : Number(e.target.value) })} placeholder="e.g. 85" style={input} /></Field>
@@ -90,11 +126,12 @@ export default function ProductDetailPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, error }: { label: string; children: React.ReactNode; error?: string }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
       {children}
+      {error && <span role="alert" data-testid="field-error" style={{ fontSize: 12, color: '#E01E2C', textTransform: 'none', fontWeight: 400 }}>{error}</span>}
     </label>
   );
 }

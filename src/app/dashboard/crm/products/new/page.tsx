@@ -2,15 +2,21 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmProducts, crmProductCategories } from '../../../../../lib/crmApi';
-import type { ProductCategory } from '../../../../../types/crm';
+import { crmProducts, crmProductCategories, crmMakes, crmBrands } from '../../../../../lib/crmApi';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import type { ProductCategory, Make, Brand } from '../../../../../types/crm';
 
 export default function NewProductPage() {
   const router = useRouter();
   const [cats, setCats] = useState<ProductCategory[]>([]);
   const [busy, setBusy] = useState(false);
+  // Connected-B2B (Spark & Ray): Make / Brand selects and "Product reference" wording. Read after mount (localStorage).
+  const [b2b, setB2b] = useState(false);
+  const [makes, setMakes] = useState<Make[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [refError, setRefError] = useState('');
   const [form, setForm] = useState({
-    sku: '', name: '', description: '', category_id: '', unit: 'each',
+    sku: '', name: '', description: '', category_id: '', make_id: '', brand_id: '', unit: 'each',
     price: '', weight_kg: '', currency: 'INR', tax_rate_pct: '18', hsn_code: '', image_url: '', is_active: true,
   });
 
@@ -28,15 +34,24 @@ export default function NewProductPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    const on = isB2bClientActive();
+    setB2b(on);
+    if (!on) return;
+    crmMakes.list().then((r) => setMakes((r.data || []).filter((m) => m.is_active))).catch(() => setMakes([]));
+    crmBrands.list().then((r) => setBrands((r.data || []).filter((m) => m.is_active))).catch(() => setBrands([]));
+  }, []);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
+    setBusy(true); setRefError('');
     try {
       await crmProducts.create({
         sku: form.sku,
         name: form.name,
         description: form.description || undefined,
         category_id: form.category_id || undefined,
+        ...(b2b ? { make_id: form.make_id || null, brand_id: form.brand_id || null } : {}),
         unit: form.unit || 'each',
         price: form.price ? Number(form.price) : 0,
         weight_kg: form.weight_kg ? Number(form.weight_kg) : undefined,
@@ -50,14 +65,19 @@ export default function NewProductPage() {
       // Land back on the products list so the rep can see the new row in
       // context and immediately add another if needed.
       router.push('/dashboard/crm/products');
-    } catch (err: any) { toast.error(err.message || 'Create failed'); setBusy(false); }
+    } catch (err: any) {
+      // A repeated product reference is shown on the reference field itself.
+      if (b2b && err?.status === 409) setRefError(err.message || 'A product with this reference already exists');
+      else toast.error(err.message || 'Create failed');
+      setBusy(false);
+    }
   };
 
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 760 }}>
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Product</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        <Field label="SKU"><input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} required style={input} /></Field>
+        <Field label={b2b ? 'Product reference' : 'SKU'} error={refError}><input value={form.sku} onChange={(e) => { setForm({ ...form, sku: e.target.value }); setRefError(''); }} required aria-invalid={refError ? true : undefined} style={refError ? { ...input, borderColor: '#E01E2C' } : input} /></Field>
         <Field label="Name"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required style={input} /></Field>
         <Field label="Category">
           <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })} style={input}>
@@ -65,6 +85,22 @@ export default function NewProductPage() {
             {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Field>
+        {b2b && (
+          <Field label="Make">
+            <select value={form.make_id} onChange={(e) => setForm({ ...form, make_id: e.target.value })} style={input}>
+              <option value="">— None —</option>
+              {makes.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </Field>
+        )}
+        {b2b && (
+          <Field label="Brand">
+            <select value={form.brand_id} onChange={(e) => setForm({ ...form, brand_id: e.target.value })} style={input}>
+              <option value="">— None —</option>
+              {brands.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </Field>
+        )}
         <Field label="Unit"><input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} style={input} /></Field>
         <Field label="Price per unit (INR)"><input type="number" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} style={input} /></Field>
         <Field label="Weight per unit (kg)"><input type="number" step="0.001" value={form.weight_kg} onChange={(e) => setForm({ ...form, weight_kg: e.target.value })} placeholder="e.g. 85 (one TMT bar)" style={input} /></Field>
@@ -93,11 +129,12 @@ export default function NewProductPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, error }: { label: string; children: React.ReactNode; error?: string }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
       {children}
+      {error && <span role="alert" data-testid="field-error" style={{ fontSize: 12, color: '#E01E2C', textTransform: 'none', fontWeight: 400 }}>{error}</span>}
     </label>
   );
 }
