@@ -3,7 +3,7 @@ import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
-  Blocks, Boxes, ChevronRight, ClipboardList, Database, Factory, GitBranch, Layers, ListChecks, MapPinned, Moon, Network, Palette, Phone, Plug, Shuffle,
+  Blocks, Boxes, ChevronRight, ClipboardList, Database, Factory, GitBranch, Layers, ListChecks, ListOrdered, MapPinned, Moon, Network, Palette, Phone, Plug, Shuffle,
   Sparkles, Sun, Tag, Target, UserCircle, Users, Workflow, Zap,
 } from 'lucide-react';
 import { crmSettings } from '../../../../lib/crmApi';
@@ -310,6 +310,14 @@ export default function SettingsIndex() {
               )}
             </Fragment>
           ))}
+          {spark && (
+            <SettingCard
+              href="/dashboard/crm/settings/lead-stages"
+              title="Lead stages"
+              desc="Set the stages a lead moves through (Universe to Won, Lost or Trash), their colours and order, and give older leads their lead numbers."
+              icon={<ListOrdered {...ICON_PROPS} />}
+            />
+          )}
           {spark && (
             <SettingCard
               href="/dashboard/crm/settings/deal-sections"

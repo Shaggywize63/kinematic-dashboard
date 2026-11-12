@@ -33,6 +33,8 @@ import LeadCardStack from '../../../../components/crm/leads/LeadCardStack';
 import ScoreBreakdownModal from '../../../../components/crm/leads/ScoreBreakdownModal';
 import { LeadsFirstRun, LeadsNoResults } from '../../../../components/crm/leads/LeadsStates';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
+import { isB2bClientActive } from '../../../../lib/b2bClient';
+import { LEAD_TYPE_DEFAULT_LABEL } from '../../../../lib/leadType';
 import { usePageTitle } from '../../../../lib/pageTitle';
 import { Badge, Button, Card, IconButton, Input, PageHeader, Segmented, Select, T, buttonStyle, useIsCompact } from '../../../../components/ui';
 
@@ -75,6 +77,10 @@ export default function LeadsListPage() {
   // settings read so a field the admin hid never flashes.
   const [overrides, setOverrides] = useState<FieldOverrides>({});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  // Connected-B2B (Spark & Ray): the Lead No. column / search hint and the Lead type filter. Read after mount
+  // (it looks at localStorage) so the server and client markup agree.
+  const [b2bLeads, setB2bLeads] = useState(false);
+  useEffect(() => { setB2bLeads(isB2bClientActive()); }, []);
   // Quick preview + score breakdown + filters drawer.
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [scoreLead, setScoreLead] = useState<Lead | null>(null);
@@ -218,6 +224,15 @@ export default function LeadsListPage() {
     if (!isBmw) return base;
     return { ...base, isHidden: (key: string) => key === 'score' || base.isHidden(key) };
   }, [overrides, isB2C, isBmw]);
+
+  // Lead type filter (connected-B2B): a built-in field like any other, so the admin's hide / relabel applies and
+  // it waits for the first settings read. Null = no control, no chip, and a stale value is not sent.
+  const leadTypeLabel = b2bLeads && settingsLoaded && !fieldHelpers.isHidden('lead_type')
+    ? fieldHelpers.labelFor('lead_type', LEAD_TYPE_DEFAULT_LABEL)
+    : null;
+  useEffect(() => {
+    if (settingsLoaded && !leadTypeLabel) setFilters((f) => (f.leadType ? { ...f, leadType: undefined } : f));
+  }, [settingsLoaded, leadTypeLabel]);
 
   // ONE param set, three consumers: the list fetch, the pipeline / view counters and the CSV
   // export. Keyed on the filter VALUES (not object identity) so unrelated re-renders don't refetch.
@@ -467,7 +482,7 @@ export default function LeadsListPage() {
     const q = (filters.q || '').toLowerCase();
     if (!q) return leads;
     return leads.filter((l) =>
-      `${l.full_name || ''} ${l.first_name || ''} ${l.last_name || ''} ${l.email || ''} ${l.phone || ''} ${l.company || ''}`.toLowerCase().includes(q)
+      `${l.full_name || ''} ${l.first_name || ''} ${l.last_name || ''} ${l.email || ''} ${l.phone || ''} ${l.company || ''} ${l.ref_no || ''}`.toLowerCase().includes(q)
     );
   }, [leads, filters.q]);
 
@@ -582,6 +597,7 @@ export default function LeadsListPage() {
     sourceName: (id) => sources.find((s) => s.id === id)?.name ?? 'Selected source',
     ownerName: (id) => users.find((u) => u.id === id)?.name ?? 'Selected user',
     showOwner: ownerAccess.canAssign,
+    leadTypeLabel,
   });
   const smartActive = Object.keys(smartParams).length > 0;
   const filtersActive = appliedChips.length > 0 || !!debouncedQ || !!approvalFilter || smartActive;
@@ -709,7 +725,7 @@ export default function LeadsListPage() {
           <Input
             value={filters.q || ''}
             onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value || undefined }))}
-            placeholder="Search name, email, company..."
+            placeholder={b2bLeads ? 'Search name, email, company, lead no...' : 'Search name, email, company...'}
             aria-label="Search leads"
             style={{ paddingLeft: 33 }}
           />
@@ -762,7 +778,7 @@ export default function LeadsListPage() {
         </div>
         <ViewCustomizer
           entityLabel="Leads"
-          columns={(isBmw ? LEAD_COLUMNS.filter((c) => c.key !== 'score') : LEAD_COLUMNS) as unknown as { key: string; label: string; locked?: boolean }[]}
+          columns={LEAD_COLUMNS.filter((c) => !(isBmw && c.key === 'score') && !(c.key === 'lead_no' && !b2bLeads)) as unknown as { key: string; label: string; locked?: boolean }[]}
           hidden={view.prefs.hidden}
           mode={view.prefs.mode}
           onToggle={view.toggleHidden}
@@ -910,6 +926,7 @@ export default function LeadsListPage() {
         sources={sources.map((s) => ({ id: s.id, name: s.name }))}
         owners={users}
         showOwner={ownerAccess.canAssign}
+        leadTypeLabel={leadTypeLabel}
         statusOptions={statusOptions}
         total={totalCount}
         loading={loading}

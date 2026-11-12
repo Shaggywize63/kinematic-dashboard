@@ -5,6 +5,7 @@ import api from '../../../lib/api';
 import { useCrmDateRange, type DateRangePreset } from '../../../stores/crmDateRangeStore';
 import { Button, IconButton, Input, Select, T, eyebrowStyle } from '../../ui';
 import { GRADE_OPTIONS, type LeadFiltersValue } from '../LeadFilters';
+import { LEAD_TYPE_OPTIONS } from '../../../lib/leadType';
 
 // Cascading State → City → District → Block, backed by
 // /api/v1/crm/locations/options — values are constrained to whatever
@@ -61,7 +62,7 @@ function Opt({ on, onClick, children, title }: { on: boolean; onClick: () => voi
  * live "Show N leads" close — the count updates as the controls change.
  */
 export default function LeadFilterDrawer({
-  open, onClose, value, onChange, sources, owners, showOwner, statusOptions, total, loading, onReset, onSaveView, savedCount, maxSaved,
+  open, onClose, value, onChange, sources, owners, showOwner, leadTypeLabel, statusOptions, total, loading, onReset, onSaveView, savedCount, maxSaved,
 }: {
   open: boolean;
   onClose: () => void;
@@ -71,6 +72,8 @@ export default function LeadFilterDrawer({
   owners: Array<{ id: string; name: string }>;
   /** False hides the Owner control: a client that reserves lead ownership for admins gives everyone else no owner filter. */
   showOwner: boolean;
+  /** Lead type filter (connected-B2B): its (admin-relabelled) name; null/undefined hides the control. */
+  leadTypeLabel?: string | null;
   statusOptions: Array<{ value: string; label: string }>;
   total: number;
   loading: boolean;
@@ -178,6 +181,15 @@ export default function LeadFilterDrawer({
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 <Opt on={!!value.unassigned} onClick={() => set({ unassigned: value.unassigned ? undefined : true, owner: undefined })}>Unassigned only</Opt>
               </div>
+            </Group>
+          )}
+
+          {leadTypeLabel && (
+            <Group title={leadTypeLabel}>
+              <Select aria-label={leadTypeLabel} value={value.leadType || ''} onChange={(e) => set({ leadType: (e.target.value || undefined) as LeadFiltersValue['leadType'] })}>
+                <option value="">All</option>
+                {LEAD_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </Select>
             </Group>
           )}
 

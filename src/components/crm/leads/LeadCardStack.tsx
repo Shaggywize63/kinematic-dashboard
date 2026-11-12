@@ -16,6 +16,8 @@ import { LeadsSkeleton } from './LeadsStates';
 import { Badge, T, type Tone } from '../../ui';
 import { IndustryBadge } from '../spark/IndustrySelect';
 import { isB2bClientActive } from '../../../lib/b2bClient';
+import LeadNo from '../spark/LeadNo';
+import { LEAD_TYPE_DEFAULT_LABEL, leadTypeLabel } from '../../../lib/leadType';
 
 const GRADE_COLORS: Record<string, string> = { A: '#28B463', B: '#7B61FF', C: '#F7B538', D: '#E01E2C' };
 
@@ -50,7 +52,10 @@ export default function LeadCardStack({
 }) {
   const router = useRouter();
   const hid = (k: string) => !!fieldHelpers?.isHidden(k);
-  const showIndustry = isB2bClientActive() && !hid('industry');
+  const b2b = isB2bClientActive();
+  const showIndustry = b2b && !hid('industry');
+  // Lead type is a gated built-in: nothing until the settings are in (fieldHelpers), then only if not hidden.
+  const showLeadType = b2b && !!fieldHelpers && !hid('lead_type');
 
   if (loading && leads.length === 0) return <LeadsSkeleton rows={5} />;
   if (!loading && leads.length === 0) return <>{emptyState}</>;
@@ -97,6 +102,7 @@ export default function LeadCardStack({
                     {[company, phone].filter(Boolean).join(' · ')}
                   </div>
                 )}
+                {b2b && l.ref_no && <div style={{ marginTop: 3 }}><LeadNo value={l.ref_no} testId={`lead-no-card-${l.id}`} /></div>}
                 {showIndustry && l.industry?.trim() && <div style={{ marginTop: 3 }}><IndustryBadge name={l.industry} /></div>}
               </div>
               {!hid('score') && g && (
@@ -110,8 +116,11 @@ export default function LeadCardStack({
             </div>
 
             {!hid('status') && l.status && (
-              <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <Badge tone={statusTone(l.status)} dot style={{ textTransform: 'capitalize', ...metaStyle }}>{meta?.label ?? String(l.status).replace(/_/g, ' ')}</Badge>
+                {showLeadType && leadTypeLabel(l.lead_type) && (
+                  <span data-testid={`lead-type-card-${l.id}`} title={fieldHelpers!.labelFor('lead_type', LEAD_TYPE_DEFAULT_LABEL)} style={{ fontSize: 12, color: T.dim }}>{leadTypeLabel(l.lead_type)}</span>
+                )}
               </div>
             )}
 

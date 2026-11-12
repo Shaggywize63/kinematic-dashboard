@@ -23,8 +23,10 @@ export function buildAppliedChips(args: {
   ownerName: (id: string) => string;
   /** Owner filter is hidden for this viewer — never surface a stale value. */
   showOwner: boolean;
+  /** Lead type filter (connected-B2B): its (admin-relabelled) name, or null when the field is hidden / unavailable. */
+  leadTypeLabel?: string | null;
 }): AppliedChip[] {
-  const { filters: f, onChange, statusLabel, sourceName, ownerName, showOwner } = args;
+  const { filters: f, onChange, statusLabel, sourceName, ownerName, showOwner, leadTypeLabel } = args;
   const set = (patch: Partial<LeadFiltersValue>) => onChange({ ...f, ...patch });
   const chips: AppliedChip[] = [];
   if (f.status?.length) chips.push({ key: 'status', label: 'Status', value: f.status.map(statusLabel).join(', '), onRemove: () => set({ status: undefined }) });
@@ -32,6 +34,7 @@ export function buildAppliedChips(args: {
   if (f.source) chips.push({ key: 'source', label: 'Source', value: sourceName(f.source), onRemove: () => set({ source: undefined }) });
   if (f.owner && showOwner) chips.push({ key: 'owner', label: 'Owner', value: ownerName(f.owner), onRemove: () => set({ owner: undefined }) });
   if (f.unassigned && showOwner) chips.push({ key: 'unassigned', label: 'Owner', value: 'Unassigned', onRemove: () => set({ unassigned: undefined }) });
+  if (f.leadType && leadTypeLabel) chips.push({ key: 'lead_type', label: leadTypeLabel, value: f.leadType === 'requirement' ? 'Requirement' : 'Discussion', onRemove: () => set({ leadType: undefined }) });
   if (f.followupDue) chips.push({ key: 'followup', label: 'Follow-up', value: 'due or overdue', onRemove: () => set({ followupDue: undefined }) });
   const loc = [f.block, f.district, f.city, f.state].filter(Boolean).join(' › ');
   if (loc) chips.push({ key: 'loc', label: 'Location', value: loc, onRemove: () => set({ state: undefined, city: undefined, district: undefined, block: undefined }) });

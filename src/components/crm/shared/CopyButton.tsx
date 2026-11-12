@@ -69,7 +69,7 @@ export default function CopyButton({ value, size = 'sm', label, title = 'Copy' }
 }
 
 /** Copy to clipboard with a legacy fallback. Returns true on success. */
-async function copyToClipboard(text: string): Promise<boolean> {
+export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text);

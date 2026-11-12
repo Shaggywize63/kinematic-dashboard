@@ -13,7 +13,7 @@ import type {
   CrmState, CrmCity,
   Product, ProductCategory, Make, Brand, ProductBulkRow, ProductBulkResult, DealLineItem,
   WhatsappTemplate, WhatsappLog,
-  SimilarAccountsResult, AccountMergeBody, AccountMergeResult,
+  SimilarAccountsResult, AccountMergeBody, AccountMergeResult, LeadRefBackfillBody, LeadRefBackfillResult,
   TargetKind, TargetType, TargetProgress, TargetEntry, TargetEntryInput, TargetEntryQuery, RupeeLeaderboard,
   AfterSalesTelecaller, AfterSalesConfig, AfterSalesRecordInput, AfterSalesImportResult, AfterSalesRecordRow,
 } from '../types/crm';
@@ -92,6 +92,11 @@ export const crmLeads = {
   // returns the flag via custom_fields.__important.
   setImportant: (id: string, important: boolean) =>
     api.post<Wrapped<{ id: string; important: boolean }>>(`${BASE}/leads/${id}/important`, { important }),
+  // Connected-B2B (Spark & Ray), admin only: give every lead that has no reference number (SR/LD/2627-12) one.
+  // dry_run (the default server-side) only counts; limit caps one run, so call again until `remaining` is 0.
+  // Errors: 400 'Lead numbers are not used by this client', 403, 503 NOT_MIGRATED.
+  backfillRefNumbers: (body: LeadRefBackfillBody = {}) =>
+    api.post<Wrapped<LeadRefBackfillResult>>(`${BASE}/leads/ref-numbers/backfill`, body),
   scoreHistory: (id: string) => api.get<Wrapped<LeadScore[]>>(`${BASE}/leads/${id}/score-history`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/leads/${id}/activities`),
   deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/leads/${id}/deals`),

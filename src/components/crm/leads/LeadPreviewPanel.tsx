@@ -16,6 +16,9 @@ import { formatRelativeTime } from '../LeadsTable';
 import LeadAvatar, { leadDisplayName } from './LeadAvatar';
 import { inferGrade } from './ScoreMeter';
 import { Badge, Button, IconButton, T, eyebrowStyle, type Tone } from '../../ui';
+import LeadNo from '../spark/LeadNo';
+import { isB2bClientActive } from '../../../lib/b2bClient';
+import { LEAD_TYPE_DEFAULT_LABEL, leadTypeLabel } from '../../../lib/leadType';
 
 const GRADE_COLORS: Record<string, string> = { A: '#28B463', B: '#7B61FF', C: '#F7B538', D: '#E01E2C' };
 const NBA_LABEL: Record<string, string> = {
@@ -148,6 +151,8 @@ export default function LeadPreviewPanel({
   add('email', 'Email', lead.email);
   if (!hid('owner_id')) details.push({ k: 'owner_id', label: lbl('owner_id', 'Owner'), value: lead.owner_name || 'Unassigned' });
   add('source_id', 'Source', lead.source_name);
+  // Connected-B2B built-in field: only once the settings are in (fieldHelpers), and only if the admin has not hidden it.
+  if (isB2bClientActive() && fieldHelpers) add('lead_type', LEAD_TYPE_DEFAULT_LABEL, leadTypeLabel(lead.lead_type));
   add('title', 'Job title', lead.title);
   add('state', 'State', lead.state);
   if (lead.created_at) details.push({ k: 'created', label: 'Added', value: new Date(lead.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' }) });
@@ -187,6 +192,7 @@ export default function LeadPreviewPanel({
         <div style={{ flex: 1, minWidth: 0 }}>
           <h3 style={{ margin: 0, fontFamily: T.heading, fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: T.text, overflowWrap: 'anywhere' }}>{name}</h3>
           {/* Imported data can put a whole URL + legal name in "company" — clamp it to two lines (full text on hover) so it can't push the header around. */}
+          {isB2bClientActive() && lead.ref_no && <div style={{ marginTop: 3 }}><LeadNo value={lead.ref_no} copy testId="preview-lead-no" /></div>}
           {headline && (
             <div
               title={headline.length > 60 ? headline : undefined}

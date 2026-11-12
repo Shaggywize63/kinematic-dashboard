@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, crmAccounts, crmContacts, type MyTarget, type ExtractedLead } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import { LEAD_TYPE_DEFAULT_LABEL, LEAD_TYPE_OPTIONS, leadTypeForApi } from '../../../../../lib/leadType';
 import { reverseGeocode } from '../../../../../lib/googleGeocode';
 import { useClient } from '../../../../../context/ClientContext';
 import type { BusinessType, LeadSource, Product, CustomField } from '../../../../../types/crm';
@@ -75,6 +76,8 @@ type Form = {
   preferred_contact_method: '' | 'email' | 'phone' | 'whatsapp' | 'sms';
   marketing_consent: boolean; whatsapp_consent: boolean;
   source_id: string; owner_id: string; status: string;
+  // Connected-B2B built-in field `lead_type` ('' = not chosen).
+  lead_type: '' | 'requirement' | 'discussion';
   product_ids: string[];
   alternate_mobiles: string[];
   client_id: string;
@@ -95,7 +98,7 @@ const empty: Form = {
   is_b2c: false, date_of_birth: '', gender: '', address_line1: '', address_line2: '',
   city: '', state: '', postal_code: '', country: 'India',
   preferred_contact_method: '', marketing_consent: false, whatsapp_consent: false,
-  source_id: '', owner_id: '', status: 'new', product_ids: [], alternate_mobiles: [],
+  source_id: '', owner_id: '', status: 'new', lead_type: '', product_ids: [], alternate_mobiles: [],
   client_id: '',
   latitude: '', longitude: '',
   custom_fields: {},
@@ -324,6 +327,9 @@ export default function NewLeadPage() {
   // make it required (Settings → Custom Fields → `data_consent`, per lead type). When it is hidden nothing is
   // shown, nothing is required and no `_consent` is sent.
   const showDataConsent = settingsLoaded && !fields.isHidden('data_consent');
+  // Lead type (connected-B2B only for now) is a built-in field like any other: it waits for the settings so a field
+  // the admin hid never flashes, honours hide / relabel / required, and a hidden one is never sent.
+  const showLeadType = isB2bClientActive() && settingsLoaded && !fields.isHidden('lead_type');
   const dataConsentRequired = fields.requiredFor('data_consent', consentRequired);
   // Form order (Settings → Custom Fields): once the admin has ordered the lead's fields, every field row — built-in
   // and custom — becomes an item of ONE grid (see FlatRegion) and takes its CSS `order`. Until then `flat` is false
@@ -583,6 +589,11 @@ export default function NewLeadPage() {
       fail('lead-field-first_name', 'First name is required.');
       return;
     }
+    // Lead type: only enforced where it is shown (connected-B2B, not hidden by the admin) and made required.
+    if (showLeadType && fields.requiredFor('lead_type', false) && !form.lead_type) {
+      fail('lead-field-lead_type', `${fields.labelFor('lead_type', LEAD_TYPE_DEFAULT_LABEL)} is required.`);
+      return;
+    }
     // Skip the field if the admin hid it, OR if they explicitly made it
     // optional for the active business-type scope. The backend's
     // leadCreateSchema has last_name as a hard min(1) on the universal
@@ -709,6 +720,8 @@ export default function NewLeadPage() {
         // Admin-only assignment: a non-admin never sends an owner (not even themselves) — the server owns it to them.
         owner_id: ownerLocked ? undefined : (form.owner_id || undefined),
         status: form.status || 'new',
+        // Hidden / unavailable => never sent; shown but left blank => omitted (a create has nothing to clear).
+        lead_type: showLeadType ? (leadTypeForApi(form.lead_type) ?? undefined) : undefined,
         product_ids: form.product_ids.length > 0 ? form.product_ids : undefined,
         alternate_mobiles: form.alternate_mobiles.length ? form.alternate_mobiles : undefined,
         client_id: form.client_id || undefined,
@@ -1225,7 +1238,7 @@ export default function NewLeadPage() {
         </Section>
         )}
 
-        {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked) || isBmw) && (
+        {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked) || isBmw || showLeadType) && (
           <Section title="Assignment" hint={ownerLocked ? 'Stage and source.' : 'Stage, source and owner. The owner sees this lead in their queue.'}>
             <Grid narrow={narrow}>
               {!fields.isHidden('status') && (
@@ -1249,6 +1262,14 @@ export default function NewLeadPage() {
                   <Select id="lead-field-source_id" value={form.source_id} onChange={(e) => setForm({ ...form, source_id: e.target.value })}>
                     <option value="">— Unspecified —</option>
                     {orderLeadSources(sources).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </Select>
+                </Field>
+              )}
+              {showLeadType && (
+                <Field label={fields.labelFor('lead_type', LEAD_TYPE_DEFAULT_LABEL)} required={fields.requiredFor('lead_type', false)} htmlFor="lead-field-lead_type" style={fields.orderStyle('lead_type')}>
+                  <Select id="lead-field-lead_type" value={form.lead_type} required={fields.requiredFor('lead_type', false)} onChange={(e) => setForm({ ...form, lead_type: e.target.value as Form['lead_type'] })}>
+                    <option value="">— None —</option>
+                    {LEAD_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </Select>
                 </Field>
               )}

@@ -79,7 +79,8 @@ export function extractLeadStatuses(settingsData: any): LeadStatusOption[] | nul
       position: typeof rawPos === 'number' ? rawPos : undefined,
       is_won: (entry as { is_won?: unknown }).is_won === true ? true : undefined,
       is_lost: (entry as { is_lost?: unknown }).is_lost === true ? true : undefined,
-      is_open: (entry as { is_open?: unknown }).is_open === true ? true : undefined,
+      // Kept as written (true OR false): `false` marks a closed stage that is neither won nor lost (Spark's "Finished").
+      is_open: typeof (entry as { is_open?: unknown }).is_open === 'boolean' ? (entry as { is_open: boolean }).is_open : undefined,
     });
   }
   if (out.length === 0) return null;
