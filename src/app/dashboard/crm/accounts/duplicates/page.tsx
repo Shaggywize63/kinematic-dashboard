@@ -133,7 +133,7 @@ export default function DuplicateAccountsPage() {
     const keptName = r.kept?.name || g.accounts.find((a) => a.id === r.kept?.id)?.name || 'the kept account';
     const n = (r.merged_ids || []).length;
     const moved = describeMoved(r.moved);
-    toast.success(`Merged ${accountsLabel(n)} into ${keptName}.${moved ? ` ${moved} moved.` : ''}`);
+    toast.success(`Merged ${accountsLabel(n)} into ${keptName.replace(/\.+$/, '')}.${moved ? ` ${moved} moved.` : ''}`);
     setGroups((cur) => cur.filter((x) => x.key !== g.key));
     const dupes = (r.duplicate_contacts || []).length;
     const skipped = (r.skipped || []).length;

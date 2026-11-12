@@ -146,7 +146,7 @@ test.describe('Duplicate accounts', () => {
     expect(calls.merges[0]).toEqual({ keep_id: 'a-2', merge_ids: ['a-1', 'a-3'] });
     expect(calls.merges[0]).not.toHaveProperty('dry_run');
 
-    await expect(page.getByText('Merged 2 accounts into NTPC Lara Ltd.. 6 contacts, 4 leads, 2 deals moved.')).toBeVisible();
+    await expect(page.getByText('Merged 2 accounts into NTPC Lara Ltd. 6 contacts, 4 leads, 2 deals moved.')).toBeVisible();
     await expect(group(page, 'ntpc-lara')).toHaveCount(0);
     await expect(group(page, 'acme-forge')).toBeVisible();
     await expect(page.getByTestId('dup-notice')).toContainText('2 contacts look like duplicates: check them in the account');
