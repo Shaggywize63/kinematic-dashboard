@@ -1334,7 +1334,8 @@ test.describe('live payroll: browser storage', () => {
     expect(stored).not.toContain('shifts');                                      // shifts moved to the server in phase 3: no longer kept in the browser
     expect(stored).not.toContain('letterTemplates');                             // letter templates moved to the server in phase 4: no longer kept in the browser
     expect(stored).not.toContain('onboarding');                                  // onboarding moved to the server in phase 4 too
-    expect(stored).toContain('retention');                                       // the still-local reference data (retention) is kept
+    expect(stored).not.toContain('retention');                                   // compliance / consents / retention moved to the server in phase 5: no longer kept in the browser
+    expect(stored).toContain('accessLog');                                       // the still-local access log collection is kept
   });
 });
 

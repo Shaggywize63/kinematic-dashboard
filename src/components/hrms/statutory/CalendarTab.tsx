@@ -3,12 +3,14 @@
 // from the due date against the preview's today; "filed" is the only stored fact that is trusted.
 
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import type { ComplianceTask, HrmsDb } from '../../../lib/hrms/types';
 import { PREVIEW_TODAY } from '../../../lib/hrms/seed';
 import { diffDays, fmtDate, fmtMonthLong } from '../../../lib/hrms/format';
-import { addComplianceTask, fileCompliance, reopenCompliance } from '../../../lib/hrms/statutoryActions';
+import { addComplianceTask, addStandardComplianceCalendar, fileCompliance, reopenCompliance } from '../../../lib/hrms/statutoryActions';
+import { useLiveStatus, whenSynced } from '../../../lib/hrms/live/store';
 import { Field, Input, Select } from '../../ui';
-import { Badge, Button, Card, CardTitle, Modal, Note, StatGrid, Stat, StatusBadge, T, Toolbar, useIsCompact } from '../ui';
+import { Badge, Button, Card, CardTitle, EmptyState, Modal, Note, StatGrid, Stat, StatusBadge, T, Toolbar, useIsCompact } from '../ui';
 import { derivedStatus, entityName, suggestedDues, type DerivedStatus } from './builders';
 import { ConfirmModal, Muted, Stack } from './parts';
 
@@ -32,10 +34,18 @@ function whenText(t: ComplianceTask, s: DerivedStatus): string {
 
 export default function CalendarTab({ db }: { db: HrmsDb }) {
   const narrow = useIsCompact(900);
+  const live = useLiveStatus();
+  const liveMode = live.source === 'live';
   const [entity, setEntity] = useState('all');
   const [law, setLaw] = useState('all');
   const [filing, setFiling] = useState<ComplianceTask | null>(null);
   const [reopening, setReopening] = useState<ComplianceTask | null>(null);
+
+  const addStandard = () => {
+    const r = addStandardComplianceCalendar();
+    if (!r.ok) { toast.error(r.error); return; }
+    whenSynced((ok) => { if (ok) toast.success('Standard compliance calendar added'); });
+  };
 
   const laws = useMemo(() => [...new Set(db.compliance.map((c) => c.law))].sort(), [db.compliance]);
   const tasks = useMemo(
@@ -75,6 +85,16 @@ export default function CalendarTab({ db }: { db: HrmsDb }) {
         <Stat label="Upcoming" value={count('upcoming')} hint="More than 7 days away" />
         <Stat label="Filed" value={count('filed')} tone="ok" hint="With a reference on record" />
       </StatGrid>
+
+      {liveMode && db.compliance.length === 0 && (
+        <Card>
+          <div data-testid="compliance-live-empty">
+            <EmptyState title="No compliance tasks yet"
+              description="The compliance calendar is saved on the server. Start with the standard set of due dates for your legal entities — TDS, PF, ESI, professional tax, LWF and the annual filings — then mark each as filed when it is done, or add your own from the suggestions below."
+              action={<Button variant="primary" data-testid="add-standard-compliance" style={{ minHeight: 40 }} onClick={addStandard}>Add the standard compliance calendar</Button>} />
+          </div>
+        </Card>
+      )}
 
       {GROUPS.map((g) => {
         const here = tasks.filter((x) => x.s === g.key);

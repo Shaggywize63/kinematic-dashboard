@@ -7,7 +7,7 @@
 // Not diffed at all: pay runs and settlement status. Those change through commands (live/payrollCommands.ts).
 
 import type {
-  Adjustment, AttendanceSummary, Department, Designation, Employee, ExitCase, FnfCase, HolidayList, HrmsDb, IssuedLetter, LeaveBalance, LeaveType, LegalEntity, LetterTemplate, Loan, Location, OnboardingCase, RosterRow, SalaryStructure, Shift,
+  Adjustment, AttendanceSummary, ComplianceTask, ConsentRecord, Department, Designation, Employee, ExitCase, FnfCase, HolidayList, HrmsDb, IssuedLetter, LeaveBalance, LeaveType, LegalEntity, LetterTemplate, Loan, Location, OnboardingCase, RetentionRule, RosterRow, SalaryStructure, Shift,
 } from '../types';
 import { fmtDate, fmtMonth, fullName } from '../format';
 import {
@@ -24,6 +24,9 @@ import {
 import {
   exitCreateBody, exitPatch, issuedLetterCreateBody, issuedLetterPatch, letterTemplateCreateBody, letterTemplatePatch, onboardingCreateBody, onboardingPatch,
 } from './lifecycleWire';
+import {
+  complianceCreateBody, compliancePatch, consentCreateBody, consentPatch, retentionCreateBody, retentionPatch,
+} from './privacyWire';
 
 /** People and organisation: saved on the server since phase 1. */
 export type PeopleCollections = Pick<HrmsDb, 'entities' | 'locations' | 'departments' | 'designations' | 'employees'>;
@@ -36,7 +39,9 @@ export type PayrollCollections = Pick<HrmsDb, 'structures' | 'attendance' | 'adj
 export type TimeCollections = Pick<HrmsDb, 'shifts' | 'roster' | 'leaveTypes' | 'holidayLists' | 'leaveBalances'>;
 /** Lifecycle and letters: on the server since phase 4. All simple records, diffed and synced by id like the above. */
 export type LifecycleCollections = Pick<HrmsDb, 'onboarding' | 'exits' | 'letterTemplates' | 'letters'>;
-export type ServerCollections = PeopleCollections & PayrollCollections & TimeCollections & LifecycleCollections;
+/** Privacy and DPDP: on the server since phase 5. All simple records (compliance tasks, consents, retention rules). */
+export type PrivacyCollections = Pick<HrmsDb, 'compliance' | 'consents' | 'retention'>;
+export type ServerCollections = PeopleCollections & PayrollCollections & TimeCollections & LifecycleCollections & PrivacyCollections;
 export type Collection = keyof ServerCollections;
 export type Verb = 'create' | 'update' | 'delete';
 
@@ -44,7 +49,8 @@ export type SyncKind =
   | 'entity' | 'location' | 'department' | 'designation' | 'employee' | 'document'
   | 'structure' | 'attendance' | 'adjustment' | 'loan' | 'fnf' | 'settings'
   | 'shift' | 'roster' | 'leaveType' | 'holidayList' | 'leaveBalance'
-  | 'onboarding' | 'exit' | 'letterTemplate' | 'letter';
+  | 'onboarding' | 'exit' | 'letterTemplate' | 'letter'
+  | 'compliance' | 'consent' | 'retention';
 /** The kinds that are payroll records: they need the payroll data to have loaded, and they can change what a run computes. */
 export const PAYROLL_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['structure', 'attendance', 'adjustment', 'loan', 'fnf', 'settings']);
 /** The kinds that are time-and-leave records: they need the time data to have loaded. */
@@ -55,6 +61,10 @@ export const TIME_RECORD_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['shif
 export const LIFECYCLE_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['onboarding', 'exit', 'letterTemplate', 'letter']);
 /** Lifecycle records are all ordinary {id} rows: a server answer for one must carry an id (like the time record kinds). */
 export const LIFECYCLE_RECORD_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['onboarding', 'exit', 'letterTemplate', 'letter']);
+/** The kinds that are privacy-and-DPDP records: they need the privacy data to have loaded. */
+export const PRIVACY_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['compliance', 'consent', 'retention']);
+/** Privacy records are all ordinary {id} rows: a server answer for one must carry an id (like the lifecycle record kinds). */
+export const PRIVACY_RECORD_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['compliance', 'consent', 'retention']);
 /** Changes to these can make a computed run stale (an employee's pay, a structure, attendance, an adjustment, a loan, the overtime rule, a shift's hours). */
 export const RUN_INPUT_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['structure', 'attendance', 'adjustment', 'loan', 'settings', 'employee', 'shift']);
 
@@ -98,6 +108,7 @@ const LABEL = {
   leaveType: (l: LeaveType) => `leave type "${l.name}"`,
   holidayList: (h: HolidayList) => `holiday list "${h.name}"`,
   letterTemplate: (t: LetterTemplate) => `letter template "${t.name}"`,
+  retention: (r: RetentionRule) => `retention rule "${r.dataset}"`,
 };
 
 function simple<T extends { id: string }>(
@@ -210,8 +221,8 @@ function settingsOps(prev: HrmsDb['overtimeRules'], next: HrmsDb['overtimeRules'
  * Payroll collections missing from `prev` or `next` count as empty.
  */
 export function diffServer(
-  prev: PeopleCollections & Partial<PayrollCollections> & Partial<TimeCollections> & Partial<LifecycleCollections>,
-  next: PeopleCollections & Partial<PayrollCollections> & Partial<TimeCollections> & Partial<LifecycleCollections>,
+  prev: PeopleCollections & Partial<PayrollCollections> & Partial<TimeCollections> & Partial<LifecycleCollections> & Partial<PrivacyCollections>,
+  next: PeopleCollections & Partial<PayrollCollections> & Partial<TimeCollections> & Partial<LifecycleCollections> & Partial<PrivacyCollections>,
 ): SyncOp[] {
   const ent = simple('entities', 'entity', prev.entities, next.entities, LABEL.entity, entityCreateBody, entityPatch);
   const loc = simple('locations', 'location', prev.locations, next.locations, LABEL.location, locationCreateBody, locationPatch);
@@ -241,6 +252,12 @@ export function diffServer(
   const exits = simple<ExitCase>('exits', 'exit', prev.exits ?? [], next.exits ?? [], (c) => `exit of ${nameOf(c.employeeId)}`, exitCreateBody, exitPatch);
   const letterTemplate = simple<LetterTemplate>('letterTemplates', 'letterTemplate', prev.letterTemplates ?? [], next.letterTemplates ?? [], LABEL.letterTemplate, letterTemplateCreateBody, letterTemplatePatch);
   const letter = simple<IssuedLetter>('letters', 'letter', prev.letters ?? [], next.letters ?? [], (l) => `letter for ${nameOf(l.employeeId)}`, issuedLetterCreateBody, issuedLetterPatch);
+
+  // Privacy and DPDP. All ordinary {id} records. A compliance task references a legal entity (created above); a consent
+  // references an employee (created above); a retention rule stands alone.
+  const compliance = simple<ComplianceTask>('compliance', 'compliance', prev.compliance ?? [], next.compliance ?? [], (t) => `compliance task "${t.name}"`, complianceCreateBody, compliancePatch);
+  const consent = simple<ConsentRecord>('consents', 'consent', prev.consents ?? [], next.consents ?? [], (c) => `consent of ${nameOf(c.employeeId)}`, consentCreateBody, consentPatch);
+  const retention = simple<RetentionRule>('retention', 'retention', prev.retention ?? [], next.retention ?? [], LABEL.retention, retentionCreateBody, retentionPatch);
 
   const emp: SyncOp[] = [];
   const empDeletes: SyncOp[] = [];
@@ -273,9 +290,13 @@ export function diffServer(
     ...att, ...roster, ...balance, ...adj.creates, ...adj.updates, ...loan.creates, ...loan.updates, ...fnf.creates, ...fnf.updates, ...settings,
     // Lifecycle rows reference the people created just above (onboarding and exit by employee id, a letter by employee and template).
     ...onboarding.creates, ...onboarding.updates, ...exits.creates, ...exits.updates, ...letter.creates, ...letter.updates,
+    // Privacy rows reference the entities and people created above (a compliance task names an entity, a consent names an employee).
+    ...compliance.creates, ...compliance.updates, ...consent.creates, ...consent.updates, ...retention.creates, ...retention.updates,
     ...fnf.deletes, ...loan.deletes, ...adj.deletes,
-    // Remove the rows that point at a person before the person: letters, then onboarding and exit cases.
+    // Remove the rows that point at a person before the person: letters, then onboarding and exit cases, then consents.
     ...letter.deletes, ...onboarding.deletes, ...exits.deletes,
+    // Privacy removals: a consent before the employee it names, a compliance task before the entity it names, retention stands alone.
+    ...consent.deletes, ...compliance.deletes, ...retention.deletes,
     ...empDeletes,
     // A leave type goes after the balances that referenced it; a shift after the people and roster rows that used it; a letter
     // template after the letters that named it.

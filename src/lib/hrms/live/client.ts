@@ -14,8 +14,9 @@ import {
 } from './payrollWire';
 import { timeFromWire, type TimeData } from './timeWire';
 import { lifecycleFromWire, type LifecycleData } from './lifecycleWire';
+import { accessLogFromWire, privacyFromWire, type PrivacyData } from './privacyWire';
 import type { FnfResult, PreRunCheck } from '../engine';
-import type { FnfCase, PayRun } from '../types';
+import type { AccessLogEntry, FnfCase, PayRun } from '../types';
 
 const BASE = '/api/v1/hrms';
 
@@ -26,6 +27,8 @@ export type PayrollKind = 'structures' | 'adjustments' | 'loans' | 'fnf';
 export type TimeKind = 'shifts' | 'leave-types' | 'holiday-lists';
 /** The lifecycle records the diff-sync saves one by one (all ordinary {id} rows). */
 export type LifecycleKind = 'onboarding' | 'exits' | 'letter-templates' | 'letters';
+/** The privacy records the diff-sync saves one by one (all ordinary {id} rows). */
+export type PrivacyKind = 'compliance' | 'consents' | 'retention';
 /** The commands on a pay run. Each one is a call to the server whose answer replaces the run held here. */
 export type RunCommand = 'compute' | 'freeze' | 'unfreeze' | 'mark-paid';
 
@@ -45,6 +48,7 @@ export const NOT_READY_MESSAGE = 'HRMS storage is not set up yet on the server';
 export const PAYROLL_NOT_READY_MESSAGE = 'Payroll storage is not set up yet on the server';
 export const TIME_NOT_READY_MESSAGE = 'Time and leave storage is not set up yet on the server';
 export const LIFECYCLE_NOT_READY_MESSAGE = 'Lifecycle storage is not set up yet on the server';
+export const PRIVACY_NOT_READY_MESSAGE = 'Privacy storage is not set up yet on the server';
 
 function toError(e: unknown): HrmsApiError {
   if (e instanceof HrmsApiError) return e;
@@ -75,6 +79,7 @@ async function call<T>(run: () => Promise<unknown>): Promise<T> {
 const PAYROLL = `${BASE}/payroll`;
 const TIME = `${BASE}/time`;
 const LIFECYCLE = `${BASE}/lifecycle`;
+const PRIVACY = `${BASE}/privacy`;
 const enc = encodeURIComponent;
 
 /** Payroll-only trouble: a server that predates payroll answers 404 for the route, which reads the same as "not set up yet". */
@@ -95,6 +100,13 @@ function timeError(e: unknown): HrmsApiError {
 function lifecycleError(e: unknown): HrmsApiError {
   const err = toError(e);
   if (err.notReady || err.status === 404) return new HrmsApiError(LIFECYCLE_NOT_READY_MESSAGE, err.status || 503, true);
+  return err;
+}
+
+/** Privacy-only trouble: a server that predates the privacy tables answers 404 or 503, both reading as "not set up yet". */
+function privacyError(e: unknown): HrmsApiError {
+  const err = toError(e);
+  if (err.notReady || err.status === 404) return new HrmsApiError(PRIVACY_NOT_READY_MESSAGE, err.status || 503, true);
   return err;
 }
 
@@ -193,5 +205,30 @@ export const hrmsApi = {
     create: (kind: LifecycleKind, body: Row): Promise<Row> => call<Row>(() => api.post(`${LIFECYCLE}/${kind}`, body)),
     update: (kind: LifecycleKind, id: string, body: Row): Promise<Row> => call<Row>(() => api.put(`${LIFECYCLE}/${kind}/${enc(id)}`, body)),
     remove: (kind: LifecycleKind, id: string): Promise<Row> => call<Row>(() => api.delete(`${LIFECYCLE}/${kind}/${enc(id)}`)),
+  },
+
+  privacy: {
+    async bootstrap(): Promise<PrivacyData> {
+      try {
+        const data = await call<Row>(() => api.get(`${PRIVACY}/bootstrap`, { noCache: true } as RequestInit));
+        return privacyFromWire(data ?? {});
+      } catch (e) { throw privacyError(e); }
+    },
+
+    /** Compliance tasks, consent records and retention rules: create, change and remove one record. */
+    create: (kind: PrivacyKind, body: Row): Promise<Row> => call<Row>(() => api.post(`${PRIVACY}/${kind}`, body)),
+    update: (kind: PrivacyKind, id: string, body: Row): Promise<Row> => call<Row>(() => api.put(`${PRIVACY}/${kind}/${enc(id)}`, body)),
+    remove: (kind: PrivacyKind, id: string): Promise<Row> => call<Row>(() => api.delete(`${PRIVACY}/${kind}/${enc(id)}`)),
+  },
+
+  /**
+   * The existing phase-1 access log (GET /hrms/access-log, newest first, max 200). Sensitive: it bypasses the shared GET
+   * cache (noCache) so it never reaches browser storage, like the payroll reads. Returns the dashboard's AccessLogEntry rows.
+   */
+  async accessLog(employeeId?: string): Promise<AccessLogEntry[]> {
+    const q = employeeId ? `?employee_id=${enc(employeeId)}` : '';
+    const data = await call<unknown>(() => api.get(`${BASE}/access-log${q}`, { noCache: true } as RequestInit));
+    const list = Array.isArray(data) ? data : (data as { rows?: unknown; access_log?: unknown } | null)?.rows ?? (data as { access_log?: unknown } | null)?.access_log;
+    return (Array.isArray(list) ? list : []).filter((x): x is Row => !!x && typeof x === 'object').map(accessLogFromWire);
   },
 };
