@@ -12,7 +12,7 @@ import { extractLeadStatuses } from '../src/lib/crmLeadStatuses';
 /**
  * Lead numbers, lead type and lead stages (connected-B2B / Spark & Ray; web).
  *   1. pure helpers (stage list building / validation, filter params, lead type);
- *   2. lead number (SR/LD/2627-12): table column, card, detail header + copy, search, preview; nothing for other tenants;
+ *   2. lead number (SR/LD/2627-12): no longer rendered in the lead UI; search by a stored number still works;
  *   3. lead type: built-in field gated on create / edit / detail / filter / settings (hide, relabel, require, order);
  *   4. Settings -> Lead stages: load, add the combined list, edit / reorder / remove, validation, save payload;
  *   5. the "Number existing leads" panel (preview, confirm, batches, 403 / 400 / 503 messages);
@@ -178,19 +178,9 @@ test.describe('lead stages / type helpers', () => {
 
 // ═════════════════════════════ 2. lead number ═════════════════════════════
 test.describe('Lead number', () => {
-  test('Spark: a monospace Lead No. column on the table (a lead without a number shows a dash)', async ({ page }) => {
-    await setup(page);
-    await page.goto('/dashboard/crm/leads');
-    await expect(row(page, 'Acme Forge')).toBeVisible({ timeout: 60_000 });
-    await expect(page.locator('table.responsive-cards th', { hasText: 'Lead No.' })).toBeVisible();
-    await expect(row(page, 'Acme Forge').locator('td[data-label="Lead No."]')).toContainText('SR/LD/2627-12');
-    await expect(row(page, 'Loom Works').getByTestId('lead-no')).toHaveText('SR/LD/2627-13');
-    await expect(row(page, 'Blank Co').getByTestId('lead-no')).toHaveCount(0);
-    await expect(row(page, 'Blank Co').locator('td[data-label="Lead No."]')).toHaveText('—');
-    const ff = await row(page, 'Acme Forge').getByTestId('lead-no').evaluate((el) => getComputedStyle(el).fontFamily);
-    expect(ff.toLowerCase()).toMatch(/mono/);
-  });
-
+  // The per-lead number is no longer displayed in the web lead UI (backend
+  // stopped assigning it; iOS/Android dropped it too). Searching an old lead
+  // by a stored number still works, so that coverage stays.
   test('Spark: the search box mentions the lead number, sends q, and the page finds a lead by its number', async ({ page }) => {
     const calls = await setup(page);
     await page.goto('/dashboard/crm/leads');
@@ -204,64 +194,24 @@ test.describe('Lead number', () => {
     await expect(row(page, 'Acme Forge')).toHaveCount(0);
   });
 
-  test('Spark: the Lead No. column is in the column customiser and can be hidden', async ({ page }) => {
+  test('the per-lead number is not rendered anywhere in the web lead UI (table, card, preview, detail)', async ({ page }) => {
     await setup(page);
     await page.goto('/dashboard/crm/leads');
     await expect(row(page, 'Acme Forge')).toBeVisible({ timeout: 60_000 });
-    await page.getByTitle(/Customize columns and layout for Leads/).click();
-    const box = page.getByRole('checkbox', { name: /Lead No\./ });
-    await expect(box).toBeChecked();
-    await box.uncheck();
-    await expect(page.locator('table.responsive-cards th', { hasText: 'Lead No.' })).toHaveCount(0);
-  });
-
-  test('Spark: the phone card view shows the number under the name', async ({ page }) => {
-    await page.setViewportSize({ width: 500, height: 900 });
-    await setup(page);
-    await page.goto('/dashboard/crm/leads');
-    await expect(page.getByTestId('lead-no-card-l-1')).toHaveText('SR/LD/2627-12', { timeout: 60_000 });
-    await expect(page.getByTestId('lead-no-card-l-2')).toHaveText('SR/LD/2627-13');
-    await expect(page.getByTestId('lead-no-card-l-3')).toHaveCount(0);
-  });
-
-  test('Spark: the quick preview shows the number with a copy button', async ({ page }) => {
-    await setup(page);
-    await page.goto('/dashboard/crm/leads');
-    await expect(row(page, 'Acme Forge')).toBeVisible({ timeout: 60_000 });
-    await row(page, 'Acme Forge').locator('td[data-label="Status"]').click();
-    await expect(page.getByTestId('preview-lead-no')).toHaveText('SR/LD/2627-12');
-    await expect(page.getByTestId('preview-lead-no-copy')).toBeVisible();
-  });
-
-  test('Spark: the lead page header shows the number next to the name, and Copy puts it on the clipboard', async ({ page, context }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await setup(page);
-    await page.goto('/dashboard/crm/leads/l-1');
-    const no = page.getByTestId('detail-lead-no');
-    await expect(no).toHaveText('SR/LD/2627-12', { timeout: 60_000 });
-    const copy = page.getByTestId('detail-lead-no-copy');
-    await expect(copy).toHaveAttribute('aria-label', 'Copy lead number');
-    await copy.click();
-    await expect(copy).toHaveAttribute('aria-label', 'Copied');
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('SR/LD/2627-12');
-  });
-
-  test('Spark: a lead with no number shows none in the header', async ({ page }) => {
-    await setup(page, { lead: { ref_no: null } });
-    await page.goto('/dashboard/crm/leads/l-1');
-    await expect(page.getByText('Acme Forge').first()).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId('detail-lead-no')).toHaveCount(0);
-  });
-
-  test('another client sees no Lead No. anywhere: not in the table, the search hint, the customiser or the lead page', async ({ page }) => {
-    await setup(page, { spark: false });
-    await page.goto('/dashboard/crm/leads');
-    await expect(row(page, 'Acme Forge')).toBeVisible({ timeout: 60_000 });
+    // No Lead No. column or cell on the table.
     await expect(page.locator('table.responsive-cards th', { hasText: 'Lead No.' })).toHaveCount(0);
     await expect(page.getByTestId('lead-no')).toHaveCount(0);
-    await expect(page.getByPlaceholder('Search name, email, company...')).toBeVisible();
+    // Not in the column customiser.
     await page.getByTitle(/Customize columns and layout for Leads/).click();
     await expect(page.getByRole('checkbox', { name: /Lead No\./ })).toHaveCount(0);
+    // Close the customiser by clicking its scrim (it has no Escape handler); wait for the
+    // scrim to detach so it no longer intercepts the next click.
+    await page.locator('.crm-view-customizer-scrim').click();
+    await expect(page.locator('.crm-view-customizer-scrim')).toHaveCount(0);
+    // Not in the quick preview.
+    await row(page, 'Acme Forge').locator('td[data-label="Status"]').click();
+    await expect(page.getByTestId('preview-lead-no')).toHaveCount(0);
+    // Not on the lead detail header.
     await page.goto('/dashboard/crm/leads/l-1');
     await expect(page.getByText('Acme Forge').first()).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId('detail-lead-no')).toHaveCount(0);
@@ -448,14 +398,14 @@ test.describe('Lead type: lead page, preview and filter', () => {
   test('hidden on the lead page', async ({ page }) => {
     await setup(page, { overrides: { 'lead.lead_type': { hidden: true } } });
     await page.goto('/dashboard/crm/leads/l-1');
-    await expect(page.getByTestId('detail-lead-no')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText('Acme Forge').first()).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-field="lead_type"]')).toHaveCount(0);
   });
 
   test('no type on the lead: nothing is shown', async ({ page }) => {
     await setup(page, { lead: { lead_type: null } });
     await page.goto('/dashboard/crm/leads/l-1');
-    await expect(page.getByTestId('detail-lead-no')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText('Acme Forge').first()).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-field="lead_type"]')).toHaveCount(0);
   });
 

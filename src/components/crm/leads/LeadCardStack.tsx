@@ -16,7 +16,6 @@ import { LeadsSkeleton } from './LeadsStates';
 import { Badge, T, type Tone } from '../../ui';
 import { IndustryBadge } from '../spark/IndustrySelect';
 import { isB2bClientActive } from '../../../lib/b2bClient';
-import LeadNo from '../spark/LeadNo';
 import { LEAD_TYPE_DEFAULT_LABEL, leadTypeLabel } from '../../../lib/leadType';
 
 const GRADE_COLORS: Record<string, string> = { A: '#28B463', B: '#7B61FF', C: '#F7B538', D: '#E01E2C' };
@@ -102,7 +101,6 @@ export default function LeadCardStack({
                     {[company, phone].filter(Boolean).join(' · ')}
                   </div>
                 )}
-                {b2b && l.ref_no && <div style={{ marginTop: 3 }}><LeadNo value={l.ref_no} testId={`lead-no-card-${l.id}`} /></div>}
                 {showIndustry && l.industry?.trim() && <div style={{ marginTop: 3 }}><IndustryBadge name={l.industry} /></div>}
               </div>
               {!hid('score') && g && (
