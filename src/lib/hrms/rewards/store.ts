@@ -19,6 +19,10 @@ import {
   liveSendToRepair, liveTransferAsset, useLiveAssetsSnapshot, useLiveSource,
 } from './live/assetsSource';
 import {
+  getLiveBenefits, liveAddStandardBenefits, liveExtendWindow, liveLogReminders, liveMoveClaim, liveRegisterClaim, liveSendToPayroll,
+  liveSubmitEnrolment, useLiveBenefitsSnapshot,
+} from './live/benefitsSource';
+import {
   CLAIM_NEXT, benefitsTag, deductionPreview, enrolmentEligibility, planOf, tierOf, validateBand, validateDependants, validateFlex, validateGuideline,
   windowStatus, nextTag, checkProposal, cycleMembership, baseCtcFor, submitBlockers, addMonthsISO,
 } from './engines';
@@ -29,26 +33,28 @@ import type {
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
-// The Rewards area store. Benefits and compensation always live in this browser-local store (the "saved in this browser only"
-// note stays on their pages). The ASSETS slice has a Sample | Live concept (phase 6): in live mode it comes from, and is saved
-// to, the server (live/assetsSource.ts), while this local store still holds benefits, compensation and the activity log.
+// The Rewards area store. Compensation always lives in this browser-local store (the "saved in this browser only" note stays
+// on its page). The ASSETS slice (phase 6) and the BENEFITS slice (phase 7) each have a Sample | Live concept: in live mode
+// they come from, and are saved to, the server (live/assetsSource.ts, live/benefitsSource.ts), while this local store still
+// holds compensation and the activity log.
 const baseRewardsStore = createAreaStore<RewardsState>('rewards', 1, makeRewardsSeed);
 
-/** The whole Rewards state for the active source: in live mode the assets slice is the server's, the rest is this local store. */
-const mergeLive = (base: RewardsState, assets: RewardsState['assets']): RewardsState => ({ ...base, assets });
+/** The whole Rewards state for the active source: in live mode the assets and benefits slices are the server's, the rest is this local store. */
+const mergeLive = (base: RewardsState, assets: RewardsState['assets'], benefits: RewardsState['benefits']): RewardsState => ({ ...base, assets, benefits });
 
 export const rewardsStore: AreaStore<RewardsState> = {
   name: 'rewards',
-  get: () => (isLive() ? mergeLive(baseRewardsStore.get(), getLiveAssets()) : baseRewardsStore.get()),
-  // Benefits, compensation and the log always change locally. Asset actions never call mutate in live mode (they are server
-  // commands), so the local assets slice is ignored there and the live register is never written to browser storage.
+  get: () => (isLive() ? mergeLive(baseRewardsStore.get(), getLiveAssets(), getLiveBenefits()) : baseRewardsStore.get()),
+  // Compensation and the log always change locally. Asset and benefits actions never call mutate in live mode (they are
+  // server commands), so the local assets/benefits slices are ignored there and the live data is never written to browser storage.
   mutate: (fn) => baseRewardsStore.mutate(fn),
   reset: () => baseRewardsStore.reset(),
   use() {
     const base = baseRewardsStore.use();
     const source = useLiveSource();
     const assets = useLiveAssetsSnapshot();
-    return useMemo(() => (base && source === 'live' ? mergeLive(base, assets) : base), [base, source, assets]);
+    const benefits = useLiveBenefitsSnapshot();
+    return useMemo(() => (base && source === 'live' ? mergeLive(base, assets, benefits) : base), [base, source, assets, benefits]);
   },
 };
 
@@ -220,8 +226,21 @@ function retireAssetSample(assetId: Id, text?: string): Result {
 export interface EnrolInput {
   employeeId: Id; status: 'enrolled' | 'waived'; healthTier?: string; dependants: Dependant[]; mealTier?: string; npsTier?: string; flex: Record<string, number>;
 }
-/** Saves one person's enrolment. Checked here as well as on the form, so the rules cannot be skipped. */
-export function submitEnrolment(i: EnrolInput): Result {
+// Each benefits action is a server call in live mode and the local sample flow otherwise. They return a promise so the call
+// sites can await the server (sample mode resolves at once). The sample flows below are unchanged.
+
+/** Live empty-state seed: create the standard plan catalogue (and open an enrolment window) on the server. Sample mode ships
+ * with the plans already, so there is nothing to seed there. */
+export function addStandardBenefits(): Promise<Result> {
+  return isLive() ? liveAddStandardBenefits() : Promise.resolve(fail('The standard benefit plans are part of the sample data.'));
+}
+
+/** Saves one person's enrolment. In live mode the server re-checks eligibility and the dependant rules and upserts by employee. */
+export function submitEnrolment(i: EnrolInput): Promise<Result> {
+  return isLive() ? liveSubmitEnrolment(i) : Promise.resolve(submitEnrolmentSample(i));
+}
+/** Checked here as well as on the form, so the rules cannot be skipped. */
+function submitEnrolmentSample(i: EnrolInput): Result {
   const s = rewardsStore.get();
   const emp = getDb().employees.find((e) => e.id === i.employeeId);
   const health = planOf(s.benefits.plans, 'health');
@@ -252,7 +271,10 @@ export function submitEnrolment(i: EnrolInput): Result {
   return { ok: true };
 }
 
-export function extendWindow(days: number, reason: string): Result {
+export function extendWindow(days: number, reason: string): Promise<Result> {
+  return isLive() ? liveExtendWindow(days, reason) : Promise.resolve(extendWindowSample(days, reason));
+}
+function extendWindowSample(days: number, reason: string): Result {
   if (!Number.isInteger(days) || days < 1 || days > 30) return fail('Extend by 1 to 30 days.');
   if (!reason.trim()) return fail('Write a short reason for the extension.');
   rewardsStore.mutate((d) => {
@@ -266,7 +288,10 @@ export function extendWindow(days: number, reason: string): Result {
 }
 
 /** Records that a reminder was queued. This is a simulation: nothing is sent. */
-export function logReminders(ids: Id[]): Result<{ count: number }> {
+export function logReminders(ids: Id[]): Promise<Result<{ count: number }>> {
+  return isLive() ? liveLogReminders(ids) : Promise.resolve(logRemindersSample(ids));
+}
+function logRemindersSample(ids: Id[]): Result<{ count: number }> {
   if (!ids.length) return fail('Nobody is waiting to enrol.');
   rewardsStore.mutate((d) => {
     ids.forEach((id) => { d.benefits.reminders[id] = PREVIEW_TODAY; });
@@ -276,7 +301,10 @@ export function logReminders(ids: Id[]): Result<{ count: number }> {
 }
 
 export interface NewClaimInput { employeeId: Id; patient: string; relation: 'self' | 'spouse' | 'child' | 'parent'; kind: 'cashless' | 'reimbursement'; hospital: string; claimed: number }
-export function registerClaim(i: NewClaimInput): Result<{ id: Id; ref: string }> {
+export function registerClaim(i: NewClaimInput): Promise<Result<{ id: Id; ref: string }>> {
+  return isLive() ? liveRegisterClaim(i) : Promise.resolve(registerClaimSample(i));
+}
+function registerClaimSample(i: NewClaimInput): Result<{ id: Id; ref: string }> {
   const s = rewardsStore.get();
   const en = s.benefits.enrolments.find((e) => e.employeeId === i.employeeId);
   if (!en || en.status !== 'enrolled') return fail('Only an enrolled employee can claim.');
@@ -296,7 +324,10 @@ export function registerClaim(i: NewClaimInput): Result<{ id: Id; ref: string }>
   return { ok: true, id, ref };
 }
 
-export function moveClaim(id: Id, to: ClaimStatus, o: { note?: string; approved?: number; reason?: string } = {}): Result {
+export function moveClaim(id: Id, to: ClaimStatus, o: { note?: string; approved?: number; reason?: string } = {}): Promise<Result> {
+  return isLive() ? liveMoveClaim(id, to, o) : Promise.resolve(moveClaimSample(id, to, o));
+}
+function moveClaimSample(id: Id, to: ClaimStatus, o: { note?: string; approved?: number; reason?: string } = {}): Result {
   const c = rewardsStore.get().benefits.claims.find((x) => x.id === id);
   if (!c) return fail('That claim is not in the tracker.');
   if (!CLAIM_NEXT[c.status].includes(to)) return fail(`A claim that is ${c.status.replace('_', ' ')} cannot move to ${to.replace('_', ' ')}.`);
@@ -317,7 +348,10 @@ export function moveClaim(id: Id, to: ClaimStatus, o: { note?: string; approved?
 }
 
 /** Sends the monthly deduction preview to payroll as one-time deductions tagged `[benefits <month>]`, replacing any earlier send for that month. */
-export function sendToPayroll(month: Month): Result<{ removed: number; added: number; total: number }> {
+export function sendToPayroll(month: Month): Promise<Result<{ removed: number; added: number; total: number }>> {
+  return isLive() ? liveSendToPayroll(month) : Promise.resolve(sendToPayrollSample(month));
+}
+function sendToPayrollSample(month: Month): Result<{ removed: number; added: number; total: number }> {
   const db = getDb();
   const s = rewardsStore.get();
   const health = planOf(s.benefits.plans, 'health');

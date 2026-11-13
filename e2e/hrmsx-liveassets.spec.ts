@@ -20,7 +20,7 @@ test.beforeEach(({ page }) => { page.setDefaultNavigationTimeout(60_000); });
 const SOURCE_KEY = 'kinematic_hrms_source';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ASSETS = '/dashboard/hrms/assets';
-const BENEFITS = '/dashboard/hrms/benefits';
+const COMPENSATION = '/dashboard/hrms/compensation';
 
 const ENT = '11111111-1111-4111-8111-111111111111';
 const LOC = '22222222-2222-4222-8222-222222222222';
@@ -334,16 +334,16 @@ test.describe('live assets: bootstrap', () => {
     expect(errors).toEqual([]);
   });
 
-  test('a 503 degrades the Assets page on its own; benefits keeps working with the browser-only note', async ({ page }) => {
+  test('a 503 degrades the Assets page on its own; compensation keeps working with the browser-only note', async ({ page }) => {
     const fake = new FakeAssets().full();
     fake.mode = 'not_ready';
     await open(page, fake, ASSETS);
     await expect(page.getByTestId('assets-not-ready')).toBeVisible(slow);
     await expect(page.getByTestId('assets-not-ready')).toContainText('HRMS storage is not set up yet');
     await expect(page.getByTestId('assets-stats')).toHaveCount(0);
-    // benefits (local) still works and still says it is saved in this browser only
-    await page.goto(BENEFITS);
-    await expect(page.getByRole('heading', { name: 'Benefits', exact: true })).toBeVisible(slow);
+    // compensation (local) still works and still says it is saved in this browser only (benefits is server-backed since phase 7)
+    await page.goto(COMPENSATION);
+    await expect(page.getByRole('heading', { name: 'Compensation', exact: true })).toBeVisible(slow);
     await expect(page.getByTestId('hrms-local-note')).toBeVisible();
   });
 });
@@ -512,13 +512,14 @@ test.describe('live assets: the register is never persisted; benefits and compen
     expect(storage).not.toContain(SENTINEL_SERIAL);
     expect(storage).not.toContain(SENTINEL_MAKE);
 
-    // benefits is local: visiting it keeps the rewards area store's benefits/compensation (the browser-only note stays).
-    await page.goto(BENEFITS);
-    await expect(page.getByRole('heading', { name: 'Benefits', exact: true })).toBeVisible(slow);
+    // compensation is local: visiting it keeps the rewards area store's compensation (the browser-only note stays).
+    // (benefits is server-backed since phase 7, so it no longer carries the browser-only note.)
+    await page.goto(COMPENSATION);
+    await expect(page.getByRole('heading', { name: 'Compensation', exact: true })).toBeVisible(slow);
     await expect(page.getByTestId('hrms-local-note')).toBeVisible();
     const after = await dumpStorage(page);
     const area = JSON.parse(JSON.parse(after)['kinematic_hrms_area_rewards_v1'] as string) as { benefits: unknown; comp: unknown };
-    expect(area.benefits).toBeTruthy();          // benefits and compensation are still the local seed
+    expect(area.benefits).toBeTruthy();          // the rewards area store still holds its local seed
     expect(area.comp).toBeTruthy();
     expect(after).not.toContain(SENTINEL_SERIAL); // still no live register data in storage
     expect(after).not.toContain(SENTINEL_MAKE);
