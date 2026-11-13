@@ -21,15 +21,19 @@ function ExtendModal({ closesOn, onClose }: { closesOn: string; onClose: () => v
   const [days, setDays] = useState('7');
   const [reason, setReason] = useState('');
   const [err, setErr] = useState('');
-  function go() {
-    const r = extendWindow(Number(days), reason);
+  const [busy, setBusy] = useState(false);
+  async function go() {
+    if (busy) return;
+    setBusy(true);
+    const r = await extendWindow(Number(days), reason);
+    setBusy(false);
     if (!r.ok) { setErr(r.error); return; }
     report(r, 'The enrolment window was extended.');
     onClose();
   }
   return (
     <Modal title="Extend the enrolment window" onClose={onClose} width={460}
-      footer={<><Button style={{ height: 40 }} onClick={onClose}>Cancel</Button><Button variant="primary" style={{ height: 40 }} onClick={go}>Extend window</Button></>}>
+      footer={<><Button style={{ height: 40 }} onClick={onClose}>Cancel</Button><Button variant="primary" style={{ height: 40 }} disabled={busy} onClick={go}>Extend window</Button></>}>
       <div style={{ fontSize: 14 }}>It closes on <b>{fmtDate(closesOn)}</b> now.</div>
       <Field label="Extend by" htmlFor="ext-days">
         <Select id="ext-days" value={days} onChange={(e) => setDays(e.target.value)}>
@@ -130,7 +134,7 @@ export default function EnrolmentTab({ db, st }: { db: HrmsDb; st: RewardsState 
           <div style={{ marginLeft: 'auto' }}>
             <Button style={{ height: 40 }} disabled={!remindIds.length}
               title={remindIds.length ? undefined : progress.pendingIds.length ? 'A reminder was already logged today for everyone waiting.' : 'Nobody is waiting to enrol.'}
-              onClick={() => { const r = logReminders(progress.pendingIds); if (r.ok) toast.success(`Simulation: ${r.count} reminders logged. Nothing was sent.`); else toast.error(r.error); }}>
+              onClick={async () => { const r = await logReminders(progress.pendingIds); if (r.ok) toast.success(`Simulation: ${r.count} reminders logged. Nothing was sent.`); else toast.error(r.error); }}>
               Log reminder for {remindIds.length} not yet enrolled
             </Button>
           </div>

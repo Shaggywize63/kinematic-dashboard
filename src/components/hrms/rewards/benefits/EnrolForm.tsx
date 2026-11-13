@@ -27,6 +27,7 @@ export default function EnrolForm({ db, st, employeeId, onClose }: { db: HrmsDb;
   const nps = planOf(st.benefits.plans, 'nps')!;
   const flex = planOf(st.benefits.plans, 'flex')!;
 
+  const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<'enrolled' | 'waived'>(existing?.status ?? 'enrolled');
   const [healthTier, setHealthTier] = useState(existing?.healthTier ?? '');
   const [deps, setDeps] = useState<Dependant[]>(existing?.dependants ?? []);
@@ -59,9 +60,11 @@ export default function EnrolForm({ db, st, employeeId, onClose }: { db: HrmsDb;
   const setDep = (i: number, patch: Partial<Dependant>) => setDeps((d) => d.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const addDep = () => setDeps((d) => [...d, { id: uid('dep'), name: '', relation: d.some((x) => x.relation === 'spouse') ? 'child' : 'spouse', dob: '' }]);
 
-  function save() {
-    if (blocked || !emp) return;
-    const r = submitEnrolment({ employeeId, status: mode, healthTier: mode === 'enrolled' ? healthTier : undefined, dependants: deps, mealTier, npsTier, flex: flexAlloc });
+  async function save() {
+    if (blocked || !emp || busy) return;
+    setBusy(true);
+    const r = await submitEnrolment({ employeeId, status: mode, healthTier: mode === 'enrolled' ? healthTier : undefined, dependants: deps, mealTier, npsTier, flex: flexAlloc });
+    setBusy(false);
     if (report(r, mode === 'enrolled' ? `Enrolment saved for ${fullName(emp)}.` : `Opt-out recorded for ${fullName(emp)}.`)) onClose();
   }
 
@@ -71,7 +74,7 @@ export default function EnrolForm({ db, st, employeeId, onClose }: { db: HrmsDb;
         <>
           {blocked && <span style={{ flex: 1, minWidth: 180, alignSelf: 'center', fontSize: 12.5, color: T.dim }}>{blocked}</span>}
           <Button style={{ height: 40 }} onClick={onClose}>Close</Button>
-          <Button variant="primary" style={{ height: 40 }} disabled={!!blocked} onClick={save}>{existing ? 'Update enrolment' : 'Save enrolment'}</Button>
+          <Button variant="primary" style={{ height: 40 }} disabled={!!blocked || busy} onClick={save}>{busy ? 'Saving…' : existing ? 'Update enrolment' : 'Save enrolment'}</Button>
         </>
       )}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', fontSize: 13.5, color: T.dim }}>
