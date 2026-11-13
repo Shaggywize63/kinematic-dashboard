@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'fs';
+import ExcelJS from 'exceljs';
 import { mockApi, seedSession, SEED_USER } from './utils';
 import { collectPhotoUrls, photoCell, responsePhotoUrls, signPhotoUrls, SIGN_BATCH_SIZE } from '../src/lib/reportPhotos';
 
 /**
- * Work Activities report: a photo / signature answer keeps its URL in `photo_url` (value_text is empty), so the CSV
- * used to print those cells blank. Now each such cell holds a signed link (valid a week) — or the stored URL if
- * signing fails — and every other answer is exported exactly as before.
+ * Work Activities report: a photo / signature answer keeps its URL in `photo_url` (value_text is empty), so the export
+ * used to print those cells blank. The report is now an XLSX workbook — one worksheet per form, with a locked `Form No.`
+ * column — and each photo cell holds a signed link (valid a week), or the stored URL if signing fails, exactly as before.
  */
 const STORED_A = 'https://supabase.example.com/storage/v1/object/public/form-responses/org1/u1/a.jpg';
 const STORED_B = 'https://supabase.example.com/storage/v1/object/public/form-responses/org1/u1/b.jpg';
@@ -63,7 +63,7 @@ const ROWS = [
   ]),
 ];
 
-async function exportCsv(page: import('@playwright/test').Page, o: { signFails?: boolean } = {}) {
+async function exportXlsx(page: import('@playwright/test').Page, o: { signFails?: boolean } = {}) {
   const signCalls: Array<{ urls: string[]; ttl: number }> = [];
   await seedSession(page, SEED_USER);
   await mockApi(page, {
@@ -87,31 +87,52 @@ async function exportCsv(page: import('@playwright/test').Page, o: { signFails?:
   await page.goto('/dashboard/work-activities');
   await expect(page.getByText('Reliance Fresh')).toBeVisible({ timeout: 60_000 });
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Download Report/ }).click()]);
-  const text = readFileSync((await download.path())!, 'utf8');
-  const [headerLine, ...lines] = text.split('\n');
-  const header = headerLine.split(',');
-  const cells = (line: string) => line.slice(1, -1).split('","');
-  const byOutlet = (name: string) => lines.map(cells).find((c) => c[header.indexOf('Outlet')] === name)!;
-  return { header, byOutlet, signCalls };
+  // The report is an XLSX workbook now, not a flat CSV.
+  expect(download.suggestedFilename()).toMatch(/\.xlsx$/);
+
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile((await download.path())!);
+  // Both rows share the form title "Store Audit", so they land on a single worksheet named after the form.
+  const ws = wb.getWorksheet('Store Audit')!;
+  const header: string[] = [];
+  ws.getRow(1).eachCell({ includeEmpty: true }, (cell, col) => { header[col - 1] = String(cell.value ?? ''); });
+  const col = (name: string) => header.indexOf(name) + 1; // 1-based column index for the given header
+  const dataRows: Array<{ cell: (name: string) => string; rowNumber: number }> = [];
+  ws.eachRow({ includeEmpty: false }, (excelRow, rowNumber) => {
+    if (rowNumber === 1) return; // header
+    dataRows.push({ rowNumber, cell: (name: string) => String(excelRow.getCell(col(name)).value ?? '') });
+  });
+  const byOutlet = (name: string) => dataRows.find((r) => r.cell('Outlet') === name)!;
+  return { ws, header, col, byOutlet, signCalls };
 }
 
-test.describe('Work Activities report — photos', () => {
-  test('the photo column carries a signed link, text answers are untouched, and one week is asked for', async ({ page }) => {
-    const { header, byOutlet, signCalls } = await exportCsv(page);
+test.describe('Work Activities report — photos (XLSX)', () => {
+  test('one sheet per form with a leading Form No. column; photo cells carry a signed link and a week is asked for', async ({ page }) => {
+    const { ws, header, byOutlet, signCalls } = await exportXlsx(page);
+    // Form No. is the first column (the record identifier); the form's own questions come last.
+    expect(header[0]).toBe('Form No.');
     expect(header.slice(-2)).toEqual(['Shelf', 'Shelf photo']);
     const a = byOutlet('Reliance Fresh');
-    expect(a[header.indexOf('Shelf')]).toBe('Full');
-    expect(a[header.indexOf('Shelf photo')]).toBe(SIGNED_A);
+    expect(a.cell('Shelf')).toBe('Full');
+    expect(a.cell('Shelf photo')).toBe(SIGNED_A);
     // A photo that could not be signed still shows its stored URL rather than a blank.
-    expect(byOutlet('Gamma Stores')[header.indexOf('Shelf photo')]).toBe(STORED_B);
+    expect(byOutlet('Gamma Stores').cell('Shelf photo')).toBe(STORED_B);
     expect(signCalls).toHaveLength(1);
     expect(signCalls[0].ttl).toBe(7 * 24 * 60 * 60);
     expect([...signCalls[0].urls].sort()).toEqual([STORED_A, STORED_B].sort());
+
+    // The sheet is protected and only the Form No. column is locked: on read-back a locked cell reports the XLSX
+    // default (locked, i.e. not explicitly `false`), while every editable cell is explicitly unlocked.
+    expect((ws as unknown as { sheetProtection?: { sheet?: boolean } }).sheetProtection?.sheet).toBe(true);
+    const firstDataRow = byOutlet('Reliance Fresh').rowNumber;
+    expect(ws.getCell(firstDataRow, 1).protection?.locked).not.toBe(false); // Form No. data cell — locked
+    expect(ws.getCell(1, 1).protection?.locked).not.toBe(false);            // Form No. header — locked
+    expect(ws.getCell(firstDataRow, header.indexOf('Shelf') + 1).protection?.locked).toBe(false); // editable answer
   });
 
   test('if signing is down the report still downloads with the stored URLs', async ({ page }) => {
-    const { header, byOutlet } = await exportCsv(page, { signFails: true });
-    expect(byOutlet('Reliance Fresh')[header.indexOf('Shelf photo')]).toBe(STORED_A);
-    expect(byOutlet('Gamma Stores')[header.indexOf('Shelf photo')]).toBe(STORED_B);
+    const { byOutlet } = await exportXlsx(page, { signFails: true });
+    expect(byOutlet('Reliance Fresh').cell('Shelf photo')).toBe(STORED_A);
+    expect(byOutlet('Gamma Stores').cell('Shelf photo')).toBe(STORED_B);
   });
 });
