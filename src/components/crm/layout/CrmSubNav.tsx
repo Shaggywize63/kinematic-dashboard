@@ -46,6 +46,8 @@ const LINKS: CrmLink[] = [
   // Tasks merged into Activities — tasks are now activities of type='task'.
   // /dashboard/crm/tasks redirects to /dashboard/crm/activities?type=task.
   { href: '/dashboard/crm/activities', label: 'Activities' },
+  // Each user's own assigned tasks (who assigned each). Core, every tenant.
+  { href: '/dashboard/crm/my-tasks', label: 'My Tasks' },
   // Ad-hoc Marketing Visits captured from the mobile app (GPS Start→End tied
   // to a lead). Shown only for tenants running that flow (Rajkamal today).
   { href: '/dashboard/crm/field-visits', label: 'Field Visits', fieldVisitsOnly: true },
