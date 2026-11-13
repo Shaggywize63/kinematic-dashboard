@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { LineChart } from 'lucide-react';
 import {
   crmReports,
@@ -48,6 +49,14 @@ const GROUP_LABEL: Record<BusinessGroupBy, string> = {
   engineer: 'Engineer', industry: 'Industry', brand: 'Brand', product: 'Product', account: 'Account',
 };
 
+// Valid URL-param values — the Management Dashboard deep-links into this screen
+// with ?group_by=…&scope=…&from=…&to=…, so we initialise state from the URL when
+// the values are recognised (and otherwise fall back to the existing defaults,
+// keeping a bare /reports/business load byte-for-byte unchanged).
+const GROUP_BY_VALUES: BusinessGroupBy[] = ['engineer', 'industry', 'brand', 'product', 'account'];
+const SCOPE_VALUES: BusinessScope[] = ['own', 'supervised', 'all'];
+const isYmd = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+
 /**
  * Business Report — a flexible directors' report for the connected-B2B tenant
  * (Spark & Ray). Pick a grouping (engineer / industry / brand / product /
@@ -61,14 +70,36 @@ const GROUP_LABEL: Record<BusinessGroupBy, string> = {
  * picker change refetches.
  */
 export default function BusinessReportPage() {
+  // Next.js requires useSearchParams() to sit under a Suspense boundary for
+  // static prerendering. The default export wraps the real component so the
+  // build stays static-friendly (mirrors the Deals list page).
+  return (
+    <Suspense fallback={<div style={{ color: T.dim, fontSize: 13, padding: 12 }}>Loading…</div>}>
+      <BusinessReportInner />
+    </Suspense>
+  );
+}
+
+function BusinessReportInner() {
   usePageTitle('Business Report');
   const { user, loading: authLoading } = useAuth();
   const narrow = useIsCompact(760);
   const cityKey = useReportCityKey();
+  const search = useSearchParams();
 
-  const [range, setRange] = useState<ReportRange>(() => defaultMonthRange());
-  const [groupBy, setGroupBy] = useState<BusinessGroupBy>('engineer');
-  const [scope, setScope] = useState<BusinessScope>('all');
+  const urlGroupBy = search.get('group_by');
+  const urlScope = search.get('scope');
+  const urlFrom = search.get('from');
+  const urlTo = search.get('to');
+
+  const [range, setRange] = useState<ReportRange>(() => {
+    const d = defaultMonthRange();
+    return { from: isYmd(urlFrom) ? urlFrom : d.from, to: isYmd(urlTo) ? urlTo : d.to };
+  });
+  const [groupBy, setGroupBy] = useState<BusinessGroupBy>(() =>
+    GROUP_BY_VALUES.includes(urlGroupBy as BusinessGroupBy) ? (urlGroupBy as BusinessGroupBy) : 'engineer');
+  const [scope, setScope] = useState<BusinessScope>(() =>
+    SCOPE_VALUES.includes(urlScope as BusinessScope) ? (urlScope as BusinessScope) : 'all');
   const [industry, setIndustry] = useState('');
   const [brand, setBrand] = useState('');
   const [data, setData] = useState<BusinessReportPayload | null>(null);
