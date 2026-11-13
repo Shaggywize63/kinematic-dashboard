@@ -16,7 +16,6 @@ import { formatRelativeTime } from '../LeadsTable';
 import LeadAvatar, { leadDisplayName } from './LeadAvatar';
 import { inferGrade } from './ScoreMeter';
 import { Badge, Button, IconButton, T, eyebrowStyle, type Tone } from '../../ui';
-import LeadNo from '../spark/LeadNo';
 import { isB2bClientActive } from '../../../lib/b2bClient';
 import { LEAD_TYPE_DEFAULT_LABEL, leadTypeLabel } from '../../../lib/leadType';
 
@@ -192,7 +191,6 @@ export default function LeadPreviewPanel({
         <div style={{ flex: 1, minWidth: 0 }}>
           <h3 style={{ margin: 0, fontFamily: T.heading, fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: T.text, overflowWrap: 'anywhere' }}>{name}</h3>
           {/* Imported data can put a whole URL + legal name in "company" — clamp it to two lines (full text on hover) so it can't push the header around. */}
-          {isB2bClientActive() && lead.ref_no && <div style={{ marginTop: 3 }}><LeadNo value={lead.ref_no} copy testId="preview-lead-no" /></div>}
           {headline && (
             <div
               title={headline.length > 60 ? headline : undefined}

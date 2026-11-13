@@ -12,7 +12,6 @@ import InlineEditText from '../InlineEditText';
 import LeadAvatar from '../leads/LeadAvatar';
 import { IndustryBadge } from '../spark/IndustrySelect';
 import { isB2bClientActive } from '../../../lib/b2bClient';
-import LeadNo from '../spark/LeadNo';
 import { LEAD_TYPE_DEFAULT_LABEL, leadTypeLabel } from '../../../lib/leadType';
 import { Avatar, Badge, Button, Card, IconButton, T, buttonStyle } from '../../ui';
 import StatusControl from './StatusControl';
@@ -83,7 +82,6 @@ export default function LeadHero(p: LeadHeroProps) {
                 inputStyle={{ fontSize: 20, fontWeight: 700, minWidth: 220 }}
                 onSave={p.onRename}
               />
-              {b2b && lead.ref_no && <LeadNo value={lead.ref_no} copy testId="detail-lead-no" />}
               <Badge tone={p.isB2C ? 'neutral' : 'info'}>{p.segment}</Badge>
               {/* Spark & Ray: the lead's industry, in the same colour the dashboard map uses. */}
               {isB2bClientActive() && !fields.isHidden('industry') && <IndustryBadge name={lead.industry} />}
