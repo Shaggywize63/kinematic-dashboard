@@ -204,7 +204,10 @@ test.describe('Lead number', () => {
     // Not in the column customiser.
     await page.getByTitle(/Customize columns and layout for Leads/).click();
     await expect(page.getByRole('checkbox', { name: /Lead No\./ })).toHaveCount(0);
-    await page.keyboard.press('Escape');
+    // Close the customiser by clicking its scrim (it has no Escape handler); wait for the
+    // scrim to detach so it no longer intercepts the next click.
+    await page.locator('.crm-view-customizer-scrim').click();
+    await expect(page.locator('.crm-view-customizer-scrim')).toHaveCount(0);
     // Not in the quick preview.
     await row(page, 'Acme Forge').locator('td[data-label="Status"]').click();
     await expect(page.getByTestId('preview-lead-no')).toHaveCount(0);
