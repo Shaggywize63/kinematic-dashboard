@@ -1438,11 +1438,82 @@ export interface EngineerScorecardPayload {
   attendance_available: boolean;
 }
 
+// ── Reports — Business Report (connected-B2B / Spark & Ray only) ──────────────
+// A flexible directors' report: pick a grouping (engineer / industry / brand /
+// product / account) and see deal value, orders and cost per group, with scope
+// + per-dimension filters. Backend: GET /api/v1/crm/reports/business
+// (404 { code:'NOT_AVAILABLE' } on a non-B2B tenant). Values are rupees (2dp).
+//
+// Fan-out note: when grouping by `brand` or `product`, a deal that carries
+// several brands/products is counted in EACH of its rows, so the rows can sum
+// to more than the totals — the totals are deduped (each deal once).
+export type BusinessGroupBy = 'engineer' | 'industry' | 'brand' | 'product' | 'account';
+export type BusinessScope = 'own' | 'supervised' | 'all';
+
+export interface BusinessReportRow {
+  key: string;
+  label: string;
+  leads_count: number;
+  orders_won: number;
+  quoted_value: number;
+  order_value: number;
+  brands: string[];
+  /** Null when cost isn't available for the row (render as "—"). */
+  cost: number | null;
+}
+
+export interface BusinessReportTotals {
+  leads_count: number;
+  orders_won: number;
+  quoted_value: number;
+  order_value: number;
+  brands: string[];
+  /** Null when cost isn't available (render as "—"). */
+  cost: number | null;
+}
+
+export interface BusinessReportFilters {
+  engineer_id: string | null;
+  industry: string | null;
+  brand: string | null;
+  product_id: string | null;
+  account_id: string | null;
+}
+
+export interface BusinessReportPayload {
+  range: { from: string; to: string };
+  group_by: BusinessGroupBy;
+  scope: BusinessScope;
+  filters: BusinessReportFilters;
+  rows: BusinessReportRow[];
+  totals: BusinessReportTotals;
+  /** False when cost isn't wired for the workspace — render every cost as "—". */
+  cost_available: boolean;
+}
+
+// A `type` (not an interface) so it carries the implicit index signature `qs`
+// needs — the generic list helper takes Record<string, string|number|…>.
+export type BusinessReportParams = {
+  from?: string;
+  to?: string;
+  group_by?: BusinessGroupBy;
+  scope?: BusinessScope;
+  engineer_id?: string;
+  industry?: string;
+  brand?: string;
+  product_id?: string;
+  account_id?: string;
+};
+
 export const crmReports = {
   // `/reports` is a city-aware CRM prefix, so api.get auto-appends the global
   // `?city=` scope just like every other report. from/to are ISO YYYY-MM-DD.
   engineerScorecard: (params?: { from?: string; to?: string; granularity?: ScorecardGranularity }) =>
     api.get<Wrapped<EngineerScorecardPayload>>(`${BASE}/reports/engineer-scorecard${qs(params)}`),
+  // Business Report — group_by / scope / per-dimension filters. Same city-aware
+  // `/reports` prefix, so `?city=` rides along automatically.
+  businessReport: (params?: BusinessReportParams) =>
+    api.get<Wrapped<BusinessReportPayload>>(`${BASE}/reports/business${qs(params)}`),
 };
 
 const crmApi = {

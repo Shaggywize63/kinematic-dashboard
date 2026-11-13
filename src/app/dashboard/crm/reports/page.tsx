@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import {
   Activity, BarChart3, BellRing, CalendarDays, CalendarRange, ChevronRight, ClipboardList, Clock, Filter, FlaskConical, Footprints, Gauge, Hammer,
-  Hourglass, Layers, LineChart, Mail, MapPin, Phone, PieChart, Route, Scale, Share2, Timer, TrendingUp, Trophy, Users, Zap,
+  Hourglass, LayoutDashboard, Layers, LineChart, Mail, MapPin, Phone, PieChart, Route, Scale, Share2, Timer, TrendingUp, Trophy, Users, Zap,
 } from 'lucide-react';
 import { useAuth } from '../../../../hooks/useAuth';
 import { isConsumerChampion, canDownloadSrsReport, canViewFieldVisits, canViewTelecallerReport, leadReportLabel, isManagerOrAdmin } from '../../../../lib/clientFeatures';
@@ -43,7 +43,9 @@ const REPORTS: ReportEntry[] = [
   { href: '/dashboard/crm/reports/daywise-report', title: 'Day-Wise Report', desc: 'Per-rep, per-day rollup: activity split, unique leads, deals and tonnage, with a grand total.', icon: <CalendarRange {...I} />, srsOnly: true },
   { href: '/dashboard/crm/reports/field-visits', title: 'Field Visits', desc: 'Per field-executive rollup of ad-hoc Marketing Visits — total, in-progress, completed, areas covered, last visit.', icon: <Footprints {...I} />, fieldVisitsOnly: true },
   { href: '/dashboard/crm/reports/area-leads', title: 'Area-wise Leads', desc: 'Lead distribution by area (fallback city): total, open and converted leads per area.', icon: <MapPin {...I} />, fieldVisitsOnly: true },
+  { href: '/dashboard/crm/reports/management', title: 'Management Dashboard', desc: 'A directors\' overview tying the scorecard and business report together — KPIs, top engineers, brands and accounts, saved questions and a CSV export.', icon: <LayoutDashboard {...I} />, b2bScorecardOnly: true },
   { href: '/dashboard/crm/reports/engineer-scorecard', title: 'Engineer Scorecard', desc: 'Per-engineer leads, orders, quoted and order value over a date range, with a day / week / month toggle.', icon: <Gauge {...I} />, b2bScorecardOnly: true },
+  { href: '/dashboard/crm/reports/business', title: 'Business Report', desc: 'Deal value, orders and cost grouped by engineer, industry, brand, product or account — with scope and filters.', icon: <LineChart {...I} />, b2bScorecardOnly: true },
   { href: '/dashboard/crm/reports/team-performance', title: 'Team Performance', desc: 'Won volume, conversion rate, lead ageing and new leads per rep across your hierarchy subtree.', icon: <Users {...I} /> },
   { href: '/dashboard/crm/reports/telecaller-performance', title: 'Telecaller Performance', desc: 'Per-telecaller calls, connected, interested, follow-ups and scheme ₹ — with a daily trend. Replaces the Excel Call Tracker.', icon: <Phone {...I} />, telecallerOnly: true },
   { href: '/dashboard/crm/reports/campaign-insights', title: 'Campaign Insights', desc: 'Per-campaign roll-up: DigiGold / gold-scheme enrolment, app ratings, after-sales satisfaction, complaints, next-purchase & referral.', icon: <TrendingUp {...I} />, telecallerOnly: true },
