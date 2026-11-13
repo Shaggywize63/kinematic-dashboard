@@ -34,11 +34,14 @@ function ClaimModal({ db, claim, onClose }: { db: HrmsDb; claim: Claim; onClose:
   const [reason, setReason] = useState<string>(CLAIM_REJECTION_REASONS[0]);
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
   const next = CLAIM_NEXT[claim.status];
 
-  function go() {
-    if (!to) return;
-    const r = moveClaim(claim.id, to, { note, approved: to === 'approved' ? Number(approved) : undefined, reason: to === 'rejected' ? (reason.startsWith('Other') ? note : reason) : undefined });
+  async function go() {
+    if (!to || busy) return;
+    setBusy(true);
+    const r = await moveClaim(claim.id, to, { note, approved: to === 'approved' ? Number(approved) : undefined, reason: to === 'rejected' ? (reason.startsWith('Other') ? note : reason) : undefined });
+    setBusy(false);
     if (!r.ok) { setErr(r.error); return; }
     report(r, `Claim ${claim.ref} moved to ${CLAIM_STATUS_LABEL[to].toLowerCase()}.`);
     setTo(null); setNote(''); setErr('');
@@ -93,7 +96,7 @@ function ClaimModal({ db, claim, onClose }: { db: HrmsDb; claim: Claim; onClose:
           </Field>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <Button style={{ height: 40 }} onClick={() => setTo(null)}>Back</Button>
-            <Button variant={to === 'rejected' ? 'danger' : 'primary'} style={{ height: 40 }} onClick={go}>Confirm</Button>
+            <Button variant={to === 'rejected' ? 'danger' : 'primary'} style={{ height: 40 }} disabled={busy} onClick={go}>Confirm</Button>
           </div>
         </div>
       )}
@@ -111,17 +114,21 @@ function RegisterModal({ db, st, onClose }: { db: HrmsDb; st: RewardsState; onCl
   const [hospital, setHospital] = useState('');
   const [amount, setAmount] = useState('');
   const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
   const en = st.benefits.enrolments.find((e) => e.employeeId === empId);
-  function go() {
+  async function go() {
+    if (busy) return;
     const dep = en?.dependants.find((d) => d.id === patient);
-    const r = registerClaim({ employeeId: empId, patient: dep?.name ?? 'Self', relation: dep ? dep.relation : 'self', kind, hospital, claimed: Number(amount) });
+    setBusy(true);
+    const r = await registerClaim({ employeeId: empId, patient: dep?.name ?? 'Self', relation: dep ? dep.relation : 'self', kind, hospital, claimed: Number(amount) });
+    setBusy(false);
     if (!r.ok) { setErr(r.error); return; }
-    report(r, r.ok ? `Claim ${r.ref} registered.` : '');
+    report(r, `Claim ${r.ref} registered.`);
     onClose();
   }
   return (
     <Modal title="Register a claim" onClose={onClose} width={540}
-      footer={<><Button style={{ height: 40 }} onClick={onClose}>Cancel</Button><Button variant="primary" style={{ height: 40 }} onClick={go}>Register claim</Button></>}>
+      footer={<><Button style={{ height: 40 }} onClick={onClose}>Cancel</Button><Button variant="primary" style={{ height: 40 }} disabled={busy} onClick={go}>Register claim</Button></>}>
       <Field label="Employee" required htmlFor={`${base}-e`}>
         <Select id={`${base}-e`} value={empId} onChange={(e) => { setEmpId(e.target.value); setPatient('self'); setErr(''); }}>
           <option value="">Select an enrolled employee</option>

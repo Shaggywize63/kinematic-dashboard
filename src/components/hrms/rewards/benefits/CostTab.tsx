@@ -60,8 +60,12 @@ export default function CostTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
   ];
   const tdF = { padding: '10px 14px', borderTop: `2px solid ${T.border}`, textAlign: 'right' as const, fontWeight: 700, fontVariantNumeric: 'tabular-nums' as const, fontSize: 13.5 };
 
-  function send() {
-    const r = sendToPayroll(month);
+  const [busy, setBusy] = useState(false);
+  async function send() {
+    if (busy) return;
+    setBusy(true);
+    const r = await sendToPayroll(month);
+    setBusy(false);
     if (report(r, r.ok ? `Sent ${r.added} deductions to payroll for ${fmtMonth(month)}${r.removed ? `, replacing ${r.removed} earlier rows` : ''}.` : '')) setConfirming(false);
   }
 
@@ -154,7 +158,7 @@ export default function CostTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
         </div>
       </Card>
       {confirming && (
-        <ConfirmModal title="Send to payroll" confirmLabel="Send to payroll" onClose={() => setConfirming(false)} onConfirm={send}>
+        <ConfirmModal title="Send to payroll" confirmLabel={busy ? 'Sending…' : 'Send to payroll'} disabled={busy} onClose={() => setConfirming(false)} onConfirm={send}>
           <div>This writes <b>{preview.length}</b> one-time deductions totalling <b>{inr(sumOf('total'))}</b> a month into the sample payroll for <b>{fmtMonth(month)}</b>, each tagged <code style={{ fontFamily: T.mono }}>{tag}</code>.</div>
           <div>{earlier > 0 ? `${earlier} rows from an earlier send for this month are removed first.` : 'No earlier rows exist for this month.'} Other adjustments are not touched.</div>
           <Muted>Employees can reply to their deduction with HR before the run is frozen.</Muted>

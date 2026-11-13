@@ -20,7 +20,7 @@ const allowed = (): boolean => canUseHrms(getStoredUser());
 /** Sections whose data is on the server in live mode. Every other section keeps its data in this browser.
  * Privacy is server-backed for its compliance / consent / retention collections; its Requests and Roles tabs stay local
  * and the page degrades on its own when the privacy tables are missing, so it is not gated as a whole section here. */
-const SERVER_BACKED = new Set(['', 'employees', 'organization', 'org-chart', 'payroll', 'payslips', 'time', 'lifecycle', 'privacy', 'assets']);
+const SERVER_BACKED = new Set(['', 'employees', 'organization', 'org-chart', 'payroll', 'payslips', 'time', 'lifecycle', 'privacy', 'assets', 'benefits']);
 /** Sections that cannot show anything useful without the payroll data: they say so instead when payroll could not be loaded. */
 const NEEDS_PAYROLL = new Set(['payroll', 'payslips', 'statutory']);
 /** Sections that cannot show anything useful without the time-and-leave data: they say so instead when it could not be loaded. */
