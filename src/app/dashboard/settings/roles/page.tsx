@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import api from '../../../../lib/api';
-import { rolesApi, type OrgRole, type OrgRoleNode, type OrgRoleUser } from '../../../../lib/rolesApi';
+import { rolesApi, type OrgRole, type OrgRoleNode, type OrgRoleUser, type AssignableUser } from '../../../../lib/rolesApi';
 import { crmSettings } from '../../../../lib/crmApi';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 import { useClient } from '@/context/ClientContext';
@@ -41,6 +41,11 @@ export default function RolesPage() {
   const [defaultRoleId, setDefaultRoleId] = useState<string | null>(null);
   const [users, setUsers] = useState<OrgRoleUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  // Directory of users for the assignment picker. Bump `poolVersion` to refetch
+  // after an assign/unassign so member counts and the picker stay in sync.
+  const [userPool, setUserPool] = useState<AssignableUser[]>([]);
+  const [poolVersion, setPoolVersion] = useState(0);
+  const [assigning, setAssigning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   // Multi-tenant: refetch when the global client picker changes so the tree
@@ -49,6 +54,11 @@ export default function RolesPage() {
   const [clientName, setClientName] = useState<string>('');
   const storedUser = getStoredUser();
   const isClientLevel = !!(storedUser as any)?.client_id;
+  // Guardrail inputs: the signed-in user's own id + hierarchy role, so we can
+  // stop them deleting the role they depend on or unassigning themselves
+  // (best-effort — the backend stays authoritative).
+  const myUserId = (storedUser as any)?.id ?? null;
+  const myRoleId = (storedUser as any)?.org_role_id ?? null;
 
   const reload = async () => {
     setLoading(true);
@@ -166,14 +176,64 @@ export default function RolesPage() {
       .catch(() => setClientName(''));
   }, [selectedClientId, isClientLevel, storedUser]);
 
-  useEffect(() => {
-    if (!selectedId) { setUsers([]); return; }
+  const loadMembers = (id: string) => {
     setLoadingUsers(true);
-    rolesApi.users(selectedId)
+    rolesApi.users(id)
       .then((r) => setUsers((r as any) ?? []))
       .catch(() => setUsers([]))
       .finally(() => setLoadingUsers(false));
-  }, [selectedId]);
+  };
+
+  useEffect(() => {
+    if (!selectedId) { setUsers([]); return; }
+    loadMembers(selectedId);
+  }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Directory of users for the assignment picker. Scoped to the active client
+  // via the X-Client-Id header (api.ts). Refetched on client switch and after
+  // each assign/unassign so member counts stay accurate.
+  useEffect(() => {
+    let cancelled = false;
+    rolesApi.assignableUsers()
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = Array.isArray(res) ? res : (res?.data ?? []);
+        setUserPool(list as AssignableUser[]);
+      })
+      .catch(() => { if (!cancelled) setUserPool([]); });
+    return () => { cancelled = true; };
+  }, [selectedClientId, poolVersion]);
+
+  // Move a user into `roleId` (single role per user — replaces their current
+  // one). No destructive confirm needed: this only grants/changes access.
+  const assignUser = async (userId: string, roleId: string) => {
+    setAssigning(true);
+    try {
+      await rolesApi.setUserRole(userId, roleId);
+      toast.success('User assigned to role');
+      reload();                       // refresh tree/list member counts
+      loadMembers(roleId);            // refresh this role's member list
+      setPoolVersion((v) => v + 1);   // refresh the picker
+    } catch (e: any) { toast.error(e.message || 'Assign failed'); }
+    finally { setAssigning(false); }
+  };
+
+  // Remove a user from a role (clears org_role_id). Destructive → confirm.
+  // Guardrail: you cannot remove yourself from your own role.
+  const unassignUser = async (user: OrgRoleUser, roleId: string) => {
+    if (myUserId && user.id === myUserId) {
+      toast.error("You can't remove yourself from your own role — ask another admin.");
+      return;
+    }
+    if (!window.confirm(`Remove ${user.name || user.email || 'this user'} from this role? They will have no hierarchy role until reassigned.`)) return;
+    try {
+      await rolesApi.setUserRole(user.id, null);
+      toast.success('User removed from role');
+      reload();
+      loadMembers(roleId);
+      setPoolVersion((v) => v + 1);
+    } catch (e: any) { toast.error(e.message || 'Remove failed'); }
+  };
 
   const totalRoles = flat.length;
   const filteredTree = useMemo(() => {
@@ -234,6 +294,13 @@ export default function RolesPage() {
   };
 
   const remove = async (role: OrgRole) => {
+    // Guardrail: don't let an admin delete the role they themselves depend on —
+    // that would strip their own hierarchy access. Best-effort client check;
+    // the backend remains authoritative.
+    if (myRoleId && role.id === myRoleId) {
+      toast.error("You can't delete the role you're currently assigned to — reassign yourself first.");
+      return;
+    }
     if (!window.confirm(`Delete role "${role.name}"? Any direct children will be moved up to "${role.parent_id ? flat.find((r) => r.id === role.parent_id)?.name || 'parent' : 'top level'}".`)) return;
     try {
       await rolesApi.remove(role.id);
@@ -344,6 +411,11 @@ export default function RolesPage() {
                 onAddChild={() => startCreate(selected.id)}
                 onDelete={() => remove(selected)}
                 allRoles={flat}
+                userPool={userPool}
+                assigning={assigning}
+                myUserId={myUserId}
+                onAssign={(userId) => assignUser(userId, selected.id)}
+                onUnassign={(u) => unassignUser(u, selected.id)}
               />
             ) : null}
           </div>
@@ -703,6 +775,7 @@ function EditPanel({
 
 function DetailPanel({
   role, users, loadingUsers, onEdit, onClose, onAddChild, onDelete, allRoles,
+  userPool, assigning, myUserId, onAssign, onUnassign,
 }: {
   role: OrgRole;
   users: OrgRoleUser[];
@@ -712,10 +785,19 @@ function DetailPanel({
   onAddChild: () => void;
   onDelete: () => void;
   allRoles: OrgRole[];
+  userPool: AssignableUser[];
+  assigning: boolean;
+  myUserId: string | null;
+  onAssign: (userId: string) => void;
+  onUnassign: (user: OrgRoleUser) => void;
 }) {
   const parent = role.parent_id ? allRoles.find((r) => r.id === role.parent_id) : null;
   const directReports = allRoles.filter((r) => r.parent_id === role.id);
   const color = role.color || '#6366f1';
+  // Candidates for assignment = users not already in THIS role. A user holds a
+  // single role, so picking one here moves them from wherever they are.
+  const [pick, setPick] = useState('');
+  const candidates = userPool.filter((u) => u.org_role_id !== role.id);
 
   return (
     <div>
@@ -762,6 +844,30 @@ function DetailPanel({
         <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>
           Members ({loadingUsers ? '…' : users.length})
         </div>
+
+        {/* Assign a user. One role per user, so this moves them here from
+            wherever they currently are. */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          <select
+            aria-label="Assign a user to this role"
+            value={pick}
+            onChange={(e) => setPick(e.target.value)}
+            disabled={assigning || candidates.length === 0}
+            style={{ ...input, flex: 1, padding: '7px 10px' }}
+          >
+            <option value="">{candidates.length === 0 ? 'No users available' : 'Assign a user…'}</option>
+            {candidates.map((u) => (
+              <option key={u.id} value={u.id}>{u.name || u.email || u.id}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={!pick || assigning}
+            onClick={() => { if (pick) { onAssign(pick); setPick(''); } }}
+            style={{ background: pick && !assigning ? 'var(--primary)' : 'var(--s3)', color: pick && !assigning ? '#fff' : 'var(--text-dim)', border: '1px solid var(--border)', padding: '7px 14px', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: pick && !assigning ? 'pointer' : 'not-allowed' }}
+          >{assigning ? '…' : 'Assign'}</button>
+        </div>
+
         {loadingUsers ? (
           <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>Loading…</div>
         ) : users.length === 0 ? (
@@ -769,9 +875,19 @@ function DetailPanel({
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {users.map((u) => (
-              <div key={u.id} style={{ background: 'var(--s3)', padding: '6px 10px', borderRadius: 6, fontSize: 12, color: 'var(--text)' }}>
-                {u.name || u.email || 'User'}
-                {u.role && <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>· {u.role}</span>}
+              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--s3)', padding: '6px 10px', borderRadius: 6, fontSize: 12, color: 'var(--text)' }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {u.name || u.email || 'User'}
+                  {u.role && <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>· {u.role}</span>}
+                </span>
+                <button
+                  type="button"
+                  title={u.id === myUserId ? "You can't remove yourself" : 'Remove from role'}
+                  aria-label={`Remove ${u.name || u.email || 'user'} from role`}
+                  disabled={u.id === myUserId}
+                  onClick={() => onUnassign(u)}
+                  style={{ background: 'transparent', border: '1px solid var(--border)', color: u.id === myUserId ? 'var(--text-dim)' : '#ef4444', borderRadius: 6, width: 24, height: 24, fontSize: 13, lineHeight: 1, cursor: u.id === myUserId ? 'not-allowed' : 'pointer', flexShrink: 0 }}
+                >✕</button>
               </div>
             ))}
           </div>
