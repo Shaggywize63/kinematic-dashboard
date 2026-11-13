@@ -2,9 +2,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { crmLeads } from '../../../../../lib/crmApi';
+import { crmLeads, crmSettings } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import type { Lead } from '../../../../../types/crm';
+import { resolveStages, type StageDef } from '../../../../../lib/leadStages';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
@@ -56,6 +57,19 @@ export default function LeadAgingPage() {
   // Source is a built-in lead field: wait for the admin's settings, and drop the column when it is hidden.
   const gate = useLeadFieldGate();
   const sourceHidden = gate.didLoad && gate.isHidden('source_id');
+  // The client's own lead pipeline stages (Settings → Lead Stages). "Open" here
+  // means a stage of kind `open` — so a custom-stage tenant's own open stages
+  // age correctly. Null `openStages` keeps the built-in behaviour (OPEN_STATUSES
+  // + the fixed per-status KPIs) for tenants that saved no custom set.
+  const [stages, setStages] = useState<{ stages: StageDef[]; custom: boolean } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    crmSettings.get().then((r) => { if (!cancelled) setStages(resolveStages(r.data)); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const openStages = stages?.custom ? stages.stages.filter((s) => s.kind === 'open') : null;
+  const stageColor = (status: string): string | undefined => stages?.custom ? stages.stages.find((s) => s.value === status)?.color : undefined;
+  const openLabel = openStages ? openStages.map((s) => s.label).join(' / ') : 'new / working / nurturing / qualified';
 
   useEffect(() => {
     let cancelled = false;
@@ -74,11 +88,14 @@ export default function LeadAgingPage() {
         const nameById = new Map<string, string>();
         for (const u of users) nameById.set(u.id, u.name || u.full_name || u.email || 'User');
 
+        // Custom-stage tenants age their own open stages; everyone else keeps
+        // the built-in open set.
+        const openStatuses = stages?.custom ? stages.stages.filter((s) => s.kind === 'open').map((s) => s.value) : OPEN_STATUSES;
         const now = Date.now();
         const out: LeadRow[] = [];
         for (const l of leads) {
           const status = ((l as any).status as string) || '';
-          if (!OPEN_STATUSES.includes(status)) continue;
+          if (!openStatuses.includes(status)) continue;
           const since = (l as any).stage_changed_at || (l as any).updated_at || (l as any).created_at;
           if (!since) continue;
           const days = Math.floor((now - new Date(since).getTime()) / 86_400_000);
@@ -105,7 +122,8 @@ export default function LeadAgingPage() {
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [threshold, cityKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threshold, cityKey, stages]);
 
   const byStatus = useMemo(() => {
     const map = new Map<string, number>();
@@ -121,7 +139,7 @@ export default function LeadAgingPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
         <div>
           <h3 style={{ color: 'var(--text)', margin: 0 }}>Lead Aging</h3>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Open leads (new / working / nurturing / qualified) that have been stuck for {threshold}+ days.</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Open leads ({openLabel}) that have been stuck for {threshold}+ days.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Threshold</span>
@@ -140,10 +158,16 @@ export default function LeadAgingPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
         <Kpi label="Aged leads" value={rows.length} />
-        <Kpi label="New" value={byStatus.get('new') || 0} />
-        <Kpi label="Working" value={byStatus.get('working') || 0} />
-        <Kpi label="Nurturing" value={byStatus.get('nurturing') || 0} />
-        <Kpi label="Qualified" value={byStatus.get('qualified') || 0} />
+        {openStages ? (
+          openStages.map((s) => <Kpi key={s.value} label={s.label} value={byStatus.get(s.value) || 0} />)
+        ) : (
+          <>
+            <Kpi label="New" value={byStatus.get('new') || 0} />
+            <Kpi label="Working" value={byStatus.get('working') || 0} />
+            <Kpi label="Nurturing" value={byStatus.get('nurturing') || 0} />
+            <Kpi label="Qualified" value={byStatus.get('qualified') || 0} />
+          </>
+        )}
         <Kpi label="Never touched" value={rows.filter((r) => r.never_touched).length} />
         <Kpi label="Avg days old" value={rows.length ? `${Math.round(rows.reduce((s, r) => s + r.days_old, 0) / rows.length)}d` : '—'} />
       </div>
@@ -176,7 +200,7 @@ export default function LeadAgingPage() {
                 <tr key={l.id}>
                   <td style={td}><Link href={`/dashboard/crm/leads/${l.id}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>{l.name}</Link></td>
                   <td style={td}>{l.owner_name}</td>
-                  <td style={td}><StatusBadge status={l.status} /></td>
+                  <td style={td}><StatusBadge status={l.status} color={stageColor(l.status)} /></td>
                   <td style={tdNum}>{l.score || '—'}</td>
                   <td style={{ ...tdNum, color: l.days_old > 30 ? '#ef4444' : 'var(--text)', fontWeight: 700 }}>{l.days_old}d</td>
                   <td style={tdNum}>{l.never_touched ? 'Never' : l.days_since_touch === 0 ? 'Today' : `${l.days_since_touch}d ago`}</td>
@@ -203,11 +227,11 @@ function Kpi({ label, value }: { label: string; value: string | number }) {
     </div>
   );
 }
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, color }: { status: string; color?: string }) {
   const colors: Record<string, string> = {
     new: '#6366f1', working: '#f59e0b', nurturing: '#06b6d4', qualified: '#10b981',
   };
-  const c = colors[status] || '#888';
+  const c = color || colors[status] || '#888';
   return <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4, background: `${c}22`, color: c }}>{status}</span>;
 }
 const csvBtn: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700 };
