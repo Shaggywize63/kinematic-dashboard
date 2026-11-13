@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useClient } from '../../../context/ClientContext';
-import { isConsumerChampion, isTataTiscon, isKinematicActive, canViewFieldVisits, canManageAfterSales, isWalkInExecutive } from '../../../lib/clientFeatures';
+import { isConsumerChampion, isTataTiscon, isKinematicActive, canViewFieldVisits, canManageAfterSales, isWalkInExecutive, canUseCallingDesk } from '../../../lib/clientFeatures';
 import { getActingAs, getImpersonateUser } from '../../../lib/api';
 
 type CrmLink = {
@@ -28,10 +28,18 @@ type CrmLink = {
   /** Visible ONLY to a Walk-in Executive (the dedicated walk-in capture role);
    *  no other designation sees the walk-in form. */
   walkInOnly?: boolean;
+  /** Visible ONLY to tenants running the pharma daily tele-calling desk
+   *  (canUseCallingDesk — Maa Mansha Pharma today). */
+  callingDeskOnly?: boolean;
 };
 const LINKS: CrmLink[] = [
   { href: '/dashboard/crm/dashboard', label: 'Dashboard' },
   { href: '/dashboard/crm/leads', label: 'Leads' },
+  // Pharma daily tele-calling desk + customer intelligence + owner view.
+  // Shown only for tenants running the calling desk (Maa Mansha Pharma today).
+  { href: '/dashboard/crm/calling-desk', label: 'Calling Desk', callingDeskOnly: true },
+  { href: '/dashboard/crm/customer-intelligence', label: 'Customer Intelligence', callingDeskOnly: true },
+  { href: '/dashboard/crm/owner-dashboard', label: 'Owner Dashboard', callingDeskOnly: true },
   // Customisable widget grid lives on its own route now — the CRM
   // Overview is back to the legacy stat-card + fixed-chart surface.
   // championHidden: Consumer Champion FEs don't need the analytics tab.
@@ -99,6 +107,9 @@ export default function CrmSubNav() {
   // SSR-safe pattern as the gates above.
   const [walkIn, setWalkIn] = useState(false);
   useEffect(() => { setWalkIn(isWalkInExecutive(user as any)); }, [user, selectedClientId]);
+  // Pharma calling desk — SSR-safe, picker-reactive (Maa Mansha today).
+  const [callingDesk, setCallingDesk] = useState(false);
+  useEffect(() => { setCallingDesk(canUseCallingDesk(user as any)); }, [user, selectedClientId]);
   // Resolved after mount (localStorage) so SSR and the first client render agree.
   const [viewingAsClient, setViewingAsClient] = useState(false);
   useEffect(() => { setViewingAsClient(!!getActingAs() || !!getImpersonateUser()); }, []);
@@ -111,6 +122,7 @@ export default function CrmSubNav() {
     if (l.fieldVisitsOnly && !fieldVisits) return false;
     if (l.afterSalesOnly && !afterSales) return false;
     if (l.walkInOnly && !walkIn) return false;
+    if (l.callingDeskOnly && !callingDesk) return false;
     return true;
   });
 

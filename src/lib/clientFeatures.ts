@@ -37,6 +37,14 @@ export const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
  * Visits + Area-wise Leads reports. Mirrors iOS/Android `isRajkamal`. */
 export const RAJKAMAL_CLIENT_ID = '0490f34d-d9a3-4f39-99e2-8f3adba8c583';
 
+/** Maa Mansha Pharma — a pharma distribution tenant (Field-Force + CRM) running
+ * the daily tele-calling desk + customer-intelligence surfaces. The client row
+ * is created under the Kinematic tenant via Client Management; fill this id
+ * after onboarding (onboard-maa-mansha.ts prints it), or set it via the
+ * NEXT_PUBLIC_MAA_MANSHA_CLIENT_ID env so the Desk / Customer Intelligence tabs
+ * light up for this client only. Mirrors iOS/Android `isMaaMansha`. */
+export const MAA_MANSHA_CLIENT_ID = (process.env.NEXT_PUBLIC_MAA_MANSHA_CLIENT_ID || '').trim();
+
 /** The Kinematic tenant's ORG id. The "Kinematic" client above lives under
  * this org, but the tenant's own super-admin (e.g. s@kinematicapp.com) has
  * client_id = null and operates at org level — so a client-only check misses
@@ -214,6 +222,20 @@ export function canViewFieldVisits(user: AnyUser): boolean {
  */
 export function canViewTelecallerReport(user: AnyUser): boolean {
   return isRajkamalActive(user);
+}
+
+/** True when the active tenant is Maa Mansha Pharma. */
+export function isMaaManshaActive(user: AnyUser): boolean {
+  return !!MAA_MANSHA_CLIENT_ID && activeClientId(user) === MAA_MANSHA_CLIENT_ID;
+}
+
+/**
+ * Gate for the pharma daily tele-calling desk + customer-intelligence surfaces.
+ * Client-scoped; today only Maa Mansha Pharma runs the calling desk. Widen this
+ * (add client ids) when another pharma/distribution tenant adopts it.
+ */
+export function canUseCallingDesk(user: AnyUser): boolean {
+  return isMaaManshaActive(user);
 }
 
 /**
