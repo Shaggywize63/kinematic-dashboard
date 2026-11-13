@@ -563,7 +563,61 @@ export const crmTargets = {
 };
 
 export const crmNotes = crud<Note>(`${BASE}/notes`);
-export const crmTasks = crud<Task>(`${BASE}/tasks`);
+
+// ── My Tasks ─────────────────────────────────────────────────────────
+// A single row from GET /crm/my-tasks — the caller's OWN actionable
+// activities (owner_id OR assigned_to = me), each enriched with the
+// linked record's name and, crucially, who assigned it (`assigned_by` +
+// `assigned_by_name`). `is_overdue` is computed server-side so the UI
+// groups by urgency without re-deriving it from `due_at`. These are
+// `crm_activities` rows, so a task may carry lead / contact / account /
+// company / deal links at once; the UI picks the most specific to show.
+export interface MyTask {
+  id: string;
+  type: string | null;
+  subject: string | null;
+  body: string | null;
+  status: string | null;
+  due_at: string | null;
+  completed_at: string | null;
+  activity_date: string | null;
+  created_at: string | null;
+  lead_id: string | null; lead_name: string | null; lead_phone: string | null;
+  contact_id: string | null; contact_name: string | null;
+  account_id: string | null; account_name: string | null;
+  company_id: string | null; company_name: string | null;
+  deal_id: string | null; deal_name: string | null;
+  owner_id: string | null; owner_name: string | null;
+  assigned_to: string | null; assigned_to_name: string | null;
+  // The creator / assigner — "Assigned by {assigned_by_name}". Null when
+  // the task has no distinct assigner (self-created), so the UI omits the line.
+  assigned_by: string | null; assigned_by_name: string | null;
+  is_overdue: boolean;
+}
+export interface MyTasksParams {
+  status?: 'open' | 'in_progress' | 'completed' | 'cancelled';
+  overdue?: boolean;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+}
+export const crmTasks = {
+  ...crud<Task>(`${BASE}/tasks`),
+  // The caller's own tasks (actionable by default). `/crm` is city-aware, but
+  // these are the caller's OWN rows so the auto-attached ?city= is harmless.
+  // `overdue` is only sent when true (the backend treats it as a flag), so an
+  // unchecked toggle sends no param instead of overdue=false.
+  myTasks: (params: MyTasksParams = {}) =>
+    api.get<Wrapped<MyTask[]>>(`${BASE}/my-tasks${qs({
+      status: params.status,
+      overdue: params.overdue ? true : undefined,
+      from: params.from,
+      to: params.to,
+      page: params.page,
+      limit: params.limit,
+    })}`),
+};
 export const crmEmailTemplates = crud<EmailTemplate>(`${BASE}/email-templates`);
 export const crmEmails = crud<EmailLog>(`${BASE}/emails`);
 export const crmLeadSources = crud<LeadSource>(`${BASE}/lead-sources`);

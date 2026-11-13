@@ -639,6 +639,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'kanban', module: 'crm_pipeline', hiddenForBmw: true },
       { href: '/dashboard/crm/products',         label: 'Products',       icon: 'package', module: 'crm_products', hiddenForKinematic: true },
       { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'clipboardCheck', module: 'crm_activities' },
+      // Core CRM surface for EVERY tenant (no Spark gate): each signed-in user's
+      // own assigned tasks, grouped by urgency, showing who assigned each. Gated
+      // on the base crm_dashboard module so any CRM user reaches it.
+      { href: '/dashboard/crm/my-tasks',         label: 'My Tasks',       icon: 'listChecks', module: 'crm_dashboard' },
       { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: ICON_WHATSAPP, module: 'crm_whatsapp' },
       { href: '/dashboard/crm/campaigns',        label: 'Campaigns',      icon: 'megaphone', module: 'crm_whatsapp' },
       { href: '/dashboard/crm/email-campaigns',  label: 'Email Campaigns', icon: 'send', module: 'crm_email', hiddenForTata: true },
