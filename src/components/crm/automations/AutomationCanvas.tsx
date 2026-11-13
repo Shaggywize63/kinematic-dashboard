@@ -15,9 +15,10 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { crmAutomations, crmFlows, crmFlowSteps, crmPipelines, crmEmailTemplates, crmWhatsappTemplates } from '../../../lib/crmApi';
+import { crmAutomations, crmFlows, crmFlowSteps, crmPipelines, crmEmailTemplates, crmWhatsappTemplates, crmSettings } from '../../../lib/crmApi';
 import api from '../../../lib/api';
 import { useActivityTypes } from '../../../lib/activityTypes';
+import { resolveStages, BUILTIN_STAGES, type StageDef } from '../../../lib/leadStages';
 import type { Automation, AutomationCondition, Pipeline, EmailTemplate, WhatsappTemplate } from '../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../shared/UserSearchSelect';
 
@@ -80,7 +81,6 @@ const FIELD_SUGGESTIONS: Record<string, string[]> = {
   deal: ['deal.amount', 'deal.status', 'deal.stage_id', 'deal.owner_id', 'new_stage_id'],
   activity: ['activity.type', 'activity.subject', 'activity.direction'],
 };
-const LEAD_STATUSES = ['new', 'working', 'nurturing', 'qualified', 'unqualified', 'lost', 'converted'];
 
 type ActionRole = 'task' | 'messaging' | 'routing' | 'update';
 const ACTION_ROLE: Record<string, ActionRole> = {
@@ -209,6 +209,10 @@ export default function AutomationCanvas() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   const [waTemplates, setWaTemplates] = useState<WhatsappTemplate[]>([]);
+  // The client's own lead pipeline stages (Settings → Lead Stages), so the
+  // "set status" action offers the stages the admin configured. Falls back to
+  // the built-in set when the tenant has saved none — unchanged behaviour then.
+  const [leadStages, setLeadStages] = useState<StageDef[]>(BUILTIN_STAGES);
 
   const load = async () => {
     setLoading(true);
@@ -302,6 +306,7 @@ export default function AutomationCanvas() {
       if (et.status === 'fulfilled') setEmailTemplates(et.value.data || []);
       if (wt.status === 'fulfilled') setWaTemplates(wt.value.data || []);
     })();
+    crmSettings.get().then((r) => setLeadStages(resolveStages(r.data).stages)).catch(() => {});
   }, []);
 
   const cur: Flow | undefined = flows[curIdx];
@@ -692,7 +697,7 @@ export default function AutomationCanvas() {
               </Field>
               <ActionConfig action={a.action_type} cfg={a.action_config}
                 setCfg={(p) => patchAction(i, { action_config: { ...a.action_config, ...p } })}
-                users={users} pipelines={pipelines} emailTemplates={emailTemplates} waTemplates={waTemplates} stagesForPipeline={stagesFor} />
+                users={users} pipelines={pipelines} emailTemplates={emailTemplates} waTemplates={waTemplates} stagesForPipeline={stagesFor} leadStages={leadStages} />
               <button onClick={() => removeAction(i)} style={{ ...btnGhostSm, color: '#ef4444', border: 'none', marginTop: 12, padding: 0 }}>✕ Remove this action</button>
             </Inspector>
           );
@@ -804,10 +809,11 @@ function cfgSummary(a: FlowAction): string {
 }
 
 // ── Per-action config fields (ported from the original builder) ──
-function ActionConfig({ action, cfg, setCfg, users, pipelines, emailTemplates, waTemplates, stagesForPipeline }: {
+function ActionConfig({ action, cfg, setCfg, users, pipelines, emailTemplates, waTemplates, stagesForPipeline, leadStages }: {
   action: string; cfg: Record<string, any>; setCfg: (p: Record<string, any>) => void;
   users: UserOption[]; pipelines: Pipeline[]; emailTemplates: EmailTemplate[]; waTemplates: WhatsappTemplate[];
   stagesForPipeline: (pid?: string) => Array<{ id: string; name: string }>;
+  leadStages: StageDef[];
 }) {
   const col: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8 };
   const full = { ...input, width: '100%' };
@@ -872,7 +878,7 @@ function ActionConfig({ action, cfg, setCfg, users, pipelines, emailTemplates, w
         <div style={col}>
           <select value={cfg.set_status ?? ''} onChange={(e) => setCfg({ set_status: e.target.value || undefined })} style={full}>
             <option value="">— set status —</option>
-            {LEAD_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            {leadStages.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
           <input type="number" value={cfg.set_score_delta ?? ''} onChange={(e) => setCfg({ set_score_delta: e.target.value })} placeholder="Score change (+/-)" style={full} />
           <input value={Array.isArray(cfg.add_tags) ? cfg.add_tags.join(', ') : (cfg.add_tags ?? '')} onChange={(e) => setCfg({ add_tags: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) })} placeholder="Add tags (comma-separated)" style={full} />

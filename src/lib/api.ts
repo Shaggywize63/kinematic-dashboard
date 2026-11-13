@@ -508,6 +508,62 @@ export interface OrderCartInput {
   client_total?: number;
 }
 
+// ── Forms: a field executive's own submissions ──────────────────────────────
+// Mirror GET /forms/submissions (list), /forms/submissions/:id (detail) and
+// /forms/submissions/:id/export. Photo URLs in detail/export are already signed
+// by the backend (1h for detail, 7d for export).
+/** One row in the "my submissions" list. */
+export interface FormSubmissionRow {
+  id: string;
+  /** Unique reference of the filled form, e.g. "SRPR2627-1" (absent on older rows). */
+  ref_no?: string | null;
+  submitted_at: string;
+  template_id?: string | null;
+  outlet_name?: string | null;
+  address?: string | null;
+  check_in_at?: string | null;
+  check_out_at?: string | null;
+  /** The joined form title (builder_forms:template_id(title)). */
+  builder_forms?: { title?: string | null } | null;
+}
+export interface FormSubmissionsPagination { page: number; limit: number; total: number; totalPages: number }
+export interface FormSubmissionsResult {
+  success: boolean;
+  data: { data: FormSubmissionRow[]; pagination: FormSubmissionsPagination };
+}
+/** A signed photo reference: the stored url + a short-lived signed link (null when signing failed). */
+export interface SignedPhoto { url: string; signed: string | null }
+/** One answer in the export payload (sorted by sort_order). */
+export interface FormSubmissionExportAnswer {
+  field_id: string | null;
+  label: string | null;
+  type: string | null;
+  sort_order: number | null;
+  value: string | number | boolean | null;
+  gps?: string | null;
+  photos: SignedPhoto[];
+}
+export interface FormSubmissionExport {
+  submission_id: string;
+  ref_no: string | null;
+  form_title: string | null;
+  template_id: string | null;
+  activity_name: string | null;
+  account_name: string | null;
+  submitter: { id: string | null; name: string | null; employee_id: string | null };
+  submitted_at: string | null;
+  outlet_name: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  check_in_at: string | null;
+  check_out_at: string | null;
+  answers: FormSubmissionExportAnswer[];
+  photos: SignedPhoto[];
+  exported_at: string;
+  signed_url_ttl_seconds: number;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -1215,6 +1271,26 @@ class ApiClient {
   }
   getForms(params?: Record<string, string>) {
     return this.get(`/api/v1/forms/templates${this.sanitizeParams(params)}`);
+  }
+
+  /** The signed-in user's OWN form submissions (field executives), paginated.
+   *  GET /forms/submissions → { success, data: { data: FormSubmissionRow[], pagination } }.
+   *  Own rows only — the backend scopes by user_id, so no admin role is needed. */
+  getMySubmissions(params?: { page?: number; limit?: number }) {
+    const qs = this.sanitizeParams({
+      ...(params?.page ? { page: String(params.page) } : {}),
+      ...(params?.limit ? { limit: String(params.limit) } : {}),
+    });
+    return this.get<FormSubmissionsResult>(`/api/v1/forms/submissions${qs}`);
+  }
+
+  /** Export-ready view of ONE submission (own or admin): metadata + answers with
+   *  7-day signed photo URLs. GET /forms/submissions/:id/export. */
+  exportSubmission(id: string) {
+    return this.get<{ success: boolean; data: FormSubmissionExport }>(
+      `/api/v1/forms/submissions/${id}/export`,
+      { noCache: true } as RequestInit,
+    );
   }
 
   /** True when the signed-in user is the shared demo account. Exposed so demo-only

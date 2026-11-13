@@ -2,9 +2,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { crmLeads, crmContacts, crmAccounts, crmDeals, crmActivities, crmCustomFields } from '../../../../../lib/crmApi';
+import { crmLeads, crmContacts, crmAccounts, crmDeals, crmActivities, crmCustomFields, crmSettings } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
 import { useActivityTypes } from '../../../../../lib/activityTypes';
+import { resolveStages } from '../../../../../lib/leadStages';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 
 type Entity = 'leads' | 'contacts' | 'accounts' | 'deals' | 'activities';
@@ -168,9 +169,24 @@ export default function ReportBuilderPage() {
 
   // The Activities "Type" filter lists the built-ins plus the admin's custom types.
   const activityTypeSlugs = useActivityTypes().all.map((t) => t.slug).join('|');
+  // The client's own lead pipeline stages (Settings → Lead Stages): the Leads
+  // "Status" filter offers them instead of the built-in list. Null when the
+  // tenant has saved none, so the hardcoded enumOptions stay unchanged.
+  const [leadStatusSlugs, setLeadStatusSlugs] = useState<string[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    crmSettings.get()
+      .then((r) => { if (cancelled) return; const s = resolveStages(r.data); setLeadStatusSlugs(s.custom ? s.stages.map((x) => x.value) : null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const fields = useMemo(
-    () => [...ENTITY_FIELDS[entity].map((f) => (entity === 'activities' && f.key === 'type' ? { ...f, enumOptions: activityTypeSlugs.split('|').filter(Boolean) } : f)), ...(customDefsByEntity[entity] ?? [])],
-    [entity, customDefsByEntity, activityTypeSlugs],
+    () => [...ENTITY_FIELDS[entity].map((f) => (
+      entity === 'activities' && f.key === 'type' ? { ...f, enumOptions: activityTypeSlugs.split('|').filter(Boolean) }
+      : entity === 'leads' && f.key === 'status' && leadStatusSlugs ? { ...f, enumOptions: leadStatusSlugs }
+      : f
+    )), ...(customDefsByEntity[entity] ?? [])],
+    [entity, customDefsByEntity, activityTypeSlugs, leadStatusSlugs],
   );
 
   // Fetch the entity's custom field definitions (lazy, cached). Maps each

@@ -2,8 +2,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { crmAnalytics } from '../../../../../lib/crmApi';
+import { crmAnalytics, crmSettings } from '../../../../../lib/crmApi';
 import type { LeadTrackerPayload, LeadTrackerBucket } from '../../../../../types/crm';
+import { resolveStages, type StageDef } from '../../../../../lib/leadStages';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { useLeadFieldGate } from '../../../../../lib/crm/useLeadFieldGate';
 import { downloadCsv } from '../../../../../lib/exportCsv';
@@ -43,6 +44,15 @@ export default function LeadTrackerPage() {
   const cityHidden = gate.didLoad && gate.isHidden('city');
   const sourceHidden = gate.didLoad && gate.isHidden('source_id');
   const [loading, setLoading] = useState(true);
+  // The client's own lead pipeline stages (Settings → Lead Stages): the status
+  // mix lists them, in the admin's order with their colours. Null until loaded;
+  // `custom` is false when the tenant saved none, so the built-in mix is kept.
+  const [stages, setStages] = useState<{ stages: StageDef[]; custom: boolean } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    crmSettings.get().then((r) => { if (!cancelled) setStages(resolveStages(r.data)); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   // Global city picker — refetch when it changes (api.ts attaches it
   // to the GET, but the response is cached per-key so we need the
   // city in the dep list to bust stale data).
@@ -103,7 +113,7 @@ export default function LeadTrackerPage() {
         <Card>
           <SectionLabel accent="#A855F7">Lead status mix</SectionLabel>
           {!data ? <Empty>—</Empty>
-            : <StatusBars status={data.status_breakdown} />}
+            : <StatusBars status={data.status_breakdown} stages={stages} />}
         </Card>
         <Card>
           <SectionLabel accent="#EF4444">Open lead ageing</SectionLabel>
@@ -247,23 +257,33 @@ function Sparkline({ data, accent }: { data: LeadTrackerBucket[]; accent: string
   );
 }
 
-function StatusBars({ status }: { status: Record<string, number> }) {
+function StatusBars({ status, stages }: { status: Record<string, number>; stages: { stages: StageDef[]; custom: boolean } | null }) {
   const COLORS: Record<string, string> = {
     new: '#3E9EFF', working: '#F59E0B', qualified: '#10B981',
     converted: '#22C55E', unqualified: '#94A3B8', lost: '#EF4444',
   };
-  const order = ['new', 'working', 'qualified', 'converted', 'unqualified', 'lost'];
+  // With a custom set the admin's stages drive the rows (order, label, colour);
+  // any status present in the data but not in that set is appended so no counts
+  // are dropped. Without one, the built-in mix is kept exactly.
+  const rows: Array<{ key: string; label: string; color: string }> = stages?.custom
+    ? [
+        ...stages.stages.map((s) => ({ key: s.value, label: s.label, color: s.color })),
+        ...Object.keys(status)
+          .filter((k) => !stages.stages.some((s) => s.value === k))
+          .map((k) => ({ key: k, label: k.replace(/_/g, ' '), color: COLORS[k] || '#94A3B8' })),
+      ]
+    : ['new', 'working', 'qualified', 'converted', 'unqualified', 'lost'].map((k) => ({ key: k, label: k, color: COLORS[k] }));
   const max = Math.max(1, ...Object.values(status));
   return (
     <div style={{ display: 'grid', gap: 8 }}>
-      {order.map((k) => (
-        <div key={k}>
+      {rows.map((row) => (
+        <div key={row.key}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-            <span style={{ textTransform: 'capitalize', color: 'var(--text)', fontWeight: 600 }}>{k}</span>
-            <span style={{ color: 'var(--text-dim)', fontFamily: 'ui-monospace, monospace' }}>{status[k] ?? 0}</span>
+            <span style={{ textTransform: 'capitalize', color: 'var(--text)', fontWeight: 600 }}>{row.label}</span>
+            <span style={{ color: 'var(--text-dim)', fontFamily: 'ui-monospace, monospace' }}>{status[row.key] ?? 0}</span>
           </div>
           <div style={{ background: 'var(--s3)', borderRadius: 4, height: 8 }}>
-            <div style={{ background: COLORS[k], width: `${((status[k] ?? 0) / max) * 100}%`, height: '100%', borderRadius: 4 }} />
+            <div style={{ background: row.color, width: `${((status[row.key] ?? 0) / max) * 100}%`, height: '100%', borderRadius: 4 }} />
           </div>
         </div>
       ))}
