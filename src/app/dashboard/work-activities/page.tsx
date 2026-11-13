@@ -358,28 +358,17 @@ export default function WorkActivitiesPage() {
             limit: '1000'
         };
         const res: any = await api.getAdminSubmissions(params);
-        const fullData = res?.data?.data || res?.data || [];
+        const fullData: any[] = res?.data?.data || res?.data || [];
+        if (!fullData.length) return;
 
         // Check-in / Check-out are the REAL stamps of each form (date + time), blank when the rep recorded none —
-        // never the submission time. Time spent is whole minutes.
+        // never the submission time. Time spent is whole minutes. `Form No.` (the form sequence number `ref_no`) is
+        // prepended as the record identifier and locked below so it can't be edited in the downloaded workbook.
         const metaHeaders = ['Date', 'Client', 'Executive', 'Employee ID', 'Outlet', 'Activity', 'Address', 'Check In GPS', 'Check Out GPS', 'Check-in', 'Check-out', 'Time spent (min)'];
 
-        // Each form question gets its OWN column (header) instead of all answers
-        // being crammed into a single "Responses" cell. Collect the question
-        // labels across every exported submission in first-seen order (the API
-        // returns a submission's responses in q_order), so the columns line up.
-        const questionCols: string[] = [];
-        const seenCols = new Set<string>();
-        for (const f of fullData) {
-            for (const r of (f.form_responses || [])) {
-                const label = r.builder_questions?.label;
-                if (label && !seenCols.has(label)) { seenCols.add(label); questionCols.push(label); }
-            }
-        }
-        const headers = [...metaHeaders, ...questionCols];
-
         // Photo answers carry their URL in photo_url, not value_text. The buckets are private, so every photo is
-        // exchanged for a signed link that lasts a week; if signing fails the stored URL is still written.
+        // exchanged for a signed link that lasts a week; if signing fails the stored URL is still written. Sign once
+        // across every submission, then reuse the map while building each sheet.
         const signedPhotos = await signPhotoUrls(collectPhotoUrls(fullData), (batch) => api.signMediaBatch(batch, REPORT_PHOTO_TTL_SECONDS));
 
         const respValue = (r: any): string => {
@@ -391,43 +380,113 @@ export default function WorkActivitiesPage() {
             return '';
         };
 
-        const csvRows = fullData.map((f: any) => {
-            // Index this submission's answers by question label (multi-row
-            // answers such as checkboxes are joined), then emit one value per
-            // question column so each header stays separate.
-            const answerByLabel: Record<string, string> = {};
-            for (const r of (f.form_responses || [])) {
-                const label = r.builder_questions?.label;
-                if (!label) continue;
-                const v = respValue(r);
-                if (v) answerByLabel[label] = answerByLabel[label] ? `${answerByLabel[label]}, ${v}` : v;
+        // Group submissions by form so each form becomes its own worksheet. The group key is the form title (falling
+        // back to the activity name, then 'Form'); first-seen order is preserved so the sheets keep the order the
+        // forms first appeared in the export.
+        const groups = new Map<string, any[]>();
+        for (const f of fullData) {
+            const key = f.builder_forms?.title || f.activities?.name || 'Form';
+            const bucket = groups.get(key);
+            if (bucket) bucket.push(f); else groups.set(key, [f]);
+        }
+
+        // Excel sheet names: strip the characters Excel forbids (\ / ? * [ ] :), trim to 31 chars, never empty, and
+        // de-duplicate collisions case-insensitively (Excel treats sheet names case-insensitively) by appending " (n)".
+        const usedSheetNames = new Set<string>();
+        const sheetName = (title: string): string => {
+            let base = (title || 'Form').replace(/[\\/?*[\]:]/g, '').trim().slice(0, 31).trim();
+            if (!base) base = 'Form';
+            let name = base;
+            let n = 2;
+            while (usedSheetNames.has(name.toLowerCase())) {
+                const suffix = ` (${n})`;
+                name = base.slice(0, 31 - suffix.length) + suffix;
+                n++;
+            }
+            usedSheetNames.add(name.toLowerCase());
+            return name;
+        };
+
+        // exceljs supports real cell/sheet protection (SheetJS community does not). Dynamically imported so it stays
+        // out of the main Work Activities bundle.
+        const ExcelJS = (await import('exceljs')).default;
+        const workbook = new ExcelJS.Workbook();
+
+        for (const [formTitle, rows] of groups) {
+            // Each form's columns are collected from ONLY that form's submissions, in first-seen q_order, so a form
+            // never carries another form's (always-blank) question columns.
+            const questionCols: string[] = [];
+            const seenCols = new Set<string>();
+            for (const f of rows) {
+                for (const r of (f.form_responses || [])) {
+                    const label = r.builder_questions?.label;
+                    if (label && !seenCols.has(label)) { seenCols.add(label); questionCols.push(label); }
+                }
+            }
+            // `Form No.` is the first column (the record's identifier), then the meta columns, then this form's questions.
+            const headers = ['Form No.', ...metaHeaders, ...questionCols];
+
+            const ws = workbook.addWorksheet(sheetName(formTitle));
+            ws.columns = headers.map((h, i) => ({
+                header: h,
+                key: String(i),
+                // Form No. and the stamp/meta columns stay narrow; question columns get more room.
+                width: i === 0 ? 12 : i <= metaHeaders.length ? 18 : 28,
+            }));
+
+            for (const f of rows) {
+                // Index this submission's answers by question label (multi-row answers such as checkboxes are joined),
+                // then emit one value per question column so each header stays separate.
+                const answerByLabel: Record<string, string> = {};
+                for (const r of (f.form_responses || [])) {
+                    const label = r.builder_questions?.label;
+                    if (!label) continue;
+                    const v = respValue(r);
+                    if (v) answerByLabel[label] = answerByLabel[label] ? `${answerByLabel[label]}, ${v}` : v;
+                }
+
+                const meta = [
+                    fmtDate(f.submitted_at),
+                    selectedClientId || 'Global',
+                    f.users?.name || 'Unknown',
+                    f.users?.employee_id || '-',
+                    f.outlet_name || '-',
+                    f.activities?.name || 'Form',
+                    f.address || '-',
+                    gpsText(f.check_in_gps, f.latitude ?? f.location_lat, f.longitude ?? f.location_lng) || '-',
+                    gpsText(f.check_out_gps) || '-',
+                    csvStamp(f.check_in_at),
+                    csvStamp(f.check_out_at),
+                    visitMinutes(f) ?? '',
+                ];
+                const answers = questionCols.map((label) => answerByLabel[label] ?? '');
+                ws.addRow([f.ref_no ?? '', ...meta, ...answers]);
             }
 
-            const meta = [
-                fmtDate(f.submitted_at),
-                selectedClientId || 'Global',
-                f.users?.name || 'Unknown',
-                f.users?.employee_id || '-',
-                f.outlet_name || '-',
-                f.activities?.name || 'Form',
-                f.address || '-',
-                gpsText(f.check_in_gps, f.latitude ?? f.location_lat, f.longitude ?? f.location_lng) || '-',
-                gpsText(f.check_out_gps) || '-',
-                csvStamp(f.check_in_at),
-                csvStamp(f.check_out_at),
-                visitMinutes(f) ?? '',
-            ];
-            const answers = questionCols.map((label) => answerByLabel[label] ?? '');
-            return [...meta, ...answers].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
-        });
+            // Bold + frozen header row so it stays visible while scrolling.
+            ws.getRow(1).font = { bold: true };
+            ws.views = [{ state: 'frozen', ySplit: 1 }];
 
-        const csvContent = headers.join(',') + '\n' + csvRows.join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv' });
+            // A protected worksheet locks every cell by default, so explicitly UNLOCK every cell and then re-lock only
+            // the `Form No.` column (column 1 — header + data). The result: Form No. is non-editable, everything else
+            // stays editable. Then protect the sheet with no password — the point is non-editability, not security —
+            // allowing selection of both locked and unlocked cells.
+            ws.eachRow({ includeEmpty: true }, (excelRow) => {
+                excelRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                    cell.protection = { locked: colNumber === 1 };
+                });
+            });
+            await ws.protect('', { selectLockedCells: true, selectUnlockedCells: true, formatCells: false });
+        }
+
+        const buf = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Kinematic_WorkActivities_${dateFrom}_to_${dateTo}.csv`;
+        a.download = `Kinematic_WorkActivities_${dateFrom}_to_${dateTo}.xlsx`;
         a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
 
         // The server caps one response, so a big window is exported in part: say so instead of looking complete.
         const matching = Number(res?.data?.pagination?.total) || 0;
