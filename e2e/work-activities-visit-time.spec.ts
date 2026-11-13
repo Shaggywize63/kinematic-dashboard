@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { readFileSync } from 'fs';
+import ExcelJS from 'exceljs';
 import { demoLogin, mockApi, seedSession, SEED_USER } from './utils';
 import {
   csvStamp, earliestCheckIn, fmtClock, fmtMinutes, gpsText, latestCheckOut, stampMs, sumMinutes, visitMinutes,
@@ -207,50 +207,67 @@ test.describe('Work Activities — time spent per form', () => {
     await expect(page.getByText('Same as entry')).toHaveCount(0);
   });
 
-  test('the CSV has real Check-in / Check-out and Time spent, and leaves cells empty instead of inventing times', async ({ page }) => {
+  test('the XLSX has real Check-in / Check-out and Time spent, and leaves cells empty instead of inventing times', async ({ page }) => {
     const seen = await setup(page);
     await page.goto('/dashboard/work-activities');
     await expect(page.getByText('Reliance Fresh')).toBeVisible({ timeout: 60_000 });
 
     const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Download Report/ }).click()]);
-    expect(download.suggestedFilename()).toMatch(/^Kinematic_WorkActivities_.*\.csv$/);
-    const text = readFileSync((await download.path())!, 'utf8');
-    const [headerLine, ...lines] = text.split('\n');
-    const header = headerLine.split(',');
-    // Each form question is its own column (here only "Shelf" appears across the rows),
-    // instead of all answers crammed into a single "Responses" cell.
+    expect(download.suggestedFilename()).toMatch(/^Kinematic_WorkActivities_.*\.xlsx$/);
+
+    // All five fixtures belong to one form ("Store Audit"), so the workbook has a single worksheet.
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile((await download.path())!);
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['Store Audit']);
+    const ws = wb.worksheets[0];
+
+    // Form No. is the first column, then the meta columns, then each form question as its own
+    // column (here only "Shelf"), instead of all answers crammed into a single "Responses" cell.
+    const header: string[] = [];
+    ws.getRow(1).eachCell({ includeEmpty: true }, (cell) => header.push(String(cell.value ?? '')));
     expect(header).toEqual([
-      'Date', 'Client', 'Executive', 'Employee ID', 'Outlet', 'Activity', 'Address', 'Check In GPS', 'Check Out GPS',
-      'Check-in', 'Check-out', 'Time spent (min)', 'Shelf',
+      'Form No.', 'Date', 'Client', 'Executive', 'Employee ID', 'Outlet', 'Activity', 'Address', 'Check In GPS',
+      'Check Out GPS', 'Check-in', 'Check-out', 'Time spent (min)', 'Shelf',
     ]);
-    // Every cell is quoted; the GPS cells hold commas, so split on the quote-comma-quote boundary.
-    const cells = (line: string) => line.slice(1, -1).split('","');
-    const col = (name: string) => header.indexOf(name);
-    const byOutlet = (name: string) => lines.map(cells).filter((c) => c[col('Outlet')] === name);
+
+    // Read every data row into a string[] aligned to `header` (empty cells -> '').
+    const rows: string[][] = [];
+    ws.eachRow({ includeEmpty: false }, (r, n) => {
+      if (n === 1) return;
+      const out: string[] = [];
+      for (let i = 1; i <= header.length; i++) out[i - 1] = String(r.getCell(i).value ?? '');
+      rows.push(out);
+    });
+    const at = (row: string[], name: string) => row[header.indexOf(name)];
+    const byOutlet = (name: string) => rows.filter((c) => at(c, 'Outlet') === name);
 
     const [a, b] = byOutlet('Reliance Fresh');
-    expect(a[col('Check-in')]).toBe('2026-10-09 10:00');
-    expect(a[col('Check-out')]).toBe('2026-10-09 10:18');
-    expect(a[col('Time spent (min)')]).toBe('18');
-    expect(a[col('Check In GPS')]).toBe('12.9,77.6');
-    expect(a[col('Shelf')]).toBe('Full');
-    expect(b[col('Check-in')]).toBe('2026-10-09 10:30');
-    expect(b[col('Check-out')]).toBe('2026-10-09 11:05');
-    expect(b[col('Time spent (min)')]).toBe('35'); // older row: worked out from the two stamps
+    expect(at(a, 'Form No.')).toBe(''); // no lead/form number in these fixtures
+    expect(at(a, 'Check-in')).toBe('2026-10-09 10:00');
+    expect(at(a, 'Check-out')).toBe('2026-10-09 10:18');
+    expect(at(a, 'Time spent (min)')).toBe('18');
+    expect(at(a, 'Check In GPS')).toBe('12.9,77.6');
+    expect(at(a, 'Shelf')).toBe('Full');
+    expect(at(b, 'Check-in')).toBe('2026-10-09 10:30');
+    expect(at(b, 'Check-out')).toBe('2026-10-09 11:05');
+    expect(at(b, 'Time spent (min)')).toBe('35'); // older row: worked out from the two stamps
 
     // No stamps -> empty cells (the old export filled in the 1:30 pm submission time), and no "undefined,undefined" GPS.
     const [c] = byOutlet('Gamma Stores');
-    expect(c[col('Check-in')]).toBe('');
-    expect(c[col('Check-out')]).toBe('');
-    expect(c[col('Time spent (min)')]).toBe('');
-    expect(c[col('Check In GPS')]).toBe('-');
-    expect(text).not.toContain('undefined');
-    expect(text).not.toMatch(/01:30|1:30/);
+    expect(at(c, 'Check-in')).toBe('');
+    expect(at(c, 'Check-out')).toBe('');
+    expect(at(c, 'Time spent (min)')).toBe('');
+    expect(at(c, 'Check In GPS')).toBe('-');
 
     // A builder-form row reports its position under location_lat / location_lng.
     const [, e] = byOutlet('Delta Mart');
-    expect(e[col('Check In GPS')]).toBe('13,80.2');
-    expect(e[col('Check-in')]).toBe('');
+    expect(at(e, 'Check In GPS')).toBe('13,80.2');
+    expect(at(e, 'Check-in')).toBe('');
+
+    // No invented times anywhere, and the 1:30 pm submission time never leaks in as a visit time.
+    const allText = rows.flat().join('|');
+    expect(allText).not.toContain('undefined');
+    expect(allText).not.toMatch(/01:30|1:30/);
 
     // The export asks for the responses and a big page; nothing says it was cut short because nothing was.
     const exp = seen.filter((r) => r.path === '/api/v1/forms/admin/submissions' && r.query.get('include_responses') === 'true');
