@@ -3,12 +3,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmAccounts, crmSettings } from '../../../../../lib/crmApi';
-import { CRM_INDUSTRIES } from '../../../../../lib/crmIndustries';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
+import IndustrySelect from '../../../../../components/crm/spark/IndustrySelect';
+import { clearSubIndustryOnChange, industryOptions, subIndustryOptions, useIndustries } from '../../../../../lib/industries';
+import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { apiErrorText } from '../../../../../lib/sparkAccounts';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import { accountLocationPayload, emptyAccountLocation, type AccountLocationKey } from '../../../../../lib/accountLocation';
+
+// Sub-industry is stored in the account's custom_fields under this key, exactly as on the lead form.
+const SUB_INDUSTRY_KEY = 'industry_category';
 
 export default function NewAccountPage() {
   const router = useRouter();
@@ -22,11 +27,26 @@ export default function NewAccountPage() {
   // Built-in field overrides (hide / relabel / require) for account columns.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
   const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'account'), [fieldOverrides]);
+  // Industry + Sub-industry come from the admin-managed list (Settings -> Industries), same as the lead form.
+  // Spark & Ray get the coloured dropdown + the dependent Sub-industry; every other tenant falls back to the
+  // built-in defaults the hook returns (useIndustries(false) never fetches), so non-Spark accounts aren't regressed.
+  const b2bAccounts = isB2bClientActive();
+  const { industries } = useIndustries(b2bAccounts);
   useEffect(() => {
     crmSettings.get()
       .then((s) => setFieldOverrides(extractFieldOverrides(s.data)))
       .catch(() => { /* keep defaults — every field renders */ });
   }, []);
+
+  // Industry change clears a Sub-industry that no longer belongs to the new industry (same rule as leads).
+  const setIndustry = (v: string) => {
+    setForm((f) => ({ ...f, industry: v }));
+    setCustomFields((cf) => {
+      if (!clearSubIndustryOnChange(industries, form.industry, v, cf[SUB_INDUSTRY_KEY])) return cf;
+      const { [SUB_INDUSTRY_KEY]: _drop, ...rest } = cf;
+      return rest;
+    });
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,21 +127,57 @@ export default function NewAccountPage() {
     />
   );
 
-  const industryFld = fields.isHidden('industry') ? null : (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle('industry') }}>
-      <span style={labelStyle}>{fields.labelFor('industry', 'Industry')}</span>
-      <select value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} style={inputStyle}>
-        <option value="">Select industry…</option>
-        {CRM_INDUSTRIES.map((i) => <option key={i} value={i}>{i}</option>)}
-      </select>
-    </label>
-  );
+  const industryFld = fields.isHidden('industry') ? null : (() => {
+    const effRequired = fields.requiredFor('industry', false);
+    const options = industryOptions(industries, form.industry);
+    return (
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle('industry') }}>
+        <span style={labelStyle}>{fields.labelFor('industry', 'Industry')}{effRequired && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}</span>
+        {b2bAccounts ? (
+          <IndustrySelect value={form.industry} options={options} industries={industries} required={effRequired} onChange={setIndustry} blankLabel="Select industry…" />
+        ) : (
+          <select value={form.industry} onChange={(e) => setIndustry(e.target.value)} required={effRequired} style={inputStyle}>
+            <option value="">Select industry…</option>
+            {options.map((i) => <option key={i} value={i}>{i}</option>)}
+          </select>
+        )}
+      </label>
+    );
+  })();
+
+  // Sub-industry (Spark & Ray only): the chosen industry's configured sub-industries, stored in
+  // custom_fields.industry_category. Rendered only when the industry actually lists sub-industries.
+  const subIndustryFld = (() => {
+    if (!b2bAccounts || fields.isHidden('industry')) return null;
+    const current = typeof customFields[SUB_INDUSTRY_KEY] === 'string' ? (customFields[SUB_INDUSTRY_KEY] as string) : '';
+    const subOptions = subIndustryOptions(industries, form.industry, current);
+    if (subOptions.length === 0) return null;
+    return (
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle('industry') }}>
+        <span style={labelStyle}>Sub-industry</span>
+        <select
+          value={current}
+          onChange={(e) => {
+            const v = e.target.value;
+            setCustomFields((cf) => {
+              if (!v) { const { [SUB_INDUSTRY_KEY]: _drop, ...rest } = cf; return rest; }
+              return { ...cf, [SUB_INDUSTRY_KEY]: v };
+            });
+          }}
+          style={inputStyle}
+        >
+          <option value="">Select sub-industry…</option>
+          {subOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </label>
+    );
+  })();
 
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 720 }}>
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Account</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        {fld('name', 'Name')}{industryFld}{fld('website', 'Website')}{fld('phone', 'Phone')}{fld('annual_revenue', 'Annual Revenue', 'number')}{fld('employees', 'Employees', 'number')}
+        {fld('name', 'Name')}{industryFld}{subIndustryFld}{fld('website', 'Website')}{fld('phone', 'Phone')}{fld('annual_revenue', 'Annual Revenue', 'number')}{fld('employees', 'Employees', 'number')}
         {locFld('address_line1')}{locFld('address_line2')}{locationPicker}{locFld('postal_code')}{locFld('country')}
         {/* Custom fields render inline inside this grid so admin-defined
             fields look like part of the form (same as the lead form). */}

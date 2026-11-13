@@ -2,16 +2,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { crmAccounts, crmSettings } from '../../lib/crmApi';
-import { CRM_INDUSTRIES } from '../../lib/crmIndustries';
 import type { Account } from '../../types/crm';
 import Modal from './shared/Modal';
 import UserSearchSelect from './shared/UserSearchSelect';
+import IndustrySelect from './spark/IndustrySelect';
+import { clearSubIndustryOnChange, industryOptions, subIndustryOptions, useIndustries } from '../../lib/industries';
+import { isB2bClientActive } from '../../lib/b2bClient';
 import { useRecordOwnerPicker } from '../../hooks/useRecordOwnerPicker';
 import { ownerPatch } from '../../lib/recordOwnerAccess';
 import CustomFieldsSection from './CustomFieldsSection';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 import LocationPicker from './LocationPicker';
 import { accountLocationPayload, seedAccountLocation, type AccountLocationKey } from '../../lib/accountLocation';
+
+// Sub-industry is stored in the account's custom_fields under this key, exactly as on the lead form.
+const SUB_INDUSTRY_KEY = 'industry_category';
 
 interface Props {
   account: Account;
@@ -35,6 +40,11 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
   // Accounts aren't B2B/B2C-scoped.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
   const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'account'), [fieldOverrides]);
+  // Industry + Sub-industry come from the admin-managed list (Settings -> Industries), same as the lead form.
+  // Spark & Ray get the coloured dropdown + the dependent Sub-industry; every other tenant falls back to the
+  // built-in defaults the hook returns (useIndustries(false) never fetches), so non-Spark accounts aren't regressed.
+  const b2bAccounts = isB2bClientActive();
+  const { industries } = useIndustries(b2bAccounts);
   useEffect(() => { if (open) { setForm(seed(account)); setLoc(seedAccountLocation(account)); setCustomFields(seedCustomFields(account)); } }, [open, account]);
   useEffect(() => {
     if (!open) return;
@@ -107,12 +117,70 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
     />
   );
 
+  // Industry change clears a Sub-industry that no longer belongs to the new industry (same rule as leads).
+  const setIndustry = (v: string) => {
+    setForm((f) => ({ ...f, industry: v }));
+    setCustomFields((cf) => {
+      if (!clearSubIndustryOnChange(industries, form.industry, v, cf[SUB_INDUSTRY_KEY])) return cf;
+      const { [SUB_INDUSTRY_KEY]: _drop, ...rest } = cf;
+      return rest;
+    });
+  };
+  const industryNode = fields.isHidden('industry') ? null : (() => {
+    const effRequired = fields.requiredFor('industry', false);
+    const options = industryOptions(industries, form.industry);
+    return (
+      <div data-field="industry" style={{ display: 'contents' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle('industry') }}>
+          <span style={lbl}>{fields.labelFor('industry', 'Industry')}{effRequired ? ' *' : ''}</span>
+          {b2bAccounts ? (
+            <IndustrySelect value={form.industry} options={options} industries={industries} required={effRequired} onChange={setIndustry} blankLabel="Select industry…" />
+          ) : (
+            <select value={form.industry} onChange={(e) => setIndustry(e.target.value)} required={effRequired} style={input}>
+              <option value="">Select industry…</option>
+              {options.map((i) => <option key={i} value={i}>{i}</option>)}
+            </select>
+          )}
+        </label>
+      </div>
+    );
+  })();
+  // Sub-industry (Spark & Ray only): the chosen industry's configured sub-industries, stored in
+  // custom_fields.industry_category. Rendered only when the industry actually lists sub-industries.
+  const subIndustryNode = (() => {
+    if (!b2bAccounts || fields.isHidden('industry')) return null;
+    const current = typeof customFields[SUB_INDUSTRY_KEY] === 'string' ? (customFields[SUB_INDUSTRY_KEY] as string) : '';
+    const subOptions = subIndustryOptions(industries, form.industry, current);
+    if (subOptions.length === 0) return null;
+    return (
+      <div data-field="industry" style={{ display: 'contents' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...fields.orderStyle('industry') }}>
+          <span style={lbl}>Sub-industry</span>
+          <select
+            value={current}
+            onChange={(e) => {
+              const v = e.target.value;
+              setCustomFields((cf) => {
+                if (!v) { const { [SUB_INDUSTRY_KEY]: _drop, ...rest } = cf; return rest; }
+                return { ...cf, [SUB_INDUSTRY_KEY]: v };
+              });
+            }}
+            style={input}
+          >
+            <option value="">Select sub-industry…</option>
+            {subOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+      </div>
+    );
+  })();
+
   return (
     <Modal open={open} onClose={onClose} title="Edit Account"
       footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <Grid>
         {!fields.isHidden('name') && <div data-field="name" style={{ display: 'contents' }}><Field label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} ord={fields.orderStyle('name')} /></div>}
-        {!fields.isHidden('industry') && <IndustryField label={fields.labelFor('industry', 'Industry')} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} ord={fields.orderStyle('industry')} />}
+        {industryNode}{subIndustryNode}
         {!fields.isHidden('website') && <div data-field="website" style={{ display: 'contents' }}><Field label={fields.labelFor('website', 'Website')} value={form.website} onChange={(v) => setForm({ ...form, website: v })} ord={fields.orderStyle('website')} /></div>}
         {!fields.isHidden('phone') && <div data-field="phone" style={{ display: 'contents' }}><Field label={fields.labelFor('phone', 'Phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} ord={fields.orderStyle('phone')} /></div>}
         {!fields.isHidden('annual_revenue') && <Field label={fields.labelFor('annual_revenue', 'Annual Revenue (₹)')} type="number" value={form.annual_revenue} onChange={(v) => setForm({ ...form, annual_revenue: v })} ord={fields.orderStyle('annual_revenue')} />}
@@ -165,19 +233,6 @@ function seedCustomFields(a: Account): Record<string, unknown> {
 function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', website: a.website || '', phone: a.phone || '', annual_revenue: a.annual_revenue ? String(a.annual_revenue) : '', employees: a.employees ? String(a.employees) : '', description: a.description || '', owner_id: a.owner_id || '' }; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function Field(p: { label: string; value: string; onChange: (v: string) => void; type?: string; ord?: React.CSSProperties }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...p.ord }}><span style={lbl}>{p.label}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input} /></label>; }
-function IndustryField(p: { value: string; onChange: (v: string) => void; label?: string; ord?: React.CSSProperties }) {
-  const hasLegacy = p.value && !CRM_INDUSTRIES.includes(p.value);
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...p.ord }}>
-      <span style={lbl}>{p.label ?? 'Industry'}</span>
-      <select value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input}>
-        <option value="">Select industry…</option>
-        {hasLegacy && <option value={p.value}>{p.value}</option>}
-        {CRM_INDUSTRIES.map((i) => <option key={i} value={i}>{i}</option>)}
-      </select>
-    </label>
-  );
-}
 const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 };
 const input: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
 const btn = {
