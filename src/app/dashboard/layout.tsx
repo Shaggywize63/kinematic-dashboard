@@ -590,6 +590,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/route-deviations',             label: 'Route Deviations',    icon: 'mapPinned', module: 'route_deviation' },
       { href: '/dashboard/beat-productivity',            label: 'Beat Productivity',   icon: 'trending', module: 'beat_productivity' },
       { href: '/dashboard/work-activities',              label: 'Work Activities',     icon: 'listChecks', module: 'work_activities' },
+      // Field executives' own filled forms: view / edit / export their own
+      // submissions and see the form number. No `module` gate — available to
+      // every authenticated user (the backend scopes each read by user_id), so
+      // it is never behind a Spark / entitlement SKU.
+      { href: '/dashboard/forms/my-submissions',         label: 'My Submissions',      icon: 'clipboardCheck' },
       // FFM Reports hub — parity with the Lead Management Reports entry
       // a few groups down. Surfaces attendance, visit coverage, hours &
       // idle time, route adherence, and the rep leaderboard in one place
