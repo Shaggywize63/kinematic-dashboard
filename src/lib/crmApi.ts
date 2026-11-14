@@ -1572,8 +1572,58 @@ export const crmReports = {
     api.get<Wrapped<BusinessReportPayload>>(`${BASE}/reports/business${qs(params)}`),
 };
 
+// ── Pharma desk-calling (daily tele-calling list + 3 dispositions) ──────────
+export type DeskCallStatus = 'pending' | 'order_taken' | 'order_pending' | 'no_order';
+export interface DeskCallTask {
+  id: string; org_id: string; client_id: string | null; call_date: string;
+  customer_type: 'account' | 'lead'; customer_id: string; customer_name: string | null; customer_phone: string | null;
+  assigned_operator: string | null; status: DeskCallStatus; order_value: number | null; order_id: string | null;
+  notes: string | null; called_at: string | null; pending_resolved: boolean;
+}
+export interface DeskListResult { rows: DeskCallTask[]; total: number; page: number; limit: number; date: string }
+export interface DeskDaySummary { date: string; assigned: number; pending: number; order_taken: number; order_pending: number; no_order: number; connected: number; orders_value: number; called: number }
+
+export const crmDesk = {
+  callList: (p: { date?: string; status?: string; assigned_operator?: string; q?: string; mine?: boolean; page?: number; limit?: number } = {}) =>
+    api.get<Wrapped<DeskListResult>>(`${BASE}/desk/call-list${qs({ ...p, mine: p.mine ? 1 : undefined })}`, LIVE),
+  summary: (date?: string) => api.get<Wrapped<DeskDaySummary>>(`${BASE}/desk/summary${qs({ date })}`, LIVE),
+  generate: (date?: string) => api.post<Wrapped<{ date: string; created: number; existing: number; customers: number; operators: number }>>(`${BASE}/desk/generate`, { date }),
+  setStatus: (id: string, body: { status: DeskCallStatus; order_value?: number | null; notes?: string | null }) =>
+    api.patch<Wrapped<{ task: DeskCallTask; order: unknown }>>(`${BASE}/desk/call-list/${id}`, body),
+  report: (p: { from?: string; to?: string; granularity?: 'day' | 'week' | 'month' } = {}) =>
+    api.get<Wrapped<DeskReport>>(`${BASE}/desk/report${qs(p)}`),
+  productivity: (p: { from?: string; to?: string } = {}) =>
+    api.get<Wrapped<DeskProductivity>>(`${BASE}/desk/productivity${qs(p)}`),
+};
+export interface DeskReportBucket { bucket: string; assigned: number; connected: number; order_taken: number; order_pending: number; no_order: number; pending: number; orders_value: number }
+export interface DeskReportCustomer { customer_type: string; customer_id: string; customer_name: string | null; calls: number; orders: number; orders_value: number }
+export interface DeskReport { from: string; to: string; granularity: string; series: DeskReportBucket[]; totals: Omit<DeskReportBucket, 'bucket'>; customers: DeskReportCustomer[] }
+export interface DeskOperatorRow { operator_id: string | null; operator_name: string; assigned: number; called: number; order_taken: number; order_pending: number; no_order: number; orders_value: number; connect_rate: number; order_rate: number }
+export interface DeskProductivity { from: string; to: string; operators: DeskOperatorRow[] }
+
+// ── Customer intelligence (RFM + sales trends) ──────────────────────────────
+export type CustomerLifecycle = 'new' | 'active' | 'declining' | 'dormant' | 'churned';
+export interface CustomerIntelRow {
+  customer_type: string; customer_id: string; customer_name: string | null;
+  orders: number; total_value: number; avg_order_value: number;
+  first_order_date: string; last_order_date: string; days_since_last_order: number;
+  orders_per_month: number; value_last_30: number; value_prev_30: number; trend_pct: number; lifecycle: CustomerLifecycle;
+}
+export interface CustomerIntelPayload { today: string; thresholds: { dormant_days: number; churned_days: number; new_window_days: number }; customers: CustomerIntelRow[]; summary: Record<string, number> }
+export interface SalesTrendPoint { month: string; value: number; orders: number; active_customers: number; new_customers: number; repeat_customers: number; growth_pct: number; retention_pct: number }
+export interface SalesTrendsPayload { from: string; to: string; months: number; series: SalesTrendPoint[] }
+
+export const crmCustomerIntel = {
+  list: (p: { lifecycle?: CustomerLifecycle; q?: string; sort?: string; limit?: number } = {}) =>
+    api.get<Wrapped<CustomerIntelPayload>>(`${BASE}/customer-intel${qs(p)}`),
+  trends: (months?: number) => api.get<Wrapped<SalesTrendsPayload>>(`${BASE}/customer-intel/trends${qs({ months })}`),
+  recordOrder: (body: { customer_type?: 'account' | 'lead'; customer_id: string; customer_name?: string | null; order_value: number; source?: 'desk' | 'field' | 'manual'; order_date?: string; visit_id?: string | null; notes?: string | null }) =>
+    api.post<Wrapped<unknown>>(`${BASE}/customer-intel/orders`, body),
+};
+
 const crmApi = {
   leads: crmLeads, contacts: crmContacts, accounts: crmAccounts, deals: crmDeals,
+  desk: crmDesk, customerIntel: crmCustomerIntel,
   consent: crmConsent, marketingVisits: crmMarketingVisits, afterSales: crmAfterSales,
   lineItems: crmLineItems, pipelines: crmPipelines, stages: crmStages,
   activities: crmActivities, notes: crmNotes, tasks: crmTasks,
