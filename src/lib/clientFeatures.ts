@@ -43,7 +43,7 @@ export const RAJKAMAL_CLIENT_ID = '0490f34d-d9a3-4f39-99e2-8f3adba8c583';
  * after onboarding (onboard-maa-mansha.ts prints it), or set it via the
  * NEXT_PUBLIC_MAA_MANSHA_CLIENT_ID env so the Desk / Customer Intelligence tabs
  * light up for this client only. Mirrors iOS/Android `isMaaMansha`. */
-export const MAA_MANSHA_CLIENT_ID = (process.env.NEXT_PUBLIC_MAA_MANSHA_CLIENT_ID || '').trim();
+export const MAA_MANSHA_CLIENT_ID = (process.env.NEXT_PUBLIC_MAA_MANSHA_CLIENT_ID || '40034845-5c91-4619-992e-473e07856059').trim();
 
 /** The Kinematic tenant's ORG id. The "Kinematic" client above lives under
  * this org, but the tenant's own super-admin (e.g. s@kinematicapp.com) has
