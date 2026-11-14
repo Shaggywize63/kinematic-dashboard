@@ -260,9 +260,11 @@ export function extractApiError(data: any): string {
   return 'Request failed';
 }
 
-/** An Error that also carries the HTTP status, so callers can tell a 400 from a 403 without parsing the message. */
-export type ApiError = Error & { status?: number };
-const httpError = (message: string, status: number): ApiError => Object.assign(new Error(message), { status });
+/** An Error that also carries the HTTP status, so callers can tell a 400 from a 403 without parsing the message.
+ *  `body` is the parsed JSON error payload when the server sent one (e.g. a 409 { code, existing } for a duplicate),
+ *  so a caller can branch on a machine-readable `code` instead of string-matching the message. */
+export type ApiError = Error & { status?: number; body?: unknown };
+const httpError = (message: string, status: number, body?: unknown): ApiError => Object.assign(new Error(message), { status, body });
 
 /** A unique Idempotency-Key for a POST that must be a safe no-op on retry
  *  (closing-stock save, collection-target save). Prefers crypto.randomUUID,
@@ -919,7 +921,7 @@ class ApiClient {
     let data: any;
     try { data = JSON.parse(text); }
     catch { throw httpError(text.slice(0, 200), res.status); }
-    if (!res.ok) throw httpError(extractApiError(data), res.status);
+    if (!res.ok) throw httpError(extractApiError(data), res.status, data);
     return data;
   }
 
