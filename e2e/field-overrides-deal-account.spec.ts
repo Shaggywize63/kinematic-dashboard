@@ -86,26 +86,25 @@ test.describe('Field-override gate — account Edit modal', () => {
   const setup = makeSetup('accounts', ACCOUNT);
   const open = (page: Page) => openEdit(page, '/dashboard/crm/accounts/account-1', 'Edit Account');
 
-  test('control: name, website and phone render with no overrides', async ({ page }) => {
+  // website / phone were removed from the Edit Account modal; name + industry remain gated built-ins.
+  test('control: name and industry render with no overrides', async ({ page }) => {
     await setup(page);
     const d = await open(page);
     await expect(d.locator('[data-field="name"]')).toHaveCount(1);
-    await expect(d.locator('[data-field="website"]')).toHaveCount(1);
-    await expect(d.locator('[data-field="phone"]')).toHaveCount(1);
+    await expect(d.locator('[data-field="industry"]')).toHaveCount(1);
   });
 
-  test('hiding website removes it (name + phone stay)', async ({ page }) => {
-    await setup(page, { 'account.website': { hidden: true } });
+  test('hiding industry removes it (name stays)', async ({ page }) => {
+    await setup(page, { 'account.industry': { hidden: true } });
     const d = await open(page);
-    await expect(d.locator('[data-field="website"]')).toHaveCount(0);
+    await expect(d.locator('[data-field="industry"]')).toHaveCount(0);
     await expect(d.locator('[data-field="name"]')).toHaveCount(1);
-    await expect(d.locator('[data-field="phone"]')).toHaveCount(1);
   });
 
-  test('hiding phone removes it (name stays)', async ({ page }) => {
-    await setup(page, { 'account.phone': { hidden: true } });
+  test('hiding name removes it (industry stays)', async ({ page }) => {
+    await setup(page, { 'account.name': { hidden: true } });
     const d = await open(page);
-    await expect(d.locator('[data-field="phone"]')).toHaveCount(0);
-    await expect(d.locator('[data-field="name"]')).toHaveCount(1);
+    await expect(d.locator('[data-field="name"]')).toHaveCount(0);
+    await expect(d.locator('[data-field="industry"]')).toHaveCount(1);
   });
 });
