@@ -162,8 +162,6 @@ export default function AccountDetailPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13 }}>
             <Field label="Industry" value={a.industry} />
-            <Field label="Revenue" value={a.annual_revenue ? formatINR(a.annual_revenue) : null} />
-            <Field label="Employees" value={a.employees ? String(a.employees) : null} />
             <PhoneField phone={a.phone} accountId={a.id} accountName={a.name} />
           </div>
           {hasLocation && (
