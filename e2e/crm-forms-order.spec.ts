@@ -122,13 +122,14 @@ const openEdit = async (page: Page, path: string, dialogName: string) => {
 };
 
 // ── Account ────────────────────────────────────────────────────────────────────────────────────────────────────
+// Only the built-ins the reworked account forms still render: name + industry (both forms) and description (Edit only).
+// website / phone / annual_revenue / employees were removed from both forms, so they are no longer part of the order.
 const ACCOUNT_ORDER: OrderMap = {
-  'account.employees': 0, 'account.name': 1, 'account.description': 4,
-  'account.website': 5, 'account.phone': 6, 'account.industry': 7, 'account.annual_revenue': 8,
+  'account.name': 1, 'account.description': 4, 'account.industry': 7,
 };
 
 test.describe('Account Create page', () => {
-  const labels = ['Name', 'Industry', 'Website', 'Phone', 'Annual Revenue', 'Employees', 'Region', 'Segment'];
+  const labels = ['Name', 'Industry', 'Region', 'Segment'];
   const open = async (page: Page) => {
     await page.goto('/dashboard/crm/accounts/new');
     const form = page.locator('form');
@@ -139,7 +140,8 @@ test.describe('Account Create page', () => {
   test('ordered: built-ins and custom fields interleave in the admin order (no Outcome any more)', async ({ page }) => {
     await setup(page, ACCOUNT_ORDER, { spark: true });
     const form = await open(page);
-    await expectOrder(form, labels, ['Employees', 'Name', 'Region', 'Website', 'Phone', 'Industry', 'Annual Revenue', 'Segment']);
+    // Name(1) · Region(custom position 2) · Industry(7) · Segment(custom position 9). Description isn't on the create form.
+    await expectOrder(form, labels, ['Name', 'Region', 'Industry', 'Segment']);
     expect(await cssOrder(form, 'Name')).toBe('1');
     expect(await cssOrder(form, 'Region')).toBe('2');
     expect((await form.getByLabel('Outcome').count())).toBe(0);
@@ -147,36 +149,37 @@ test.describe('Account Create page', () => {
   });
 
   test('a field the admin never placed (no order on it) goes after the ordered ones', async ({ page }) => {
-    await setup(page, { 'account.name': 0, 'account.website': 1 }, { spark: true });
+    await setup(page, { 'account.name': 0, 'account.industry': 1 }, { spark: true });
     const form = await open(page);
-    await expectOrder(form, ['Name', 'Website', 'Industry', 'Segment'], ['Name', 'Website', 'Segment', 'Industry']);
-    // Segment (custom, position 9) is placed; Industry has no order => end of the list.
-    expect(await cssOrder(form, 'Industry')).toBe('100000');
+    // Name(0), Industry(1), Region(custom 2), Segment(custom 9) are placed; the Address row has no order => end of the list.
+    await expectOrder(form, ['Name', 'Industry', 'Region', 'Segment', 'Address'], ['Name', 'Industry', 'Region', 'Segment', 'Address']);
+    expect(await cssOrder(form, 'Address')).toBe('100000');
   });
 
   test('without `order` the layout is the default and nothing is styled', async ({ page }) => {
     await setup(page, null, { spark: true });
     const form = await open(page);
-    await expectOrder(form, labels, ['Name', 'Industry', 'Website', 'Phone', 'Annual Revenue', 'Employees', 'Region', 'Segment']);
+    await expectOrder(form, labels, ['Name', 'Industry', 'Region', 'Segment']);
     expect(await inlineOrderCount(form)).toBe(0);
   });
 
   test('a legacy `position` on a built-in override is NOT an order (forms stay default)', async ({ page }) => {
     // Same as the default case but the override map carries only legacy `position` values.
-    await setup(page, null, { spark: true, rawOverrides: { 'account.employees': { position: 0 }, 'account.name': { position: 5 } } });
+    await setup(page, null, { spark: true, rawOverrides: { 'account.industry': { position: 0 }, 'account.name': { position: 5 } } });
     const form = await open(page);
-    await expectOrder(form, labels, ['Name', 'Industry', 'Website', 'Phone', 'Annual Revenue', 'Employees', 'Region', 'Segment']);
+    await expectOrder(form, labels, ['Name', 'Industry', 'Region', 'Segment']);
     expect(await inlineOrderCount(form)).toBe(0);
   });
 });
 
 test.describe('Account Edit modal', () => {
-  const labels = ['Name', 'Industry', 'Website', 'Phone', 'Annual Revenue (₹)', 'Employees', 'Description', 'Region', 'Segment'];
+  const labels = ['Name', 'Industry', 'Description', 'Region', 'Segment'];
 
   test('ordered: Description and custom fields share the grid with the built-ins', async ({ page }) => {
     await setup(page, ACCOUNT_ORDER, { spark: true });
     const dialog = await openEdit(page, '/dashboard/crm/accounts/acc-1', 'Edit Account');
-    await expectOrder(dialog, labels, ['Employees', 'Name', 'Region', 'Description', 'Website', 'Phone', 'Industry', 'Annual Revenue (₹)', 'Segment']);
+    // Name(1) · Region(custom 2) · Description(4) · Industry(7) · Segment(custom 9).
+    await expectOrder(dialog, labels, ['Name', 'Region', 'Description', 'Industry', 'Segment']);
     expect(await cssOrder(dialog, 'Name')).toBe('1');
     expect(await cssOrder(dialog, 'Region')).toBe('2');
     expect(await cssOrder(dialog, 'Description')).toBe('4');
@@ -185,7 +188,7 @@ test.describe('Account Edit modal', () => {
   test('without `order` the layout is the default and nothing is styled', async ({ page }) => {
     await setup(page, null, { spark: true });
     const dialog = await openEdit(page, '/dashboard/crm/accounts/acc-1', 'Edit Account');
-    await expectOrder(dialog, labels, ['Name', 'Industry', 'Website', 'Phone', 'Annual Revenue (₹)', 'Employees', 'Description', 'Region', 'Segment']);
+    await expectOrder(dialog, labels, ['Name', 'Industry', 'Description', 'Region', 'Segment']);
     expect(await inlineOrderCount(dialog)).toBe(0);
   });
 });
