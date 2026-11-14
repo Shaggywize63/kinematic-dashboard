@@ -150,6 +150,33 @@ test.describe('account location — New Account', () => {
     expect(cap.posts[0]).not.toHaveProperty('city');
   });
 
+  test('a duplicate name (409) shows an inline notice linking to the existing account, form stays open', async ({ page }) => {
+    await seedSession(page, SEED_USER);
+    await mockApi(page, {
+      settings: { success: true, data: { business_type: 'both', config: { field_overrides: {} } } },
+      me: { success: true, data: SEED_USER },
+      onRequest: async (route, url, method) => {
+        const path = url.split('?')[0].replace(/^https?:\/\/[^/]+/, '');
+        if (method === 'GET' && path === '/api/v1/crm/states') return route.fulfill({ json: { success: true, data: STATES } }).then(() => true);
+        if (method === 'POST' && path === '/api/v1/crm/accounts') {
+          return route.fulfill({ status: 409, json: { error: 'An account with this name already exists', code: 'DUPLICATE_ACCOUNT', existing: { id: 'acc-existing', name: 'Acme Traders' } } }).then(() => true);
+        }
+        return false; // name-blur pre-check GET /accounts?q= falls through to the empty default
+      },
+    });
+    await page.goto('/dashboard/crm/accounts/new');
+    await expect(page.getByRole('heading', { name: 'New Account' })).toBeVisible({ timeout: 30_000 });
+    await page.locator('form input').first().fill('Acme Traders');
+    await page.getByRole('button', { name: 'Create' }).click();
+
+    const dup = page.getByTestId('account-duplicate');
+    await expect(dup).toBeVisible();
+    await expect(dup).toContainText('already exists');
+    await expect(dup.getByRole('link')).toHaveAttribute('href', '/dashboard/crm/accounts/acc-existing');
+    // The form is not navigated away — the rep can rename and retry.
+    await expect(page.getByRole('heading', { name: 'New Account' })).toBeVisible();
+  });
+
   test('hiding address, PIN code and country removes those rows; relabel applies', async ({ page }) => {
     await setup(page, { overrides: {
       'account.address_line1': { hidden: true }, 'account.postal_code': { hidden: true }, 'account.country': { hidden: true },

@@ -54,8 +54,28 @@ async function pickOwner(page: Page, dialog: ReturnType<Page['getByRole']>, name
   await page.getByText(name, { exact: true }).click();
 }
 
+// Accounts no longer expose the owner control in the Edit modal (owner stays server-side for access scoping).
+test.describe('accounts: owner is not editable from the Edit modal', () => {
+  test('an admin is not offered the owner control and no owner is sent', async ({ page }) => {
+    const calls: Call[] = [];
+    await setup(page, calls);
+    const d = await openEdit(page, '/dashboard/crm/accounts/account-1', 'Edit Account');
+    await expect(d.locator('[data-field="name"]')).toHaveCount(1);
+    await expect(d.locator('[data-field="owner_id"]')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    await expect.poll(() => calls.length).toBe(1);
+    expect('owner_id' in calls[0].body).toBe(false);
+  });
+
+  test('a field rep is not offered the owner control', async ({ page }) => {
+    await setup(page, [], 'executive');
+    const d = await openEdit(page, '/dashboard/crm/accounts/account-1', 'Edit Account');
+    await expect(d.locator('[data-field="name"]')).toHaveCount(1);
+    await expect(d.locator('[data-field="owner_id"]')).toHaveCount(0);
+  });
+});
+
 for (const [entity, path, dialogName] of [
-  ['accounts', '/dashboard/crm/accounts/account-1', 'Edit Account'],
   ['deals', '/dashboard/crm/deals/deal-1', 'Edit Deal'],
 ] as const) {
   test.describe(`${entity}: change the owner after assignment`, () => {

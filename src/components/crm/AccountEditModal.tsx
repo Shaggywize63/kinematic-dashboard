@@ -4,12 +4,9 @@ import { toast } from 'sonner';
 import { crmAccounts, crmSettings } from '../../lib/crmApi';
 import type { Account } from '../../types/crm';
 import Modal from './shared/Modal';
-import UserSearchSelect from './shared/UserSearchSelect';
 import IndustrySelect from './spark/IndustrySelect';
 import { clearSubIndustryOnChange, industryOptions, subIndustryOptions, useIndustries } from '../../lib/industries';
 import { isB2bClientActive } from '../../lib/b2bClient';
-import { useRecordOwnerPicker } from '../../hooks/useRecordOwnerPicker';
-import { ownerPatch } from '../../lib/recordOwnerAccess';
 import CustomFieldsSection from './CustomFieldsSection';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 import LocationPicker from './LocationPicker';
@@ -34,8 +31,6 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
   // Location (address, state, PIN code, country), preloaded from the saved account.
   const [loc, setLoc] = useState(() => seedAccountLocation(account));
   const [busy, setBusy] = useState(false);
-  // Owner reassignment: offered to the roles the backend lets assign owners (admins / managers).
-  const ownerPicker = useRecordOwnerPicker(open);
   // Built-in field overrides (hide / relabel / require) for account columns.
   // Accounts aren't B2B/B2C-scoped.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
@@ -62,16 +57,12 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
     setBusy(true);
     try {
       const r = await crmAccounts.update(account.id, {
-        name: form.name, industry: form.industry || null, website: form.website || null,
-        phone: form.phone || null,
-        annual_revenue: form.annual_revenue ? Number(form.annual_revenue) : null,
-        employees: form.employees ? Number(form.employees) : null,
+        name: form.name, industry: form.industry || null,
         description: form.description || null,
         // Blank -> null clears the column; a field the admin hid is not sent at all.
         ...accountLocationPayload(loc, 'patch', fields.isHidden),
         custom_fields: customFields,
-        // Only when an admin / manager actually picked someone else.
-        ...ownerPatch(ownerPicker.canChange, account.owner_id, form.owner_id),
+        // Owner is set server-side for access scoping and is no longer editable from this modal.
       });
       toast.success('Account updated'); onSaved(r.data); onClose();
     } catch (e: any) {
@@ -181,18 +172,7 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
       <Grid>
         {!fields.isHidden('name') && <div data-field="name" style={{ display: 'contents' }}><Field label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} ord={fields.orderStyle('name')} /></div>}
         {industryNode}{subIndustryNode}
-        {!fields.isHidden('website') && <div data-field="website" style={{ display: 'contents' }}><Field label={fields.labelFor('website', 'Website')} value={form.website} onChange={(v) => setForm({ ...form, website: v })} ord={fields.orderStyle('website')} /></div>}
-        {!fields.isHidden('phone') && <div data-field="phone" style={{ display: 'contents' }}><Field label={fields.labelFor('phone', 'Phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} ord={fields.orderStyle('phone')} /></div>}
-        {!fields.isHidden('annual_revenue') && <Field label={fields.labelFor('annual_revenue', 'Annual Revenue (₹)')} type="number" value={form.annual_revenue} onChange={(v) => setForm({ ...form, annual_revenue: v })} ord={fields.orderStyle('annual_revenue')} />}
-        {!fields.isHidden('employees') && <Field label={fields.labelFor('employees', 'Employees')} type="number" value={form.employees} onChange={(v) => setForm({ ...form, employees: v })} ord={fields.orderStyle('employees')} />}
         {locField('address_line1')}{locField('address_line2')}{locationPicker}{locField('postal_code')}{locField('country')}
-        {/* Owner — admins / managers can reassign the account after it was assigned. */}
-        {!fields.isHidden('owner_id') && ownerPicker.canChange && ownerPicker.users.length > 0 && (
-          <label data-field="owner_id" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, ...fields.orderStyle('owner_id') }}>
-            <span style={lbl}>{fields.labelFor('owner_id', 'Owner')}</span>
-            <UserSearchSelect options={ownerPicker.users} value={form.owner_id} onChange={(id) => setForm({ ...form, owner_id: id })} placeholder="Search team member…" emptyLabel="Unassigned" />
-          </label>
-        )}
         {/* Ordered form: Description and the custom fields join this grid so the admin's order applies to
             all of them (CSS order). Otherwise they keep their separate blocks below. */}
         {ordered && <div style={{ gridColumn: '1 / -1', ...fields.orderStyle('description') }}>{descriptionBlock}</div>}
@@ -230,7 +210,7 @@ function seedCustomFields(a: Account): Record<string, unknown> {
     : {};
 }
 
-function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', website: a.website || '', phone: a.phone || '', annual_revenue: a.annual_revenue ? String(a.annual_revenue) : '', employees: a.employees ? String(a.employees) : '', description: a.description || '', owner_id: a.owner_id || '' }; }
+function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', description: a.description || '' }; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function Field(p: { label: string; value: string; onChange: (v: string) => void; type?: string; ord?: React.CSSProperties }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...p.ord }}><span style={lbl}>{p.label}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input} /></label>; }
 const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 };

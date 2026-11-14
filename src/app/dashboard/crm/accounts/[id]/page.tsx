@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmAccounts, crmSettings, type AccountTimeline } from '../../../../../lib/crmApi';
-import type { Account, Contact, Deal, Activity, Note } from '../../../../../types/crm';
+import type { Account, Contact, Deal, Activity, Note, Lead } from '../../../../../types/crm';
 import AccountSummaryCard from '../../../../../components/crm/AccountSummaryCard';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import EditActivityModal from '../../../../../components/crm/EditActivityModal';
@@ -29,6 +29,9 @@ export default function AccountDetailPage() {
   const [a, setA] = useState<Account | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  // The Leads card tells apart "none yet" from "the fetch failed" so a transient error isn't read as an empty account.
+  const [leadsError, setLeadsError] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [timeline, setTimeline] = useState<AccountTimeline | null>(null);
@@ -52,10 +55,11 @@ export default function AccountDetailPage() {
   const reload = async () => {
     if (!id) return;
     setLoading(true);
-    const [r, c, d, act, n, tl] = await Promise.allSettled([
+    const [r, c, d, ld, act, n, tl] = await Promise.allSettled([
       crmAccounts.get(id),
       crmAccounts.contacts(id),
       crmAccounts.deals(id),
+      crmAccounts.leads(id),
       crmAccounts.activities(id),
       crmAccounts.notes(id),
       crmAccounts.timeline(id),
@@ -64,6 +68,8 @@ export default function AccountDetailPage() {
     else toast.error(r.reason?.message || 'Load failed');
     if (c.status === 'fulfilled') setContacts(c.value.data || []);
     if (d.status === 'fulfilled') setDeals(d.value.data || []);
+    if (ld.status === 'fulfilled') { setLeads(ld.value.data || []); setLeadsError(false); }
+    else setLeadsError(true);
     if (act.status === 'fulfilled') setActivities(act.value.data || []);
     if (n.status === 'fulfilled') setNotes(n.value.data || []);
     if (tl.status === 'fulfilled') setTimeline(tl.value.data || null);
@@ -114,10 +120,16 @@ export default function AccountDetailPage() {
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Loading...</div>;
   if (!a) return <div style={{ color: 'var(--text-dim)' }}>Account not found.</div>;
 
-  const totalRevenue = deals.filter((d) => d.status === 'won').reduce((s, d) => s + Number(d.amount || 0), 0);
   const loc = accountLocationLines(a, fields.isHidden);
   const hasLocation = !!(loc.street || loc.place || loc.country);
-  const openDealValue = deals.filter((d) => d.status === 'open').reduce((s, d) => s + Number(d.amount || 0), 0);
+  // The deal's headline value: the quoted amount where one exists (connected-B2B rollup), else the plain amount.
+  const dealValue = (d: Deal) => Number(d.quoted_amount ?? d.amount ?? 0) || 0;
+  // Total = every deal / quote under the account; Open = open pipeline; Won = realised value of won deals
+  // (what was ordered where that is filled, else the deal amount).
+  const totalValue = deals.reduce((s, d) => s + dealValue(d), 0);
+  const openDealValue = deals.filter((d) => d.status === 'open').reduce((s, d) => s + dealValue(d), 0);
+  const wonValue = deals.filter((d) => d.status === 'won').reduce((s, d) => s + (Number(d.order_amount ?? d.amount ?? d.quoted_amount ?? 0) || 0), 0);
+  const products = accountProductRollup(deals);
 
   return (
     <div>
@@ -153,8 +165,6 @@ export default function AccountDetailPage() {
             <Field label="Revenue" value={a.annual_revenue ? formatINR(a.annual_revenue) : null} />
             <Field label="Employees" value={a.employees ? String(a.employees) : null} />
             <PhoneField phone={a.phone} accountId={a.id} accountName={a.name} />
-            <Field label="Owner" value={a.owner_name} />
-            <Field label="Created" value={new Date(a.created_at).toLocaleDateString()} />
           </div>
           {hasLocation && (
             <div data-testid="account-location" style={{ marginTop: 14, fontSize: 13 }}>
@@ -218,6 +228,32 @@ export default function AccountDetailPage() {
           )}
         </Card>
 
+        <Card title={`Leads (${leads.length})`}>
+          {leadsError ? (
+            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Could not load leads.</div>
+          ) : leads.length === 0 ? (
+            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No leads linked to this account.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {leads.map((l) => {
+                const value = leadValue(l);
+                return (
+                  <Link key={l.id} href={`/dashboard/crm/leads/${l.id}`} style={rowLink}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: 'var(--text)', fontWeight: 600 }}>{leadDisplayName(l)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{l.company || l.status || '—'}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'capitalize' }}>{l.status || ''}</span>
+                      {value !== null && <span style={{ color: 'var(--text)', fontWeight: 700, fontSize: 13 }}>{formatINR(value)}</span>}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
         <Card title={`Deals (${deals.length})`}>
           {deals.length === 0 ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No deals.</div>
@@ -254,6 +290,21 @@ export default function AccountDetailPage() {
           )}
         </Card>
 
+        <Card title={`Products${products.length > 0 ? ` (${products.length})` : ''}`}>
+          {products.length === 0 ? (
+            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No product lines on this account&apos;s deals yet.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {products.map((p) => (
+                <div key={p.name} style={{ ...rowLink, cursor: 'default' }}>
+                  <div style={{ flex: 1, color: 'var(--text)', fontWeight: 600 }}>{p.name}</div>
+                  {p.value > 0 && <div style={{ color: 'var(--text)', fontWeight: 700 }}>{formatINR(p.value)}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
         <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} onEdit={setEditingActivity} addHref={`/dashboard/crm/activities/new?account_id=${id}`} /></Card>
 
         {notes.length > 0 && (
@@ -275,8 +326,9 @@ export default function AccountDetailPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
             <Stat label="Contacts" value={String(contacts.length)} />
             <Stat label="Open Deals" value={String(deals.filter((d) => d.status === 'open').length)} />
-            <Stat label="Open Value" value={formatINR(openDealValue)} />
-            <Stat label="Won Revenue" value={formatINR(totalRevenue)} />
+            <Stat label="Total" value={formatINR(totalValue)} />
+            <Stat label="Open Pipeline" value={formatINR(openDealValue)} />
+            <Stat label="Won" value={formatINR(wonValue)} />
           </div>
         </Card>
         <AccountSummaryCard accountId={a.id} initial={a.ai_summary} />
@@ -411,6 +463,49 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div style={{ color: 'var(--text)', fontSize: 16, fontWeight: 800, marginTop: 2 }}>{value}</div>
     </div>
   );
+}
+
+// A lead's display name: the stamped full name, else first + last, else the company, else the email.
+function leadDisplayName(l: Lead): string {
+  return (l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || l.company || l.email || 'Lead');
+}
+
+// A monetary value for a lead when the tenant stored one on the row's custom_fields (leads have no value column).
+// Never fabricated — returns null when no recognisable, positive amount is present.
+function leadValue(l: Lead): number | null {
+  const cf = (l.custom_fields || {}) as Record<string, unknown>;
+  for (const k of ['deal_value', 'value', 'amount', 'estimated_value', 'budget']) {
+    const raw = cf[k];
+    const n = typeof raw === 'number' ? raw : (typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
+type ProductRow = { name: string; value: number };
+// Roll the account's deals up to one row per product, summing the per-line value. The products live on each deal's
+// custom_fields.line_items (stamped at conversion: { product_name, product_id, subtotal, order_value, … }); the value
+// is the ordered amount where present, else the quoted subtotal. Deals with no line items simply contribute nothing,
+// so an account whose deals carry no product lines rolls up to an empty list (the card then shows its empty state).
+function accountProductRollup(deals: Deal[]): ProductRow[] {
+  const map = new Map<string, number>();
+  for (const d of deals) {
+    const cf = (d.custom_fields || {}) as { line_items?: unknown };
+    const lines = Array.isArray(cf.line_items) ? cf.line_items : [];
+    for (const raw of lines) {
+      if (!raw || typeof raw !== 'object') continue;
+      const l = raw as { product_name?: unknown; product_id?: unknown; subtotal?: unknown; order_value?: unknown };
+      const name = typeof l.product_name === 'string' && l.product_name.trim()
+        ? l.product_name.trim()
+        : (typeof l.product_id === 'string' && l.product_id.trim() ? l.product_id.trim() : '');
+      if (!name) continue;
+      const amt = Number((l.order_value ?? l.subtotal) ?? 0);
+      map.set(name, (map.get(name) || 0) + (Number.isFinite(amt) ? amt : 0));
+    }
+  }
+  return Array.from(map.entries())
+    .map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }))
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
 }
 
 const rowLink: React.CSSProperties = {

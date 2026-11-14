@@ -349,6 +349,8 @@ export const crmAccounts = {
   ...crud<Account>(`${BASE}/accounts`),
   contacts: (id: string) => api.get<Wrapped<Contact[]>>(`${BASE}/accounts/${id}/contacts`),
   deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/accounts/${id}/deals`),
+  // Leads whose account_id = this account (GET /crm/accounts/:id/leads).
+  leads: (id: string) => api.get<Wrapped<Lead[]>>(`${BASE}/accounts/${id}/leads`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/accounts/${id}/activities`),
   notes: (id: string) => api.get<Wrapped<Note[]>>(`${BASE}/accounts/${id}/notes`),
   // Management timeline: every visit / form / follow-up, who visited, per-FE rollup.
