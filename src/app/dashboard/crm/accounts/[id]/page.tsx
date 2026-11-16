@@ -465,7 +465,9 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 // A lead's display name: the stamped full name, else first + last, else the company, else the email.
 function leadDisplayName(l: Lead): string {
-  return (l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || l.company || l.email || 'Lead');
+  // Prefer the backend-composed structured name (Spark & Ray) so an account's
+  // leads read distinctly instead of repeating the company name.
+  return (l.display_name || l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || l.company || l.email || 'Lead');
 }
 
 // A monetary value for a lead when the tenant stored one on the row's custom_fields (leads have no value column).

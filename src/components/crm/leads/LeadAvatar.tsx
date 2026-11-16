@@ -1,8 +1,11 @@
 'use client';
 import type { Lead } from '../../../types/crm';
 
-export function leadDisplayName(l: Pick<Lead, 'full_name' | 'first_name' | 'last_name' | 'email'>): string {
-  return l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || '—';
+export function leadDisplayName(l: Pick<Lead, 'full_name' | 'first_name' | 'last_name' | 'email' | 'display_name'>): string {
+  // Connected-B2B (Spark & Ray): the backend composes a structured display name
+  // (Group – Company – City – … – Owner); prefer it so NTPC-style leads read
+  // distinctly instead of as a wall of identical company names.
+  return l.display_name || l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || '—';
 }
 
 function initials(name: string): string {
