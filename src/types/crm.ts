@@ -47,6 +47,15 @@ export interface Lead extends B2CFields {
   status: LeadStatus;
   /** Connected-B2B (Spark & Ray): the unique, read-only reference such as `SR/LD/2627-12`. Never sent on create / patch. */
   ref_no?: string | null;
+  /** Connected-B2B (Spark & Ray) structured lead: the backend-composed human-readable
+   *  name (Group – Company – City – State – Plant – … – Owner). Read-only. */
+  display_name?: string | null;
+  /** The plant/unit (crm_sites id) this requirement is for. */
+  site_id?: string | null;
+  /** The lead's requirement text (one lead = one requirement). */
+  requirement?: string | null;
+  /** The contact's department, denormalised onto the lead for naming/reporting. */
+  department?: string | null;
   /** Connected-B2B built-in field `lead_type` (gated like every built-in); null / absent = not set. */
   lead_type?: LeadType | null;
   source_id?: string | null;
