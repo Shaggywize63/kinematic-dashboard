@@ -1277,11 +1277,10 @@ export default function NewLeadPage() {
           <Grid narrow={narrow}>
             {text('first_name', 'First name', { required: fields.requiredFor('first_name', true) })}
             {text('last_name',  'Last name',  { required: fields.requiredFor('last_name',  true) })}
-            {sparkStructured && (
-              <Field label="Designation">
-                <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Maintenance In-charge" />
-              </Field>
-            )}
+            {/* Designation = the built-in `title` field, rendered through the
+                field-override helper so it keeps its id, admin label/order and
+                hidden/required gating (the contract every built-in must honour). */}
+            {sparkStructured && text('title', 'Designation', { placeholder: 'e.g. Maintenance In-charge' })}
             {/* Department (Spark structured) — denormalised onto the lead for the
                 name + reporting; the backend also stamps it on the contact. */}
             {sparkStructured && (
