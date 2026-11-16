@@ -222,7 +222,9 @@ test.describe('Lead form order — Spark Sub-industry stays glued to Industry', 
       industry: lbl(dialog, /^Industry\*?$/),
       sub,
       note: dialog.locator('#lead-cf-visit_note'),
-      title: lbl(dialog, /^Job Title\*?$/),
+      // Spark shows the built-in `title` as "Designation" in the Person section
+      // (it keeps its field-override order via os('title')).
+      title: lbl(dialog, /^Designation\*?$/),
     };
     await expect.poll(async () => (await visualOrder(locs)).join(',')).toBe('company,industry,sub,note,title');
     expect(await cssOrder(parent(sub))).toBe('2');

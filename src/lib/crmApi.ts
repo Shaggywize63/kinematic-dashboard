@@ -76,8 +76,18 @@ export const searchApi = {
   query: (q: string) => api.get<Wrapped<SearchResponse>>(`${BASE}/search${qs({ q })}`),
 };
 
+// Connected-B2B (Spark & Ray): one make/product/qty line under a lead's requirement.
+export interface LeadProductLine {
+  id: string; lead_id: string;
+  make_id?: string | null; make_name?: string | null;
+  product_id?: string | null; product_name?: string | null;
+  qty?: number | null; unit?: string | null; line_value?: number | null; position?: number | null;
+}
+
 export const crmLeads = {
   ...crud<Lead>(`${BASE}/leads`),
+  // The make/product/qty lines captured under this lead's requirement (Spark & Ray).
+  productLines: (id: string) => api.get<Wrapped<LeadProductLine[]>>(`${BASE}/leads/${id}/product-lines`),
   // AI Smart Filters — plain-English → validated lead-list filter params. The
   // page applies the returned params to the normal list fetch (all tenant
   // scoping stays server-side). `explanation` is a human-readable summary.

@@ -2,11 +2,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings, crmLeadSources, crmAccounts, crmContacts } from '../../lib/crmApi';
+import { crmLeads, crmSettings, crmLeadSources, crmAccounts, crmMakes, crmProducts, crmSites, type AccountSite } from '../../lib/crmApi';
 import api from '../../lib/api';
 import { isB2bClientActive } from '../../lib/b2bClient';
 import { orderLeadSources } from '../../lib/leadSourceOrder';
-import type { BusinessType, CustomField, Lead, LeadStatus, LeadSource } from '../../types/crm';
+import type { BusinessType, CustomField, Lead, LeadStatus, LeadSource, Make, Product } from '../../types/crm';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
 import GoogleAddressAutocomplete, { type PlaceResult } from './GoogleAddressAutocomplete';
@@ -183,7 +183,10 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // Connected-B2B (Spark & Ray) B2B lead = company-centric: the person Contact
   // fields are dropped (people live in Contacts & requirements) and the lead's
   // name comes from the Company. Mirrors the new-lead form.
-  const companyLead = b2bAccounts && !form.is_b2c;
+  // Option A (structured B2B): a Spark & Ray lead is named after its PERSON; the
+  // company, group, location, plant, department, requirement and product lines are
+  // captured as their own fields and the backend composes the display name.
+  const sparkStructured = b2bAccounts && !form.is_b2c;
   // Lead type (connected-B2B only for now): a built-in field, so hide / relabel / required all come from the overrides.
   const showLeadType = sparkLead && settingsLoaded && !fields.isHidden('lead_type');
   const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
@@ -191,8 +194,12 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // revisit. Starts empty (existing contacts show on the lead detail page); each
   // non-blank row is sent as the lead PATCH `contacts[]` and resolved server-side
   // to crm_contacts under the lead's account. Reset whenever the modal reopens.
-  const [contactRows, setContactRows] = useState<LeadContactRow[]>([]);
-  useEffect(() => { if (open) setContactRows([]); }, [open, lead]);
+  // Spark & Ray structured capture (Option A): product lines under the requirement,
+  // the Makes list for the picker, and the account's sites (locations/plants).
+  const [productLines, setProductLines] = useState<ProductLineRow[]>([newProductLine()]);
+  const [makes, setMakes] = useState<Make[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [accountSites, setAccountSites] = useState<AccountSite[]>([]);
   useEffect(() => {
     if (!open || !b2bAccounts || form.is_b2c || form.account_id) { setAccountResults([]); return; }
     const term = form.company.trim();
@@ -207,6 +214,59 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   }, [open, b2bAccounts, form.is_b2c, form.account_id, form.company]);
 
   useEffect(() => { if (open) setForm(seed(lead)); }, [open, lead]);
+  // Spark & Ray structured capture: on open, load the pickers (makes / products),
+  // the lead's product lines, and resolve the plant name (from the account's sites)
+  // and the group name (from the account's parent account). Everything degrades
+  // gracefully — a blank row / empty field — if a fetch fails.
+  useEffect(() => {
+    if (!open || !sparkStructured) return;
+    let off = false;
+    (async () => {
+      const [mk, pr] = await Promise.allSettled([crmMakes.list(), crmProducts.list()]);
+      if (off) return;
+      if (mk.status === 'fulfilled') setMakes(((mk.value.data as Make[]) || []).filter((m) => (m as { is_active?: boolean }).is_active !== false));
+      if (pr.status === 'fulfilled') setProducts(((pr.value.data as Product[]) || []).filter((p) => p.is_active !== false));
+      try {
+        const r = await crmLeads.productLines(lead.id);
+        if (!off) {
+          const rows = ((r.data as Array<Record<string, unknown>>) || []).map((l) => ({
+            key: Math.random().toString(36).slice(2),
+            makeId: (l.make_id as string) || '', makeName: (l.make_name as string) || '',
+            productId: (l.product_id as string) || '', productName: (l.product_name as string) || '',
+            qty: l.qty != null ? String(l.qty) : '', unit: (l.unit as string) || '',
+            lineValue: l.line_value != null ? String(l.line_value) : '',
+          }));
+          setProductLines(rows.length ? rows : [newProductLine()]);
+        }
+      } catch { /* keep a blank row */ }
+      const accId = (lead as Lead & { account_id?: string | null }).account_id;
+      if (!accId) return;
+      try {
+        const r = await crmSites.forAccount(accId);
+        if (!off) {
+          const siteList = (r.data as AccountSite[]) || [];
+          setAccountSites(siteList);
+          const site = siteList.find((s) => s.id === lead.site_id);
+          if (site) {
+            setForm((f) => ({ ...f, plant: f.plant || site.name || '' }));
+            const parentId = (site as AccountSite & { parent_site_id?: string | null }).parent_site_id;
+            const loc = parentId ? siteList.find((s) => s.id === parentId) : null;
+            if (loc) setForm((f) => ({ ...f, city: f.city || loc.city || '', state: f.state || loc.state || '' }));
+          }
+        }
+      } catch { /* no sites */ }
+      try {
+        const ar = await crmAccounts.get(accId);
+        const parentAccId = (ar.data as { parent_account_id?: string | null })?.parent_account_id;
+        if (parentAccId && !off) {
+          const gr = await crmAccounts.get(parentAccId);
+          const gname = (gr.data as { name?: string })?.name;
+          if (gname && !off) setForm((f) => ({ ...f, group: f.group || gname }));
+        }
+      } catch { /* no group */ }
+    })();
+    return () => { off = true; };
+  }, [open, lead, sparkStructured]);
   // Fetch org's B2B/B2C mode AND the active lead sources on first open. The
   // sources list drives the Source <select>; we filter out is_active=false
   // ones so reps can't pick a retired source on a record edit.
@@ -265,7 +325,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     const reqGuards: Array<{ key: string; value: string; default: boolean; message: string }> = [
       // Person fields are dropped on a company-centric Spark lead, so they are
       // never required there (the lead's name comes from the Company).
-      ...(companyLead ? [] : [
+      ...(sparkStructured ? [] : [
         { key: 'first_name', value: form.first_name, default: true,  message: 'First name is required.' },
         { key: 'last_name',  value: form.last_name,  default: false, message: 'Last name is required.' },
         // Email guard is suppressed for Tata Tiscon (field is hidden);
@@ -357,29 +417,46 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       // Company-centric Spark lead: keep any existing person data (re-sent above),
       // but guarantee the lead still has a name — fall back to the Company when
       // both name parts are empty (e.g. a web-created company lead).
-      if (companyLead && !form.first_name.trim() && !form.last_name.trim() && form.company.trim()) {
+      if (sparkStructured && !form.first_name.trim() && !form.last_name.trim() && form.company.trim()) {
         body.last_name = form.company.trim();
       }
-      // Connected-B2B (Spark & Ray): new people met on this revisit. The backend
-      // PATCH resolves these to crm_contacts under the lead's account (same path
-      // as create). Only non-blank rows are sent; a linked row carries its `id`.
-      if (b2bAccounts && !form.is_b2c && contactRows.length) {
-        const contacts = contactRows
-          .map((r) => {
-            const anyIdentity = r.firstName.trim() || r.lastName.trim() || r.email.trim() || r.phone.trim();
-            if (!anyIdentity && !r.contactId) return null;
-            const c: Record<string, unknown> = {};
-            if (r.contactId) c.id = r.contactId;
-            if (r.firstName.trim()) c.first_name = r.firstName.trim();
-            if (r.lastName.trim()) c.last_name = r.lastName.trim();
-            if (r.title.trim()) c.title = r.title.trim();
-            if (r.phone.trim()) c.phone = r.phone.trim();
-            if (r.email.trim()) c.email = r.email.trim();
-            if (r.requirement.trim()) c.requirement = r.requirement.trim();
-            return c;
+      // Spark & Ray structured capture (Option A): send group / plant / location /
+      // department / requirement and the make·product·qty lines; the lead stays
+      // person-named (fallback to company above). group / plant resolve by name
+      // server-side. The person is also re-sent as a single linked contact.
+      if (sparkStructured) {
+        const S = (val: string) => (val.trim() ? val.trim() : null);
+        Object.assign(body, {
+          group: S(form.group),
+          plant: S(form.plant),
+          location_city: S(form.city),
+          location_state: S(form.state),
+          department: S(form.department),
+          requirement: S(form.requirement),
+        });
+        body.product_lines = productLines
+          .map((r, i) => {
+            const any = r.makeId || r.makeName.trim() || r.productId || r.productName.trim() || r.qty.trim();
+            if (!any) return null;
+            const line: Record<string, unknown> = { position: i };
+            if (r.makeId) line.make_id = r.makeId;
+            if (r.makeName.trim()) line.make_name = r.makeName.trim();
+            if (r.productId) line.product_id = r.productId;
+            if (r.productName.trim()) line.product_name = r.productName.trim();
+            if (r.qty.trim() && !Number.isNaN(Number(r.qty))) line.qty = Number(r.qty);
+            if (r.unit.trim()) line.unit = r.unit.trim();
+            if (r.lineValue.trim() && !Number.isNaN(Number(r.lineValue))) line.line_value = Number(r.lineValue);
+            return line;
           })
-          .filter((c): c is Record<string, unknown> => c !== null);
-        if (contacts.length) body.contacts = contacts;
+          .filter((l): l is Record<string, unknown> => l !== null);
+        const person: Record<string, unknown> = {};
+        if (form.first_name.trim()) person.first_name = form.first_name.trim();
+        if (form.last_name.trim()) person.last_name = form.last_name.trim();
+        if (form.title.trim()) person.title = form.title.trim();
+        if (form.phone.trim()) person.phone = form.phone.trim();
+        if (form.email.trim()) person.email = form.email.trim();
+        if (form.requirement.trim()) person.requirement = form.requirement.trim();
+        if (Object.keys(person).length) body.contacts = [person];
       }
       if (form.is_b2c) { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
       // City / state / country are editable on B2B leads too (the Location
@@ -489,12 +566,20 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       return (
         <>
         <FlatRegion flat={flat}>
-        {/* Company-centric Spark lead: person Contact fields are dropped (people
-            live in Contacts & requirements); the lead's name is the Company. */}
-        {!companyLead && (<>
-        <SL first>Contact</SL><Grid>
+        {/* Option A: the Person section is shown for Spark too (the lead is named
+            after its person). Designation = the built-in title; Department is new. */}
+        <SL first>{sparkStructured ? 'Person' : 'Contact'}</SL><Grid>
           {show('first_name', <F label={lbl('first_name', 'First Name')} required={req('first_name', true)} style={os('first_name')} value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />)}
           {show('last_name',  <F label={lbl('last_name',  'Last Name')}  required={req('last_name',  false)} style={os('last_name')} value={form.last_name}  onChange={(v) => setForm({ ...form, last_name:  v })} />)}
+          {/* Designation = the built-in `title` field, rendered through the override
+              helpers (label / order / hidden) so the contract holds — shown in the
+              Person section for Spark instead of the Company section. */}
+          {sparkStructured && show('title', <F label={lbl('title', 'Designation')} style={os('title')} value={form.title} onChange={(v) => setForm({ ...form, title: v })} />)}
+          {sparkStructured && (
+            <Field label="Department" style={os('department')}>
+              <Input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="e.g. Instrumentation (optional)" />
+            </Field>
+          )}
           {/* Phone / email default to optional — the form honours the
               admin's Settings → Custom Fields override (lead.email /
               lead.phone) instead of guessing based on is_b2c, so the
@@ -519,7 +604,6 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
           />
         ), 'phone')}
-        </>)}
 
         {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked) || showLeadType) && (
           <><SL>Assignment</SL><Grid>
@@ -586,7 +670,12 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         {!form.is_b2c ? (
           <>
           {(!fields.isHidden('company') || !fields.isHidden('title') || !fields.isHidden('industry')) && (
-            <><SL>Company</SL><Grid>
+            <><SL>{sparkStructured ? 'Company & plant' : 'Company'}</SL><Grid>
+              {sparkStructured && (
+                <Field label="Group" hint="Parent group this company maps to (optional).">
+                  <Input value={form.group} onChange={(e) => setForm({ ...form, group: e.target.value })} placeholder="e.g. Tata Steel Limited" />
+                </Field>
+              )}
               {b2bAccounts
                 ? (!fields.isHidden('company') && (
                     <Field label={lbl('company', 'Company')} required={req('company', true)} style={os('company')}>
@@ -623,11 +712,21 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                     </Field>
                   ))
                 : show('company',  <F label={lbl('company',  'Company')}   required={req('company', true)} style={os('company')} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
-              {show('title',    <F label={lbl('title',    'Job Title')} style={os('title')} value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
+              {sparkStructured && (
+                <Field label="Plant / Unit" hint="The specific plant or unit at this location.">
+                  <Input list="spark-edit-site-list" value={form.plant} onChange={(e) => setForm({ ...form, plant: e.target.value })} placeholder="e.g. Pellet Plant" />
+                </Field>
+              )}
+              {/* Job title moves to the Person section (as Designation) for Spark. */}
+              {!sparkStructured && show('title',    <F label={lbl('title',    'Job Title')} style={os('title')} value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
               {/* Industry: dropdown for Spark & Ray, free text for every other tenant. */}
               {show('industry', b2bAccounts ? sparkIndustry : <F label={lbl('industry', 'Industry')} style={os('industry')} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
               {sparkSubIndustry}
-            </Grid></>
+            </Grid>
+            {sparkStructured && accountSites.length > 0 && (
+              <datalist id="spark-edit-site-list">{accountSites.map((s) => <option key={s.id} value={s.name} />)}</datalist>
+            )}
+            </>
           )}
           {/* Location on a B2B lead too. Inbound leads (Google Ads / web form)
               land as B2B and often arrive with no city — without this the city
@@ -642,26 +741,36 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               {show('country', <F label={lbl('country', 'Country')} style={os('country')} value={form.country} onChange={(v) => setForm({ ...form, country: v })} />)}
             </Grid></>
           )}
-          {/* Connected-B2B (Spark & Ray): add people met on this revisit. Each
-              becomes/links a CRM contact under the lead's account on save. */}
-          {b2bAccounts && (
-            <FlatBlock flat={flat} style={{ order: UNORDERED_LAST + 1 }}><SL>Contacts &amp; requirements</SL>
+          {/* Spark & Ray structured capture (Option A): the lead's requirement and
+              the make/product/qty lines it covers. */}
+          {sparkStructured && (
+            <FlatBlock flat={flat} style={{ order: UNORDERED_LAST + 1 }}><SL>Requirement &amp; products</SL>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {contactRows.length === 0 && (
-                <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
-                  Add a person you met on this visit — they’ll be linked to the company’s account. Existing contacts show on the lead’s detail page.
-                </div>
-              )}
-              {contactRows.map((row, i) => (
-                <EditContactRow
-                  key={row.key}
-                  row={row}
-                  index={i}
-                  onChange={(next) => setContactRows((rows) => rows.map((r) => (r.key === row.key ? next : r)))}
-                  onRemove={() => setContactRows((rows) => rows.filter((r) => r.key !== row.key))}
-                />
-              ))}
-              <div><Button type="button" onClick={() => setContactRows((rows) => [...rows, newContactRow()])}>+ Add a person</Button></div>
+              <Field label="Requirement">
+                <Textarea rows={2} value={form.requirement} onChange={(e) => setForm({ ...form, requirement: e.target.value })} placeholder="e.g. Requirement to Replace ASCO Pulse Valve with MAC Pulse Valves" />
+              </Field>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {productLines.map((row) => (
+                  <div key={row.key} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.1fr) minmax(0,1.4fr) 90px 120px 32px', gap: 8, alignItems: 'end' }}>
+                    <Field label="Make">
+                      <Select value={row.makeId} onChange={(e) => { const id = e.target.value; const m = makes.find((x) => x.id === id); setProductLines((rows) => rows.map((r) => (r.key === row.key ? { ...r, makeId: id, makeName: m?.name ?? '' } : r))); }}>
+                        <option value="">— Make —</option>
+                        {makes.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Product">
+                      <Select value={row.productId} onChange={(e) => { const id = e.target.value; const p = products.find((x) => x.id === id); setProductLines((rows) => rows.map((r) => (r.key === row.key ? { ...r, productId: id, productName: p?.name ?? '', unit: r.unit || (p?.unit ?? '') } : r))); }}>
+                        <option value="">— Product —</option>
+                        {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.code ? ` (${p.code})` : ''}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Qty"><Input inputMode="decimal" value={row.qty} onChange={(e) => setProductLines((rows) => rows.map((r) => (r.key === row.key ? { ...r, qty: e.target.value.replace(/[^0-9.]/g, '') } : r)))} placeholder="12" /></Field>
+                    <Field label="Line value"><Input inputMode="decimal" value={row.lineValue} onChange={(e) => setProductLines((rows) => rows.map((r) => (r.key === row.key ? { ...r, lineValue: e.target.value.replace(/[^0-9.]/g, '') } : r)))} placeholder="₹" /></Field>
+                    <Button type="button" onClick={() => setProductLines((rows) => (rows.length > 1 ? rows.filter((r) => r.key !== row.key) : [newProductLine()]))} aria-label="Remove product line">×</Button>
+                  </div>
+                ))}
+                <div><Button type="button" onClick={() => setProductLines((rows) => [...rows, newProductLine()])}>+ Add product line</Button></div>
+              </div>
             </div></FlatBlock>
           )}
           </>
@@ -843,94 +952,33 @@ function seed(l: Lead) {
     tags_input: Array.isArray((l as Lead & { tags?: string[] | null }).tags)
       ? ((l as Lead & { tags?: string[] | null }).tags as string[]).join(', ')
       : '',
+    // Spark & Ray structured capture (Option A). department / requirement / site_id
+    // seed from the row; group and plant NAMES are resolved after open (from the
+    // account's parent group and its sites).
+    department: l.department || '', requirement: l.requirement || '', site_id: l.site_id || '',
+    group: '', plant: '',
   };
 }
-// One person added on a lead edit (B2B / Spark & Ray), mirroring the new-lead
-// form's row. `key` is a client-only React key; `contactId` is set when the row
-// is linked to an existing CRM contact via the typeahead (sent as `id` so the
-// backend resolves that exact record).
-type LeadContactRow = {
-  key: string; contactId: string;
-  firstName: string; lastName: string; title: string; phone: string; email: string; requirement: string;
+// One make/product/qty line under the lead's requirement (Spark & Ray), mirroring
+// the new-lead form. Values are strings for controlled inputs, parsed on submit.
+type ProductLineRow = {
+  key: string;
+  makeId: string; makeName: string; productId: string; productName: string;
+  qty: string; unit: string; lineValue: string;
 };
-const newContactRow = (): LeadContactRow => ({
-  key: Math.random().toString(36).slice(2), contactId: '',
-  firstName: '', lastName: '', title: '', phone: '', email: '', requirement: '',
+const newProductLine = (): ProductLineRow => ({
+  key: Math.random().toString(36).slice(2),
+  makeId: '', makeName: '', productId: '', productName: '', qty: '', unit: '', lineValue: '',
 });
-
-// A single "Contacts & requirements" row on the edit modal. Leads with a name
-// typeahead against existing CRM contacts (inline results so the modal's own
-// scroll never clips them); picking one links the row, typing fresh creates a
-// new contact on save. B2B / Spark & Ray only.
-function EditContactRow({ row, index, onChange, onRemove }: {
-  row: LeadContactRow; index: number; onChange: (next: LeadContactRow) => void; onRemove: () => void;
-}) {
-  const [results, setResults] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null; email?: string | null }>>([]);
-  useEffect(() => {
-    if (row.contactId) { setResults([]); return; }
-    const term = `${row.firstName} ${row.lastName}`.trim();
-    if (term.length < 2) { setResults([]); return; }
-    let off = false;
-    const t = setTimeout(() => {
-      crmContacts.list({ q: term, limit: 8 })
-        .then((r) => { if (!off) setResults(((r.data as any[]) || []).filter((c) => c && c.id)); })
-        .catch(() => { if (!off) setResults([]); });
-    }, 250);
-    return () => { off = true; clearTimeout(t); };
-  }, [row.contactId, row.firstName, row.lastName]);
-  const nameOf = (c: { first_name?: string | null; last_name?: string | null }) =>
-    [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Unnamed contact';
-  return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--s2)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Person {index + 1}</span>
-        <button type="button" onClick={onRemove} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Remove</button>
-      </div>
-      {row.contactId ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: 'var(--text)' }}>
-          <span style={{ fontWeight: 600, color: 'var(--ok)' }}>✓ 👤 {[row.firstName, row.lastName].filter(Boolean).join(' ') || 'Linked contact'}</span>
-          {row.title && <span style={{ color: 'var(--text-dim)' }}>· {row.title}</span>}
-          <button type="button" onClick={() => onChange({ ...row, contactId: '' })} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px 16px' }}>
-          <Field label="First name">
-            <Input autoComplete="off" placeholder="Start typing to link a contact…" value={row.firstName} onChange={(e) => onChange({ ...row, firstName: e.target.value })} />
-            {results.length > 0 && (
-              <div style={{ marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                {results.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => { onChange({ ...row, contactId: c.id, firstName: c.first_name || '', lastName: c.last_name || '', title: c.title || '', phone: c.phone || '', email: c.email || '' }); setResults([]); }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}
-                  >
-                    <span aria-hidden>👤</span>
-                    <span style={{ fontWeight: 600 }}>{nameOf(c)}</span>
-                    {(c.title || c.phone) && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{c.title || c.phone}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </Field>
-          <Field label="Last name"><Input value={row.lastName} onChange={(e) => onChange({ ...row, lastName: e.target.value })} /></Field>
-          <Field label="Designation"><Input value={row.title} onChange={(e) => onChange({ ...row, title: e.target.value })} /></Field>
-          <Field label="Phone"><Input type="tel" inputMode="numeric" value={row.phone} onChange={(e) => onChange({ ...row, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} placeholder="10-digit mobile" /></Field>
-          <Field label="Email"><Input type="email" value={row.email} onChange={(e) => onChange({ ...row, email: e.target.value })} placeholder="name@company.com" /></Field>
-        </div>
-      )}
-      <Field label="Requirement" hint="What this person is asking for.">
-        <Textarea rows={2} value={row.requirement} onChange={(e) => onChange({ ...row, requirement: e.target.value })} placeholder="e.g. 200 MT TMT bars for a Q3 project" />
-      </Field>
-    </div>
-  );
-}
 
 // One-line hint shown under each section title, keyed by the section name —
 // mirrors the lead-CREATE form's `<Section title hint>` so the edit form reads
 // as clearly grouped sections rather than a flat list of fields.
 const SECTION_HINTS: Record<string, string> = {
   'Contact': "Who you're talking to.",
+  'Person': 'The person this requirement is for.',
+  'Company & plant': 'The organisation, group and plant.',
+  'Requirement & products': 'What they need, and the make / product / qty.',
   'Assignment': 'Stage, source and owner.',
   'Company': 'Where they work.',
   'Location': 'Used for city scoping and routing.',
