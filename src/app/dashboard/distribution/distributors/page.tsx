@@ -18,13 +18,14 @@ interface DistForm {
   customer_class: string;
   credit_limit: string;
   payment_terms_days: string;
+  salesman_id: string;
 }
 
-const INIT: DistForm = { name: '', code: '', legal_name: '', gstin: '', state_code: '', pan: '', region: '', customer_class: 'distributor', credit_limit: '0', payment_terms_days: '0' };
+const INIT: DistForm = { name: '', code: '', legal_name: '', gstin: '', state_code: '', pan: '', region: '', customer_class: 'distributor', credit_limit: '0', payment_terms_days: '0', salesman_id: '' };
 
 // ── Dealer bulk-upload (import) ───────────────────────────────────────────────
-const IMPORT_HEADERS = ['code', 'name', 'legal_name', 'gstin', 'pan', 'state_code', 'customer_class', 'credit_limit', 'payment_terms_days', 'region', 'contact_name', 'contact_mobile', 'email', 'address_line1', 'address_line2', 'city', 'pincode'];
-const IMPORT_EXAMPLE = ['SS-DLR-01', 'Example Traders', 'Example Traders Pvt Ltd', '27AABCM1234M1ZQ', 'AABCM1234M', '27', 'distributor', '500000', '30', 'Maharashtra', 'Ramesh', '9800000000', 'ramesh@example.com', '12 MG Road', '', 'Pune', '411001'];
+const IMPORT_HEADERS = ['code', 'name', 'sales_rep_email', 'legal_name', 'gstin', 'pan', 'state_code', 'customer_class', 'credit_limit', 'payment_terms_days', 'region', 'contact_name', 'contact_mobile', 'email', 'address_line1', 'address_line2', 'city', 'pincode'];
+const IMPORT_EXAMPLE = ['SS-DLR-01', 'Example Traders', 'rep@example.com', 'Example Traders Pvt Ltd', '27AABCM1234M1ZQ', 'AABCM1234M', '27', 'distributor', '500000', '30', 'Maharashtra', 'Ramesh', '9800000000', 'ramesh@example.com', '12 MG Road', '', 'Pune', '411001'];
 
 // Minimal RFC-4180 CSV parser: handles quoted fields, embedded commas/newlines and "" escapes.
 function parseCsv(text: string): string[][] {
@@ -50,6 +51,7 @@ interface ImportResult { created: number; skipped: number; total: number; errors
 
 export default function DistributorsPage() {
   const [items, setItems] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<DistForm>(INIT);
@@ -107,6 +109,8 @@ export default function DistributorsPage() {
     try { const r: any = await api.getDistributors(); setItems(r?.data || r || []); } catch {} setLoading(false);
   };
   useEffect(() => { load(); }, []);
+  useEffect(() => { (async () => { try { const r: any = await api.getUsers(); setUsers(r?.data || r || []); } catch {} })(); }, []);
+  const userName = useCallback((id?: string | null) => { if (!id) return '—'; const u = users.find((x) => x.id === id); return u ? (u.name || u.email || '—') : '—'; }, [users]);
 
   const onGstinChange = (raw: string) => {
     const g = raw.toUpperCase();
@@ -158,6 +162,7 @@ export default function DistributorsPage() {
         body.place_of_supply = form.state_code; // default place_of_supply = own state
       }
       if (form.region) body.region = form.region;
+      if (form.salesman_id) body.salesman_id = form.salesman_id;
       await api.createDistributor(body);
       setShowForm(false); setForm(INIT); setVerifyMsg(null);
       await load();
@@ -331,6 +336,14 @@ export default function DistributorsPage() {
             <Field label="Region"          value={form.region}             onChange={(v) => setForm({ ...form, region: v })} />
             <Field label="Credit Limit (₹)"     value={form.credit_limit}        onChange={(v) => setForm({ ...form, credit_limit: v })} />
             <Field label="Payment Terms (days)" value={form.payment_terms_days}  onChange={(v) => setForm({ ...form, payment_terms_days: v })} />
+            <div style={{ gridColumn: 'span 2' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Sales Rep</div>
+              <select value={form.salesman_id} onChange={(e) => setForm({ ...form, salesman_id: e.target.value })}
+                style={{ width: '100%', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13 }}>
+                <option value="">— Unassigned —</option>
+                {users.map((u) => (<option key={u.id} value={u.id}>{u.name || u.email}{u.email ? ` · ${u.email}` : ''}</option>))}
+              </select>
+            </div>
           </div>
 
           {err && <div style={{ marginTop: 10, color: 'var(--primary)', fontSize: 12 }}>{err}</div>}
@@ -350,12 +363,13 @@ export default function DistributorsPage() {
             <Th><SortLabel label="GSTIN" sortKey="gstin" sort={sort} onToggle={toggle} /></Th>
             <Th><SortLabel label="State" sortKey="state" sort={sort} onToggle={toggle} /></Th>
             <Th><SortLabel label="Class" sortKey="class" sort={sort} onToggle={toggle} /></Th>
+            <Th>Sales Rep</Th>
             <Th style={{ textAlign: 'right' }}><SortLabel label="Credit Limit" sortKey="credit_limit" sort={sort} onToggle={toggle} align="right" /></Th>
             <Th><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></Th>
             <Th />
           </tr></thead>
           <tbody>
-            {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
+            {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
               pagedDistributors.map((d) => (
                 <tr key={d.id}>
                   <Td style={{ fontWeight: 700 }}><PrefetchLink
@@ -366,6 +380,7 @@ export default function DistributorsPage() {
                   <Td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{d.gstin || '—'}</Td>
                   <Td>{d.state_code ? `${d.state_code} · ${stateName(d.state_code) || ''}` : '—'}</Td>
                   <Td>{d.customer_class || '—'}</Td>
+                  <Td>{userName(d.salesman_id)}</Td>
                   <Td style={{ textAlign: 'right' }}>{inr(d.credit_limit)}</Td>
                   <Td><Pill color={d.is_active ? 'green' : 'gray'}>{d.is_active ? 'active' : 'inactive'}</Pill></Td>
                   <Td style={{ textAlign: 'right' }}>
