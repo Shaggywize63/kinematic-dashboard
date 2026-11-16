@@ -34,14 +34,31 @@ export function trackingPausedMinutes(fe: PausedInput, now: number = Date.now())
   return mins >= TRACKING_PAUSED_AFTER_MIN ? mins : null;
 }
 
-/** "45 min" / "1 h 8 min" */
+/**
+ * Adaptive units: minutes under an hour, hours up to a day, then days.
+ * "45 min" / "1 h 8 min" / "2 d 3 h"
+ */
 export function fmtSilence(mins: number): string {
   if (mins < 60) return `${mins} min`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m ? `${h} h ${m} min` : `${h} h`;
+  if (mins < 60 * 24) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m ? `${h} h ${m} min` : `${h} h`;
+  }
+  const d = Math.floor(mins / (60 * 24));
+  const h = Math.floor((mins % (60 * 24)) / 60);
+  return h ? `${d} d ${h} h` : `${d} d`;
 }
 
-export function trackingPausedText(mins: number): string {
-  return `Tracking paused — no location from this phone for ${fmtSilence(mins)}. It may be switched off, out of signal, or stopped by the phone's battery saver.`;
+/**
+ * Why tracking looks paused. The silent case (location still ON, phone just not reporting) is inherently
+ * uncertain, so we name the likely causes — but when the last heartbeat carried a low battery we call out
+ * the phone's battery saver specifically, since that is the usual culprit below ~20%.
+ */
+export function trackingPausedText(mins: number, batteryPct?: number | null): string {
+  const base = `Tracking paused — no location from this phone for ${fmtSilence(mins)}.`;
+  if (batteryPct != null && batteryPct <= 20) {
+    return `${base} The battery was ${batteryPct}%, so the phone's battery saver has most likely stopped it; it may also be out of signal or closed in the background.`;
+  }
+  return `${base} It may be switched off, out of signal, or stopped by the phone's battery saver.`;
 }

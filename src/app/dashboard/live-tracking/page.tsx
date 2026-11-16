@@ -365,7 +365,7 @@ function popupHtml(
       ${placeBlockHtml(fe.lat as number, fe.lng as number, place, resolved, heading)}
       ${(src || when) ? `<div style="font-size:10px;color:var(--text-dim);margin-top:5px">${escapeHtml([src, when].filter(Boolean).join(' · '))}${escapeHtml(acc)}</div>` : ''}
       ${note ? `<div style="font-size:10px;color:${C.yellow};margin-top:4px;line-height:1.35">${escapeHtml(note)}</div>` : ''}
-      ${paused != null ? `<div style="font-size:10px;font-weight:700;color:${C.red};background:${C.redD};border:1px solid ${C.redB};border-radius:6px;padding:4px 7px;margin-top:6px;line-height:1.35">⏸ ${escapeHtml(trackingPausedText(paused))}</div>` : ''}
+      ${paused != null ? `<div style="font-size:10px;font-weight:700;color:${C.red};background:${C.redD};border:1px solid ${C.redB};border-radius:6px;padding:4px 7px;margin-top:6px;line-height:1.35">⏸ ${escapeHtml(trackingPausedText(paused, fe.battery_percentage))}</div>` : ''}
     </div>`;
 }
 
@@ -921,7 +921,7 @@ function LocationBlock({ fe }: { fe: FELoc }) {
       )}
       {paused != null && (
         <div style={{ flexBasis:'100%', fontSize:11, fontWeight:600, color:C.red, background:C.redD, borderRadius:8, padding:'5px 10px' }}>
-          ⏸ {trackingPausedText(paused)}
+          ⏸ {trackingPausedText(paused, fe.battery_percentage)}
         </div>
       )}
     </div>
@@ -1413,8 +1413,9 @@ export default function LiveTrackingPage() {
                           {(() => { const o = locationOff(fe); return o
                             ? <span style={{ marginLeft:6, color:C.red }}>• off{o.since ? ` ${o.since}` : ''}</span>
                             : (fe.last_location_updated_at && (
-                              <span style={{ marginLeft:6, color: (new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
-                                • {Math.round((new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) / 60000)}m ago{trackingPausedMinutes(fe) != null ? ' · tracking paused' : ''}
+                              <span title={trackingPausedMinutes(fe) != null ? trackingPausedText(trackingPausedMinutes(fe)!, fe.battery_percentage) : undefined}
+                                style={{ marginLeft:6, color: (new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
+                                • {shortSince(fe.last_location_updated_at)} ago{trackingPausedMinutes(fe) != null ? ' · ⏸ tracking paused' : ''}
                               </span>
                             )); })()}
                         </div>
@@ -1469,8 +1470,9 @@ export default function LiveTrackingPage() {
                           {(() => { const o = locationOff(s); return o
                             ? <span style={{ marginLeft:6, color:C.red }}>• off{o.since ? ` ${o.since}` : ''}</span>
                             : (s.last_location_updated_at && (
-                              <span style={{ marginLeft:6, color: (new Date().getTime() - new Date(s.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
-                                • {Math.round((new Date().getTime() - new Date(s.last_location_updated_at).getTime()) / 60000)}m ago{trackingPausedMinutes(s) != null ? ' · tracking paused' : ''}
+                              <span title={trackingPausedMinutes(s) != null ? trackingPausedText(trackingPausedMinutes(s)!, s.battery_percentage) : undefined}
+                                style={{ marginLeft:6, color: (new Date().getTime() - new Date(s.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
+                                • {shortSince(s.last_location_updated_at)} ago{trackingPausedMinutes(s) != null ? ' · ⏸ tracking paused' : ''}
                               </span>
                             )); })()}
                         </div>
