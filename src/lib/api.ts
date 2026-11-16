@@ -500,7 +500,9 @@ export interface OrderPreview {
 }
 export interface OrderCartLineInput { sku_id: string; qty: number; uom?: string }
 export interface OrderCartInput {
-  outlet_id: string;
+  // Either an outlet (beat model) or a distributor (dealer-direct model). The
+  // backend refines that at least one is present.
+  outlet_id?: string;
   distributor_id?: string;
   // Admin/dashboard only: assign the order to a field user. Ignored by the
   // backend for a field_executive (who always books in their own name).
@@ -1440,6 +1442,11 @@ class ApiClient {
   // order create (send client_total for the anti-tamper check).
   getOrderCatalogue(outletId: string) {
     return this.get<{ success: boolean; data: OrderCatalogue }>(`/api/v1/distribution/orders/catalogue${this.sanitizeParams({ outlet_id: outletId })}`);
+  }
+  // Dealer-direct catalogue: priced for the dealer's own customer_class/region,
+  // no outlet involved.
+  getOrderCatalogueByDistributor(distributorId: string) {
+    return this.get<{ success: boolean; data: OrderCatalogue }>(`/api/v1/distribution/orders/catalogue${this.sanitizeParams({ distributor_id: distributorId })}`);
   }
   previewDistOrder(body: OrderCartInput) {
     return this.post<{ success: boolean; data: OrderPreview }>('/api/v1/distribution/orders/preview', body);
