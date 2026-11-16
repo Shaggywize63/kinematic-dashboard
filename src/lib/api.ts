@@ -1411,6 +1411,7 @@ class ApiClient {
   getDistributors(params?: Record<string, string>) { return this.get(`/api/v1/distribution/distributors${this.sanitizeParams(params)}`); }
   getDistributor(id: string) { return this.get(`/api/v1/distribution/distributors/${id}`); }
   createDistributor(data: object) { return this.post('/api/v1/distribution/distributors', data); }
+  importDistributors(rows: Record<string, unknown>[]) { return this.post('/api/v1/distribution/distributors/import', { rows }); }
   updateDistributor(id: string, data: object) { return this.patch(`/api/v1/distribution/distributors/${id}`, data); }
   getDistributorBilling(id: string) { return this.get(`/api/v1/distribution/distributors/${id}/billing-summary`); }
   getDistributorAgeing() { return this.get('/api/v1/distribution/distributors/ageing'); }
