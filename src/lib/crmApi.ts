@@ -808,6 +808,19 @@ export const crmProducts = {
 export const crmMakes = crud<Make>(`${BASE}/makes`);
 export const crmBrands = crud<Brand>(`${BASE}/brands`);
 
+// Connected-B2B (Spark & Ray) lead-structure report: lead counts rolled up by
+// group / company / plant / make / product, with optional drill-down filters.
+export interface LeadStructureReportRow { id: string | null; name: string; lead_count: number; qty_total?: number }
+export interface LeadStructureReportData {
+  total_leads: number;
+  by_group: LeadStructureReportRow[];
+  by_company: LeadStructureReportRow[];
+  by_plant: LeadStructureReportRow[];
+  by_make: LeadStructureReportRow[];
+  by_product: LeadStructureReportRow[];
+}
+export type LeadStructureFilters = Partial<Record<'group_id' | 'account_id' | 'site_id' | 'make_id' | 'product_id', string>>;
+
 // Google Places proxy — the backend fronts the Places API so the key stays
 // server-side. `search` returns a WIDER result set (up to 20) than the
 // Google-JS-SDK autocomplete the address picker normally renders (~5), in the
@@ -1580,6 +1593,10 @@ export const crmReports = {
   // `/reports` prefix, so `?city=` rides along automatically.
   businessReport: (params?: BusinessReportParams) =>
     api.get<Wrapped<BusinessReportPayload>>(`${BASE}/reports/business${qs(params)}`),
+  // Connected-B2B (Spark & Ray): lead counts by group / company / plant / make /
+  // product, with optional drill-down filters.
+  leadStructure: (filters?: LeadStructureFilters) =>
+    api.get<Wrapped<LeadStructureReportData>>(`${BASE}/reports/lead-structure${qs(filters)}`),
 };
 
 // ── Pharma desk-calling (daily tele-calling list + 3 dispositions) ──────────
