@@ -18,12 +18,40 @@ interface DistForm {
   customer_class: string;
   credit_limit: string;
   payment_terms_days: string;
+  salesman_id: string;
 }
 
-const INIT: DistForm = { name: '', code: '', legal_name: '', gstin: '', state_code: '', pan: '', region: '', customer_class: 'distributor', credit_limit: '0', payment_terms_days: '0' };
+const INIT: DistForm = { name: '', code: '', legal_name: '', gstin: '', state_code: '', pan: '', region: '', customer_class: 'distributor', credit_limit: '0', payment_terms_days: '0', salesman_id: '' };
+
+// ── Dealer bulk-upload (import) ───────────────────────────────────────────────
+const IMPORT_HEADERS = ['code', 'name', 'sales_rep_email', 'legal_name', 'gstin', 'pan', 'state_code', 'customer_class', 'credit_limit', 'payment_terms_days', 'region', 'contact_name', 'contact_mobile', 'email', 'address_line1', 'address_line2', 'city', 'pincode'];
+const IMPORT_EXAMPLE = ['SS-DLR-01', 'Example Traders', 'rep@example.com', 'Example Traders Pvt Ltd', '27AABCM1234M1ZQ', 'AABCM1234M', '27', 'distributor', '500000', '30', 'Maharashtra', 'Ramesh', '9800000000', 'ramesh@example.com', '12 MG Road', '', 'Pune', '411001'];
+
+// Minimal RFC-4180 CSV parser: handles quoted fields, embedded commas/newlines and "" escapes.
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = []; let row: string[] = []; let field = ''; let inQ = false;
+  const s = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inQ) {
+      if (c === '"') { if (s[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+
+const csvCell = (v: string) => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+
+interface ImportResult { created: number; skipped: number; total: number; errors: Array<{ row?: number; code?: string; reason: string }> }
 
 export default function DistributorsPage() {
   const [items, setItems] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<DistForm>(INIT);
@@ -31,11 +59,58 @@ export default function DistributorsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState<{ kind: 'ok' | 'warn' | 'err'; text: string } | null>(null);
+  // Bulk upload
+  const [showImport, setShowImport] = useState(false);
+  const [importRows, setImportRows] = useState<Record<string, string>[]>([]);
+  const [importFile, setImportFile] = useState<string>('');
+  const [importBusy, setImportBusy] = useState(false);
+  const [importErr, setImportErr] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+
+  const downloadTemplate = () => {
+    const csv = [IMPORT_HEADERS.map(csvCell).join(','), IMPORT_EXAMPLE.map(csvCell).join(',')].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'dealers-template.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const onPickFile = (file: File | undefined) => {
+    setImportErr(null); setImportResult(null); setImportRows([]); setImportFile('');
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const grid = parseCsv(String(reader.result || ''));
+        if (grid.length < 2) { setImportErr('File has no data rows.'); return; }
+        const header = grid[0].map(h => h.trim().toLowerCase());
+        if (!header.includes('code') || !header.includes('name')) { setImportErr('CSV must have at least "code" and "name" columns. Use the template.'); return; }
+        const rows = grid.slice(1).map(cells => {
+          const o: Record<string, string> = {};
+          header.forEach((h, idx) => { o[h] = (cells[idx] ?? '').trim(); });
+          return o;
+        }).filter(o => o.code || o.name);
+        setImportRows(rows); setImportFile(file.name);
+      } catch { setImportErr('Could not read that file — make sure it is a CSV.'); }
+    };
+    reader.readAsText(file);
+  };
+
+  const runImport = async () => {
+    setImportBusy(true); setImportErr(null); setImportResult(null);
+    try {
+      const r: any = await api.importDistributors(importRows);
+      const res: ImportResult = r?.data || r;
+      setImportResult(res);
+      if (res.created > 0) await load();
+    } catch (e: any) { setImportErr(e?.message || 'Import failed'); }
+    setImportBusy(false);
+  };
 
   const load = async () => {
     try { const r: any = await api.getDistributors(); setItems(r?.data || r || []); } catch {} setLoading(false);
   };
   useEffect(() => { load(); }, []);
+  useEffect(() => { (async () => { try { const r: any = await api.getUsers(); setUsers(r?.data || r || []); } catch {} })(); }, []);
+  const userName = useCallback((id?: string | null) => { if (!id) return '—'; const u = users.find((x) => x.id === id); return u ? (u.name || u.email || '—') : '—'; }, [users]);
 
   const onGstinChange = (raw: string) => {
     const g = raw.toUpperCase();
@@ -87,6 +162,7 @@ export default function DistributorsPage() {
         body.place_of_supply = form.state_code; // default place_of_supply = own state
       }
       if (form.region) body.region = form.region;
+      if (form.salesman_id) body.salesman_id = form.salesman_id;
       await api.createDistributor(body);
       setShowForm(false); setForm(INIT); setVerifyMsg(null);
       await load();
@@ -130,7 +206,79 @@ export default function DistributorsPage() {
 
   return (
     <div>
-      <PageHeader title="Distributors" subtitle="Stockists, distributors, wholesalers" right={<Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : '+ Add Distributor'}</Btn>} />
+      <PageHeader title="Distributors" subtitle="Stockists, distributors, wholesalers" right={
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Btn variant="ghost" onClick={() => { setShowImport((s) => !s); setShowForm(false); }}>{showImport ? 'Close Import' : '⭳ Import dealers'}</Btn>
+          <Btn onClick={() => { setShowForm((s) => !s); setShowImport(false); }}>{showForm ? 'Cancel' : '+ Add Distributor'}</Btn>
+        </div>
+      } />
+
+      {showImport && (
+        <Card style={{ marginBottom: 22 }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>Bulk upload dealers</div>
+          <ol style={{ margin: '0 0 12px', paddingLeft: 18, lineHeight: 1.8, fontSize: 12, color: 'var(--text-dim)' }}>
+            <li><a onClick={downloadTemplate} style={{ color: 'var(--primary)', fontWeight: 700, cursor: 'pointer' }}>Download the CSV template</a> and fill one dealer per row. <strong>code</strong> and <strong>name</strong> are required; everything else is optional.</li>
+            <li>Upload the completed CSV, review the preview, then Import. Existing codes are skipped, so re-uploading is safe.</li>
+          </ol>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input type="file" accept=".csv,text/csv" onChange={(e) => onPickFile(e.target.files?.[0])}
+              style={{ fontSize: 12, color: 'var(--text)' }} />
+            {importFile && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{importFile} · {importRows.length} row{importRows.length === 1 ? '' : 's'}</span>}
+          </div>
+
+          {importErr && <div style={{ marginTop: 10, color: 'var(--primary)', fontSize: 12 }}>{importErr}</div>}
+
+          {importRows.length > 0 && !importResult && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Preview (first 5)</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead><tr><Th>Code</Th><Th>Name</Th><Th>GSTIN</Th><Th>State</Th><Th>Class</Th><Th style={{ textAlign: 'right' }}>Credit</Th></tr></thead>
+                <tbody>
+                  {importRows.slice(0, 5).map((r, i) => (
+                    <tr key={i}>
+                      <Td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{r.code || '—'}</Td>
+                      <Td>{r.name || '—'}</Td>
+                      <Td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{r.gstin || '—'}</Td>
+                      <Td>{r.state_code || '—'}</Td>
+                      <Td>{r.customer_class || 'distributor'}</Td>
+                      <Td style={{ textAlign: 'right' }}>{r.credit_limit || '0'}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ marginTop: 14, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <Btn variant="ghost" onClick={() => { setImportRows([]); setImportFile(''); }}>Clear</Btn>
+                <Btn disabled={importBusy} onClick={runImport}>{importBusy ? 'Importing…' : `Import ${importRows.length} dealer${importRows.length === 1 ? '' : 's'}`}</Btn>
+              </div>
+            </div>
+          )}
+
+          {importResult && (
+            <div style={{ marginTop: 14, fontSize: 13 }}>
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                <span style={{ color: 'var(--green)', fontWeight: 700 }}>✓ {importResult.created} created</span>
+                <span style={{ color: 'var(--text-dim)' }}>{importResult.skipped} skipped (already exist)</span>
+                {importResult.errors.length > 0 && <span style={{ color: 'var(--primary)' }}>{importResult.errors.length} error{importResult.errors.length === 1 ? '' : 's'}</span>}
+                <span style={{ color: 'var(--text-dim)' }}>of {importResult.total} rows</span>
+              </div>
+              {importResult.errors.length > 0 && (
+                <div style={{ marginTop: 8, maxHeight: 160, overflow: 'auto', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                  {importResult.errors.slice(0, 50).map((e, i) => (
+                    <div key={i} style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                      {e.row ? `Row ${e.row}` : ''}{e.code ? ` (${e.code})` : ''}: {e.reason}
+                    </div>
+                  ))}
+                  {importResult.errors.length > 50 && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>… +{importResult.errors.length - 50} more</div>}
+                </div>
+              )}
+              <div style={{ marginTop: 14, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <Btn variant="ghost" onClick={() => { setImportResult(null); setImportRows([]); setImportFile(''); }}>Upload another</Btn>
+                <Btn onClick={() => setShowImport(false)}>Done</Btn>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       {showForm && (
         <Card style={{ marginBottom: 22 }}>
@@ -188,6 +336,14 @@ export default function DistributorsPage() {
             <Field label="Region"          value={form.region}             onChange={(v) => setForm({ ...form, region: v })} />
             <Field label="Credit Limit (₹)"     value={form.credit_limit}        onChange={(v) => setForm({ ...form, credit_limit: v })} />
             <Field label="Payment Terms (days)" value={form.payment_terms_days}  onChange={(v) => setForm({ ...form, payment_terms_days: v })} />
+            <div style={{ gridColumn: 'span 2' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Sales Rep</div>
+              <select value={form.salesman_id} onChange={(e) => setForm({ ...form, salesman_id: e.target.value })}
+                style={{ width: '100%', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13 }}>
+                <option value="">— Unassigned —</option>
+                {users.map((u) => (<option key={u.id} value={u.id}>{u.name || u.email}{u.email ? ` · ${u.email}` : ''}</option>))}
+              </select>
+            </div>
           </div>
 
           {err && <div style={{ marginTop: 10, color: 'var(--primary)', fontSize: 12 }}>{err}</div>}
@@ -207,12 +363,13 @@ export default function DistributorsPage() {
             <Th><SortLabel label="GSTIN" sortKey="gstin" sort={sort} onToggle={toggle} /></Th>
             <Th><SortLabel label="State" sortKey="state" sort={sort} onToggle={toggle} /></Th>
             <Th><SortLabel label="Class" sortKey="class" sort={sort} onToggle={toggle} /></Th>
+            <Th>Sales Rep</Th>
             <Th style={{ textAlign: 'right' }}><SortLabel label="Credit Limit" sortKey="credit_limit" sort={sort} onToggle={toggle} align="right" /></Th>
             <Th><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></Th>
             <Th />
           </tr></thead>
           <tbody>
-            {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
+            {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
               pagedDistributors.map((d) => (
                 <tr key={d.id}>
                   <Td style={{ fontWeight: 700 }}><PrefetchLink
@@ -223,6 +380,7 @@ export default function DistributorsPage() {
                   <Td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{d.gstin || '—'}</Td>
                   <Td>{d.state_code ? `${d.state_code} · ${stateName(d.state_code) || ''}` : '—'}</Td>
                   <Td>{d.customer_class || '—'}</Td>
+                  <Td>{userName(d.salesman_id)}</Td>
                   <Td style={{ textAlign: 'right' }}>{inr(d.credit_limit)}</Td>
                   <Td><Pill color={d.is_active ? 'green' : 'gray'}>{d.is_active ? 'active' : 'inactive'}</Pill></Td>
                   <Td style={{ textAlign: 'right' }}>

@@ -29,11 +29,26 @@ function clampQty(item: OrderCatalogueItem, requested: number): number {
   return v;
 }
 
+type OrderMode = 'outlet' | 'dealer';
+type Dealer = { id: string; name: string; code?: string | null };
+
 export default function NewOrderPage() {
   const router = useRouter();
 
+  // Order target: an outlet (beat/retail model) or a dealer/distributor
+  // (dealer-direct model, e.g. Solar Seeds — the dealer IS the customer).
+  const [mode, setMode] = useState<OrderMode>('outlet');
+
   const [outletId, setOutletId] = useState('');
   const [outletLabel, setOutletLabel] = useState('');
+
+  // Dealer-direct: the chosen distributor and the list to pick from.
+  const [distributorId, setDistributorId] = useState('');
+  const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [dealersLoading, setDealersLoading] = useState(false);
+
+  // The active target id, whichever mode is on.
+  const targetId = mode === 'outlet' ? outletId : distributorId;
 
   // Assign the order to a field user (the rep who will fulfil/collect). Optional;
   // when left blank the order books under the creating admin. The field user
@@ -64,11 +79,13 @@ export default function NewOrderPage() {
     return m;
   }, [catalogue]);
 
-  const loadCatalogue = useCallback(async (id: string) => {
+  const loadCatalogue = useCallback(async (m: OrderMode, id: string) => {
     setCatLoading(true); setCatErr(null); setCatalogue(null);
     setCart({}); setWarns({}); setPreview(null); setPreviewErr(null); setPlaceErr(null);
     try {
-      const r = await api.getOrderCatalogue(id);
+      const r = m === 'dealer'
+        ? await api.getOrderCatalogueByDistributor(id)
+        : await api.getOrderCatalogue(id);
       setCatalogue(r?.data ?? (r as unknown as OrderCatalogue));
     } catch (e: any) {
       setCatErr(e?.message || 'Failed to load catalogue');
@@ -76,12 +93,34 @@ export default function NewOrderPage() {
     setCatLoading(false);
   }, []);
 
-  // Refetch the catalogue whenever the picked outlet changes.
-  useEffect(() => { if (outletId) loadCatalogue(outletId); }, [outletId, loadCatalogue]);
+  // Refetch the catalogue whenever the picked target (outlet or dealer) changes.
+  useEffect(() => { if (targetId) loadCatalogue(mode, targetId); }, [mode, targetId, loadCatalogue]);
+
+  // Load the dealer list once, when the operator first switches to dealer mode.
+  useEffect(() => {
+    if (mode !== 'dealer' || dealers.length || dealersLoading) return;
+    setDealersLoading(true);
+    api.getDistributors({ limit: '500', is_active: 'true' })
+      .then((r: any) => {
+        const rows = (r?.data ?? r ?? []) as any[];
+        setDealers(rows.map((d) => ({ id: d.id, name: d.name, code: d.code })));
+      })
+      .catch(() => { /* leave empty; the picker shows "none" */ })
+      .finally(() => setDealersLoading(false));
+  }, [mode, dealers.length, dealersLoading]);
 
   const onOutletChange = (id: string, label: string) => {
     setOutletId(id);
     setOutletLabel(label);
+  };
+
+  const switchMode = (m: OrderMode) => {
+    if (m === mode) return;
+    setMode(m);
+    // Clear the other target + cart so we never place against a stale id.
+    setOutletId(''); setOutletLabel(''); setDistributorId('');
+    setCatalogue(null); setCart({}); setWarns({});
+    setPreview(null); setPreviewErr(null); setPlaceErr(null); setCatErr(null);
   };
 
   // Any cart mutation invalidates the last server preview so the totals / credit
@@ -127,7 +166,7 @@ export default function NewOrderPage() {
   }, 0);
 
   const cartBody = () => ({
-    outlet_id: outletId,
+    ...(mode === 'dealer' ? { distributor_id: distributorId } : { outlet_id: outletId }),
     salesman_id: salesmanId || undefined,
     items: Object.entries(cart).map(([sku_id, qty]) => {
       const it = itemMap.get(sku_id);
@@ -137,7 +176,7 @@ export default function NewOrderPage() {
   });
 
   const doPreview = async () => {
-    if (!outletId || !cartCount) return;
+    if (!targetId || !cartCount) return;
     setPreviewing(true); setPreviewErr(null); setPlaceErr(null);
     try {
       const r = await api.previewDistOrder(cartBody());
@@ -149,7 +188,7 @@ export default function NewOrderPage() {
   };
 
   const doPlace = async () => {
-    if (!outletId || !cartCount || !preview) return;
+    if (!targetId || !cartCount || !preview) return;
     setPlacing(true); setPlaceErr(null);
     try {
       const r = await api.createDistOrder({ ...cartBody(), client_total: preview.totals.grand_total });
@@ -183,13 +222,52 @@ export default function NewOrderPage() {
     <div>
       <PageHeader
         title="New order"
-        subtitle="Pick an outlet, build the cart, preview pricing, and place"
+        subtitle="Pick an outlet or a dealer, build the cart, preview pricing, and place"
         right={<a href="/dashboard/distribution/orders" style={{ color: 'var(--text-dim)', fontSize: 13 }}>← All orders</a>}
       />
 
       <Card style={{ marginBottom: 22 }}>
-        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Outlet</div>
-        <StoreSelect value={outletId} onChange={onOutletChange} placeholder="Select an outlet to load its catalogue…" />
+        {/* Order target mode: an outlet (beat/retail) or a dealer (dealer-direct). */}
+        <div style={{ display: 'inline-flex', gap: 4, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, marginBottom: 14 }}>
+          {(['outlet', 'dealer'] as OrderMode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => switchMode(m)}
+              style={{
+                border: 'none', cursor: 'pointer', borderRadius: 7, padding: '6px 16px', fontSize: 13, fontWeight: 700,
+                background: mode === m ? 'var(--primary)' : 'transparent',
+                color: mode === m ? '#fff' : 'var(--text-dim)',
+              }}
+            >
+              {m === 'outlet' ? 'Outlet' : 'Dealer'}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'outlet' ? (
+          <>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Outlet</div>
+            <StoreSelect value={outletId} onChange={onOutletChange} placeholder="Select an outlet to load its catalogue…" />
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Dealer</div>
+            <select
+              value={distributorId}
+              onChange={(e) => setDistributorId(e.target.value)}
+              style={fieldStyle}
+              disabled={dealersLoading}
+            >
+              <option value="">{dealersLoading ? 'Loading dealers…' : 'Select a dealer to load its catalogue…'}</option>
+              {dealers.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}{d.code ? ` · ${d.code}` : ''}</option>
+              ))}
+            </select>
+            {!dealersLoading && !dealers.length && (
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>No active dealers found.</div>
+            )}
+          </>
+        )}
 
         <div style={{ fontSize: 11, color: 'var(--text-dim)', margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>Assign to field user</div>
         <select value={salesmanId} onChange={(e) => setSalesmanId(e.target.value)} style={fieldStyle}>
@@ -213,8 +291,8 @@ export default function NewOrderPage() {
 
       {credit && <CreditBanner credit={credit} />}
 
-      {!outletId ? (
-        <Card><div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: 20 }}>Select an outlet to begin.</div></Card>
+      {!targetId ? (
+        <Card><div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: 20 }}>Select {mode === 'dealer' ? 'a dealer' : 'an outlet'} to begin.</div></Card>
       ) : (
         <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           {/* Catalogue */}
@@ -230,7 +308,7 @@ export default function NewOrderPage() {
               ) : catErr ? (
                 <div style={{ color: 'var(--primary)', padding: 16 }}>{catErr}</div>
               ) : !catalogue?.items.length ? (
-                <div style={{ color: 'var(--text-dim)', padding: 16 }}>No orderable SKUs on this outlet&apos;s active price list.</div>
+                <div style={{ color: 'var(--text-dim)', padding: 16 }}>No orderable SKUs on this {mode === 'dealer' ? 'dealer' : 'outlet'}&apos;s active price list.</div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
