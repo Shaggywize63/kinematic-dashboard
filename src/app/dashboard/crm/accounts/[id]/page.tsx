@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmAccounts, crmSettings, type AccountTimeline } from '../../../../../lib/crmApi';
+import { crmAccounts, crmSettings, crmSites, type AccountTimeline, type AccountSite } from '../../../../../lib/crmApi';
 import type { Account, Contact, Deal, Activity, Note, Lead } from '../../../../../types/crm';
 import AccountSummaryCard from '../../../../../components/crm/AccountSummaryCard';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
@@ -32,6 +32,9 @@ export default function AccountDetailPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   // The Leads card tells apart "none yet" from "the fetch failed" so a transient error isn't read as an empty account.
   const [leadsError, setLeadsError] = useState(false);
+  // Spark & Ray: the account's sites (locations / plants), used to group its leads
+  // by plant on the Leads card.
+  const [sites, setSites] = useState<AccountSite[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [timeline, setTimeline] = useState<AccountTimeline | null>(null);
@@ -55,7 +58,7 @@ export default function AccountDetailPage() {
   const reload = async () => {
     if (!id) return;
     setLoading(true);
-    const [r, c, d, ld, act, n, tl] = await Promise.allSettled([
+    const [r, c, d, ld, act, n, tl, st] = await Promise.allSettled([
       crmAccounts.get(id),
       crmAccounts.contacts(id),
       crmAccounts.deals(id),
@@ -63,6 +66,8 @@ export default function AccountDetailPage() {
       crmAccounts.activities(id),
       crmAccounts.notes(id),
       crmAccounts.timeline(id),
+      // Sites only matter for the Spark structured view (grouping leads by plant).
+      spark ? crmSites.forAccount(id) : Promise.resolve({ data: [] as AccountSite[] }),
     ]);
     if (r.status === 'fulfilled') setA(r.value.data);
     else toast.error(r.reason?.message || 'Load failed');
@@ -70,6 +75,7 @@ export default function AccountDetailPage() {
     if (d.status === 'fulfilled') setDeals(d.value.data || []);
     if (ld.status === 'fulfilled') { setLeads(ld.value.data || []); setLeadsError(false); }
     else setLeadsError(true);
+    if (st.status === 'fulfilled') setSites((st.value.data as AccountSite[]) || []);
     if (act.status === 'fulfilled') setActivities(act.value.data || []);
     if (n.status === 'fulfilled') setNotes(n.value.data || []);
     if (tl.status === 'fulfilled') setTimeline(tl.value.data || null);
@@ -130,6 +136,27 @@ export default function AccountDetailPage() {
   const openDealValue = deals.filter((d) => d.status === 'open').reduce((s, d) => s + dealValue(d), 0);
   const wonValue = deals.filter((d) => d.status === 'won').reduce((s, d) => s + (Number(d.order_amount ?? d.amount ?? d.quoted_amount ?? 0) || 0), 0);
   const products = accountProductRollup(deals);
+
+  // One lead row on the account's Leads card. For Spark the sub-line reads the
+  // structured department · requirement; otherwise the usual company / status.
+  const leadRow = (l: Lead) => {
+    const value = leadValue(l);
+    const sub = spark
+      ? ([l.department, l.requirement].map((s) => (s || '').trim()).filter(Boolean).join(' · ') || l.status || '—')
+      : (l.company || l.status || '—');
+    return (
+      <Link key={l.id} href={`/dashboard/crm/leads/${l.id}`} style={rowLink}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: 'var(--text)', fontWeight: 600 }}>{leadDisplayName(l)}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'capitalize' }}>{l.status || ''}</span>
+          {value !== null && <span style={{ color: 'var(--text)', fontWeight: 700, fontSize: 13 }}>{formatINR(value)}</span>}
+        </div>
+      </Link>
+    );
+  };
 
   return (
     <div>
@@ -231,23 +258,45 @@ export default function AccountDetailPage() {
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Could not load leads.</div>
           ) : leads.length === 0 ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No leads linked to this account.</div>
+          ) : spark ? (
+            // Spark & Ray: group the account's leads by plant (site), so a big
+            // customer reads as a dashboard — plant → its requirements — instead
+            // of a flat list. Leads with no plant fall into a trailing bucket.
+            (() => {
+              const siteById = new Map(sites.map((s) => [s.id, s]));
+              const groups = new Map<string, Lead[]>();
+              for (const l of leads) {
+                const key = l.site_id || '__none__';
+                const bucket = groups.get(key);
+                if (bucket) bucket.push(l); else groups.set(key, [l]);
+              }
+              // Named plants first (alphabetical), the "no plant" bucket last.
+              const entries = Array.from(groups.entries()).sort((x, y) =>
+                x[0] === '__none__' ? 1 : y[0] === '__none__' ? -1 : 0);
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {entries.map(([key, group]) => {
+                    const site = key === '__none__' ? null : siteById.get(key);
+                    const label = site
+                      ? `${site.name}${site.city ? ` · ${site.city}` : ''}${site.state ? `, ${site.state}` : ''}`
+                      : 'No plant assigned';
+                    return (
+                      <div key={key}>
+                        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-dim)', marginBottom: 6 }}>
+                          {site ? '📍 ' : ''}{label} ({group.length})
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {group.map(leadRow)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {leads.map((l) => {
-                const value = leadValue(l);
-                return (
-                  <Link key={l.id} href={`/dashboard/crm/leads/${l.id}`} style={rowLink}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ color: 'var(--text)', fontWeight: 600 }}>{leadDisplayName(l)}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{l.company || l.status || '—'}</div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'capitalize' }}>{l.status || ''}</span>
-                      {value !== null && <span style={{ color: 'var(--text)', fontWeight: 700, fontSize: 13 }}>{formatINR(value)}</span>}
-                    </div>
-                  </Link>
-                );
-              })}
+              {leads.map(leadRow)}
             </div>
           )}
         </Card>
