@@ -28,7 +28,6 @@ import {
   type LeadFormConfig,
 } from '../../../../../lib/crmLeadForm';
 import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
-import { DataCollectionConsent, NOTICE_VERSION } from '../../../../../components/crm/DataConsent';
 import { Button, Eyebrow, Field, FormGrid, Input, PageHeader, Section as FormSection, Segmented, Select, T, Textarea, cardStyle, requiredMark, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { Check, CheckCircle2, Info, LocateFixed, MapPin, Target } from 'lucide-react';
@@ -327,13 +326,8 @@ export default function NewLeadPage() {
   );
   // datetime-local value ("2026-10-12T10:30") for the optional scheduled visit.
   const [visitAt, setVisitAt] = useState('');
-  // DPDP §6 consent captured at collection. `consentRequired` mirrors the
-  // per-tenant crm_settings.config.consent.lead_pii.required gate (default off:
-  // notice shown + consent recorded, but not blocking).
-  const [dataConsent, setDataConsent] = useState(false);
-  const [consentRequired, setConsentRequired] = useState(false);
-  // True once the settings round-trip has finished (success or failure). The Data consent block is admin-gated
-  // (field override `data_consent`), so it waits for this rather than flashing up and then disappearing.
+  // True once the settings round-trip has finished (success or failure). Admin-gated rows (e.g. Lead type) wait
+  // for this rather than flashing up and then disappearing.
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   // Clients that set lead_form.owner_assignment='admin_only' let only an admin choose an owner. For anyone
   // else the Owner control is gone and no owner_id is sent (the server makes them the owner).
@@ -347,14 +341,9 @@ export default function NewLeadPage() {
     () => buildFieldHelpers(fieldOverrides, 'lead', scope),
     [fieldOverrides, scope],
   );
-  // The DPDP "Data consent" block is a built-in field like any other: an admin can hide it, relabel it, or
-  // make it required (Settings → Custom Fields → `data_consent`, per lead type). When it is hidden nothing is
-  // shown, nothing is required and no `_consent` is sent.
-  const showDataConsent = settingsLoaded && !fields.isHidden('data_consent');
   // Lead type (connected-B2B only for now) is a built-in field like any other: it waits for the settings so a field
   // the admin hid never flashes, honours hide / relabel / required, and a hidden one is never sent.
   const showLeadType = isB2bClientActive() && settingsLoaded && !fields.isHidden('lead_type');
-  const dataConsentRequired = fields.requiredFor('data_consent', consentRequired);
   // Form order (Settings → Custom Fields): once the admin has ordered the lead's fields, every field row — built-in
   // and custom — becomes an item of ONE grid (see FlatRegion) and takes its CSS `order`. Until then `flat` is false
   // and the section-by-section layout below is rendered exactly as before.
@@ -437,7 +426,21 @@ export default function NewLeadPage() {
   // the Contacts section first.
   const [personContactId, setPersonContactId] = useState('');
   const [personQuery, setPersonQuery] = useState('');
-  const [personResults, setPersonResults] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null; email?: string | null; department?: string | null }>>([]);
+  const [personResults, setPersonResults] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null; email?: string | null; department?: string | null; account_id?: string | null; account_name?: string | null }>>([]);
+  // Linking an existing contact also brings in their company and that company's industry, so the rep doesn't
+  // re-enter what the CRM already knows. A company the rep has already linked is kept (never silently swapped).
+  const adoptContactCompany = (c: { account_id?: string | null; account_name?: string | null }) => {
+    const accId = (c.account_id || '').trim();
+    if (!accId || !b2bAccounts) return;
+    setForm((f) => (f.account_id ? f : { ...f, account_id: accId, company: c.account_name || f.company }));
+    crmAccounts.get(accId)
+      .then((r) => {
+        const a = r.data;
+        if (!a) return;
+        setForm((f) => (f.account_id !== accId ? f : { ...f, company: f.company || a.name || '', industry: (a.industry || '').trim() || f.industry }));
+      })
+      .catch(() => { /* the company link stands; industry stays as it was */ });
+  };
   useEffect(() => {
     if (!sparkStructured || personContactId) { setPersonResults([]); return; }
     const term = personQuery.trim();
@@ -548,8 +551,6 @@ export default function NewLeadPage() {
         setFieldOverrides(extractFieldOverrides(s.value.data));
         setLeadStatuses(extractLeadStatuses(s.value.data));
         setLeadFormRaw(extractLeadForm(s.value.data));
-        const cfg = (s.value.data as { config?: { consent?: { lead_pii?: { required?: boolean } } } } | undefined)?.config;
-        setConsentRequired(cfg?.consent?.lead_pii?.required === true);
       }
       setSettingsLoaded(true);
       if (src.status === 'fulfilled') setSources((src.value.data || []).filter((x: LeadSource) => x.is_active));
@@ -933,16 +934,6 @@ export default function NewLeadPage() {
       // only when the rep is on a Tata tenant + has the toggle on.
       if (isTata && !isBmw && form.log_as_site_visit) {
         payload._auto_log_site_visit = true;
-      }
-      // DPDP §6 — capture consent at collection. Always sent (recorded in the
-      // crm_consents ledger); blocks submission only when the tenant requires it.
-      if (showDataConsent) {
-        if (dataConsentRequired && !dataConsent) {
-          toast.error('Please capture the individual’s consent to collect their personal data.');
-          setBusy(false);
-          return;
-        }
-        payload._consent = { consented: dataConsent, method: 'web_form', notice_version: NOTICE_VERSION };
       }
       const r = await crmLeads.create(payload);
       const visitError = (r.data as { scheduled_visit_error?: string } | undefined)?.scheduled_visit_error;
@@ -1368,7 +1359,7 @@ export default function NewLeadPage() {
                             <button key={c.id} type="button" role="option"
                               onClick={() => {
                                 setForm((f) => ({ ...f, first_name: c.first_name || '', last_name: c.last_name || '', title: c.title || f.title, phone: c.phone || f.phone, email: c.email || f.email, department: (c.department as string) || f.department }));
-                                setPersonContactId(c.id); setPersonResults([]); setPersonQuery([c.first_name, c.last_name].filter(Boolean).join(' '));
+                                setPersonContactId(c.id); adoptContactCompany(c); setPersonResults([]); setPersonQuery([c.first_name, c.last_name].filter(Boolean).join(' '));
                               }}
                               style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13.5, color: T.text }}
                               onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--s3)'; }}
@@ -1720,15 +1711,6 @@ export default function NewLeadPage() {
 
         {scheduleVisitSection}
 
-        {/* DPDP §5/§6 — at-collection notice + primary consent for the lead's
-            personal data. Shown for B2B + B2C unless the admin hides the
-            `data_consent` field; recorded in the consent ledger. Distinct from
-            the marketing/WhatsApp opt-ins above. */}
-        {showDataConsent && (
-          <Section title={fields.labelFor('data_consent', 'Data consent')} hint="Notice shown at collection, recorded in the consent ledger." flatRow={fields.orderStyle('data_consent')}>
-            <DataCollectionConsent checked={dataConsent} onChange={setDataConsent} required={dataConsentRequired} />
-          </Section>
-        )}
         </FlatRegion>
 
         {/* Products of Interest is captured in the Convert dialog (deal_product_lines)

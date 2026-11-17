@@ -16,7 +16,6 @@ import { getStoredUser } from '../../../../../lib/auth';
 import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
 import { isConsumerChampion, isTataTiscanActive, isBmwActive } from '../../../../../lib/clientFeatures';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
-import { ConsentCard } from '../../../../../components/crm/DataConsent';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/crmLeadStatuses';
 import { DEFAULT_LEAD_FORM, extractLeadForm, segmentName, type LeadFormConfig } from '../../../../../lib/crmLeadForm';
@@ -95,7 +94,7 @@ export default function LeadDetailPage() {
   // Per-tenant built-in field overrides — the detail view is a render site like Create and Edit, so
   // hidden fields stay hidden and relabels apply.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
-  // The consent card is admin-gated too (`data_consent`), so it waits for the settings instead of flashing up.
+  // Admin-gated rows (e.g. Lead type) wait for the settings instead of flashing up.
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   // Per-client custom lead-status set. Null = use the built-in list / tones (no change for existing tenants).
   const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
@@ -540,10 +539,6 @@ export default function LeadDetailPage() {
           )}
           {/* Next Best Action — AI manager-tier surface; hidden for the Consumer Champion FE flow since they don't act on it, and removed entirely for BMW. */}
           {!isChampion && !isBmw && <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />}
-          {/* DPDP §6(4)-(6) — consent status + in-app withdrawal for this lead. */}
-          {settingsLoaded && !fields.isHidden('data_consent') && (
-            <ConsentCard subjectType="lead" subjectId={id} title={fields.labelFor('data_consent', 'Consent (DPDP)')} />
-          )}
         </aside>
       </div>
 
