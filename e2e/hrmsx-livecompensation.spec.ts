@@ -64,6 +64,8 @@ class FakeComp {
   failures: Failure[] = [];
   /** 'ok'; 'not_ready' answers 503 HRMS_NOT_READY on /compensation/bootstrap; 'error' answers 500 there. */
   mode: 'ok' | 'not_ready' | 'error' = 'ok';
+  /** Milliseconds every write waits before the server answers (a slow network), so the page's in-flight state is visible. */
+  latency = 0;
   private seq = 0;
 
   static emptyCycle(): Row {
@@ -119,6 +121,7 @@ class FakeComp {
     const call: Call = { method, path, body, n: this.seq++ };
     this.calls.push(call);
 
+    if (this.latency && method !== 'GET') await new Promise((r) => setTimeout(r, this.latency));
     const fi = this.failures.findIndex((f) => f.when(call));
     if (fi >= 0) { const f = this.failures.splice(fi, 1)[0]!; await this.err(route, f.status, f.error, f.code ?? 'VALIDATION'); return true; }
 
@@ -481,6 +484,7 @@ test.describe('live compensation: pay bands save and publish on the server', () 
 
   test('publishing a grade PUTs /bands/E2/published and the badge follows the server', async ({ page }) => {
     const fake = new FakeComp().full();
+    fake.latency = 800;   // the box must show the choice at once, before the server answers
     await open(page, fake, `${COMPENSATION}?tab=transparency`);
     await waitCompLoaded(page);
     await expect(page.getByText('1 of 2 grades published')).toBeVisible();
