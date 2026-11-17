@@ -34,7 +34,7 @@ export function isPharmaceuticalDemo(): boolean {
 // from the existing modules; each vertical branch overrides the CRM + field
 // fixtures it themes. ROUTE_PLANS is intentionally absent from generic (it is
 // a local const in demoMocks.ts) — matchDemoMock falls back to its own.
-function genericBundle(): Record<string, unknown> {
+function genericBundle() {
   return {
     // CRM lists + lookups
     CRM_LEADS: seed.CRM_LEADS, CRM_DEALS: seed.CRM_DEALS, CRM_ACCOUNTS: seed.CRM_ACCOUNTS,
@@ -72,7 +72,7 @@ function genericBundle(): Record<string, unknown> {
   };
 }
 
-function applyCrmOverrides(base: Record<string, unknown>, c: typeof insCrm | typeof pharmaCrm): Record<string, unknown> {
+function applyCrmOverrides(base: ReturnType<typeof genericBundle>, c: typeof insCrm | typeof pharmaCrm) {
   return {
     ...base,
     CRM_LEADS: c.CRM_LEADS, CRM_DEALS: c.CRM_DEALS, CRM_ACCOUNTS: c.CRM_ACCOUNTS,
@@ -99,7 +99,7 @@ function applyCrmOverrides(base: Record<string, unknown>, c: typeof insCrm | typ
   };
 }
 
-export function getActiveSeed(): Record<string, any> {
+export function getActiveSeed() {
   const base = genericBundle();
   const scope = getStoredIndustryScope();
   if (scope === 'insurance') {

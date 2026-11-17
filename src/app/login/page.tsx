@@ -62,11 +62,14 @@ export default function LoginPage() {
     // is cold-starting or unreachable. Any password is accepted for the single
     // public demo email; every subsequent request is served from the mocks.
     if (email.trim().toLowerCase() === demo.DEMO_USER_EMAIL) {
-      const me = demo.matchDemoMock<{ data?: Record<string, unknown> }>('/api/v1/auth/me', 'GET');
-      const user = (me && me.data ? me.data : {
+      type SessionUser = Parameters<typeof saveSession>[0]['user'];
+      // The demo /auth/me mock mirrors the real /auth/me payload (see demoMocks.ts).
+      const me = demo.matchDemoMock<{ data?: SessionUser }>('/api/v1/auth/me', 'GET');
+      const fallbackUser: SessionUser = {
         id: 'demo-user-999', email: demo.DEMO_USER_EMAIL, name: 'Demo Admin',
-        role: 'super_admin', org_id: 'demo-org-999', permissions: [],
-      }) as Parameters<typeof saveSession>[0]['user'];
+        role: 'super_admin', org_id: 'demo-org-999', permissions: [], is_active: true,
+      };
+      const user = me && me.data ? me.data : fallbackUser;
       saveSession({
         user,
         // Must match the backend's accepted demo token EXACTLY

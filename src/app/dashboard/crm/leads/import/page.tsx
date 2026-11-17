@@ -451,7 +451,7 @@ export default function LeadImportPage() {
                 {summary.error_count} row{summary.error_count === 1 ? '' : 's'} skipped
               </div>
               <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--text-dim)' }}>
-                {(job.errors as Array<{ row: number; reason: string }>).slice(0, 5).map((e, i) => (
+                {job.errors.slice(0, 5).map((e, i) => (
                   <li key={i}>Row {e.row}: {e.reason}</li>
                 ))}
                 {job.errors.length > 5 && <li>…and {job.errors.length - 5} more</li>}

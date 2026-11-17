@@ -14,16 +14,16 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   crmEmailCampaigns, crmEmailTemplates, crmLeads,
-  type EmailTemplate, type EmailAudience, type EmailCampaignPreview,
+  type EmailAudience, type EmailCampaignPreview,
 } from '../../../../../lib/crmApi';
-import type { Lead } from '../../../../../types/crm';
+import type { EmailTemplate, Lead } from '../../../../../types/crm';
 
 type PickContact = { id: string; name: string; email: string };
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
   border: 'var(--border)', white: 'var(--text)', gray: 'var(--textSec)', grayd: 'var(--textTert)',
-  red: '#E01E2C', green: '#00D97E', blue: '#3E9EFF',
+  red: '#E01E2C', green: '#00D97E', blue: '#3E9EFF', amber: '#F5A623',
 };
 const card: React.CSSProperties = { background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22, marginBottom: 16 };
 const input: React.CSSProperties = { width: '100%', background: 'var(--s4)', border: `1px solid ${C.border}`, padding: '10px 12px', borderRadius: 9, color: C.white, outline: 'none', fontSize: 13, boxSizing: 'border-box' };

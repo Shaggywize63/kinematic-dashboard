@@ -118,7 +118,7 @@ export default function LeadPreviewPanel({
     if (!isB2bClientActive()) { setPeople([]); return; }
     let cancelled = false;
     setPeople([]);
-    crmLeads.contacts(lead.id)
+    crmLeads.people(lead.id)
       .then((r) => { if (!cancelled) setPeople(r.data || []); })
       .catch(() => { if (!cancelled) setPeople([]); });
     return () => { cancelled = true; };

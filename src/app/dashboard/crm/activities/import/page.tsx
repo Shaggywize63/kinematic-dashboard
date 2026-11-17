@@ -289,7 +289,7 @@ export default function ActivityImportPage() {
                 {summary.error_count} row{summary.error_count === 1 ? '' : 's'} skipped or errored
               </div>
               <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--text-dim)' }}>
-                {(job.errors as unknown as Array<{ row: number; reason: string }>).slice(0, 8).map((e, i) => (
+                {job.errors.slice(0, 8).map((e, i) => (
                   <li key={i}>Row {e.row}: {e.reason}</li>
                 ))}
                 {job.errors.length > 8 && <li>…and {job.errors.length - 8} more</li>}

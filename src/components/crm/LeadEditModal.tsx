@@ -212,7 +212,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     let off = false;
     const t = setTimeout(() => {
       crmContacts.list({ q: term, limit: 8 })
-        .then((r) => { if (!off) setPersonResults(((r.data as Array<Record<string, unknown>>) || []).filter((c) => c && c.id) as typeof personResults); })
+        .then((r) => { if (!off) setPersonResults((r.data || []).filter((c) => c && c.id)); })
         .catch(() => { if (!off) setPersonResults([]); });
     }, 250);
     return () => { off = true; clearTimeout(t); };
@@ -246,11 +246,11 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       try {
         const r = await crmLeads.productLines(lead.id);
         if (!off) {
-          const rows = ((r.data as Array<Record<string, unknown>>) || []).map((l) => ({
+          const rows = (r.data || []).map((l) => ({
             key: Math.random().toString(36).slice(2),
-            makeId: (l.make_id as string) || '', makeName: (l.make_name as string) || '',
-            productId: (l.product_id as string) || '', productName: (l.product_name as string) || '',
-            qty: l.qty != null ? String(l.qty) : '', unit: (l.unit as string) || '',
+            makeId: l.make_id || '', makeName: l.make_name || '',
+            productId: l.product_id || '', productName: l.product_name || '',
+            qty: l.qty != null ? String(l.qty) : '', unit: l.unit || '',
             lineValue: l.line_value != null ? String(l.line_value) : '',
           }));
           setProductLines(rows.length ? rows : [newProductLine()]);
@@ -826,7 +826,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                     <Field label="Product">
                       <Select value={row.productId} onChange={(e) => { const id = e.target.value; const p = products.find((x) => x.id === id); setProductLines((rows) => rows.map((r) => (r.key === row.key ? { ...r, productId: id, productName: p?.name ?? '', unit: r.unit || (p?.unit ?? '') } : r))); }}>
                         <option value="">— Product —</option>
-                        {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.code ? ` (${p.code})` : ''}</option>)}
+                        {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.sku ? ` (${p.sku})` : ''}</option>)}
                       </Select>
                     </Field>
                     <Field label="Qty"><Input inputMode="decimal" value={row.qty} onChange={(e) => setProductLines((rows) => rows.map((r) => (r.key === row.key ? { ...r, qty: e.target.value.replace(/[^0-9.]/g, '') } : r)))} placeholder="12" /></Field>

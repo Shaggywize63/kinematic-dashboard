@@ -445,7 +445,7 @@ export default function NewLeadPage() {
     let off = false;
     const t = setTimeout(() => {
       crmContacts.list({ q: term, limit: 8 })
-        .then((r) => { if (!off) setPersonResults(((r.data as Array<Record<string, unknown>>) || []).filter((c) => c && c.id) as typeof personResults); })
+        .then((r) => { if (!off) setPersonResults((r.data || []).filter((c) => c && c.id)); })
         .catch(() => { if (!off) setPersonResults([]); });
     }, 250);
     return () => { off = true; clearTimeout(t); };
@@ -1615,7 +1615,7 @@ export default function NewLeadPage() {
                           setProductLines((rows) => rows.map((r) => (r.key === row.key ? { ...r, productId: id, productName: p?.name ?? '', unit: r.unit || (p?.unit ?? '') } : r)));
                         }}>
                           <option value="">— Product —</option>
-                          {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.code ? ` (${p.code})` : ''}</option>)}
+                          {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.sku ? ` (${p.sku})` : ''}</option>)}
                         </Select>
                       </Field>
                       <Field label="Qty">
@@ -1867,7 +1867,7 @@ function OtherContactRow({ row, onChange, onRemove, narrow }: {
     let off = false;
     const t = setTimeout(() => {
       crmContacts.list({ q: term, limit: 8 })
-        .then((r) => { if (!off) setResults(((r.data as Array<Record<string, unknown>>) || []).filter((c) => c && c.id) as typeof results); })
+        .then((r) => { if (!off) setResults((r.data || []).filter((c) => c && c.id)); })
         .catch(() => { if (!off) setResults([]); });
     }, 250);
     return () => { off = true; clearTimeout(t); };
