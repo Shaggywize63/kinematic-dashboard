@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmDeals } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
@@ -215,7 +216,11 @@ export default function RepLeaderboardPage() {
               {view.map((r, i) => (
                 <tr key={r.user_id}>
                   <td style={{ ...td, color: 'var(--text-dim)' }}>{i + 1}</td>
-                  <td style={td}>{r.name}</td>
+                  <td style={td}>
+                    {r.user_id && r.user_id !== 'unassigned'
+                      ? <Link href={`/dashboard/crm/reports/salesperson/${r.user_id}`} style={{ color: 'var(--text)', fontWeight: 600, textDecoration: 'none' }}>{r.name}</Link>
+                      : r.name}
+                  </td>
                   <td style={tdNum}>{r.won}</td>
                   <td style={tdNum}>{r.lost}</td>
                   <td style={tdNum}>{r.open}</td>
