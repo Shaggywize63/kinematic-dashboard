@@ -333,8 +333,11 @@ const LeadRow = memo(function LeadRow({
               {isPending && <Badge tone="warn" style={{ gap: 4, height: 20, fontSize: 11, flexShrink: 0 }}><Hourglass size={11} strokeWidth={1.8} />Pending approval</Badge>}
               {l.approval_status === 'rejected' && <Badge tone="red" style={{ height: 20, fontSize: 11, flexShrink: 0 }}>Rejected</Badge>}
             </div>
-            {(subline || (showPhone && l.phone)) && (
-              <div style={{ marginTop: 2, fontSize: 12, color: T.dim, display: 'flex', gap: 6, minWidth: 0, whiteSpace: 'nowrap' }}>
+            {(subline || (showPhone && l.phone) || (showIndustry && l.ref_no)) && (
+              <div style={{ marginTop: 2, fontSize: 12, color: T.dim, display: 'flex', gap: 6, alignItems: 'center', minWidth: 0, whiteSpace: 'nowrap' }}>
+                {/* Lead serial (connected-B2B / Spark only) — its unique, human-readable id maps the form back to the lead. */}
+                {showIndustry && l.ref_no && <span style={{ fontFamily: T.mono, fontSize: 11, fontWeight: 600, color: T.text, flexShrink: 0 }}>{l.ref_no}</span>}
+                {showIndustry && l.ref_no && (subline || (showPhone && l.phone)) && <span aria-hidden style={{ color: T.mute }}>·</span>}
                 {subline && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{subline}</span>}
                 {subline && showPhone && l.phone && <span aria-hidden style={{ color: T.mute }}>·</span>}
                 {showPhone && l.phone && <span style={{ fontFamily: T.mono, fontSize: 11.5, flexShrink: 0 }}>{l.phone}</span>}

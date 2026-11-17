@@ -148,7 +148,11 @@ export default function AccountDetailPage() {
       <Link key={l.id} href={`/dashboard/crm/leads/${l.id}`} style={rowLink}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: 'var(--text)', fontWeight: 600 }}>{leadDisplayName(l)}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {/* Lead serial (Spark) — the unique id that maps the form back to this lead. */}
+            {spark && l.ref_no ? <><span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontWeight: 600, color: 'var(--text)' }}>{l.ref_no}</span>{' · '}</> : null}
+            {sub}
+          </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
           <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'capitalize' }}>{l.status || ''}</span>

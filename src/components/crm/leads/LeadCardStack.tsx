@@ -96,8 +96,10 @@ export default function LeadCardStack({
               </button>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <Link href={`/dashboard/crm/leads/${l.id}`} className="km-entity-link" style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>{name}</Link>
-                {(company || phone) && (
+                {(company || phone || (b2b && l.ref_no)) && (
                   <div style={{ marginTop: 1, fontSize: 12, color: T.dim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {/* Lead serial (Spark) — unique id mapping the form back to the lead. */}
+                    {b2b && l.ref_no ? <><span style={{ fontFamily: T.mono, fontWeight: 600, color: T.text }}>{l.ref_no}</span>{(company || phone) ? ' · ' : ''}</> : null}
                     {[company, phone].filter(Boolean).join(' · ')}
                   </div>
                 )}
