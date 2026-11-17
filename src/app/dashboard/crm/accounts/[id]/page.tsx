@@ -35,6 +35,10 @@ export default function AccountDetailPage() {
   // Spark & Ray: the account's sites (locations / plants), used to group its leads
   // by plant on the Leads card.
   const [sites, setSites] = useState<AccountSite[]>([]);
+  // Spark & Ray: the plants under this company (child accounts) and the leads on each. The group account itself
+  // usually holds no leads — they sit on its plants — so without these the Leads card looks empty on a parent.
+  const [plants, setPlants] = useState<Account[]>([]);
+  const [plantLeads, setPlantLeads] = useState<Record<string, Lead[]>>({});
   const [activities, setActivities] = useState<Activity[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [timeline, setTimeline] = useState<AccountTimeline | null>(null);
@@ -58,7 +62,7 @@ export default function AccountDetailPage() {
   const reload = async () => {
     if (!id) return;
     setLoading(true);
-    const [r, c, d, ld, act, n, tl, st] = await Promise.allSettled([
+    const [r, c, d, ld, act, n, tl, st, ch] = await Promise.allSettled([
       crmAccounts.get(id),
       crmAccounts.contacts(id),
       crmAccounts.deals(id),
@@ -68,6 +72,7 @@ export default function AccountDetailPage() {
       crmAccounts.timeline(id),
       // Sites only matter for the Spark structured view (grouping leads by plant).
       spark ? crmSites.forAccount(id) : Promise.resolve({ data: [] as AccountSite[] }),
+      spark ? crmAccounts.children(id) : Promise.resolve({ data: [] as Account[] }),
     ]);
     if (r.status === 'fulfilled') setA(r.value.data);
     else toast.error(r.reason?.message || 'Load failed');
@@ -76,6 +81,19 @@ export default function AccountDetailPage() {
     if (ld.status === 'fulfilled') { setLeads(ld.value.data || []); setLeadsError(false); }
     else setLeadsError(true);
     if (st.status === 'fulfilled') setSites((st.value.data as AccountSite[]) || []);
+    // The plants under this company, and each plant's leads (one call per plant, in parallel). A plant whose
+    // leads fail to load simply shows no leads rather than breaking the tree.
+    const kids = ch.status === 'fulfilled' ? ((ch.value.data as Account[]) || []) : [];
+    setPlants(kids);
+    if (kids.length) {
+      const got = await Promise.allSettled(kids.map((k) => crmAccounts.leads(k.id)));
+      const map: Record<string, Lead[]> = {};
+      kids.forEach((k, i) => {
+        const g = got[i];
+        map[k.id] = g.status === 'fulfilled' ? ((g.value.data as Lead[]) || []) : [];
+      });
+      setPlantLeads(map);
+    } else setPlantLeads({});
     if (act.status === 'fulfilled') setActivities(act.value.data || []);
     if (n.status === 'fulfilled') setNotes(n.value.data || []);
     if (tl.status === 'fulfilled') setTimeline(tl.value.data || null);
@@ -136,6 +154,9 @@ export default function AccountDetailPage() {
   const openDealValue = deals.filter((d) => d.status === 'open').reduce((s, d) => s + dealValue(d), 0);
   const wonValue = deals.filter((d) => d.status === 'won').reduce((s, d) => s + (Number(d.order_amount ?? d.amount ?? d.quoted_amount ?? 0) || 0), 0);
   const products = accountProductRollup(deals);
+
+  // The company's own leads plus every lead on its plants (child accounts) — what the Leads card counts.
+  const totalLeadCount = leads.length + plants.reduce((n, pl) => n + (plantLeads[pl.id]?.length || 0), 0);
 
   // One lead row on the account's Leads card. For Spark the sub-line reads the
   // structured department · requirement; otherwise the usual company / status.
@@ -257,63 +278,67 @@ export default function AccountDetailPage() {
           )}
         </Card>
 
-        <Card title={`Leads (${leads.length})`}>
+        <Card title={`Leads (${totalLeadCount})`}>
           {leadsError ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Could not load leads.</div>
-          ) : leads.length === 0 ? (
+          ) : totalLeadCount === 0 ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No leads linked to this account.</div>
           ) : spark ? (
-            // Spark & Ray: group the account's leads by plant (site), so a big
-            // customer reads as a dashboard — plant → its requirements — instead
-            // of a flat list. Leads with no plant fall into a trailing bucket.
+            // Spark & Ray: the structure tree from the proposal — Company → Plant → Department → lead.
+            // A plant is either a child ACCOUNT of this company (how the Spark data is actually shaped: the
+            // group "NTPC Limited" holds no leads itself, its plants do) or a site on this account. Every
+            // level is drawn, so the shape is visible even before departments are captured.
             (() => {
-              const siteById = new Map(sites.map((s) => [s.id, s]));
-              const groups = new Map<string, Lead[]>();
-              for (const l of leads) {
-                const key = l.site_id || '__none__';
-                const bucket = groups.get(key);
-                if (bucket) bucket.push(l); else groups.set(key, [l]);
+              const branches: Array<{ key: string; label: string; href?: string; leads: Lead[]; muted?: boolean }> = [];
+              // 1. Child accounts = the company's plants.
+              for (const pl of plants) {
+                branches.push({ key: `acc:${pl.id}`, label: pl.name || 'Plant', href: `/dashboard/crm/accounts/${pl.id}`, leads: plantLeads[pl.id] || [] });
               }
-              // Named plants first (alphabetical), the "no plant" bucket last.
-              const entries = Array.from(groups.entries()).sort((x, y) =>
-                x[0] === '__none__' ? 1 : y[0] === '__none__' ? -1 : 0);
+              // 2. This account's own leads, split by site where one is set.
+              const siteById = new Map(sites.map((x) => [x.id, x]));
+              const own = new Map<string, Lead[]>();
+              for (const l of leads) {
+                const key = l.site_id || NO_PLANT;
+                const b = own.get(key); if (b) b.push(l); else own.set(key, [l]);
+              }
+              for (const [key, group] of own) {
+                if (key === NO_PLANT) continue;
+                const site = siteById.get(key);
+                branches.push({
+                  key: `site:${key}`,
+                  label: site ? `${site.name}${site.city ? ` · ${site.city}` : ''}${site.state ? `, ${site.state}` : ''}` : 'Plant',
+                  leads: group,
+                });
+              }
+              branches.sort((x, y) => x.label.localeCompare(y.label));
+              const loose = own.get(NO_PLANT) || [];
+              if (loose.length) branches.push({ key: 'noplant', label: 'Plant not set', leads: loose, muted: true });
+
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {entries.map(([key, group]) => {
-                    const site = key === '__none__' ? null : siteById.get(key);
-                    const label = site
-                      ? `${site.name}${site.city ? ` · ${site.city}` : ''}${site.state ? `, ${site.state}` : ''}`
-                      : 'No plant assigned';
-                    // Department sub-level (Company → Plant → Department → requirement), so a
-                    // big customer reads like the structure diagram. Only shown when this plant
-                    // actually has departments; otherwise the leads render flat (older data).
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {/* Root: the company itself, so the tree reads top-down from the account. */}
+                  <TreeNode level={0} icon="🏢" label={a.name || 'Company'} count={totalLeadCount} strong />
+                  {branches.map((br, bi) => {
                     const byDept = new Map<string, Lead[]>();
-                    for (const l of group) {
-                      const dk = (l.department || '').trim() || '__nodept__';
+                    for (const l of br.leads) {
+                      const dk = (l.department || '').trim() || NO_DEPT;
                       const b = byDept.get(dk); if (b) b.push(l); else byDept.set(dk, [l]);
                     }
-                    const deptEntries = Array.from(byDept.entries()).sort((x, y) =>
-                      x[0] === '__nodept__' ? 1 : y[0] === '__nodept__' ? -1 : x[0].localeCompare(y[0]));
-                    const showDepts = deptEntries.some(([dk]) => dk !== '__nodept__');
+                    const depts = Array.from(byDept.entries()).sort((x, y) =>
+                      x[0] === NO_DEPT ? 1 : y[0] === NO_DEPT ? -1 : x[0].localeCompare(y[0]));
                     return (
-                      <div key={key}>
-                        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-dim)', marginBottom: 6 }}>
-                          {site ? '📍 ' : ''}{label} ({group.length})
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: showDepts ? 10 : 8 }}>
-                          {deptEntries.map(([dk, dleads]) => (
-                            <div key={dk}>
-                              {showDepts && dk !== '__nodept__' && (
-                                <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-dim)', margin: '0 0 4px 10px', opacity: 0.85 }}>
-                                  🏢 {dk}
-                                </div>
-                              )}
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {dleads.map(leadRow)}
-                              </div>
+                      <div key={br.key}>
+                        <TreeNode level={1} icon="📍" label={br.label} href={br.href} count={br.leads.length} muted={br.muted} last={bi === branches.length - 1} />
+                        {br.leads.length === 0 ? (
+                          <div style={{ fontSize: 11.5, color: 'var(--text-dim)', fontStyle: 'italic', margin: '2px 0 8px', paddingLeft: TREE_INDENT * 2 + 12 }}>No leads yet</div>
+                        ) : depts.map(([dk, dleads], di) => (
+                          <div key={dk}>
+                            <TreeNode level={2} icon="🏷" label={dk === NO_DEPT ? 'Department not set' : dk} count={dleads.length} muted={dk === NO_DEPT} last={di === depts.length - 1} />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '4px 0 10px', paddingLeft: TREE_INDENT * 3 }}>
+                              {dleads.map(leadRow)}
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
                     );
                   })}
@@ -581,6 +606,45 @@ function accountProductRollup(deals: Deal[]): ProductRow[] {
   return Array.from(map.entries())
     .map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }))
     .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+}
+
+/** Buckets for leads whose plant / department has not been captured yet. */
+const NO_PLANT = '__noplant__';
+const NO_DEPT = '__nodept__';
+/** One indent step of the account structure tree (Company → Plant → Department → lead). */
+const TREE_INDENT = 18;
+
+/**
+ * One branch of the account structure tree. Draws the elbow connector that makes the hierarchy
+ * readable at a glance; `muted` marks a "not set" bucket so a gap in the data looks like a gap.
+ */
+function TreeNode({ level, icon, label, count, strong, muted, last, href }: {
+  level: number; icon: string; label: string; count: number;
+  strong?: boolean; muted?: boolean; last?: boolean;
+  /** A plant that is its own account links through to it. */
+  href?: string;
+}) {
+  const text = (
+    <span style={{
+      fontSize: strong ? 13 : 12.5,
+      fontWeight: strong ? 800 : 700,
+      color: muted ? 'var(--text-dim)' : 'var(--text)',
+      fontStyle: muted ? 'italic' : 'normal',
+      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
+    }}>{label}</span>
+  );
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: level * TREE_INDENT, minWidth: 0 }}>
+      {level > 0 && (
+        <span aria-hidden style={{ color: 'var(--border)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13, lineHeight: 1, flexShrink: 0 }}>
+          {last ? '└─' : '├─'}
+        </span>
+      )}
+      <span aria-hidden style={{ flexShrink: 0 }}>{icon}</span>
+      {href ? <Link href={href} className="km-entity-link" style={{ minWidth: 0, textDecoration: 'none' }}>{text}</Link> : text}
+      <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>({count})</span>
+    </div>
+  );
 }
 
 const rowLink: React.CSSProperties = {

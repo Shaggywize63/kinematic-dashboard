@@ -201,6 +201,9 @@ export interface Account {
   id: string;
   org_id: string;
   name: string;
+  /** Spark & Ray structure: a group is the parent company (NTPC Limited); its children are the plants. */
+  is_group?: boolean | null;
+  parent_account_id?: string | null;
   industry?: string | null;
   website?: string | null;
   phone?: string | null;
