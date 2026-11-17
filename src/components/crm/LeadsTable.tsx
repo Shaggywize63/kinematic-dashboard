@@ -8,6 +8,7 @@ import type { FieldHelpers } from '../../lib/crmFieldOverrides';
 import OwnerAvatar from './shared/OwnerAvatar';
 import { IndustryBadge } from './spark/IndustrySelect';
 import { isB2bClientActive } from '../../lib/b2bClient';
+import { isStructuredLead, leadPersonName } from '../../lib/leadHeader';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
 import WhatsAppButton from './shared/WhatsAppButton';
 import LeadAvatar, { leadDisplayName } from './leads/LeadAvatar';
@@ -285,7 +286,13 @@ const LeadRow = memo(function LeadRow({
   }, [onApprove, l.id, deciding]);
 
   const important = !!(l.custom_fields as { __important?: unknown } | null | undefined)?.__important;
-  const subline = [showCompany ? l.company : null, showCompany && l.company ? null : (showTitle ? l.title : null)].filter(Boolean).join(' · ');
+  // Structured (Spark & Ray) lead: the name already carries Account · Plant · Department — Requirement,
+  // so the subline is the person (never in the name) and the serial, not the company again.
+  const structured = isStructuredLead(l);
+  const person = structured ? leadPersonName(l) : null;
+  const subline = structured
+    ? (person ?? '')
+    : [showCompany ? l.company : null, showCompany && l.company ? null : (showTitle ? l.title : null)].filter(Boolean).join(' · ');
   const onRowClick = (e: React.MouseEvent) => {
     if (!onPreview) return;
     const t = e.target as HTMLElement;
@@ -306,12 +313,22 @@ const LeadRow = memo(function LeadRow({
         <input type="checkbox" checked={isSelected} onChange={handleToggle} aria-label={`Select ${fullName}`} style={{ width: 15, height: 15, display: 'block' }} />
       </td>
 
-      <td style={{ ...tdStyle, minWidth: 230 }} data-label="Name">
+      {/* Structured names (Account · Plant · Department — Requirement) need room to be read, so the cell is
+          wider and drops the avatar (its initials would be cut from the computed name, e.g. "Nx"). */}
+      <td style={{ ...tdStyle, minWidth: structured ? 360 : 230, maxWidth: structured ? 460 : undefined }} data-label="Name">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-          <LeadAvatar lead={l} />
+          {!structured && <LeadAvatar lead={l} />}
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-              <Link href={`/dashboard/crm/leads/${l.id}`} className="km-entity-link" title="Open lead detail" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{fullName}</Link>
+              <Link
+                href={`/dashboard/crm/leads/${l.id}`}
+                className="km-entity-link"
+                title={structured ? fullName : 'Open lead detail'}
+                // Structured names are longer by design — wrap to two lines rather than cut the requirement off.
+                style={structured
+                  ? { minWidth: 0, overflowWrap: 'anywhere', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
+                  : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}
+              >{fullName}</Link>
               {/* Mark-important star. Filled/gold when custom_fields.__important is
                   set; click toggles it. Sits right after the name (an
                   unset star only appears on hover) so names stay aligned down
@@ -329,16 +346,27 @@ const LeadRow = memo(function LeadRow({
                   <Star size={14} strokeWidth={1.8} fill={important ? '#f5a623' : 'none'} />
                 </button>
               )}
-              {showIndustry && !hid('industry') && <IndustryBadge name={l.industry} style={{ flexShrink: 0 }} />}
+              {/* Structured rows carry the industry on the subline so it doesn't squeeze the name. */}
+              {!structured && showIndustry && !hid('industry') && <IndustryBadge name={l.industry} style={{ flexShrink: 0 }} />}
               {isPending && <Badge tone="warn" style={{ gap: 4, height: 20, fontSize: 11, flexShrink: 0 }}><Hourglass size={11} strokeWidth={1.8} />Pending approval</Badge>}
               {l.approval_status === 'rejected' && <Badge tone="red" style={{ height: 20, fontSize: 11, flexShrink: 0 }}>Rejected</Badge>}
             </div>
             {(subline || (showPhone && l.phone) || (showIndustry && l.ref_no)) && (
               <div style={{ marginTop: 2, fontSize: 12, color: T.dim, display: 'flex', gap: 6, alignItems: 'center', minWidth: 0, whiteSpace: 'nowrap' }}>
                 {/* Lead serial (connected-B2B / Spark only) — its unique, human-readable id maps the form back to the lead. */}
-                {showIndustry && l.ref_no && <span style={{ fontFamily: T.mono, fontSize: 11, fontWeight: 600, color: T.text, flexShrink: 0 }}>{l.ref_no}</span>}
-                {showIndustry && l.ref_no && (subline || (showPhone && l.phone)) && <span aria-hidden style={{ color: T.mute }}>·</span>}
-                {subline && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{subline}</span>}
+                {structured ? (
+                  <>
+                    {subline && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{subline}</span>}
+                    {showIndustry && l.ref_no && <Badge tone="warn" mono style={{ height: 18, fontSize: 10.5, fontWeight: 600, flexShrink: 0 }}>{l.ref_no}</Badge>}
+                    {showIndustry && !hid('industry') && l.industry?.trim() && <IndustryBadge name={l.industry} style={{ flexShrink: 0, height: 18, fontSize: 10.5 }} />}
+                  </>
+                ) : (
+                  <>
+                    {showIndustry && l.ref_no && <span style={{ fontFamily: T.mono, fontSize: 11, fontWeight: 600, color: T.text, flexShrink: 0 }}>{l.ref_no}</span>}
+                    {showIndustry && l.ref_no && (subline || (showPhone && l.phone)) && <span aria-hidden style={{ color: T.mute }}>·</span>}
+                    {subline && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{subline}</span>}
+                  </>
+                )}
                 {subline && showPhone && l.phone && <span aria-hidden style={{ color: T.mute }}>·</span>}
                 {showPhone && l.phone && <span style={{ fontFamily: T.mono, fontSize: 11.5, flexShrink: 0 }}>{l.phone}</span>}
               </div>

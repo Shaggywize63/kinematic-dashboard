@@ -445,7 +445,7 @@ export default function NewLeadPage() {
     let off = false;
     const t = setTimeout(() => {
       crmContacts.list({ q: term, limit: 8 })
-        .then((r) => { if (!off) setPersonResults(((r.data as Array<Record<string, unknown>>) || []).filter((c) => c && c.id) as typeof personResults); })
+        .then((r) => { if (!off) setPersonResults(((r.data as unknown as Array<Record<string, unknown>>) || []).filter((c) => c && c.id) as typeof personResults); })
         .catch(() => { if (!off) setPersonResults([]); });
     }, 250);
     return () => { off = true; clearTimeout(t); };
@@ -1867,7 +1867,7 @@ function OtherContactRow({ row, onChange, onRemove, narrow }: {
     let off = false;
     const t = setTimeout(() => {
       crmContacts.list({ q: term, limit: 8 })
-        .then((r) => { if (!off) setResults(((r.data as Array<Record<string, unknown>>) || []).filter((c) => c && c.id) as typeof results); })
+        .then((r) => { if (!off) setResults(((r.data as unknown as Array<Record<string, unknown>>) || []).filter((c) => c && c.id) as typeof results); })
         .catch(() => { if (!off) setResults([]); });
     }, 250);
     return () => { off = true; clearTimeout(t); };

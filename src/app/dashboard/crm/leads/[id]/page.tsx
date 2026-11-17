@@ -30,6 +30,7 @@ import OverviewTab from '../../../../../components/crm/lead-detail/OverviewTab';
 import TimelineTab from '../../../../../components/crm/lead-detail/TimelineTab';
 import DealsTab from '../../../../../components/crm/lead-detail/DealsTab';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import { isStructuredLead, leadPersonName } from '../../../../../lib/leadHeader';
 import EntityExpensesCard from '../../../../../components/crm/EntityExpensesCard';
 import SampleInvoicesCard from '../../../../../components/crm/SampleInvoicesCard';
 import InsightsTab from '../../../../../components/crm/lead-detail/InsightsTab';
@@ -113,7 +114,7 @@ export default function LeadDetailPage() {
   // Contacts are a separate built-in-field namespace (`contact.*`), business-type
   // agnostic — used to gate the captured contact-persons card on the overview.
   const contactFields = useMemo(() => buildFieldHelpers(fieldOverrides, 'contact'), [fieldOverrides]);
-  usePageTitle(lead ? (lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Lead') : null);
+  usePageTitle(lead ? ((lead.display_name && !lead.is_b2c ? lead.display_name.trim() : '') || lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Lead') : null);
   const canEditLead = isAdminTier || (!!user?.id && lead?.created_by != null && lead.created_by === user.id);
 
   const [score, setScore] = useState<LeadScore | null>(null);
@@ -325,9 +326,13 @@ export default function LeadDetailPage() {
   if (loading && !lead) return <DetailSkeleton narrow={narrow} />;
   if (!lead) return <EmptyState title="Lead not found" description="It may have been deleted, or you may not have access to it." action={<Button href="/dashboard/crm/leads">Back to leads</Button>} />;
 
-  const fullName = lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Unnamed';
-  const firstName = (lead.first_name || fullName).split(' ')[0];
-  const waPrefill = `Hi ${firstName}, `;
+  // Structured (Spark & Ray) leads are titled by their computed name — the same one the list
+  // row shows (`Account · Plant · Department — Requirement`); everyone else by the person.
+  const fullName = (lead.display_name && !lead.is_b2c ? lead.display_name.trim() : '')
+    || lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Unnamed';
+  // Greet the person, never the computed lead name ("Hi NTPC, " reads wrong).
+  const firstName = (isStructuredLead(lead) ? (leadPersonName(lead) || '') : (lead.first_name || fullName)).split(' ')[0];
+  const waPrefill = firstName ? `Hi ${firstName}, ` : 'Hi, ';
   const isB2C = !!lead.is_b2c;
   const isConverted = lead.status === 'converted' || !!lead.converted_at;
   const isUnqualified = lead.status === 'unqualified';

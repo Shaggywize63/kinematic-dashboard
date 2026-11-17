@@ -95,7 +95,9 @@ export const crmLeads = {
   // The make/product/qty lines captured under this lead's requirement (Spark & Ray).
   productLines: (id: string) => api.get<Wrapped<LeadProductLine[]>>(`${BASE}/leads/${id}/product-lines`),
   // The customer people on this lead (primary/nodal first), joined with the contact name/title.
-  contacts: (id: string) => api.get<Wrapped<LeadContactLink[]>>(`${BASE}/leads/${id}/contacts`),
+  /** Spark & Ray: the customer people on this lead (crm_lead_contacts), primary (nodal) first. Not `contacts`,
+   *  which is the contacts captured on the lead (crm_contacts.lead_id) — a different endpoint and shape. */
+  people: (id: string) => api.get<Wrapped<LeadContactLink[]>>(`${BASE}/leads/${id}/people`),
   // AI Smart Filters — plain-English → validated lead-list filter params. The
   // page applies the returned params to the normal list fetch (all tenant
   // scoping stays server-side). `explanation` is a human-readable summary.
