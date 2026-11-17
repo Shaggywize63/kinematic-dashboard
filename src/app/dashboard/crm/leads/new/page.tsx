@@ -1329,12 +1329,17 @@ export default function NewLeadPage() {
             {sparkStructured && (
               <div style={{ gridColumn: '1 / -1' }}>
                 {personContactId ? (
-                  <Field label="Contact">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text, padding: '8px 10px', border: `1px solid ${T.border}`, borderRadius: 8, background: 'var(--s2)' }}>
-                      <CheckCircle2 size={15} strokeWidth={2} style={{ color: T.ok, flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600 }}>👤 {[form.first_name, form.last_name].filter(Boolean).join(' ') || 'Linked contact'}</span>
-                      {form.title && <span style={{ color: T.dim }}>· {form.title}</span>}
-                      <button type="button" onClick={() => { setPersonContactId(''); setPersonQuery(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: T.dim, cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
+                  <Field label="Contact" hint="Linked to an existing contact — their details come from the Contacts record.">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 10px', border: `1px solid ${T.border}`, borderRadius: 8, background: 'var(--s2)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text }}>
+                        <CheckCircle2 size={15} strokeWidth={2} style={{ color: T.ok, flexShrink: 0 }} />
+                        <span style={{ fontWeight: 600 }}>👤 {[form.first_name, form.last_name].filter(Boolean).join(' ') || 'Linked contact'}</span>
+                        {form.title && <span style={{ color: T.dim }}>· {form.title}</span>}
+                        <button type="button" onClick={() => { setPersonContactId(''); setPersonQuery(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: T.dim, cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
+                      </div>
+                      {(form.phone || form.email) && (
+                        <div style={{ fontSize: 12, color: T.dim, paddingLeft: 23 }}>{[form.phone, form.email].filter(Boolean).join('  ·  ')}</div>
+                      )}
                     </div>
                   </Field>
                 ) : (
@@ -1364,24 +1369,31 @@ export default function NewLeadPage() {
                 )}
               </div>
             )}
-            {text('first_name', 'First name', { required: fields.requiredFor('first_name', true) })}
-            {text('last_name',  'Last name',  { required: fields.requiredFor('last_name',  true) })}
+            {/* Once a Spark lead is linked to an existing contact, their name /
+                designation / mobile / email come from that Contacts record — so
+                we don't re-ask for them here (this was the duplicate data entry).
+                The compact "Contact" chip above shows those details read-only.
+                Unlinked (or non-Spark) leads still capture the person inline. */}
+            {!(sparkStructured && personContactId) && text('first_name', 'First name', { required: fields.requiredFor('first_name', true) })}
+            {!(sparkStructured && personContactId) && text('last_name',  'Last name',  { required: fields.requiredFor('last_name',  true) })}
             {/* Designation = the built-in `title` field, rendered through the
                 field-override helper so it keeps its id, admin label/order and
                 hidden/required gating (the contract every built-in must honour). */}
-            {sparkStructured && text('title', 'Designation', { placeholder: 'e.g. Maintenance In-charge' })}
+            {sparkStructured && !personContactId && text('title', 'Designation', { placeholder: 'e.g. Maintenance In-charge' })}
             {/* Department (Spark structured) — denormalised onto the lead for the
-                name + reporting; the backend also stamps it on the contact. */}
+                name + reporting; the backend also stamps it on the contact. Kept
+                even when a contact is linked: it is a per-lead/requirement detail,
+                not a property of the person. */}
             {sparkStructured && (
               <Field label="Department">
                 <Input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="e.g. Instrumentation (optional)" />
               </Field>
             )}
-            {text('phone',      'Primary mobile', { required: fields.requiredFor('phone', true), phone: true })}
+            {!(sparkStructured && personContactId) && text('phone',      'Primary mobile', { required: fields.requiredFor('phone', true), phone: true })}
             {/* Email field is hidden entirely for Tata Tiscon — their FE
                 walk-in flow doesn't collect email, and prompting for it
                 just to skip it adds friction. */}
-            {!isTata && text('email', 'Email', { type: 'email', required: fields.requiredFor('email', false), placeholder: 'name@company.com' })}
+            {!isTata && !(sparkStructured && personContactId) && text('email', 'Email', { type: 'email', required: fields.requiredFor('email', false), placeholder: 'name@company.com' })}
           </Grid>
           {/* Built-in field — gate on its own key like every other built-in
               row (and like the Edit form + mobile apps) so hiding

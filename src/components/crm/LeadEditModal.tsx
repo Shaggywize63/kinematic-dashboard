@@ -595,12 +595,17 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           {sparkStructured && (
             <div style={{ gridColumn: '1 / -1' }}>
               {personContactId ? (
-                <Field label="Contact">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--s2)' }}>
-                    <CheckCircle2 size={15} strokeWidth={2} style={{ color: 'var(--ok, #16a34a)', flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600 }}>👤 {[form.first_name, form.last_name].filter(Boolean).join(' ') || 'Linked contact'}</span>
-                    {form.title && <span style={{ color: 'var(--text-dim)' }}>· {form.title}</span>}
-                    <button type="button" onClick={() => { setPersonContactId(''); setPersonQuery(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
+                <Field label="Contact" hint="Linked to an existing contact — their details come from the Contacts record.">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--s2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+                      <CheckCircle2 size={15} strokeWidth={2} style={{ color: 'var(--ok, #16a34a)', flexShrink: 0 }} />
+                      <span style={{ fontWeight: 600 }}>👤 {[form.first_name, form.last_name].filter(Boolean).join(' ') || 'Linked contact'}</span>
+                      {form.title && <span style={{ color: 'var(--text-dim)' }}>· {form.title}</span>}
+                      <button type="button" onClick={() => { setPersonContactId(''); setPersonQuery(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
+                    </div>
+                    {(form.phone || form.email) && (
+                      <div style={{ fontSize: 12, color: 'var(--text-dim)', paddingLeft: 23 }}>{[form.phone, form.email].filter(Boolean).join('  ·  ')}</div>
+                    )}
                   </div>
                 </Field>
               ) : (
@@ -625,12 +630,16 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               )}
             </div>
           )}
-          {show('first_name', <F label={lbl('first_name', 'First Name')} required={req('first_name', true)} style={os('first_name')} value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />)}
-          {show('last_name',  <F label={lbl('last_name',  'Last Name')}  required={req('last_name',  false)} style={os('last_name')} value={form.last_name}  onChange={(v) => setForm({ ...form, last_name:  v })} />)}
+          {/* When a Spark lead is (re)linked to an existing contact, name /
+              designation / mobile / email come from that Contacts record — we
+              don't re-ask for them (the "Contact" chip above shows them read-only).
+              Not-yet-linked or non-Spark leads still edit the person inline. */}
+          {!(sparkStructured && personContactId) && show('first_name', <F label={lbl('first_name', 'First Name')} required={req('first_name', true)} style={os('first_name')} value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />)}
+          {!(sparkStructured && personContactId) && show('last_name',  <F label={lbl('last_name',  'Last Name')}  required={req('last_name',  false)} style={os('last_name')} value={form.last_name}  onChange={(v) => setForm({ ...form, last_name:  v })} />)}
           {/* Designation = the built-in `title` field, rendered through the override
               helpers (label / order / hidden) so the contract holds — shown in the
               Person section for Spark instead of the Company section. */}
-          {sparkStructured && show('title', <F label={lbl('title', 'Designation')} style={os('title')} value={form.title} onChange={(v) => setForm({ ...form, title: v })} />)}
+          {sparkStructured && !personContactId && show('title', <F label={lbl('title', 'Designation')} style={os('title')} value={form.title} onChange={(v) => setForm({ ...form, title: v })} />)}
           {sparkStructured && (
             <Field label="Department" style={os('department')}>
               <Input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="e.g. Instrumentation (optional)" />
@@ -643,8 +652,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           {/* Email entirely hidden for Tata Tiscon — their FE intake
               doesn't capture email and we don't want the field showing
               up in the edit form for legacy leads either. */}
-          {!isTata && show('email', <F label={lbl('email', 'Email')} type="email" required={req('email', false)} style={os('email')} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
-          {show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', true)} style={os('phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
+          {!isTata && !(sparkStructured && personContactId) && show('email', <F label={lbl('email', 'Email')} type="email" required={req('email', false)} style={os('email')} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
+          {!(sparkStructured && personContactId) && show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', true)} style={os('phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
         </Grid>
 
         {/* Alternate mobile numbers — chip list, same component the
