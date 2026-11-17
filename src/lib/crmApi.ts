@@ -368,6 +368,9 @@ export interface AccountJourney {
 export const crmAccounts = {
   ...crud<Account>(`${BASE}/accounts`),
   contacts: (id: string) => api.get<Wrapped<Contact[]>>(`${BASE}/accounts/${id}/contacts`),
+  /** Spark & Ray: the plants (child accounts) under a parent company. The generic list filter applies
+   *  parent_account_id as an equality match, so this needs no dedicated route. */
+  children: (id: string) => api.get<Wrapped<Account[]>>(`${BASE}/accounts${qs({ parent_account_id: id, limit: 200 })}`),
   deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/accounts/${id}/deals`),
   // Leads whose account_id = this account (GET /crm/accounts/:id/leads).
   leads: (id: string) => api.get<Wrapped<Lead[]>>(`${BASE}/accounts/${id}/leads`),
