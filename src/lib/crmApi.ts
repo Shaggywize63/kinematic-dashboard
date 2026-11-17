@@ -14,7 +14,7 @@ import type {
   Product, ProductCategory, Make, Brand, ProductBulkRow, ProductBulkResult, DealLineItem,
   WhatsappTemplate, WhatsappLog,
   SimilarAccountsResult, AccountMergeBody, AccountMergeResult, LeadRefBackfillBody, LeadRefBackfillResult,
-  TargetKind, TargetType, TargetProgress, TargetEntry, TargetEntryInput, TargetEntryQuery, RupeeLeaderboard,
+  TargetKind, TargetType, TargetProgress, TargetEntry, TargetEntryInput, TargetEntryQuery, RupeeLeaderboard, SalespersonDetail,
   AfterSalesTelecaller, AfterSalesConfig, AfterSalesRecordInput, AfterSalesImportResult, AfterSalesRecordRow,
 } from '../types/crm';
 import type { Integration, InboundEvent, IntegrationProvider } from '../types/integrations';
@@ -564,6 +564,13 @@ export const crmTargets = {
   rupeeLeaderboard: (type: TargetKind) => api.get<Wrapped<RupeeLeaderboard>>(`${BASE}/targets/leaderboard${qs({ type })}`, LIVE),
   /** The rupee target types this client has switched on — `types: []` (or an error) means the feature is off. */
   types: () => api.get<Wrapped<{ types: TargetType[] }>>(`${BASE}/targets/types`),
+  /**
+   * One salesperson's SALES-target drill-down for an IST month (default: current): resolved target,
+   * achieved + pending, daily/weekly progress, the customers contributing this month, and
+   * target-vs-achieved for the last 6 months. Achievement follows the client's basis (won deals for an
+   * opted-in client such as Aadinath, logged entries otherwise). Manager-gated — 403 for non-managers. */
+  salespersonDetail: (userId: string, month?: string) =>
+    api.get<Wrapped<SalespersonDetail>>(`${BASE}/targets/salesperson/${userId}${qs({ month })}`, LIVE),
   /** The caller's own target and running total for the current month, per enabled type. */
   progress: () => api.get<Wrapped<TargetProgress>>(`${BASE}/targets/progress`, LIVE),
   entries: {

@@ -922,6 +922,30 @@ export interface RupeeLeaderboard {
   role_id: string | null;
 }
 
+/** How a sales target's achievement is measured. `won_deals` is opt-in per client (e.g. Aadinath); everyone else stays `manual`. */
+export type AchievementBasis = 'manual' | 'won_deals';
+/**
+ * GET /targets/salesperson/:userId?month=YYYY-MM — one rep's SALES-target drill-down for an IST month
+ * (manager-gated). `target` / `achieved` / `pending` are rupees; `pct` is an integer percent or null.
+ * `daily` / `weekly` are this month's progress buckets; `historical` is target-vs-achieved for the last
+ * 6 months; `customers` is the top 25 contributing accounts this month, by value.
+ */
+export interface SalespersonDetail {
+  user_id: string;
+  name: string | null;
+  basis: AchievementBasis;
+  period_start: string;
+  period_end: string;
+  target: number | null;
+  achieved: number;
+  pending: number | null;
+  pct: number | null;
+  daily: Array<{ date: string; value: number; count: number }>;
+  weekly: Array<{ week_start: string; value: number; count: number }>;
+  historical: Array<{ month: string; target: number | null; achieved: number; pct: number | null }>;
+  customers: Array<{ name: string; value: number; count: number }>;
+}
+
 /**
  * Spend on one lead or deal (connected-B2B): GET /crm/leads/:id/expenses and /crm/deals/:id/expenses.
  * `totals` cover every claim linked; `claims` may list only the caller's own rows (privacy), so the totals can
