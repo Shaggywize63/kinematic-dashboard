@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings, crmLeadSources, crmAccounts, crmMakes, crmProducts, crmSites, type AccountSite } from '../../lib/crmApi';
+import { crmLeads, crmSettings, crmLeadSources, crmAccounts, crmContacts, crmMakes, crmProducts, crmSites, type AccountSite } from '../../lib/crmApi';
 import api from '../../lib/api';
 import { isB2bClientActive } from '../../lib/b2bClient';
 import { orderLeadSources } from '../../lib/leadSourceOrder';
@@ -22,7 +22,7 @@ import { isKinematicTenant, STEEL_DEALER_CLIENT_IDS } from '../../lib/clientFeat
 import { useAuth } from '../../hooks/useAuth';
 import { useLeadOwnerAccess } from '../../lib/leadOwnerAccess';
 import { LEAD_TYPE_DEFAULT_LABEL, LEAD_TYPE_OPTIONS, leadTypeForApi } from '../../lib/leadType';
-import { LocateFixed } from 'lucide-react';
+import { LocateFixed, CheckCircle2 } from 'lucide-react';
 import { Button, Field, Input, Segmented, Select, Textarea, eyebrowStyle, labelStyle, requiredMark } from '../ui';
 
 interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (updated: Lead) => void; }
@@ -200,6 +200,23 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const [makes, setMakes] = useState<Make[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [accountSites, setAccountSites] = useState<AccountSite[]>([]);
+  // Spark: link the lead's person to an EXISTING contact via typeahead (no duplicate).
+  const [personContactId, setPersonContactId] = useState('');
+  const [personQuery, setPersonQuery] = useState('');
+  const [personResults, setPersonResults] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null; email?: string | null; department?: string | null }>>([]);
+  useEffect(() => { if (open) { setPersonContactId(''); setPersonQuery(''); setPersonResults([]); } }, [open, lead]);
+  useEffect(() => {
+    if (!open || !sparkStructured || personContactId) { setPersonResults([]); return; }
+    const term = personQuery.trim();
+    if (term.length < 2) { setPersonResults([]); return; }
+    let off = false;
+    const t = setTimeout(() => {
+      crmContacts.list({ q: term, limit: 8 })
+        .then((r) => { if (!off) setPersonResults(((r.data as Array<Record<string, unknown>>) || []).filter((c) => c && c.id) as typeof personResults); })
+        .catch(() => { if (!off) setPersonResults([]); });
+    }, 250);
+    return () => { off = true; clearTimeout(t); };
+  }, [open, sparkStructured, personContactId, personQuery]);
   useEffect(() => {
     if (!open || !b2bAccounts || form.is_b2c || form.account_id) { setAccountResults([]); return; }
     const term = form.company.trim();
@@ -456,6 +473,10 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         if (form.phone.trim()) person.phone = form.phone.trim();
         if (form.email.trim()) person.email = form.email.trim();
         if (form.requirement.trim()) person.requirement = form.requirement.trim();
+        // Linked to an existing contact — send its id so the backend attaches that
+        // exact record instead of creating a duplicate. (lead_contacts links are left
+        // untouched on edit — managed on the create form / detail.)
+        if (personContactId) person.id = personContactId;
         if (Object.keys(person).length) body.contacts = [person];
       }
       if (form.is_b2c) { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
@@ -569,12 +590,56 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         {/* Option A: the Person section is shown for Spark too (the lead is named
             after its person). Designation = the built-in title; Department is new. */}
         <SL first>{sparkStructured ? 'Person' : 'Contact'}</SL><Grid>
-          {show('first_name', <F label={lbl('first_name', 'First Name')} required={req('first_name', true)} style={os('first_name')} value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />)}
-          {show('last_name',  <F label={lbl('last_name',  'Last Name')}  required={req('last_name',  false)} style={os('last_name')} value={form.last_name}  onChange={(v) => setForm({ ...form, last_name:  v })} />)}
+          {/* Spark: link to an existing contact (no duplicate). Picking fills the name /
+              designation below (kept so order + overrides hold) and pins the contact id. */}
+          {sparkStructured && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              {personContactId ? (
+                <Field label="Contact" hint="Linked to an existing contact — their details come from the Contacts record.">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--s2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+                      <CheckCircle2 size={15} strokeWidth={2} style={{ color: 'var(--ok, #16a34a)', flexShrink: 0 }} />
+                      <span style={{ fontWeight: 600 }}>👤 {[form.first_name, form.last_name].filter(Boolean).join(' ') || 'Linked contact'}</span>
+                      {form.title && <span style={{ color: 'var(--text-dim)' }}>· {form.title}</span>}
+                      <button type="button" onClick={() => { setPersonContactId(''); setPersonQuery(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
+                    </div>
+                    {(form.phone || form.email) && (
+                      <div style={{ fontSize: 12, color: 'var(--text-dim)', paddingLeft: 23 }}>{[form.phone, form.email].filter(Boolean).join('  ·  ')}</div>
+                    )}
+                  </div>
+                </Field>
+              ) : (
+                <Field label="Link an existing contact">
+                  <div style={{ position: 'relative' }}>
+                    <Input autoComplete="off" placeholder="Start typing a contact name…" value={personQuery} onChange={(e) => setPersonQuery(e.target.value)} />
+                    {personResults.length > 0 && (
+                      <div role="listbox" style={{ position: 'absolute', zIndex: 20, top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--panel, var(--card))', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
+                        {personResults.map((c) => (
+                          <button key={c.id} type="button" role="option"
+                            onClick={() => { setForm((f) => ({ ...f, first_name: c.first_name || '', last_name: c.last_name || '', title: c.title || f.title, phone: c.phone || f.phone, email: c.email || f.email, department: (c.department as string) || f.department })); setPersonContactId(c.id); setPersonResults([]); setPersonQuery([c.first_name, c.last_name].filter(Boolean).join(' ')); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13.5 }}>
+                            <span aria-hidden>👤</span>
+                            <span style={{ fontWeight: 600 }}>{[c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Unnamed contact'}</span>
+                            {(c.title || c.phone) && <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-dim)' }}>{c.title || c.phone}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Field>
+              )}
+            </div>
+          )}
+          {/* When a Spark lead is (re)linked to an existing contact, name /
+              designation / mobile / email come from that Contacts record — we
+              don't re-ask for them (the "Contact" chip above shows them read-only).
+              Not-yet-linked or non-Spark leads still edit the person inline. */}
+          {!(sparkStructured && personContactId) && show('first_name', <F label={lbl('first_name', 'First Name')} required={req('first_name', true)} style={os('first_name')} value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />)}
+          {!(sparkStructured && personContactId) && show('last_name',  <F label={lbl('last_name',  'Last Name')}  required={req('last_name',  false)} style={os('last_name')} value={form.last_name}  onChange={(v) => setForm({ ...form, last_name:  v })} />)}
           {/* Designation = the built-in `title` field, rendered through the override
               helpers (label / order / hidden) so the contract holds — shown in the
               Person section for Spark instead of the Company section. */}
-          {sparkStructured && show('title', <F label={lbl('title', 'Designation')} style={os('title')} value={form.title} onChange={(v) => setForm({ ...form, title: v })} />)}
+          {sparkStructured && !personContactId && show('title', <F label={lbl('title', 'Designation')} style={os('title')} value={form.title} onChange={(v) => setForm({ ...form, title: v })} />)}
           {sparkStructured && (
             <Field label="Department" style={os('department')}>
               <Input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="e.g. Instrumentation (optional)" />
@@ -587,8 +652,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           {/* Email entirely hidden for Tata Tiscon — their FE intake
               doesn't capture email and we don't want the field showing
               up in the edit form for legacy leads either. */}
-          {!isTata && show('email', <F label={lbl('email', 'Email')} type="email" required={req('email', false)} style={os('email')} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
-          {show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', true)} style={os('phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
+          {!isTata && !(sparkStructured && personContactId) && show('email', <F label={lbl('email', 'Email')} type="email" required={req('email', false)} style={os('email')} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
+          {!(sparkStructured && personContactId) && show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', true)} style={os('phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
         </Grid>
 
         {/* Alternate mobile numbers — chip list, same component the

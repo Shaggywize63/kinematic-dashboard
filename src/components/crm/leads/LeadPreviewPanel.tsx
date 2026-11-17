@@ -7,7 +7,7 @@ import { ArrowRight, ExternalLink, Mail, Pencil, Phone, Sparkles, X } from 'luci
 import type { Lead, NextBestAction } from '../../../types/crm';
 import type { LeadStatusOption } from '../../../lib/crmLeadStatuses';
 import type { FieldHelpers } from '../../../lib/crmFieldOverrides';
-import { crmAi, crmLeads, type LeadUpdate } from '../../../lib/crmApi';
+import { crmAi, crmLeads, type LeadUpdate, type LeadContactLink } from '../../../lib/crmApi';
 import { breakdownFactors, llmAdjustmentOf } from '../../../lib/crm/scoreFactors';
 import { isValidWaPhone, waLink } from '../../../lib/whatsapp';
 import { callComposerUrl, dialableNumber } from '../shared/CallButton';
@@ -100,6 +100,7 @@ export default function LeadPreviewPanel({
   const [updates, setUpdates] = useState<LeadUpdate[] | null>(null);
   const [nba, setNba] = useState<NextBestAction | null>(null);
   const [nbaLoading, setNbaLoading] = useState(false);
+  const [people, setPeople] = useState<LeadContactLink[]>([]);
 
   // Fresh data per lead: the timeline is fetched on open, the AI suggestion is reset.
   useEffect(() => {
@@ -109,6 +110,17 @@ export default function LeadPreviewPanel({
     crmLeads.updates(lead.id, { limit: 3 })
       .then((r) => { if (!cancelled) setUpdates(r.data || []); })
       .catch(() => { if (!cancelled) setUpdates([]); });
+    return () => { cancelled = true; };
+  }, [lead.id]);
+
+  // Spark: the customer people on this lead (primary/nodal first). Empty for other tenants.
+  useEffect(() => {
+    if (!isB2bClientActive()) { setPeople([]); return; }
+    let cancelled = false;
+    setPeople([]);
+    crmLeads.contacts(lead.id)
+      .then((r) => { if (!cancelled) setPeople(r.data || []); })
+      .catch(() => { if (!cancelled) setPeople([]); });
     return () => { cancelled = true; };
   }, [lead.id]);
 
@@ -263,6 +275,22 @@ export default function LeadPreviewPanel({
             </div>
           ))}
         </div>
+      )}
+
+      {people.length > 0 && (
+        <Section title="People on this lead">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {people.map((p) => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: T.text }}>
+                <span aria-hidden>👤</span>
+                <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                {p.title && <span style={{ color: T.dim, fontSize: 12 }}>· {p.title}</span>}
+                {p.role && <span style={{ color: T.dim, fontSize: 12 }}>· {p.role}</span>}
+                {p.is_primary && <Badge tone="red" style={{ marginLeft: 'auto', fontSize: 10, height: 18 }}>Primary</Badge>}
+              </div>
+            ))}
+          </div>
+        </Section>
       )}
 
       {!hid('score') && (

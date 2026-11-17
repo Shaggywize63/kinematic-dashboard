@@ -84,10 +84,18 @@ export interface LeadProductLine {
   qty?: number | null; unit?: string | null; line_value?: number | null; position?: number | null;
 }
 
+// Connected-B2B (Spark & Ray): a customer person linked to a lead, primary (nodal) or secondary.
+export interface LeadContactLink {
+  id: string; contact_id: string; is_primary: boolean; role?: string | null; position?: number;
+  name: string; title?: string | null; phone?: string | null; email?: string | null;
+}
+
 export const crmLeads = {
   ...crud<Lead>(`${BASE}/leads`),
   // The make/product/qty lines captured under this lead's requirement (Spark & Ray).
   productLines: (id: string) => api.get<Wrapped<LeadProductLine[]>>(`${BASE}/leads/${id}/product-lines`),
+  // The customer people on this lead (primary/nodal first), joined with the contact name/title.
+  contacts: (id: string) => api.get<Wrapped<LeadContactLink[]>>(`${BASE}/leads/${id}/contacts`),
   // AI Smart Filters — plain-English → validated lead-list filter params. The
   // page applies the returned params to the normal list fetch (all tenant
   // scoping stays server-side). `explanation` is a human-readable summary.

@@ -284,13 +284,35 @@ export default function AccountDetailPage() {
                     const label = site
                       ? `${site.name}${site.city ? ` · ${site.city}` : ''}${site.state ? `, ${site.state}` : ''}`
                       : 'No plant assigned';
+                    // Department sub-level (Company → Plant → Department → requirement), so a
+                    // big customer reads like the structure diagram. Only shown when this plant
+                    // actually has departments; otherwise the leads render flat (older data).
+                    const byDept = new Map<string, Lead[]>();
+                    for (const l of group) {
+                      const dk = (l.department || '').trim() || '__nodept__';
+                      const b = byDept.get(dk); if (b) b.push(l); else byDept.set(dk, [l]);
+                    }
+                    const deptEntries = Array.from(byDept.entries()).sort((x, y) =>
+                      x[0] === '__nodept__' ? 1 : y[0] === '__nodept__' ? -1 : x[0].localeCompare(y[0]));
+                    const showDepts = deptEntries.some(([dk]) => dk !== '__nodept__');
                     return (
                       <div key={key}>
                         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-dim)', marginBottom: 6 }}>
                           {site ? '📍 ' : ''}{label} ({group.length})
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {group.map(leadRow)}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: showDepts ? 10 : 8 }}>
+                          {deptEntries.map(([dk, dleads]) => (
+                            <div key={dk}>
+                              {showDepts && dk !== '__nodept__' && (
+                                <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-dim)', margin: '0 0 4px 10px', opacity: 0.85 }}>
+                                  🏢 {dk}
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {dleads.map(leadRow)}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
