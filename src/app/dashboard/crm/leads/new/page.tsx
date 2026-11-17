@@ -267,12 +267,28 @@ export default function NewLeadPage() {
   // (the one chosen on the form, the user's pinned client, or the global
   // scope picker) so it works for both Tata-pinned staff and admins.
   const { selectedClientId } = useClient();
+  // Client scope is read from localStorage, which exists only in the browser, so every flag derived from
+  // it below — the user's own client_id, the master-admin check, the connected-B2B (Spark & Ray) gate —
+  // resolved to false on the server and to its real value on the client. Deciding what to render from
+  // them DURING render therefore made the server pass and the FIRST client pass disagree at every
+  // scope-gated site (the Person/Contact section title, the company & plant block, the designation /
+  // department rows, …), and React threw the server HTML away for the whole page with a dozen
+  // "Text content did not match" hydration errors.
+  //
+  // So the scope is resolved ONCE, after mount: `scopeReady` is false for the server pass AND for the
+  // first client pass, so the two agree and hydration succeeds; the scope-gated rows render from the
+  // second pass on. The decision is hoisted here, next to the flags, deliberately — a `scopeReady &&`
+  // at each of the ~12 render sites would be the same fix spelled out a dozen times, and the next field
+  // added to the form would silently miss it.
+  const [scopeReady, setScopeReady] = useState(false);
+  useEffect(() => { setScopeReady(true); }, []);
   const userClientId = useMemo<string | null>(() => {
+    if (!scopeReady) return null;
     try {
       const raw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
       return raw ? (JSON.parse(raw)?.client_id ?? null) : null;
     } catch { return null; }
-  }, []);
+  }, [scopeReady]);
   const isTata = STEEL_DEALER_CLIENT_IDS.includes((form.client_id || userClientId || selectedClientId) ?? '');
   // BMW (a steel-dealer tenant) skips the Tata "log as Site Visit" flow: lead
   // create just saves and lands on the lead, never the activity composer.
@@ -281,11 +297,12 @@ export default function NewLeadPage() {
   // field-force GPS capture, and new leads default to the Kinematic client so
   // there's no per-form tenant picker to deal with.
   const isMasterAdmin = useMemo<boolean>(() => {
+    if (!scopeReady) return false;
     try {
       const raw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
       return raw ? (JSON.parse(raw)?.email || '').toLowerCase() === 's@kinematicapp.com' : false;
     } catch { return false; }
-  }, []);
+  }, [scopeReady]);
   // Kinematic's own inside-sales CRM doesn't geo-tag leads — skip the GPS
   // capture entirely (auto-request, the Pin Location card, and the mandatory
   // check below all key off this). The master admin is exempt too.
@@ -301,7 +318,9 @@ export default function NewLeadPage() {
   // Auto-request location on first load — coordinates are mandatory, except
   // for Kinematic / master admin where location capture is disabled.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!skipLocation) captureLocation(); }, [skipLocation]);
+  // Waits for `scopeReady`: until the scope resolves, skipLocation is false for everyone, so firing here
+  // would pop the permission prompt on the very tenants (Kinematic / master admin) that opt out of it.
+  useEffect(() => { if (scopeReady && !skipLocation) captureLocation(); }, [scopeReady, skipLocation]);
   // Force B2C for Tata (the toggle is hidden, so the default must not stay B2B).
   useEffect(() => {
     if (isTata) setForm((f) => (f.is_b2c ? f : { ...f, is_b2c: true }));
@@ -323,8 +342,8 @@ export default function NewLeadPage() {
   const [leadFormRaw, setLeadFormRaw] = useState<LeadFormConfig>(DEFAULT_LEAD_FORM);
   // Spark & Ray capture an address (Google picker) on B2B leads too, whatever lead_form.address_on_b2b says.
   const leadForm = useMemo<LeadFormConfig>(
-    () => (isB2bClientActive() ? { ...leadFormRaw, addressOnB2b: true } : leadFormRaw),
-    [leadFormRaw],
+    () => (scopeReady && isB2bClientActive() ? { ...leadFormRaw, addressOnB2b: true } : leadFormRaw),
+    [leadFormRaw, scopeReady],
   );
   // datetime-local value ("2026-10-12T10:30") for the optional scheduled visit.
   const [visitAt, setVisitAt] = useState('');
@@ -400,7 +419,7 @@ export default function NewLeadPage() {
   // name leaves account_id empty and the backend creates the account on save
   // (linkLeadToCompany → findOrCreateAccount, matched case-insensitively by name).
   // Gated to the connected-B2B client so every other tenant's form is unchanged.
-  const b2bAccounts = isB2bClientActive();
+  const b2bAccounts = scopeReady && isB2bClientActive();
   // Spark & Ray: the admin-configured industries (Settings -> Industries) drive the Industry dropdown + colours and
   // the dependent Sub-industry dropdown; the built-in seven until/unless one is saved.
   const { industries } = useIndustries(b2bAccounts);
