@@ -129,6 +129,12 @@ const newContactRow = (): LeadContactRow => ({
   firstName: '', lastName: '', title: '', phone: '', email: '', requirement: '',
 });
 
+// One secondary customer person on a Spark lead (GM / DGM / procurement …): an
+// existing contact linked via typeahead, with a free-text role. `name`/`title`
+// are display snapshots filled on pick; only contactId + role are sent.
+type OtherLeadContact = { key: string; contactId: string; name: string; title: string; role: string };
+const newOtherContact = (): OtherLeadContact => ({ key: Math.random().toString(36).slice(2), contactId: '', name: '', title: '', role: '' });
+
 // One make/product/qty line under the lead's requirement (Spark & Ray). Make and
 // product are chosen from the tenant's own lists (ids sent with a name snapshot);
 // qty / unit / lineValue are plain strings for controlled inputs, parsed on submit.
@@ -444,6 +450,11 @@ export default function NewLeadPage() {
     }, 250);
     return () => { off = true; clearTimeout(t); };
   }, [sparkStructured, personContactId, personQuery]);
+  // Spark: the OTHER customer people on this lead (GM / DGM / procurement …) besides
+  // the primary (nodal) contact picked in the Person section. Each links an existing
+  // contact; sent as lead_contacts[] (is_primary false). Start empty — a lead needs
+  // only its primary.
+  const [otherContacts, setOtherContacts] = useState<OtherLeadContact[]>([]);
   useEffect(() => {
     // Only search for a B2B lead on the connected-B2B client, and never while a
     // company is already linked (the rep clears the link to search again).
@@ -868,6 +879,18 @@ export default function NewLeadPage() {
         // (or, worse, creating a duplicate person).
         if (personContactId) person.id = personContactId;
         if (Object.keys(person).length) payload.contacts = [person];
+        // Customer people on this lead: the Person pick is the primary (nodal)
+        // contact; the "Other people" rows are secondary. Sent as lead_contacts[]
+        // (the crm_lead_contacts join); undefined when none so the backend leaves
+        // the links as-is.
+        const leadContacts: Array<Record<string, unknown>> = [];
+        if (personContactId) leadContacts.push({ contact_id: personContactId, is_primary: true });
+        for (const o of otherContacts) {
+          if (o.contactId && o.contactId !== personContactId) {
+            leadContacts.push({ contact_id: o.contactId, is_primary: false, role: o.role.trim() || undefined });
+          }
+        }
+        if (leadContacts.length) payload.lead_contacts = leadContacts;
       }
       if (form.is_b2c) {
         Object.assign(payload, {
@@ -1449,6 +1472,31 @@ export default function NewLeadPage() {
           </Section>
         )}
 
+        {/* Spark: the other customer people on this lead besides the primary (nodal)
+            contact. Each links an existing contact; sent as secondary lead_contacts. */}
+        {sparkStructured && (
+          <Section title="Other people on this lead" hint="GM / DGM / procurement … besides the primary contact (optional).">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {otherContacts.map((row) => (
+                <OtherContactRow
+                  key={row.key}
+                  row={row}
+                  onChange={(next) => setOtherContacts((rows) => rows.map((r) => (r.key === row.key ? next : r)))}
+                  onRemove={() => setOtherContacts((rows) => rows.filter((r) => r.key !== row.key))}
+                  narrow={narrow}
+                />
+              ))}
+              <button
+                type="button"
+                onClick={() => setOtherContacts((rows) => [...rows, newOtherContact()])}
+                style={{ alignSelf: 'flex-start', background: 'transparent', border: `1px dashed ${T.border}`, color: T.text, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+              >
+                + Add a person
+              </button>
+            </div>
+          </Section>
+        )}
+
         {!form.is_b2c ? (
           <>
             <Section title={sparkStructured ? 'Company & plant' : 'Company'} hint={sparkStructured ? 'The organisation, its parent group, and the plant this requirement is for.' : 'Where they work and how they found you.'}>
@@ -1749,6 +1797,66 @@ function Section({ title, hint, first, flatRow, children }: { title: string; hin
 // typing a fresh name creates a new contact on save. Manages its own search
 // state so each row searches independently. Mirrors the Company→account
 // typeahead one level down (lead → account → contacts).
+// One "Other people on this lead" row (Spark): link an existing contact via a
+// typeahead + a free-text role. Picking pins contactId; sent as a secondary
+// lead_contact (is_primary false). Own search state so each row searches alone.
+function OtherContactRow({ row, onChange, onRemove, narrow }: {
+  row: OtherLeadContact; onChange: (next: OtherLeadContact) => void; onRemove: () => void; narrow: boolean;
+}) {
+  const [query, setQuery] = useState(row.name);
+  const [results, setResults] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null }>>([]);
+  useEffect(() => {
+    if (row.contactId) { setResults([]); return; }
+    const term = query.trim();
+    if (term.length < 2) { setResults([]); return; }
+    let off = false;
+    const t = setTimeout(() => {
+      crmContacts.list({ q: term, limit: 8 })
+        .then((r) => { if (!off) setResults(((r.data as Array<Record<string, unknown>>) || []).filter((c) => c && c.id) as typeof results); })
+        .catch(() => { if (!off) setResults([]); });
+    }, 250);
+    return () => { off = true; clearTimeout(t); };
+  }, [row.contactId, query]);
+  const nameOf = (c: { first_name?: string | null; last_name?: string | null }) => [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Unnamed contact';
+  return (
+    <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: narrow ? 12 : 14, display: 'grid', gridTemplateColumns: narrow ? '1fr' : '2fr 1fr auto', gap: 10, alignItems: 'end', background: 'var(--s2)' }}>
+      {row.contactId ? (
+        <Field label="Contact">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text, padding: '8px 10px', border: `1px solid ${T.border}`, borderRadius: 8, background: T.card }}>
+            <CheckCircle2 size={15} strokeWidth={2} style={{ color: T.ok, flexShrink: 0 }} />
+            <span style={{ fontWeight: 600 }}>👤 {row.name || 'Linked contact'}</span>
+            {row.title && <span style={{ color: T.dim }}>· {row.title}</span>}
+            <button type="button" onClick={() => { onChange({ ...row, contactId: '', name: '', title: '' }); setQuery(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: T.dim, cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
+          </div>
+        </Field>
+      ) : (
+        <Field label="Contact">
+          <div style={{ position: 'relative' }}>
+            <Input autoComplete="off" placeholder="Start typing a contact name…" value={query} onChange={(e) => setQuery(e.target.value)} />
+            {results.length > 0 && (
+              <div role="listbox" style={{ position: 'absolute', zIndex: 20, top: 'calc(100% + 4px)', left: 0, right: 0, background: T.panel, border: `1px solid ${T.border}`, borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
+                {results.map((c) => (
+                  <button key={c.id} type="button" role="option"
+                    onClick={() => { onChange({ ...row, contactId: c.id, name: nameOf(c), title: c.title || '' }); setResults([]); setQuery(nameOf(c)); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13.5, color: T.text }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--s3)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
+                    <span aria-hidden>👤</span>
+                    <span style={{ fontWeight: 600 }}>{nameOf(c)}</span>
+                    {(c.title || c.phone) && <span style={{ marginLeft: 'auto', fontSize: 11.5, color: T.dim }}>{c.title || c.phone}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </Field>
+      )}
+      <Field label="Role"><Input placeholder="e.g. Procurement" value={row.role} onChange={(e) => onChange({ ...row, role: e.target.value })} /></Field>
+      <button type="button" onClick={onRemove} style={{ background: 'transparent', border: 'none', color: T.dim, cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: '0 0 10px' }}>Remove</button>
+    </div>
+  );
+}
+
 function ContactRow({ row, index, onChange, onRemove, canRemove, narrow }: {
   row: LeadContactRow; index: number;
   onChange: (next: LeadContactRow) => void; onRemove: () => void; canRemove: boolean; narrow: boolean;
