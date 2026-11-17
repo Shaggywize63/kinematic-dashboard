@@ -424,6 +424,26 @@ export default function NewLeadPage() {
   // lines are captured as their own fields below, and the backend composes the
   // display name. (Previously the lead was company-named with a contacts[] list.)
   const sparkStructured = b2bAccounts && !form.is_b2c;
+  // Spark structured "Person": link the lead to an EXISTING CRM contact via a
+  // typeahead so a repeat person isn't duplicated (the client's duplicate-lead
+  // fix). Picking fills the name / designation below and pins the contact id so
+  // the backend links that exact record; brand-new people are still created in
+  // the Contacts section first.
+  const [personContactId, setPersonContactId] = useState('');
+  const [personQuery, setPersonQuery] = useState('');
+  const [personResults, setPersonResults] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null; email?: string | null; department?: string | null }>>([]);
+  useEffect(() => {
+    if (!sparkStructured || personContactId) { setPersonResults([]); return; }
+    const term = personQuery.trim();
+    if (term.length < 2) { setPersonResults([]); return; }
+    let off = false;
+    const t = setTimeout(() => {
+      crmContacts.list({ q: term, limit: 8 })
+        .then((r) => { if (!off) setPersonResults(((r.data as Array<Record<string, unknown>>) || []).filter((c) => c && c.id) as typeof personResults); })
+        .catch(() => { if (!off) setPersonResults([]); });
+    }, 250);
+    return () => { off = true; clearTimeout(t); };
+  }, [sparkStructured, personContactId, personQuery]);
   useEffect(() => {
     // Only search for a B2B lead on the connected-B2B client, and never while a
     // company is already linked (the rep clears the link to search again).
@@ -843,6 +863,10 @@ export default function NewLeadPage() {
         if (form.phone.trim()) person.phone = form.phone.trim();
         if (form.email.trim()) person.email = form.email.trim();
         if (form.requirement.trim()) person.requirement = form.requirement.trim();
+        // Linked to an existing contact via the typeahead — send its id so the
+        // backend attaches that exact record instead of de-duping by name/phone
+        // (or, worse, creating a duplicate person).
+        if (personContactId) person.id = personContactId;
         if (Object.keys(person).length) payload.contacts = [person];
       }
       if (form.is_b2c) {
@@ -1275,6 +1299,48 @@ export default function NewLeadPage() {
         <FlatRegion flat={flat} narrow={narrow}>
         <Section title={sparkStructured ? 'Person' : 'Contact'} hint={sparkStructured ? 'The person this requirement is for.' : 'Who you’re talking to.'} first>
           <Grid narrow={narrow}>
+            {/* Spark duplicate-lead fix: link the lead to an EXISTING contact.
+                Picking fills the name/designation below (kept so the field
+                order/overrides and e2e hold) and pins the contact id, so the
+                backend links that exact record instead of creating a new one. */}
+            {sparkStructured && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                {personContactId ? (
+                  <Field label="Contact">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text, padding: '8px 10px', border: `1px solid ${T.border}`, borderRadius: 8, background: 'var(--s2)' }}>
+                      <CheckCircle2 size={15} strokeWidth={2} style={{ color: T.ok, flexShrink: 0 }} />
+                      <span style={{ fontWeight: 600 }}>👤 {[form.first_name, form.last_name].filter(Boolean).join(' ') || 'Linked contact'}</span>
+                      {form.title && <span style={{ color: T.dim }}>· {form.title}</span>}
+                      <button type="button" onClick={() => { setPersonContactId(''); setPersonQuery(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: T.dim, cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
+                    </div>
+                  </Field>
+                ) : (
+                  <Field label="Link an existing contact" hint="Search a contact to link this lead to them (no duplicate). New people are added in Contacts first.">
+                    <div style={{ position: 'relative' }}>
+                      <Input autoComplete="off" placeholder="Start typing a contact name…" value={personQuery} onChange={(e) => setPersonQuery(e.target.value)} />
+                      {personResults.length > 0 && (
+                        <div role="listbox" style={{ position: 'absolute', zIndex: 20, top: 'calc(100% + 4px)', left: 0, right: 0, background: T.panel, border: `1px solid ${T.border}`, borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
+                          {personResults.map((c) => (
+                            <button key={c.id} type="button" role="option"
+                              onClick={() => {
+                                setForm((f) => ({ ...f, first_name: c.first_name || '', last_name: c.last_name || '', title: c.title || f.title, phone: c.phone || f.phone, email: c.email || f.email, department: (c.department as string) || f.department }));
+                                setPersonContactId(c.id); setPersonResults([]); setPersonQuery([c.first_name, c.last_name].filter(Boolean).join(' '));
+                              }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13.5, color: T.text }}
+                              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--s3)'; }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
+                              <span aria-hidden>👤</span>
+                              <span style={{ fontWeight: 600 }}>{[c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Unnamed contact'}</span>
+                              {(c.title || c.phone) && <span style={{ marginLeft: 'auto', fontSize: 11.5, color: T.dim }}>{c.title || c.phone}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Field>
+                )}
+              </div>
+            )}
             {text('first_name', 'First name', { required: fields.requiredFor('first_name', true) })}
             {text('last_name',  'Last name',  { required: fields.requiredFor('last_name',  true) })}
             {/* Designation = the built-in `title` field, rendered through the
