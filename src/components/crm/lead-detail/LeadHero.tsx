@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowRightLeft, Building2, ChevronDown, ChevronRight, Link2, MapPin, MoreHorizontal, Pencil, Phone, RotateCcw, Search, Tag, Trash2, User, UserPlus, XCircle } from 'lucide-react';
+import { ArrowRightLeft, ChevronDown, Link2, MoreHorizontal, Pencil, Phone, RotateCcw, Search, Trash2, User, UserPlus, XCircle } from 'lucide-react';
 import { formatINRCompact } from '../../../lib/formatCurrency';
 import { isStructuredLead, leadPersonName, leadPersonTitle } from '../../../lib/leadHeader';
 import type { FieldHelpers } from '../../../lib/crmFieldOverrides';
@@ -13,6 +13,8 @@ import { WA_PATH } from '../shared/WhatsAppButton';
 import InlineEditText from '../InlineEditText';
 import LeadAvatar from '../leads/LeadAvatar';
 import { IndustryBadge } from '../spark/IndustrySelect';
+import LeadIdentityStrip from '../spark/LeadIdentityStrip';
+import type { LeadIdentitySource } from '../../../lib/leadStructure';
 import { isB2bClientActive } from '../../../lib/b2bClient';
 import { LEAD_TYPE_DEFAULT_LABEL, leadTypeLabel } from '../../../lib/leadType';
 import { Avatar, Badge, Button, Card, IconButton, T, buttonStyle } from '../../ui';
@@ -74,16 +76,19 @@ export default function LeadHero(p: LeadHeroProps) {
   // Connected-B2B: the reference number beside the name, and the built-in Lead type (hide / relabel via the field overrides).
   const b2b = isB2bClientActive();
   const showLeadType = b2b && !!p.settingsLoaded && !fields.isHidden('lead_type') && !!leadTypeLabel(lead.lead_type);
-  // Breadcrumb: Account › Plant › Department — each crumb only when it has a value (blanks drop out).
-  const crumbs: Array<{ k: string; icon: React.ReactNode; text: string; color: string }> = [];
-  if (structured) {
-    const account = (lead.account_name || lead.company || '').trim();
-    if (account && !fields.isHidden('company')) crumbs.push({ k: 'account', icon: <Building2 size={13} strokeWidth={1.9} aria-hidden />, text: account, color: T.text });
-    const plant = (lead.site_name || '').trim();
-    if (plant) crumbs.push({ k: 'plant', icon: <MapPin size={13} strokeWidth={1.9} aria-hidden />, text: plant, color: T.red });
-    const department = (lead.department || '').trim();
-    if (department) crumbs.push({ k: 'department', icon: <Tag size={13} strokeWidth={1.9} aria-hidden />, text: department, color: T.dim });
-  }
+  // The identity chain (Account › Plant › Department › Contact › Requirement › Serial › Owner).
+  // The strip renders every link including the blank ones, so a gap is visible rather than
+  // silently absent — which is the whole point of giving each lead a recognisable identity.
+  // `company` can be hidden by the field overrides, so honour that here too.
+  const identitySource: LeadIdentitySource = {
+    account: fields.isHidden('company') ? '' : (lead.account_name || lead.company || ''),
+    plant: lead.site_name,
+    department: lead.department,
+    contact: person,
+    requirement: lead.requirement,
+    serial: lead.ref_no,
+    owner: lead.owner_name,
+  };
   const value = structured && lead.lines_value && lead.lines_value > 0 ? formatINRCompact(lead.lines_value) : null;
   const chip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', borderRadius: 999, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 12.5, fontWeight: 600, minWidth: 0 };
 
@@ -93,16 +98,6 @@ export default function LeadHero(p: LeadHeroProps) {
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: p.narrow ? 12 : 16, minWidth: 0, flex: 1 }}>
           {!structured && <LeadAvatar lead={lead} size={p.narrow ? 48 : 60} />}
           <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {crumbs.length > 0 && (
-              <nav aria-label="Lead location" data-testid="lead-breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 13, fontWeight: 600, minWidth: 0 }}>
-                {crumbs.map((c, i) => (
-                  <span key={c.k} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                    {i > 0 && <ChevronRight size={13} strokeWidth={2} color={T.mute} aria-hidden />}
-                    <span data-crumb={c.k} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: c.color, overflowWrap: 'anywhere' }}>{c.icon}{c.text}</span>
-                  </span>
-                ))}
-              </nav>
-            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
               {structured ? (
                 // Computed from the lead's structure — change it via Edit lead (account / plant / department / requirement).
@@ -218,6 +213,7 @@ export default function LeadHero(p: LeadHeroProps) {
           />
         </div>
       </div>
+      {structured && <LeadIdentityStrip source={identitySource} variant="detail" style={{ marginTop: 14 }} />}
     </Card>
   );
 }

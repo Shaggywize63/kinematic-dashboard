@@ -30,6 +30,8 @@ import TimelineTab from '../../../../../components/crm/lead-detail/TimelineTab';
 import DealsTab from '../../../../../components/crm/lead-detail/DealsTab';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import { isStructuredLead, leadPersonName } from '../../../../../lib/leadHeader';
+import { leadIdentitySlots } from '../../../../../lib/leadStructure';
+import { LeadStructureGaps } from '../../../../../components/crm/spark/StructureGaps';
 import EntityExpensesCard from '../../../../../components/crm/EntityExpensesCard';
 import SampleInvoicesCard from '../../../../../components/crm/SampleInvoicesCard';
 import InsightsTab from '../../../../../components/crm/lead-detail/InsightsTab';
@@ -441,6 +443,21 @@ export default function LeadDetailPage() {
         onDelete={handleDelete}
         deleting={deleting}
       />
+
+      {/* What's still missing from this lead's identity chain. Rendered for structured
+          (Spark & Ray) leads whether or not anything is open: a visible "Structure complete"
+          is worth more than a card that silently disappears. */}
+      {isStructuredLead(lead) && (
+        <LeadStructureGaps slots={leadIdentitySlots({
+          account: fields.isHidden('company') ? '' : (lead.account_name || lead.company || ''),
+          plant: lead.site_name,
+          department: lead.department,
+          contact: leadPersonName(lead),
+          requirement: lead.requirement,
+          serial: lead.ref_no,
+          owner: lead.owner_name,
+        })} />
+      )}
 
       {/* Lifecycle status banner — lost_reason + disqualified_at so the rep sees the closed-out context above the fold. */}
       {(isUnqualified || isLost) && (

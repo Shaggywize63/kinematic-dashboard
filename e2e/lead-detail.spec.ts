@@ -235,14 +235,24 @@ test.describe('Lead detail — structured (Spark) header', () => {
     primary_contact: { contact_id: 'c-1', name: 'R. Sharma', title: 'Sr. Manager', phone: null },
   };
 
-  test('is titled by the computed name with breadcrumb, Ref, person and value chips', async ({ page }) => {
+  test('is titled by the computed name, with the identity strip, Ref, person and value chips', async ({ page }) => {
     await setup(page, { lead: STRUCTURED });
     await open(page);
     await expect(page.getByTestId('lead-title')).toHaveText('NTPC · Dadri · Procurement — 150 mm Gate Valves');
-    const crumbs = page.getByTestId('lead-breadcrumb');
-    await expect(crumbs.locator('[data-crumb="account"]')).toHaveText('NTPC Limited');
-    await expect(crumbs.locator('[data-crumb="plant"]')).toHaveText('Dadri Super Thermal Plant');
-    await expect(crumbs.locator('[data-crumb="department"]')).toHaveText('Procurement');
+    // The identity chain: Account › Plant › Department › Contact › Requirement › Serial › Owner.
+    const strip = page.getByTestId('lead-identity-strip');
+    await expect(strip).toHaveAttribute('data-variant', 'detail');
+    await expect(strip).toHaveAttribute('data-complete', 'yes');
+    await expect(page.getByTestId('identity-value-account')).toHaveText('NTPC Limited');
+    await expect(page.getByTestId('identity-value-plant')).toHaveText('Dadri Super Thermal Plant');
+    await expect(page.getByTestId('identity-value-department')).toHaveText('Procurement');
+    await expect(page.getByTestId('identity-value-contact')).toHaveText('R. Sharma');
+    await expect(page.getByTestId('identity-value-requirement')).toHaveText('150 mm Gate Valves');
+    await expect(page.getByTestId('identity-value-serial')).toHaveText('SRPR2627-12');
+    await expect(page.getByTestId('identity-value-owner')).toHaveText('Asha Menon');
+    await expect(page.getByTestId('identity-progress')).toHaveText('7 of 7');
+    // Nothing is missing, so the gaps panel says so rather than listing nags.
+    await expect(page.getByTestId('lead-structure-gaps')).toHaveAttribute('data-complete', 'yes');
     await expect(page.getByTestId('lead-ref-chip')).toHaveText('Ref SRPR2627-12');
     await expect(page.getByTestId('lead-person-chip')).toHaveText('R. Sharma · Sr. Manager');
     await expect(page.getByTestId('lead-value-chip')).toHaveText('₹18.4L');
@@ -251,14 +261,23 @@ test.describe('Lead detail — structured (Spark) header', () => {
     await expect(page.locator('[aria-label="Edit name"]')).toHaveCount(0);
   });
 
-  test('blank segments drop out of the breadcrumb, and missing extras leave no empty chips', async ({ page }) => {
+  test('a blank link still renders, marked as a gap, and is listed in "what is missing"', async ({ page }) => {
     await setup(page, { lead: { ...STRUCTURED, display_name: 'NTPC — 150 mm Gate Valves', site_id: null, site_name: null, department: null, lines_value: null, primary_contact: null, first_name: null, last_name: 'NTPC Limited', full_name: 'NTPC Limited' } });
     await open(page);
     await expect(page.getByTestId('lead-title')).toHaveText('NTPC — 150 mm Gate Valves');
-    const crumbs = page.getByTestId('lead-breadcrumb');
-    await expect(crumbs.locator('[data-crumb="account"]')).toHaveText('NTPC Limited');
-    await expect(crumbs.locator('[data-crumb="plant"]')).toHaveCount(0);
-    await expect(crumbs.locator('[data-crumb="department"]')).toHaveCount(0);
+    await expect(page.getByTestId('identity-value-account')).toHaveText('NTPC Limited');
+    // The whole point of the strip: an empty link is SHOWN as empty, not dropped.
+    for (const key of ['plant', 'department', 'contact']) {
+      await expect(page.getByTestId(`identity-slot-${key}`)).toHaveAttribute('data-filled', 'no');
+      await expect(page.getByTestId(`identity-value-${key}`)).toHaveText('Not set');
+    }
+    await expect(page.getByTestId('lead-identity-strip')).toHaveAttribute('data-complete', 'no');
+    await expect(page.getByTestId('identity-progress')).toHaveText('4 of 7');
+    // …and each one is named in the gaps panel, with what to do about it.
+    const gaps = page.getByTestId('lead-structure-gaps');
+    await expect(gaps).toHaveAttribute('data-complete', 'no');
+    await expect(gaps).toContainText('Missing to complete this lead (3)');
+    await expect(gaps).toContainText('Pick which of the company’s plants this is for');
     // No person captured (the name fell back to the company) and no product lines → no person / value chip.
     await expect(page.getByTestId('lead-person-chip')).toHaveCount(0);
     await expect(page.getByTestId('lead-value-chip')).toHaveCount(0);

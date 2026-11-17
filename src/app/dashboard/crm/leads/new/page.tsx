@@ -15,6 +15,8 @@ import GoogleAddressAutocomplete, { type PlaceResult } from '../../../../../comp
 import IndustrySelect from '../../../../../components/crm/spark/IndustrySelect';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
+import LeadIdentityStrip from '../../../../../components/crm/spark/LeadIdentityStrip';
+import PlantPicker from '../../../../../components/crm/spark/PlantPicker';
 import { InlineLeadVoiceCapture } from '../../../../../components/crm/VoiceCaptureOverlay';
 import ClientScopeField from '../../../../../components/ClientScopeField';
 import { UNORDERED_LAST, buildFieldHelpers, extractFieldOverrides, type FieldOverrides, type FieldScope } from '../../../../../lib/crmFieldOverrides';
@@ -265,12 +267,28 @@ export default function NewLeadPage() {
   // (the one chosen on the form, the user's pinned client, or the global
   // scope picker) so it works for both Tata-pinned staff and admins.
   const { selectedClientId } = useClient();
+  // Client scope is read from localStorage, which exists only in the browser, so every flag derived from
+  // it below — the user's own client_id, the master-admin check, the connected-B2B (Spark & Ray) gate —
+  // resolved to false on the server and to its real value on the client. Deciding what to render from
+  // them DURING render therefore made the server pass and the FIRST client pass disagree at every
+  // scope-gated site (the Person/Contact section title, the company & plant block, the designation /
+  // department rows, …), and React threw the server HTML away for the whole page with a dozen
+  // "Text content did not match" hydration errors.
+  //
+  // So the scope is resolved ONCE, after mount: `scopeReady` is false for the server pass AND for the
+  // first client pass, so the two agree and hydration succeeds; the scope-gated rows render from the
+  // second pass on. The decision is hoisted here, next to the flags, deliberately — a `scopeReady &&`
+  // at each of the ~12 render sites would be the same fix spelled out a dozen times, and the next field
+  // added to the form would silently miss it.
+  const [scopeReady, setScopeReady] = useState(false);
+  useEffect(() => { setScopeReady(true); }, []);
   const userClientId = useMemo<string | null>(() => {
+    if (!scopeReady) return null;
     try {
       const raw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
       return raw ? (JSON.parse(raw)?.client_id ?? null) : null;
     } catch { return null; }
-  }, []);
+  }, [scopeReady]);
   const isTata = STEEL_DEALER_CLIENT_IDS.includes((form.client_id || userClientId || selectedClientId) ?? '');
   // BMW (a steel-dealer tenant) skips the Tata "log as Site Visit" flow: lead
   // create just saves and lands on the lead, never the activity composer.
@@ -279,11 +297,12 @@ export default function NewLeadPage() {
   // field-force GPS capture, and new leads default to the Kinematic client so
   // there's no per-form tenant picker to deal with.
   const isMasterAdmin = useMemo<boolean>(() => {
+    if (!scopeReady) return false;
     try {
       const raw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
       return raw ? (JSON.parse(raw)?.email || '').toLowerCase() === 's@kinematicapp.com' : false;
     } catch { return false; }
-  }, []);
+  }, [scopeReady]);
   // Kinematic's own inside-sales CRM doesn't geo-tag leads — skip the GPS
   // capture entirely (auto-request, the Pin Location card, and the mandatory
   // check below all key off this). The master admin is exempt too.
@@ -299,7 +318,9 @@ export default function NewLeadPage() {
   // Auto-request location on first load — coordinates are mandatory, except
   // for Kinematic / master admin where location capture is disabled.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!skipLocation) captureLocation(); }, [skipLocation]);
+  // Waits for `scopeReady`: until the scope resolves, skipLocation is false for everyone, so firing here
+  // would pop the permission prompt on the very tenants (Kinematic / master admin) that opt out of it.
+  useEffect(() => { if (scopeReady && !skipLocation) captureLocation(); }, [scopeReady, skipLocation]);
   // Force B2C for Tata (the toggle is hidden, so the default must not stay B2B).
   useEffect(() => {
     if (isTata) setForm((f) => (f.is_b2c ? f : { ...f, is_b2c: true }));
@@ -321,8 +342,8 @@ export default function NewLeadPage() {
   const [leadFormRaw, setLeadFormRaw] = useState<LeadFormConfig>(DEFAULT_LEAD_FORM);
   // Spark & Ray capture an address (Google picker) on B2B leads too, whatever lead_form.address_on_b2b says.
   const leadForm = useMemo<LeadFormConfig>(
-    () => (isB2bClientActive() ? { ...leadFormRaw, addressOnB2b: true } : leadFormRaw),
-    [leadFormRaw],
+    () => (scopeReady && isB2bClientActive() ? { ...leadFormRaw, addressOnB2b: true } : leadFormRaw),
+    [leadFormRaw, scopeReady],
   );
   // datetime-local value ("2026-10-12T10:30") for the optional scheduled visit.
   const [visitAt, setVisitAt] = useState('');
@@ -398,7 +419,7 @@ export default function NewLeadPage() {
   // name leaves account_id empty and the backend creates the account on save
   // (linkLeadToCompany → findOrCreateAccount, matched case-insensitively by name).
   // Gated to the connected-B2B client so every other tenant's form is unchanged.
-  const b2bAccounts = isB2bClientActive();
+  const b2bAccounts = scopeReady && isB2bClientActive();
   // Spark & Ray: the admin-configured industries (Settings -> Industries) drive the Industry dropdown + colours and
   // the dependent Sub-industry dropdown; the built-in seven until/unless one is saved.
   const { industries } = useIndustries(b2bAccounts);
@@ -1274,6 +1295,25 @@ export default function NewLeadPage() {
         compact={narrow}
       />
 
+      {/* The identity chain, assembling itself as the rep types. Showing it here — rather than
+          validating at submit — turns "what else does this lead need?" into something visible
+          from the first keystroke. Serial is allocated by the backend on save, so it stays
+          blank with its tooltip explaining why. */}
+      {sparkStructured && (
+        <LeadIdentityStrip
+          variant="form"
+          source={{
+            account: form.company,
+            plant: form.plant,
+            department: form.department,
+            contact: [form.first_name, form.last_name].filter(Boolean).join(' '),
+            requirement: form.requirement,
+            serial: '',
+            owner: ownerLocked ? 'You' : (users.find((u) => u.id === form.owner_id)?.name || ''),
+          }}
+        />
+      )}
+
       <form id="new-lead-form" onSubmit={submit} noValidate style={{ ...cardStyle, padding: narrow ? 16 : 24 }}>
         {showToggle && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -1550,9 +1590,12 @@ export default function NewLeadPage() {
                 {/* Plant / Unit (Spark structured): nested under the location (the
                     lead's city/state). Suggests the account's known sites. */}
                 {sparkStructured && (
-                  <Field label="Plant / Unit" hint="The specific plant or unit at this location.">
-                    <Input list="spark-site-list" value={form.plant} onChange={(e) => setForm({ ...form, plant: e.target.value })} placeholder="e.g. Pellet Plant" />
-                  </Field>
+                  <PlantPicker
+                    value={form.plant}
+                    onChange={(plant) => setForm({ ...form, plant })}
+                    sites={accountSites}
+                    accountLinked={!!form.account_id}
+                  />
                 )}
                 {!sparkStructured && text('title', 'Job title')}
                 {/* Industry: a fixed dropdown for Spark & Ray, free text for
@@ -1569,11 +1612,6 @@ export default function NewLeadPage() {
                   excludeKeys={genericExcludeKeys(true)}
                 />
               </Grid>
-              {sparkStructured && accountSites.length > 0 && (
-                <datalist id="spark-site-list">
-                  {accountSites.map((s) => <option key={s.id} value={s.name} />)}
-                </datalist>
-              )}
             </Section>
             {/* Spark & Ray structured capture (Option A): one requirement for this
                 lead, and the make/product/qty lines it covers. Spark-gated. */}
