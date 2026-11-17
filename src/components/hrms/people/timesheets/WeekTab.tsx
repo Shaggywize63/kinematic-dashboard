@@ -7,32 +7,53 @@ import { Badge, Button, Card, CardTitle, ConfidenceBadge, Note, Toolbar, T } fro
 import { Select } from '../../../ui';
 import Link from 'next/link';
 import { addDays, fmtDate, fullName } from '../../../../lib/hrms/format';
-import { PREVIEW_TODAY } from '../../../../lib/hrms/seed';
 import { addProjectRow, removeProjectRow, setHours, submitSheet } from '../../../../lib/hrms/people/timesheetActions';
 import { billableHours, isEditable, sheetId, sheetTotal, submitCheck, utilisationPct, validateSheet, weekLabel, weekStartOf } from '../../../../lib/hrms/people/timesheetEngine';
-import { FIRST_WEEK } from '../../../../lib/hrms/people/seedTimesheets';
+import { tsCurrentWeek, tsFirstWeek, tsToday } from '../../../../lib/hrms/people/timesheetClock';
 import type { Sheet, SheetStatus, TimesheetState } from '../../../../lib/hrms/people/types';
 import type { HrmsDb } from '../../../../lib/hrms/types';
 import { Muted, Stack } from '../shared';
 import SheetGrid from './SheetGrid';
 import PolicyModal from './PolicyModal';
+import TrackedModal from './TrackedModal';
 
 export const STATUS_TONE: Record<SheetStatus, 'neutral' | 'info' | 'ok' | 'warn'> = { draft: 'neutral', submitted: 'info', approved: 'ok', returned: 'warn' };
 export const STATUS_TEXT: Record<SheetStatus, string> = { draft: 'Draft', submitted: 'With the approver', approved: 'Approved and locked', returned: 'Returned' };
-const CURRENT_WEEK = weekStartOf(PREVIEW_TODAY);
-
 export default function WeekTab({ db, ts }: { db: HrmsDb; ts: TimesheetState }) {
+  const today = tsToday();
+  const CURRENT_WEEK = weekStartOf(today);
+  const FIRST_WEEK = tsFirstWeek(ts);
   const people = db.employees.filter((e) => ts.trackedIds.includes(e.id));
-  const [empId, setEmpId] = useState(ts.trackedIds[0]!);
-  const [week, setWeek] = useState(CURRENT_WEEK);
+  const [chosen, setChosen] = useState<string>('');
+  // the person on screen: the one picked, while they still track time, else the first who does
+  const empId = chosen && ts.trackedIds.includes(chosen) ? chosen : (people[0]?.id ?? '');
+  const setEmpId = setChosen;
+  const [weekPick, setWeek] = useState<string>('');
+  const week = weekPick || tsCurrentWeek();
   const [rowError, setRowError] = useState<string | null>(null);
   const [policyOpen, setPolicyOpen] = useState(false);
-  const person = db.employees.find((e) => e.id === empId)!;
+  const [trackedOpen, setTrackedOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const person = db.employees.find((e) => e.id === empId);
+  if (!person) {
+    return (
+      <Stack gap={14}>
+        <Card padding={20}>
+          <div data-testid="no-tracked" style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
+            <CardTitle>Nobody tracks time yet</CardTitle>
+            <Muted>Choose the people who fill a weekly timesheet, usually the roles that bill a client or track effort on projects.</Muted>
+            <Button variant="primary" onClick={() => setTrackedOpen(true)}>Choose who tracks time</Button>
+          </div>
+        </Card>
+        {trackedOpen && <TrackedModal db={db} trackedIds={ts.trackedIds} onClose={() => setTrackedOpen(false)} />}
+      </Stack>
+    );
+  }
   const found = ts.sheets.find((s) => s.id === sheetId(empId, week));
   const sheet: Pick<Sheet, 'lines' | 'weekStart' | 'status'> & Partial<Sheet> = found ?? { lines: [], weekStart: week, status: 'draft' };
   const editable = isEditable(sheet.status);
-  const issues = validateSheet(sheet, ts.policy, PREVIEW_TODAY);
-  const check = submitCheck(sheet, ts.policy, PREVIEW_TODAY);
+  const issues = validateSheet(sheet, ts.policy, today);
+  const check = submitCheck(sheet, ts.policy, today);
   const total = sheetTotal(sheet);
   const billable = billableHours(sheet, ts.projects);
   const util = utilisationPct(billable, 1, 1, ts.policy);
@@ -45,6 +66,7 @@ export default function WeekTab({ db, ts }: { db: HrmsDb; ts: TimesheetState }) 
         <Select aria-label="Person" value={empId} onChange={(e) => { setEmpId(e.target.value); setRowError(null); }} style={{ width: 230 }}>
           {people.map((e) => <option key={e.id} value={e.id}>{fullName(e)}</option>)}
         </Select>
+        <Button size="sm" onClick={() => setTrackedOpen(true)}>Who tracks time</Button>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <Button size="sm" aria-label="Previous week" disabled={week <= FIRST_WEEK} onClick={() => setWeek(addDays(week, -7))}>←</Button>
           <span data-testid="week-label" style={{ fontSize: 14, fontWeight: 600, color: T.text, minWidth: 190, textAlign: 'center' }}>{weekLabel(week)}</span>
@@ -68,9 +90,9 @@ export default function WeekTab({ db, ts }: { db: HrmsDb; ts: TimesheetState }) 
       {sheet.status === 'submitted' && <Note>Submitted on {fmtDate(sheet.submittedOn)}. It is locked while the approver reviews it (see the Approvals tab).</Note>}
 
       <SheetGrid sheet={sheet} weekStart={week} projects={ts.projects} policy={ts.policy} editable={editable} rowError={rowError}
-        onSet={(p, d, h) => { const r = setHours(empId, week, p, d, h); if (!r.ok) setRowError(r.error); else setRowError(null); }}
-        onAddRow={(p) => { const r = addProjectRow(empId, week, p); setRowError(r.ok ? null : r.error); }}
-        onRemoveRow={(p) => { const r = removeProjectRow(empId, week, p); setRowError(r.ok ? null : r.error); }} />
+        onSet={(p, d, h) => { void setHours(empId, week, p, d, h).then((r) => setRowError(r.ok ? null : r.error)); }}
+        onAddRow={(p) => { void addProjectRow(empId, week, p).then((r) => setRowError(r.ok ? null : r.error)); }}
+        onRemoveRow={(p) => { void removeProjectRow(empId, week, p).then((r) => setRowError(r.ok ? null : r.error)); }} />
 
       {issues.length > 0 && (
         <ul data-testid="sheet-issues" style={{ margin: 0, paddingLeft: 18, listStyle: 'disc', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13.5 }}>
@@ -79,7 +101,13 @@ export default function WeekTab({ db, ts }: { db: HrmsDb; ts: TimesheetState }) 
       )}
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Button variant="primary" disabled={!check.ok} onClick={() => { const r = submitSheet(empId, week); if (r.ok) toast.success('Submitted for approval.'); else toast.error(r.error); }}>Submit for approval</Button>
+        <Button variant="primary" disabled={!check.ok || submitting} onClick={async () => {
+          if (submitting) return;
+          setSubmitting(true);
+          const r = await submitSheet(empId, week);
+          setSubmitting(false);
+          if (r.ok) toast.success('Submitted for approval.'); else toast.error(r.error);
+        }}>{submitting ? 'Submitting…' : 'Submit for approval'}</Button>
         {!check.ok && editable && <span data-testid="submit-reason" style={{ fontSize: 13, color: T.dim }}>{check.reasons[0]}</span>}
         {check.ok && <Muted>Total {total} hours. Once submitted, the week is locked until the approver decides.</Muted>}
       </div>
@@ -96,6 +124,7 @@ export default function WeekTab({ db, ts }: { db: HrmsDb; ts: TimesheetState }) 
 
       {trail(found)}
       {policyOpen && <PolicyModal policy={ts.policy} onClose={() => setPolicyOpen(false)} />}
+      {trackedOpen && <TrackedModal db={db} trackedIds={ts.trackedIds} onClose={() => setTrackedOpen(false)} />}
     </Stack>
   );
 }

@@ -3,11 +3,14 @@
 // and utilisation per team. Rates are samples. Utilisation of one person is shown to them and their manager, not here.
 
 import { useState } from 'react';
-import { Card, CardTitle, ConfidenceBadge, ProgressBar, Stat, StatGrid, T, Toolbar } from '../../ui';
+import { Badge, Button, Card, CardTitle, ConfidenceBadge, ProgressBar, Stat, StatGrid, T, Toolbar } from '../../ui';
 import { Select } from '../../../ui';
 import { addDays, fmtDate, fullName, inr } from '../../../../lib/hrms/format';
 import { billableSplit, inPeriod, projectRows, sheetTotal, billableHours, teamUtilisation, weekLabel, type Include } from '../../../../lib/hrms/people/timesheetEngine';
-import { SEED_WEEKS } from '../../../../lib/hrms/people/seedTimesheets';
+import { tsPeriodWeeks } from '../../../../lib/hrms/people/timesheetClock';
+import { isLive } from '../../../../lib/hrms/live/store';
+import ProjectModal from './ProjectModal';
+import type { Project } from '../../../../lib/hrms/people/types';
 import { TEAMS } from '../../../../lib/hrms/people/teams';
 import type { TimesheetState } from '../../../../lib/hrms/people/types';
 import type { HrmsDb } from '../../../../lib/hrms/types';
@@ -44,6 +47,8 @@ function SplitChart({ data }: { data: { weekStart: string; billable: number; non
 export default function ProjectsTab({ db, ts }: { db: HrmsDb; ts: TimesheetState }) {
   const [period, setPeriod] = useState('all');
   const [include, setInclude] = useState<Include>('all');
+  const [editing, setEditing] = useState<Project | 'new' | null>(null);
+  const SEED_WEEKS = tsPeriodWeeks();
   const weeks = period === 'all' ? SEED_WEEKS : [period];
   const rows = projectRows(ts.sheets, ts.projects, weeks, include);
   const used = inPeriod(ts.sheets, weeks, include);
@@ -58,13 +63,14 @@ export default function ProjectsTab({ db, ts }: { db: HrmsDb; ts: TimesheetState
     <Stack gap={16}>
       <Toolbar>
         <Select aria-label="Period" value={period} onChange={(e) => setPeriod(e.target.value)} style={{ width: 300 }}>
-          <option value="all">All four weeks ({fmtDate(SEED_WEEKS[0]).replace(/ \d{4}$/, '')} to {fmtDate(addDays(SEED_WEEKS[3]!, 6)).replace(/ \d{4}$/, '')})</option>
+          <option value="all">{isLive() ? 'Last four weeks' : 'All four weeks'} ({fmtDate(SEED_WEEKS[0]).replace(/ \d{4}$/, '')} to {fmtDate(addDays(SEED_WEEKS[3]!, 6)).replace(/ \d{4}$/, '')})</option>
           {SEED_WEEKS.map((w) => <option key={w} value={w}>Week: {weekLabel(w)}</option>)}
         </Select>
         <Select aria-label="Hours to include" value={include} onChange={(e) => setInclude(e.target.value as Include)} style={{ width: 210 }}>
           <option value="all">All entered hours</option>
           <option value="approved">Approved weeks only</option>
         </Select>
+        <Button size="sm" variant="primary" style={{ marginLeft: 'auto' }} onClick={() => setEditing('new')}>Add project</Button>
       </Toolbar>
 
       <StatGrid min={160}>
@@ -84,15 +90,21 @@ export default function ProjectsTab({ db, ts }: { db: HrmsDb; ts: TimesheetState
                 <th scope="col" style={{ ...th, textAlign: 'left', width: 230 }}>Budget used (to date)</th>
                 <th scope="col" style={th}>Rate (sample)</th>
                 <th scope="col" style={th}>Indicative value</th>
+                <th scope="col" aria-label="Edit" style={th} />
               </tr>
             </thead>
             <tbody>
+              {rows.length === 0 && (
+                <tr><td colSpan={6} data-testid="no-projects" style={{ padding: 24, textAlign: 'center', fontSize: 13.5, color: T.mute }}>
+                  No projects yet. Add the client projects and internal work people log hours against.
+                </td></tr>
+              )}
               {rows.map((r) => {
                 const tone = r.budgetPct > 100 ? 'red' : r.budgetPct >= 90 ? 'warn' : 'info';
                 return (
                   <tr key={r.project.id} data-testid={`proj-${r.project.id}`}>
                     <td style={{ padding: '10px 16px', borderTop: `1px solid ${T.border}` }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>{r.project.name}</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: T.text, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>{r.project.name}{r.project.archived && <Badge tone="neutral">Archived</Badge>}</div>
                       <div style={{ fontSize: 12, color: T.mute }}>{r.project.client} · {r.project.billable ? 'Billable' : 'Non-billable'}</div>
                     </td>
                     <td style={{ padding: '10px', textAlign: 'right', borderTop: `1px solid ${T.border}`, fontVariantNumeric: 'tabular-nums', fontSize: 13.5 }}>{r.period}</td>
@@ -102,6 +114,9 @@ export default function ProjectsTab({ db, ts }: { db: HrmsDb; ts: TimesheetState
                     </td>
                     <td style={{ padding: '10px', textAlign: 'right', borderTop: `1px solid ${T.border}`, fontSize: 13.5 }}>{r.project.billable ? `${inr(r.project.sampleRate)}/h` : '—'}</td>
                     <td style={{ padding: '10px', textAlign: 'right', borderTop: `1px solid ${T.border}`, fontSize: 13.5 }}>{r.project.billable ? inr(r.value) : '—'}</td>
+                    <td style={{ padding: '10px', textAlign: 'right', borderTop: `1px solid ${T.border}` }}>
+                      <Button size="sm" variant="ghost" aria-label={`Edit ${r.project.name}`} onClick={() => setEditing(r.project)}>Edit</Button>
+                    </td>
                   </tr>
                 );
               })}
@@ -172,6 +187,7 @@ export default function ProjectsTab({ db, ts }: { db: HrmsDb; ts: TimesheetState
           <Muted style={{ marginTop: 10 }}>Billable hours divided by a {ts.policy.standardWeek}-hour week per person; leave is not deducted in this sample. These are team figures. A person's own utilisation is visible to them and their manager only, on the weekly timesheet, and is never ranked or compared.</Muted>
         </Card>
       </div>
+      {editing && <ProjectModal project={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
     </Stack>
   );
 }
