@@ -413,7 +413,7 @@ export default function NewLeadPage() {
   // Spark & Ray: the admin-configured industries (Settings -> Industries) drive the Industry dropdown + colours and
   // the dependent Sub-industry dropdown; the built-in seven until/unless one is saved.
   const { industries } = useIndustries(b2bAccounts);
-  const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
+  const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string; industry?: string | null }>>([]);
   const [accountSearching, setAccountSearching] = useState(false);
   // B2B "Contacts & requirements": the people met at the company, each linked
   // to (or creating) a CRM contact and sent as the lead-create `contacts[]`.
@@ -471,7 +471,7 @@ export default function NewLeadPage() {
     setAccountSearching(true);
     const t = setTimeout(() => {
       crmAccounts.list({ q: term, limit: 8 })
-        .then((r) => { if (!off) setAccountResults(((r.data as any[]) || []).map((a) => ({ id: a.id, name: a.name })).filter((a) => a.id && a.name)); })
+        .then((r) => { if (!off) setAccountResults(((r.data as any[]) || []).map((a) => ({ id: a.id, name: a.name, industry: a.industry })).filter((a) => a.id && a.name)); })
         .catch(() => { if (!off) setAccountResults([]); })
         .finally(() => { if (!off) setAccountSearching(false); });
     }, 250);
@@ -1027,6 +1027,16 @@ export default function NewLeadPage() {
   const sparkIndustrySelect = () => {
     if (fields.isHidden('industry')) return null;
     const effRequired = fields.requiredFor('industry', false);
+    // Existing company linked → its industry is autofilled and shown read-only
+    // (industry belongs to the company, not the lead). A new company keeps the
+    // editable dropdown so the rep classifies it on the spot.
+    if (form.account_id && form.industry.trim()) {
+      return (
+        <Field label={fields.labelFor('industry', 'Industry')} htmlFor="lead-field-industry" hint="From the linked company." style={fields.orderStyle('industry')}>
+          <Input id="lead-field-industry" value={form.industry} readOnly disabled />
+        </Field>
+      );
+    }
     return (
       <Field label={fields.labelFor('industry', 'Industry')} required={effRequired} htmlFor="lead-field-industry" style={fields.orderStyle('industry')}>
         <IndustrySelect
@@ -1118,7 +1128,7 @@ export default function NewLeadPage() {
                   key={a.id}
                   type="button"
                   role="option"
-                  onClick={() => { setForm((f) => ({ ...f, company: a.name, account_id: a.id })); setAccountResults([]); }}
+                  onClick={() => { setForm((f) => ({ ...f, company: a.name, account_id: a.id, industry: a.industry || f.industry })); setAccountResults([]); }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
                     padding: '9px 12px', background: 'transparent', border: 'none', cursor: 'pointer',
