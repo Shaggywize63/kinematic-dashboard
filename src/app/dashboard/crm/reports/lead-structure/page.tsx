@@ -28,7 +28,7 @@ function Bar({ row, max, showQty, active, onClick }: { row: LeadStructureReportR
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
         <span style={{ fontSize: 13, fontWeight: active ? 800 : 600, color: active ? T.red : T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</span>
         <span style={{ fontSize: 12.5, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>
-          {row.lead_count}{showQty && row.qty_total != null ? <span style={{ color: T.textDim, fontWeight: 500 }}> · {row.qty_total} qty</span> : null}
+          {row.lead_count}{showQty && row.qty_total != null ? <span style={{ color: T.dim, fontWeight: 500 }}> · {row.qty_total} qty</span> : null}
         </span>
       </div>
       <div style={{ height: 7, borderRadius: 4, background: T.panel }}>
@@ -62,7 +62,7 @@ export default function LeadStructureReportPage() {
   useEffect(() => { if (allowed) load(filters); }, [allowed, filters, load]);
 
   if (!authLoading && !allowed) {
-    return <EmptyState title="Not available" message="The lead-structure report is available to managers on the connected-B2B workspace." />;
+    return <EmptyState title="Not available" description="The lead-structure report is available to managers on the connected-B2B workspace." />;
   }
 
   // Active-filter chips (removable).
@@ -85,10 +85,13 @@ export default function LeadStructureReportPage() {
 
   return (
     <div>
-      <PageHeader title="Lead structure" subtitle="Lead counts by group, company, plant, make and product. Click a bar to drill in." icon={<Layers size={20} />} />
+      <PageHeader
+        title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Layers size={20} /> Lead structure</span>}
+        description="Lead counts by group, company, plant, make and product. Click a bar to drill in."
+      />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '8px 0 16px' }}>
-        <span style={{ fontSize: 13, color: T.textDim }}>
+        <span style={{ fontSize: 13, color: T.dim }}>
           <b style={{ color: T.text, fontSize: 15 }}>{data.total_leads}</b> {data.total_leads === 1 ? 'lead' : 'leads'}{Object.keys(filters).some((k) => filters[k as keyof LeadStructureFilters]) ? ' (filtered)' : ''}
         </span>
         {chips.map((c) => (
@@ -98,21 +101,21 @@ export default function LeadStructureReportPage() {
           </button>
         ))}
         {chips.length > 0 && (
-          <button type="button" onClick={() => setFilters({})} style={{ fontSize: 12, color: T.textDim, background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear all</button>
+          <button type="button" onClick={() => setFilters({})} style={{ fontSize: 12, color: T.dim, background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear all</button>
         )}
       </div>
 
       {loading && data.total_leads === 0 ? (
-        <div style={{ color: T.textDim, fontSize: 13 }}>Loading…</div>
+        <div style={{ color: T.dim, fontSize: 13 }}>Loading…</div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
           {dims.map((d) => {
             const max = d.rows.reduce((m, r) => Math.max(m, r.lead_count), 0);
             return (
               <div key={d.title} style={{ border: `1px solid ${T.border}`, borderRadius: 12, padding: '14px 16px', background: T.card }}>
-                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: T.textDim, marginBottom: 8 }}>{d.title}</div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: T.dim, marginBottom: 8 }}>{d.title}</div>
                 {d.rows.length === 0 ? (
-                  <div style={{ color: T.textDim, fontSize: 12.5 }}>No data.</div>
+                  <div style={{ color: T.dim, fontSize: 12.5 }}>No data.</div>
                 ) : (
                   d.rows.slice(0, 12).map((row) => (
                     <Bar
