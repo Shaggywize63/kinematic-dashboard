@@ -15,6 +15,8 @@ import GoogleAddressAutocomplete, { type PlaceResult } from '../../../../../comp
 import IndustrySelect from '../../../../../components/crm/spark/IndustrySelect';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
+import LeadIdentityStrip from '../../../../../components/crm/spark/LeadIdentityStrip';
+import PlantPicker from '../../../../../components/crm/spark/PlantPicker';
 import { InlineLeadVoiceCapture } from '../../../../../components/crm/VoiceCaptureOverlay';
 import ClientScopeField from '../../../../../components/ClientScopeField';
 import { UNORDERED_LAST, buildFieldHelpers, extractFieldOverrides, type FieldOverrides, type FieldScope } from '../../../../../lib/crmFieldOverrides';
@@ -1274,6 +1276,25 @@ export default function NewLeadPage() {
         compact={narrow}
       />
 
+      {/* The identity chain, assembling itself as the rep types. Showing it here — rather than
+          validating at submit — turns "what else does this lead need?" into something visible
+          from the first keystroke. Serial is allocated by the backend on save, so it stays
+          blank with its tooltip explaining why. */}
+      {sparkStructured && (
+        <LeadIdentityStrip
+          variant="form"
+          source={{
+            account: form.company,
+            plant: form.plant,
+            department: form.department,
+            contact: [form.first_name, form.last_name].filter(Boolean).join(' '),
+            requirement: form.requirement,
+            serial: '',
+            owner: ownerLocked ? 'You' : (users.find((u) => u.id === form.owner_id)?.name || ''),
+          }}
+        />
+      )}
+
       <form id="new-lead-form" onSubmit={submit} noValidate style={{ ...cardStyle, padding: narrow ? 16 : 24 }}>
         {showToggle && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -1550,9 +1571,12 @@ export default function NewLeadPage() {
                 {/* Plant / Unit (Spark structured): nested under the location (the
                     lead's city/state). Suggests the account's known sites. */}
                 {sparkStructured && (
-                  <Field label="Plant / Unit" hint="The specific plant or unit at this location.">
-                    <Input list="spark-site-list" value={form.plant} onChange={(e) => setForm({ ...form, plant: e.target.value })} placeholder="e.g. Pellet Plant" />
-                  </Field>
+                  <PlantPicker
+                    value={form.plant}
+                    onChange={(plant) => setForm({ ...form, plant })}
+                    sites={accountSites}
+                    accountLinked={!!form.account_id}
+                  />
                 )}
                 {!sparkStructured && text('title', 'Job title')}
                 {/* Industry: a fixed dropdown for Spark & Ray, free text for
@@ -1569,11 +1593,6 @@ export default function NewLeadPage() {
                   excludeKeys={genericExcludeKeys(true)}
                 />
               </Grid>
-              {sparkStructured && accountSites.length > 0 && (
-                <datalist id="spark-site-list">
-                  {accountSites.map((s) => <option key={s.id} value={s.name} />)}
-                </datalist>
-              )}
             </Section>
             {/* Spark & Ray structured capture (Option A): one requirement for this
                 lead, and the make/product/qty lines it covers. Spark-gated. */}

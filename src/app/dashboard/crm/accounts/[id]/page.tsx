@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { crmAccounts, crmSettings, crmSites, type AccountTimeline, type AccountSite } from '../../../../../lib/crmApi';
 import type { Account, Contact, Deal, Activity, Note, Lead } from '../../../../../types/crm';
 import AccountSummaryCard from '../../../../../components/crm/AccountSummaryCard';
+import { AccountStructureGaps } from '../../../../../components/crm/spark/StructureGaps';
+import { accountStructureGaps } from '../../../../../lib/leadStructure';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import EditActivityModal from '../../../../../components/crm/EditActivityModal';
 import AccountEditModal from '../../../../../components/crm/AccountEditModal';
@@ -158,6 +160,26 @@ export default function AccountDetailPage() {
   // The company's own leads plus every lead on its plants (child accounts) — what the Leads card counts.
   const totalLeadCount = leads.length + plants.reduce((n, pl) => n + (plantLeads[pl.id]?.length || 0), 0);
 
+  // What stops this account's slice of the tree from being complete. Counted from the data
+  // already on screen, so the panel can never disagree with the tree beside it. `plantCount`
+  // is the account's own recorded SITES; `childCount` is the accounts parented under it.
+  // NOT a useMemo: this sits below the loading / not-found early returns, so a hook here
+  // would change the hook count between renders ("Rendered more hooks than during the
+  // previous render"). The inputs are a handful of rows, so a plain call is cheaper anyway.
+  const structureGaps = accountStructureGaps({
+    isGroup: !!a?.is_group,
+    hasParent: !!a?.parent_account_id,
+    childCount: plants.length,
+    childLeadCount: plants.reduce((n, pl) => n + (plantLeads[pl.id]?.length || 0), 0),
+    leadCount: leads.length,
+    plantCount: sites.length,
+    contactCount: contacts.length,
+    leadsMissingPlant: leads.filter((l) => !(l.site_name || '').trim()).length,
+    leadsMissingDepartment: leads.filter((l) => !(l.department || '').trim()).length,
+    leadsMissingRequirement: leads.filter((l) => !(l.requirement || '').trim()).length,
+    leadsMissingContact: leads.filter((l) => !(l.primary_contact?.name || '').trim()).length,
+  });
+
   // One lead row on the account's Leads card. For Spark the sub-line reads the
   // structured department · requirement; otherwise the usual company / status.
   const leadRow = (l: Lead) => {
@@ -277,6 +299,8 @@ export default function AccountDetailPage() {
             </div>
           )}
         </Card>
+
+        {spark && <AccountStructureGaps gaps={structureGaps} />}
 
         <Card title={`Leads (${totalLeadCount})`}>
           {leadsError ? (
