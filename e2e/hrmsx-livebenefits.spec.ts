@@ -13,8 +13,8 @@ import type { EnrolInput, NewClaimInput } from '../src/lib/hrms/rewards/store';
  * HRMS live mode, phase 7: the Benefits slice on the server. The server is a stateful miniature of the benefits contract
  * behind page.route: it keeps the plan catalogue, enrolments, claims (with their append-only status trail), the enrolment
  * window and the sent-to-payroll map; it assigns claim refs, runs the claim state machine, and records every call. Plans /
- * enrolments / window / reminders are simple records; claims and send-to-payroll are commands. Compensation stays local
- * (and keeps its "saved in this browser only" note). Nothing here talks to a real backend or database; all data is fake.
+ * enrolments / window / reminders are simple records; claims and send-to-payroll are commands. Compensation (phase 8)
+ * has its own live source and spec; here its routes fall through to the default empty answer. Nothing here talks to a real backend or database; all data is fake.
  */
 
 test.describe.configure({ timeout: 240_000 });
@@ -383,17 +383,18 @@ test.describe('live benefits: bootstrap', () => {
     expect(errors).toEqual([]);
   });
 
-  test('a 503 degrades the Benefits page on its own; compensation keeps working with the browser-only note', async ({ page }) => {
+  test('a 503 degrades the Benefits page on its own; compensation still loads from its own endpoint', async ({ page }) => {
     const fake = new FakeBenefits().full();
     fake.mode = 'not_ready';
     await open(page, fake, BENEFITS);
     await expect(page.getByTestId('benefits-not-ready')).toBeVisible(slow);
     await expect(page.getByTestId('benefits-not-ready')).toContainText('HRMS storage is not set up yet');
     await expect(page.getByTestId('benefits-stats')).toHaveCount(0);
-    // compensation (local) still works and still says it is saved in this browser only
+    // compensation (server-backed since phase 8) loads from its own endpoint: here the default empty answer, so its empty state
     await page.goto(COMPENSATION);
     await expect(page.getByRole('heading', { name: 'Compensation', exact: true })).toBeVisible(slow);
-    await expect(page.getByTestId('hrms-local-note')).toBeVisible();
+    await expect(page.getByTestId('compensation-empty')).toBeVisible(slow);
+    await expect(page.getByTestId('hrms-local-note')).toHaveCount(0);
   });
 });
 
@@ -583,8 +584,8 @@ test.describe('live benefits: send to payroll reflects the server\'s { removed, 
 });
 
 // ═════════════════════════════ storage + local Rewards slices ═════════════════════════════
-test.describe('live benefits: the data is never persisted; compensation stays local', () => {
-  test('nothing from the live benefits data reaches browser storage, while compensation remains the local seed with its note', async ({ page }) => {
+test.describe('live benefits: the data is never persisted', () => {
+  test('nothing from the live benefits data reaches browser storage, while the local rewards store keeps only its sample seed', async ({ page }) => {
     const fake = new FakeBenefits().full();
     await open(page, fake, BENEFITS);
     await waitBenefitsLoaded(page);
@@ -604,13 +605,14 @@ test.describe('live benefits: the data is never persisted; compensation stays lo
     expect(storage).not.toContain(SENTINEL_PROVIDER);
     expect(storage).not.toContain(SENTINEL_HOSPITAL);
 
-    // compensation is local: visiting it keeps the rewards area store's compensation (the browser-only note stays).
+    // compensation is server-backed since phase 8, so it no longer carries the browser-only note; the rewards area store in
+    // browser storage keeps only its sample seed.
     await page.goto(COMPENSATION);
     await expect(page.getByRole('heading', { name: 'Compensation', exact: true })).toBeVisible(slow);
-    await expect(page.getByTestId('hrms-local-note')).toBeVisible();
+    await expect(page.getByTestId('hrms-local-note')).toHaveCount(0);
     const after = await dumpStorage(page);
     const area = JSON.parse(JSON.parse(after)['kinematic_hrms_area_rewards_v1'] as string) as { benefits: { plans: { provider: string }[] }; comp: unknown };
-    expect(area.comp).toBeTruthy();                                                      // compensation is still the local seed
+    expect(area.comp).toBeTruthy();                                                      // the local sample seed, untouched by live mode
     expect(area.benefits.plans.some((p) => p.provider === SENTINEL_PROVIDER)).toBe(false); // the local benefits seed, not the server's
     expect(after).not.toContain(SENTINEL_PROVIDER);
     expect(after).not.toContain(SENTINEL_HOSPITAL);

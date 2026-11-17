@@ -10,8 +10,8 @@ import type { NewAssetInput } from '../src/lib/hrms/rewards/store';
 /**
  * HRMS live mode, phase 6: the asset register on the server. The server is a stateful miniature of the assets contract behind
  * page.route: it keeps the catalogue and its append-only event history, assigns tags, enforces the same transitions and the
- * same plain refusal messages as the dashboard, and records every call. Benefits and compensation stay local (and keep their
- * "saved in this browser only" note). Nothing here talks to a real backend or database; all data is fake.
+ * same plain refusal messages as the dashboard, and records every call. Benefits (phase 7) and compensation (phase 8) have their own live
+ * sources and specs; here their routes fall through to the default empty answer. Nothing here talks to a real backend or database; all data is fake.
  */
 
 test.describe.configure({ timeout: 240_000 });
@@ -334,17 +334,18 @@ test.describe('live assets: bootstrap', () => {
     expect(errors).toEqual([]);
   });
 
-  test('a 503 degrades the Assets page on its own; compensation keeps working with the browser-only note', async ({ page }) => {
+  test('a 503 degrades the Assets page on its own; compensation still loads from its own endpoint', async ({ page }) => {
     const fake = new FakeAssets().full();
     fake.mode = 'not_ready';
     await open(page, fake, ASSETS);
     await expect(page.getByTestId('assets-not-ready')).toBeVisible(slow);
     await expect(page.getByTestId('assets-not-ready')).toContainText('HRMS storage is not set up yet');
     await expect(page.getByTestId('assets-stats')).toHaveCount(0);
-    // compensation (local) still works and still says it is saved in this browser only (benefits is server-backed since phase 7)
+    // compensation (server-backed since phase 8) loads from its own endpoint: here the default empty answer, so its empty state
     await page.goto(COMPENSATION);
     await expect(page.getByRole('heading', { name: 'Compensation', exact: true })).toBeVisible(slow);
-    await expect(page.getByTestId('hrms-local-note')).toBeVisible();
+    await expect(page.getByTestId('compensation-empty')).toBeVisible(slow);
+    await expect(page.getByTestId('hrms-local-note')).toHaveCount(0);
   });
 });
 
@@ -492,8 +493,8 @@ test.describe('live assets: an illegal transition shows the server\'s plain reas
 });
 
 // ═════════════════════════════ storage + local Rewards slices ═════════════════════════════
-test.describe('live assets: the register is never persisted; benefits and compensation stay local', () => {
-  test('nothing from the live register reaches browser storage, while benefits/compensation remain the local seed', async ({ page }) => {
+test.describe('live assets: the register is never persisted', () => {
+  test('nothing from the live register reaches browser storage, while the local rewards store keeps only its sample seed', async ({ page }) => {
     const fake = new FakeAssets().full();
     await open(page, fake, ASSETS);
     await waitAssetsLoaded(page);
@@ -512,11 +513,11 @@ test.describe('live assets: the register is never persisted; benefits and compen
     expect(storage).not.toContain(SENTINEL_SERIAL);
     expect(storage).not.toContain(SENTINEL_MAKE);
 
-    // compensation is local: visiting it keeps the rewards area store's compensation (the browser-only note stays).
-    // (benefits is server-backed since phase 7, so it no longer carries the browser-only note.)
+    // compensation is server-backed since phase 8 (benefits since phase 7), so neither carries the browser-only note; the
+    // rewards area store in browser storage keeps only its sample seed.
     await page.goto(COMPENSATION);
     await expect(page.getByRole('heading', { name: 'Compensation', exact: true })).toBeVisible(slow);
-    await expect(page.getByTestId('hrms-local-note')).toBeVisible();
+    await expect(page.getByTestId('hrms-local-note')).toHaveCount(0);
     const after = await dumpStorage(page);
     const area = JSON.parse(JSON.parse(after)['kinematic_hrms_area_rewards_v1'] as string) as { benefits: unknown; comp: unknown };
     expect(area.benefits).toBeTruthy();          // the rewards area store still holds its local seed
