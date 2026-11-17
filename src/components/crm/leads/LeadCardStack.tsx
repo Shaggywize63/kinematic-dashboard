@@ -16,6 +16,7 @@ import { LeadsSkeleton } from './LeadsStates';
 import { Badge, T, type Tone } from '../../ui';
 import { IndustryBadge } from '../spark/IndustrySelect';
 import { isB2bClientActive } from '../../../lib/b2bClient';
+import { isStructuredLead, leadPersonName } from '../../../lib/leadHeader';
 import { LEAD_TYPE_DEFAULT_LABEL, leadTypeLabel } from '../../../lib/leadType';
 
 const GRADE_COLORS: Record<string, string> = { A: '#28B463', B: '#7B61FF', C: '#F7B538', D: '#E01E2C' };
@@ -68,7 +69,9 @@ export default function LeadCardStack({
         const gc = g ? GRADE_COLORS[g] : T.mute;
         const meta = statusOptions?.find((o) => o.value.toLowerCase() === String(l.status).toLowerCase());
         const metaStyle = meta?.color ? { background: `color-mix(in srgb, ${meta.color} 15%, transparent)`, color: meta.color } : undefined;
-        const company = !isB2C && !hid('company') ? l.company : null;
+        // Structured (Spark) lead: the name already carries the company, so the subline shows the person instead.
+        const structured = isStructuredLead(l);
+        const company = structured ? leadPersonName(l) : (!isB2C && !hid('company') ? l.company : null);
         const phone = !hid('phone') ? l.phone : null;
         const dial = dialableNumber(phone);
         const latest = (l as { latest_update?: string | null }).latest_update;
@@ -95,13 +98,26 @@ export default function LeadCardStack({
                 )}
               </button>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <Link href={`/dashboard/crm/leads/${l.id}`} className="km-entity-link" style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>{name}</Link>
+                <Link
+                  href={`/dashboard/crm/leads/${l.id}`}
+                  className="km-entity-link"
+                  style={structured
+                    ? { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', lineHeight: 1.3, fontWeight: 700 }
+                    : { display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}
+                >{name}</Link>
                 {(company || phone || (b2b && l.ref_no)) && (
-                  <div style={{ marginTop: 1, fontSize: 12, color: T.dim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {/* Lead serial (Spark) — unique id mapping the form back to the lead. */}
-                    {b2b && l.ref_no ? <><span style={{ fontFamily: T.mono, fontWeight: 600, color: T.text }}>{l.ref_no}</span>{(company || phone) ? ' · ' : ''}</> : null}
-                    {[company, phone].filter(Boolean).join(' · ')}
-                  </div>
+                  structured ? (
+                    <div style={{ marginTop: 3, fontSize: 12, color: T.dim, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, whiteSpace: 'nowrap' }}>
+                      {(company || phone) && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{[company, phone].filter(Boolean).join(' · ')}</span>}
+                      {b2b && l.ref_no && <Badge tone="warn" mono style={{ height: 18, fontSize: 10.5, fontWeight: 600, flexShrink: 0 }}>{l.ref_no}</Badge>}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 1, fontSize: 12, color: T.dim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {/* Lead serial (Spark) — unique id mapping the form back to the lead. */}
+                      {b2b && l.ref_no ? <><span style={{ fontFamily: T.mono, fontWeight: 600, color: T.text }}>{l.ref_no}</span>{(company || phone) ? ' · ' : ''}</> : null}
+                      {[company, phone].filter(Boolean).join(' · ')}
+                    </div>
+                  )
                 )}
                 {showIndustry && l.industry?.trim() && <div style={{ marginTop: 3 }}><IndustryBadge name={l.industry} /></div>}
               </div>

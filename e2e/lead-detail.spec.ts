@@ -222,3 +222,44 @@ test.describe('Lead detail — field overrides and access', () => {
     await expect(page.getByRole('button', { name: 'Convert', exact: true })).toBeVisible();
   });
 });
+
+// Spark & Ray structured lead: the agreed header — one computed name (Account · Plant · Department —
+// Requirement), the breadcrumb above it, the serial as a Ref chip, and the person / value as chips.
+test.describe('Lead detail — structured (Spark) header', () => {
+  const STRUCTURED = {
+    display_name: 'NTPC · Dadri · Procurement — 150 mm Gate Valves',
+    first_name: 'R.', last_name: 'Sharma', full_name: 'R. Sharma', title: 'Sr. Manager', company: 'NTPC Limited',
+    account_id: 'acc-ntpc', account_name: 'NTPC Limited', site_id: 'site-dadri', site_name: 'Dadri Super Thermal Plant',
+    department: 'Procurement', requirement: '150 mm Gate Valves', ref_no: 'SRPR2627-12', lines_value: 1840000,
+    primary_contact: { contact_id: 'c-1', name: 'R. Sharma', title: 'Sr. Manager', phone: null },
+  };
+
+  test('is titled by the computed name with breadcrumb, Ref, person and value chips', async ({ page }) => {
+    await setup(page, { lead: STRUCTURED });
+    await open(page);
+    await expect(page.getByTestId('lead-title')).toHaveText('NTPC · Dadri · Procurement — 150 mm Gate Valves');
+    const crumbs = page.getByTestId('lead-breadcrumb');
+    await expect(crumbs.locator('[data-crumb="account"]')).toHaveText('NTPC Limited');
+    await expect(crumbs.locator('[data-crumb="plant"]')).toHaveText('Dadri Super Thermal Plant');
+    await expect(crumbs.locator('[data-crumb="department"]')).toHaveText('Procurement');
+    await expect(page.getByTestId('lead-ref-chip')).toHaveText('Ref SRPR2627-12');
+    await expect(page.getByTestId('lead-person-chip')).toHaveText('R. Sharma · Sr. Manager');
+    await expect(page.getByTestId('lead-value-chip')).toHaveText('₹18.4L');
+    // The person is never the title, the old "title · company" subtitle is gone, and the computed name isn't inline-renamable.
+    await expect(page.getByText('Sr. Manager · NTPC Limited')).toHaveCount(0);
+    await expect(page.locator('[aria-label="Edit name"]')).toHaveCount(0);
+  });
+
+  test('blank segments drop out of the breadcrumb, and missing extras leave no empty chips', async ({ page }) => {
+    await setup(page, { lead: { ...STRUCTURED, display_name: 'NTPC — 150 mm Gate Valves', site_id: null, site_name: null, department: null, lines_value: null, primary_contact: null, first_name: null, last_name: 'NTPC Limited', full_name: 'NTPC Limited' } });
+    await open(page);
+    await expect(page.getByTestId('lead-title')).toHaveText('NTPC — 150 mm Gate Valves');
+    const crumbs = page.getByTestId('lead-breadcrumb');
+    await expect(crumbs.locator('[data-crumb="account"]')).toHaveText('NTPC Limited');
+    await expect(crumbs.locator('[data-crumb="plant"]')).toHaveCount(0);
+    await expect(crumbs.locator('[data-crumb="department"]')).toHaveCount(0);
+    // No person captured (the name fell back to the company) and no product lines → no person / value chip.
+    await expect(page.getByTestId('lead-person-chip')).toHaveCount(0);
+    await expect(page.getByTestId('lead-value-chip')).toHaveCount(0);
+  });
+});
