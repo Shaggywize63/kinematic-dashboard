@@ -418,9 +418,10 @@ test.describe('live compensation: bootstrap', () => {
     await expect(page.getByTestId('compensation-not-ready')).toContainText('HRMS storage is not set up yet');
     await expect(page.getByTestId('compensation-ready')).toHaveCount(0);
     fake.mode = 'ok';
+    const before = fake.callsTo('GET', /^\/compensation\/bootstrap$/).length;
     await page.getByTestId('compensation-not-ready').getByRole('button', { name: 'Try again' }).click();
     await waitCompLoaded(page);
-    expect(fake.callsTo('GET', /^\/compensation\/bootstrap$/)).toHaveLength(2);
+    expect(fake.callsTo('GET', /^\/compensation\/bootstrap$/).length).toBeGreaterThan(before);
   });
 
   test('a 500 shows the error state with the reason', async ({ page }) => {

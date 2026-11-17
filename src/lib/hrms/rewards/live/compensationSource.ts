@@ -77,7 +77,9 @@ export function useLiveCompensationStatus(): CompensationLiveStatus {
 // ───────────────────────────── applying the server's answer ─────────────────────────────
 const current = (): CompState => (liveComp ? { ...liveComp } : { ...EMPTY_COMP, bands: [], perf: {}, perfNotes: {} });
 
-function commit(next: CompState): void { liveComp = next; setPhase('ok'); }
+/** Goes up with every server answer applied here, so a reload that started earlier never overwrites a newer answer. */
+let writeSeq = 0;
+function commit(next: CompState): void { liveComp = next; writeSeq += 1; setPhase('ok'); }
 
 function applyBands(bands: Band[]): void { const next = current(); next.bands = sortBands(bands); commit(next); }
 
@@ -104,13 +106,23 @@ function applyCycle(cycle: MeritCycle): void { const next = current(); next.cycl
 let loading = false;
 let loadedInputsVersion = -1;
 
+/**
+ * The first load shows the page's loading state. A reload while the data is on screen (the core source refreshes, or a core
+ * write such as an issued increment bumps its inputs) runs in the background: the page stays usable, commands keep working,
+ * and a failed background reload keeps the data already shown.
+ */
 async function loadCompensation(): Promise<void> {
-  setPhase('loading');
+  const background = phase === 'ok' && liveComp !== null;
+  if (!background) setPhase('loading');
+  const seq = writeSeq;
   try {
     const data = await compensationApi.bootstrap();
+    if (getStatus().source !== 'live') return;
+    if (background && seq !== writeSeq) return;   // a command answered meanwhile: its answer is newer than this read
     liveComp = { bands: data.bands, perf: data.perf, perfNotes: data.perfNotes, cycle: data.cycle };
     setPhase('ok');
   } catch (e) {
+    if (background) return;
     const err = asError(e);
     liveComp = null;
     setPhase(err.notReady ? 'not_ready' : 'error', err.message);
