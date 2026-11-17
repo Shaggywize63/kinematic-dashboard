@@ -219,3 +219,112 @@ test.describe('Spark: add / change the account of an existing contact', () => {
     await expect(page.getByRole('button', { name: /Add to a company|Change company/ })).toHaveCount(0);
   });
 });
+
+// Industry on the Spark contact form belongs to the COMPANY: an existing company shows its industry read-only; a
+// company without one, or a brand-new company typed in here, gets the industry dropdown and the value is saved onto
+// the company (a new company is created with it — or an existing one with the same name is reused).
+test.describe('Spark: industry on the contact form (tied to the company)', () => {
+  const GAMMA = { id: 'acc-3', org_id: 'e2e-org-1', name: 'Gamma Steel', industry: 'Power & Energy', created_at: '2026-01-07T09:00:00Z', updated_at: '2026-01-07T09:00:00Z' };
+  async function setupIndustry(page: Page, writes: Writes, opts: { duplicate?: boolean } = {}) {
+    await scopeToSpark(page);
+    await seedSession(page, SEED_USER);
+    await mockApi(page, {
+      // B2B org with City hidden, so the form can be submitted without the location picker.
+      settings: { success: true, data: { business_type: 'b2b', config: { field_overrides: { 'contact.city': { hidden: true } } } } },
+      onRequest: async (route, url, method) => {
+        const p = apiPath(url);
+        if (method === 'GET' && p === '/api/v1/crm/accounts') return ok(route, [...ACCOUNTS, GAMMA]);
+        if (['POST', 'PATCH'].includes(method) && /^\/api\/v1\/crm\/(accounts|contacts)(\/[^/]+)?$/.test(p)) {
+          const body = route.request().postDataJSON() as Record<string, any>;
+          writes.push({ method, path: p, body });
+          if (opts.duplicate && method === 'POST' && p === '/api/v1/crm/accounts') {
+            await route.fulfill({ status: 409, json: { success: false, error: 'An account with this name already exists', code: 'DUPLICATE_ACCOUNT', existing: { id: 'acc-2', name: 'Beta Castings' } } });
+            return true;
+          }
+          return ok(route, { ...body, id: p.split('/')[5] || (p.includes('accounts') ? 'acc-new' : 'c-new') }, method === 'POST' ? 201 : 200);
+        }
+        return false;
+      },
+    });
+  }
+  async function pickCompany(page: Page, q: string, name: string) {
+    const picker = page.getByLabel('Company', { exact: true });
+    await picker.click();
+    await picker.fill(q);
+    await page.getByRole('option', { name }).dispatchEvent('mousedown');
+    await expect(picker).toHaveValue(name);
+  }
+  async function pickIndustry(page: Page, name: string) {
+    await page.getByTestId('contact-industry').getByRole('combobox').click();
+    await page.getByRole('option', { name, exact: true }).dispatchEvent('mousedown');
+  }
+  async function fillAndCreate(page: Page) {
+    await page.getByLabel('First Name').fill('Meera');
+    await page.getByLabel('Email').fill('meera@x.example');
+    await page.getByRole('button', { name: 'Create' }).click();
+  }
+
+  test('no company chosen: no industry field', async ({ page }) => {
+    const writes: Writes = [];
+    await setupIndustry(page, writes);
+    await page.goto('/dashboard/crm/contacts/new');
+    await expect(page.getByRole('heading', { name: 'New Contact' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('contact-industry')).toHaveCount(0);
+  });
+
+  test('existing company with an industry: shown read-only, nothing written to the company', async ({ page }) => {
+    const writes: Writes = [];
+    await setupIndustry(page, writes);
+    await page.goto('/dashboard/crm/contacts/new');
+    await expect(page.getByRole('heading', { name: 'New Contact' })).toBeVisible({ timeout: 30_000 });
+    await pickCompany(page, 'gamma', 'Gamma Steel');
+    const box = page.getByTestId('contact-industry');
+    await expect(box.getByRole('textbox')).toHaveValue('Power & Energy');
+    await expect(box.getByRole('textbox')).toBeDisabled();
+    await expect(box.getByText('From the company.')).toBeVisible();
+    await fillAndCreate(page);
+    await expect.poll(() => writes.filter((w) => w.path === '/api/v1/crm/contacts').length).toBe(1);
+    expect(writes.find((w) => w.path === '/api/v1/crm/contacts')!.body).toMatchObject({ account_id: 'acc-3' });
+    expect(writes.filter((w) => w.path.startsWith('/api/v1/crm/accounts'))).toHaveLength(0);
+  });
+
+  test('existing company without an industry: dropdown, and the pick is saved onto the company', async ({ page }) => {
+    const writes: Writes = [];
+    await setupIndustry(page, writes);
+    await page.goto('/dashboard/crm/contacts/new');
+    await expect(page.getByRole('heading', { name: 'New Contact' })).toBeVisible({ timeout: 30_000 });
+    await pickCompany(page, 'beta', 'Beta Castings');
+    await pickIndustry(page, 'Manufacturing');
+    await fillAndCreate(page);
+    // The contact POST is the LAST write, so poll on it: once it lands, every earlier write is in too.
+    await expect.poll(() => writes.filter((w) => w.path === '/api/v1/crm/contacts').length).toBe(1);
+    expect(writes.find((w) => w.path === '/api/v1/crm/accounts/acc-2')).toMatchObject({ method: 'PATCH', body: { industry: 'Manufacturing' } });
+    expect(writes.find((w) => w.path === '/api/v1/crm/contacts')!.body).toMatchObject({ account_id: 'acc-2' });
+  });
+
+  test('new company: created with the picked industry, and the contact is linked to it', async ({ page }) => {
+    const writes: Writes = [];
+    await setupIndustry(page, writes);
+    await page.goto('/dashboard/crm/contacts/new');
+    await expect(page.getByRole('heading', { name: 'New Contact' })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: '+ Not listed? Add a new company' }).click();
+    await page.getByLabel('New company name').fill('Delta Pumps');
+    await pickIndustry(page, 'Automotive');
+    await fillAndCreate(page);
+    await expect.poll(() => writes.filter((w) => w.path === '/api/v1/crm/contacts').length).toBe(1);
+    expect(writes[0]).toMatchObject({ method: 'POST', path: '/api/v1/crm/accounts', body: { name: 'Delta Pumps', industry: 'Automotive' } });
+    expect(writes.find((w) => w.path === '/api/v1/crm/contacts')!.body).toMatchObject({ account_id: 'acc-new' });
+  });
+
+  test('new company whose name already exists: the existing company is reused', async ({ page }) => {
+    const writes: Writes = [];
+    await setupIndustry(page, writes, { duplicate: true });
+    await page.goto('/dashboard/crm/contacts/new');
+    await expect(page.getByRole('heading', { name: 'New Contact' })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: '+ Not listed? Add a new company' }).click();
+    await page.getByLabel('New company name').fill('beta castings');
+    await fillAndCreate(page);
+    await expect.poll(() => writes.filter((w) => w.path === '/api/v1/crm/contacts').length).toBe(1);
+    expect(writes.find((w) => w.path === '/api/v1/crm/contacts')!.body).toMatchObject({ account_id: 'acc-2' });
+  });
+});

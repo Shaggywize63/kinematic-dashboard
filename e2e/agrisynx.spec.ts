@@ -402,7 +402,7 @@ test.describe('Agrisynx — daily allowance by vehicle', () => {
   });
 });
 
-// ── DPDP "Data consent" is a built-in field the admin can hide, relabel or require ──────────────
+// ── DPDP "Data consent" was removed from the web forms (client decision) — guard that it stays gone ──────────
 async function fillDealer(page: Page) {
   await page.locator('#lead-field-first_name').fill('Ramesh Sharma');
   await page.locator('#lead-field-company').fill('Sharma Agro');
@@ -412,22 +412,9 @@ async function fillDealer(page: Page) {
 }
 const consentTick = (page: Page) => page.getByRole('checkbox', { name: /consents to the collection/ });
 
-test.describe('Agrisynx — Data consent field override (lead create)', () => {
-  test('shown by default, and what the rep ticks is recorded', async ({ page }) => {
+test.describe('Agrisynx — no Data consent on the web (removed)', () => {
+  test('lead create shows no consent block and sends no _consent', async ({ page }) => {
     const posted = await setupLeads(page);
-    await page.goto('/dashboard/crm/leads/new');
-    await expect(page.getByText('Data consent', { exact: true })).toBeVisible();
-    await fillDealer(page);
-    await consentTick(page).check();
-    const submit = page.getByRole('button', { name: 'Create lead' });
-    await expect(submit).toBeEnabled({ timeout: 20_000 });
-    await submit.click();
-    await expect(page).toHaveURL(/\/dashboard\/crm\/leads\/e2e-lead-1/, { timeout: 20_000 });
-    expect(posted.body).toMatchObject({ _consent: { consented: true, method: 'web_form' } });
-  });
-
-  test('hidden for the client: no block on the form and no _consent in the request', async ({ page }) => {
-    const posted = await setupLeads(page, settingsWith({ 'lead.data_consent': { hidden: true } }));
     await page.goto('/dashboard/crm/leads/new');
     await fillDealer(page);
     await expect(page.locator('#lead-field-first_name')).toHaveValue('Ramesh Sharma');
@@ -441,63 +428,34 @@ test.describe('Agrisynx — Data consent field override (lead create)', () => {
     expect(posted.body).not.toHaveProperty('_consent');
   });
 
-  test('hidden for one lead type only: gone on Dealer, still there on Farmers', async ({ page }) => {
-    await setupLeads(page, settingsWith({ 'lead.data_consent@b2b': { hidden: true } }));
-    await page.goto('/dashboard/crm/leads/new');
-    await expect(page.getByRole('tab', { name: 'Dealer' })).toBeVisible();
-    await expect(page.locator('#lead-field-company')).toBeVisible();
-    await expect(page.getByText('Data consent', { exact: true })).toHaveCount(0);
-    await page.getByRole('tab', { name: 'Farmers' }).click();
-    await expect(page.getByText('Data consent', { exact: true })).toBeVisible();
-  });
-
-  test('relabelled and required: the admin\'s name is shown and the tick is mandatory', async ({ page }) => {
+  test('a leftover admin override (relabelled + required) neither shows a block nor blocks the save', async ({ page }) => {
     const posted = await setupLeads(page, settingsWith({ 'lead.data_consent': { label: 'Consent to keep this record', required: true } }));
     await page.goto('/dashboard/crm/leads/new');
-    await expect(page.getByText('Consent to keep this record', { exact: true })).toBeVisible();
-    await expect(page.getByText('Data consent', { exact: true })).toHaveCount(0);
     await fillDealer(page);
+    await expect(page.locator('#lead-field-first_name')).toHaveValue('Ramesh Sharma');
+    await expect(page.getByText('Consent to keep this record', { exact: true })).toHaveCount(0);
+    await expect(consentTick(page)).toHaveCount(0);
     const submit = page.getByRole('button', { name: 'Create lead' });
     await expect(submit).toBeEnabled({ timeout: 20_000 });
     await submit.click();
-    await expect(page.getByText(/capture the individual.s consent/)).toBeVisible();
-    expect(posted.body).toBeNull();
-    await consentTick(page).check();
-    await submit.click();
     await expect(page).toHaveURL(/\/dashboard\/crm\/leads\/e2e-lead-1/, { timeout: 20_000 });
-    expect(posted.body).toMatchObject({ _consent: { consented: true } });
+    expect(posted.body).not.toHaveProperty('_consent');
   });
-});
 
-test.describe('Agrisynx — Data consent field override (lead detail)', () => {
-  test('the consent card shows by default, can be relabelled, and goes when hidden', async ({ page }) => {
+  test('lead detail has no consent card', async ({ page }) => {
     await setupLeads(page);
-    await page.goto('/dashboard/crm/leads/e2e-lead-1');
-    await expect(page.getByText('Consent (DPDP)', { exact: true })).toBeVisible();
-  });
-
-  test('relabelled', async ({ page }) => {
-    await setupLeads(page, settingsWith({ 'lead.data_consent': { label: 'Permission to hold data' } }));
-    await page.goto('/dashboard/crm/leads/e2e-lead-1');
-    await expect(page.getByText('Permission to hold data', { exact: true })).toBeVisible();
-    await expect(page.getByText('Consent (DPDP)', { exact: true })).toHaveCount(0);
-  });
-
-  test('hidden', async ({ page }) => {
-    await setupLeads(page, settingsWith({ 'lead.data_consent': { hidden: true } }));
     await page.goto('/dashboard/crm/leads/e2e-lead-1');
     // Wait for the page itself (the lead's name) so "absent" is not just "not rendered yet".
     await expect(page.getByText('Test', { exact: false }).first()).toBeVisible();
     await page.waitForTimeout(500);
     await expect(page.getByText('Consent (DPDP)', { exact: true })).toHaveCount(0);
   });
-});
 
-test.describe('Agrisynx — Data consent is listed in Settings → Custom Fields', () => {
-  test('the admin can find Data consent in the lead field list', async ({ page }) => {
+  test('Settings → Custom Fields no longer lists Data consent', async ({ page }) => {
     await setupLeads(page);
     await page.goto('/dashboard/crm/settings/custom-fields');
-    await expect(page.getByText('Data consent (DPDP)').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Marketing Consent').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Data consent (DPDP)')).toHaveCount(0);
   });
 });
 

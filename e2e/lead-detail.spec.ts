@@ -124,7 +124,8 @@ test.describe('Lead detail — structure', () => {
     await setup(page);
     await open(page, '#timeline');
     await expect(page.getByText('Owner: Asha Menon')).toBeVisible();
-    await expect(page.getByText('Consent (DPDP)', { exact: true })).toBeVisible();
+    // The DPDP consent card was removed from the web lead page.
+    await expect(page.getByText('Consent (DPDP)', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Lead score' })).toBeVisible();
   });
 });

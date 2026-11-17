@@ -11,25 +11,13 @@ import { clearSubIndustryOnChange, industryOptions, subIndustryOptions, useIndus
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { apiErrorText, parseCoord } from '../../../../../lib/sparkAccounts';
-import type { ApiError } from '../../../../../lib/api';
+import { duplicateAccount } from '../../../../../lib/accountDuplicate';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import { accountLocationPayload, emptyAccountLocation, type AccountLocationKey } from '../../../../../lib/accountLocation';
 
 // Sub-industry is stored in the account's custom_fields under this key, exactly as on the lead form.
 const SUB_INDUSTRY_KEY = 'industry_category';
 
-// The backend's 409 duplicate-account payload: { error, code:'DUPLICATE_ACCOUNT', existing:{ id, name } }.
-// Read defensively off the ApiError.body so a shape change can't throw.
-function duplicateAccount(err: unknown): { id: string; name: string } | null {
-  const e = err as ApiError | null;
-  if (!e || e.status !== 409) return null;
-  const body = e.body as { code?: unknown; existing?: { id?: unknown; name?: unknown } } | null;
-  if (!body || body.code !== 'DUPLICATE_ACCOUNT') return null;
-  const ex = body.existing;
-  const id = typeof ex?.id === 'string' ? ex.id : '';
-  if (!id) return null;
-  return { id, name: typeof ex?.name === 'string' ? ex.name : '' };
-}
 
 export default function NewAccountPage() {
   const router = useRouter();

@@ -10,7 +10,9 @@ import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSecti
 import { useAuth } from '../../../../../hooks/useAuth';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
-import { DataCollectionConsent, NOTICE_VERSION } from '../../../../../components/crm/DataConsent';
+import IndustrySelect from '../../../../../components/crm/spark/IndustrySelect';
+import { industryOptions, useIndustries } from '../../../../../lib/industries';
+import { duplicateAccount } from '../../../../../lib/accountDuplicate';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import { AccountPicker } from '../../../../../components/crm/spark/DealItemsEditor';
 
@@ -49,21 +51,20 @@ export default function NewContactPage() {
   // Spark & Ray: an Account picker on every contact; opened from an account's "Add contact" (?account_id=) the
   // account is pre-linked and locked.
   const spark = isB2bClientActive();
-  const [lockedAccount, setLockedAccount] = useState<{ id: string; name: string } | null>(null);
+  const [lockedAccount, setLockedAccount] = useState<{ id: string; name: string; industry?: string | null } | null>(null);
+  // Spark: industry belongs to the company. An existing company shows its industry (read-only); a company with no
+  // industry yet, or a brand-new company typed in here, gets the industry dropdown — saved onto the company.
+  const [industry, setIndustry] = useState('');
+  const [newCompany, setNewCompany] = useState('');
+  const [addingCompany, setAddingCompany] = useState(false);
+  const { industries } = useIndustries(spark);
   // Built-in field overrides (hide / relabel / require) for contact columns,
   // scoped by the contact's B2B/B2C mode like the lead form.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
-  // DPDP §6 consent captured at collection (default record-only; per-tenant gate).
-  const [dataConsent, setDataConsent] = useState(false);
-  const [consentRequired, setConsentRequired] = useState(false);
-  // The consent block is admin-gated (field override `contact.data_consent`), so it waits for the settings.
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const fields = useMemo(
     () => buildFieldHelpers(fieldOverrides, 'contact', form.is_b2c ? 'b2c' : 'b2b'),
     [fieldOverrides, form.is_b2c],
   );
-  const showDataConsent = settingsLoaded && !fields.isHidden('data_consent');
-  const dataConsentRequired = fields.requiredFor('data_consent', consentRequired);
 
   useEffect(() => {
     (async () => {
@@ -72,11 +73,8 @@ export default function NewContactPage() {
         const t = r.data?.business_type ?? 'both';
         setBusinessType(t);
         setFieldOverrides(extractFieldOverrides(r.data));
-        const cfg = (r.data as { config?: { consent?: { lead_pii?: { required?: boolean } } } } | undefined)?.config;
-        setConsentRequired(cfg?.consent?.lead_pii?.required === true);
         if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
       } catch { /* default */ }
-      finally { setSettingsLoaded(true); }
     })();
   }, []);
 
@@ -88,9 +86,10 @@ export default function NewContactPage() {
     // A contact attached to an account is a business contact.
     setForm((f) => ({ ...f, account_id: accountId, is_b2c: false }));
     setLockedAccount({ id: accountId, name: sp.get('account_name') || '' });
-    if (!sp.get('account_name')) {
-      crmAccounts.get(accountId).then((r) => setLockedAccount({ id: accountId, name: r.data?.name || '' })).catch(() => { /* keep the id; the name just stays blank */ });
-    }
+    // Always read the account: its name (when not passed) and its industry, which the contact form shows.
+    crmAccounts.get(accountId)
+      .then((r) => setLockedAccount({ id: accountId, name: sp.get('account_name') || r.data?.name || '', industry: r.data?.industry ?? null }))
+      .catch(() => { /* keep the id; the name just stays blank */ });
   }, [spark]);
 
   // Spark: every account, for the picker.
@@ -105,6 +104,12 @@ export default function NewContactPage() {
     if (!showAccountLink) return;
     crmAccounts.list({ limit: 500 } as any).then((r) => setAccounts(r.data || [])).catch(() => setAccounts([]));
   }, [showAccountLink]);
+
+  // The industry already on a company: the locked one (opened from an account), else the picker's list.
+  const accountIndustry = (id: string): string => {
+    if (lockedAccount && lockedAccount.id === id) return (lockedAccount.industry || '').trim();
+    return (accounts.find((a) => a.id === id)?.industry || '').trim();
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,15 +151,23 @@ export default function NewContactPage() {
       // Spark & Ray: the account link applies to every contact.
       if (spark && form.account_id) payload.account_id = form.account_id;
       if (Object.keys(customFields).length > 0) payload.custom_fields = customFields;
-      // DPDP §6 — capture consent at collection. Always recorded; blocks only
-      // when the tenant requires it.
-      if (showDataConsent) {
-        if (dataConsentRequired && !dataConsent) {
-          toast.error('Please capture the individual’s consent to collect their personal data.');
-          setBusy(false);
-          return;
+      // Spark: industry lives on the company. A new company typed here is created (with its industry) — or the
+      // existing one with that exact name is reused — and the contact is linked to it; an existing company that
+      // has no industry yet gets the one picked here.
+      if (spark && !form.account_id && newCompany.trim()) {
+        let accountId = '';
+        try {
+          const created = await crmAccounts.create({ name: newCompany.trim(), industry: industry || undefined } as Partial<Account>);
+          accountId = created.data?.id || '';
+        } catch (err) {
+          const existing = duplicateAccount(err);
+          if (!existing) throw err;
+          accountId = existing.id;
+          if (industry && !accountIndustry(existing.id)) await crmAccounts.update(existing.id, { industry }).catch(() => { /* best-effort */ });
         }
-        payload._consent = { consented: dataConsent, method: 'web_form', notice_version: NOTICE_VERSION };
+        if (accountId) payload.account_id = accountId;
+      } else if (spark && form.account_id && !accountIndustry(form.account_id) && industry) {
+        await crmAccounts.update(form.account_id, { industry }).catch(() => { /* best-effort: the contact still saves */ });
       }
       const r = await crmContacts.create(payload);
       toast.success('Contact created');
@@ -245,8 +258,55 @@ export default function NewContactPage() {
       <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>This contact will be added to this company.</div>
     </>
   ) : (
-    <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} ariaLabel="Company" placeholder="Search companies… (optional)" />
+    <>
+      <AccountPicker
+        accounts={accounts}
+        value={form.account_id}
+        onChange={(id) => {
+          setForm((f) => ({ ...f, account_id: id }));
+          setIndustry('');
+          if (id) { setNewCompany(''); setAddingCompany(false); }
+        }}
+        ariaLabel="Company"
+        placeholder="Search companies… (optional)"
+      />
+      {!form.account_id && (addingCompany ? (
+        <div style={{ marginTop: 8 }}>
+          <input
+            aria-label="New company name"
+            value={newCompany}
+            onChange={(e) => setNewCompany(e.target.value)}
+            placeholder="New company name"
+            autoFocus
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box' }}
+          />
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>A new company is created with this name (an existing company with the same name is reused).</div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setAddingCompany(true)} style={{ marginTop: 6, background: 'transparent', border: 'none', color: 'var(--accent)', fontSize: 12, fontWeight: 600, padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>
+          + Not listed? Add a new company
+        </button>
+      ))}
+    </>
   );
+  // Spark: Industry, tied to the company. Existing company with an industry → shown read-only (autofilled);
+  // existing company without one, or a new company → the industry dropdown. Hidden until a company is chosen.
+  const linkedIndustry = form.account_id ? accountIndustry(form.account_id) : '';
+  const sparkIndustryField = spark && !fields.isHidden('industry') && (!!form.account_id || !!newCompany.trim()) ? (
+    <div data-testid="contact-industry" style={{ minWidth: 0, ...o('industry') }}>
+      <span style={smallLabel}>{fields.labelFor('industry', 'Industry')}</span>
+      <div style={{ marginTop: 4 }}>
+        {linkedIndustry ? (
+          <>
+            <input aria-label={fields.labelFor('industry', 'Industry')} readOnly disabled value={linkedIndustry} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box', opacity: 0.85 }} />
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>From the company.</div>
+          </>
+        ) : (
+          <IndustrySelect id="contact-field-industry" value={industry} options={industryOptions(industries, industry)} industries={industries} onChange={setIndustry} />
+        )}
+      </div>
+    </div>
+  ) : null;
   const locationPicker = <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />;
   const b2bLocationInner = (
     <>
@@ -292,11 +352,6 @@ export default function NewContactPage() {
       onChange={setCustomFields}
     />
   );
-  const dataConsentBlock = showDataConsent && (
-    <Section title={fields.labelFor('data_consent', 'Data Collection & Consent')}>
-      <DataCollectionConsent checked={dataConsent} onChange={setDataConsent} required={dataConsentRequired} />
-    </Section>
-  );
 
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 820 }}>
@@ -323,6 +378,7 @@ export default function NewContactPage() {
                 <div style={{ marginTop: 4 }}>{sparkAccountInner}</div>
               </div>
             )}
+            {sparkIndustryField}
             {!form.is_b2c && !fields.isHidden('city') && <div style={{ minWidth: 0, ...o('city') }}>{b2bLocationInner}</div>}
             {!form.is_b2c ? (
               <>
@@ -339,7 +395,6 @@ export default function NewContactPage() {
                 {consentChecks}
               </>
             )}
-            {showDataConsent && <div style={{ gridColumn: '1 / -1', ...o('data_consent') }}>{dataConsentBlock}</div>}
             {customFieldsSection}
           </div>
         </Section>
@@ -358,6 +413,7 @@ export default function NewContactPage() {
             <div>
               {sparkAccountInner}
             </div>
+            {sparkIndustryField}
           </div>
         </Section>
       )}
@@ -414,8 +470,6 @@ export default function NewContactPage() {
         </>
       )}
 
-      {/* DPDP §5/§6 — at-collection notice + primary consent (B2B + B2C). */}
-      {dataConsentBlock}
       </>
       )}
 

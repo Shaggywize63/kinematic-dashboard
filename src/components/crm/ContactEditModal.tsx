@@ -5,6 +5,8 @@ import { crmAccounts, crmContacts, crmSettings } from '../../lib/crmApi';
 import type { Account, BusinessType, Contact } from '../../types/crm';
 import { isB2bClientActive } from '../../lib/b2bClient';
 import { AccountPicker } from './spark/DealItemsEditor';
+import IndustrySelect from './spark/IndustrySelect';
+import { industryOptions, useIndustries } from '../../lib/industries';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
 import CustomFieldsSection from './CustomFieldsSection';
@@ -23,6 +25,11 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
   // Spark & Ray: a searchable, clearable Company (account) picker on business contacts.
   const spark = isB2bClientActive();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  // Spark: industry belongs to the company — shown read-only when the linked company has one, else picked here and
+  // saved onto the company.
+  const [industry, setIndustry] = useState('');
+  const { industries } = useIndustries(spark && open);
+  const linkedIndustry = (accounts.find((a) => a.id === form.account_id)?.industry || '').trim();
   // Built-in field overrides (hide / relabel / require) for contact columns,
   // scoped by the contact's B2B/B2C mode like the lead form.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
@@ -31,7 +38,7 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
     [fieldOverrides, form.is_b2c],
   );
 
-  useEffect(() => { if (open) { setForm(seed(contact)); setCustomFields(seedCustomFields(contact)); } }, [open, contact]);
+  useEffect(() => { if (open) { setForm(seed(contact)); setCustomFields(seedCustomFields(contact)); setIndustry(''); } }, [open, contact]);
   useEffect(() => {
     if (!open || !spark) return;
     let off = false;
@@ -69,6 +76,10 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
       } else { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, loyalty_tier: form.loyalty_tier || null, referral_source: form.referral_source || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
       body.custom_fields = customFields;
       const r = await crmContacts.update(contact.id, body);
+      // Spark: a company that had no industry gets the one picked here (best-effort; the contact already saved).
+      if (spark && !form.is_b2c && form.account_id && !linkedIndustry && industry) {
+        await crmAccounts.update(form.account_id, { industry }).catch(() => { /* best-effort */ });
+      }
       toast.success('Contact updated'); onSaved(r.data); onClose();
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
   };
@@ -92,7 +103,20 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
       {spark && !fields.isHidden('account_id') && (
         <div data-field="account_id" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, ...o('account_id') }}>
           <span style={lbl}>{fields.labelFor('account_id', 'Company')}</span>
-          <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => setForm((f) => ({ ...f, account_id: id }))} ariaLabel="Company" placeholder="Search companies… (optional)" />
+          <AccountPicker accounts={accounts} value={form.account_id} onChange={(id) => { setForm((f) => ({ ...f, account_id: id })); setIndustry(''); }} ariaLabel="Company" placeholder="Search companies… (optional)" />
+        </div>
+      )}
+      {spark && !fields.isHidden('industry') && !!form.account_id && (
+        <div data-testid="contact-industry" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, ...o('industry') }}>
+          <span style={lbl}>{fields.labelFor('industry', 'Industry')}</span>
+          {linkedIndustry ? (
+            <>
+              <input aria-label={fields.labelFor('industry', 'Industry')} readOnly disabled value={linkedIndustry} style={{ ...inp, opacity: 0.85 }} />
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>From the company.</span>
+            </>
+          ) : (
+            <IndustrySelect id="contact-edit-industry" value={industry} options={industryOptions(industries, industry)} industries={industries} onChange={setIndustry} />
+          )}
         </div>
       )}
     </>

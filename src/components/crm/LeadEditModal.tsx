@@ -189,7 +189,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const sparkStructured = b2bAccounts && !form.is_b2c;
   // Lead type (connected-B2B only for now): a built-in field, so hide / relabel / required all come from the overrides.
   const showLeadType = sparkLead && settingsLoaded && !fields.isHidden('lead_type');
-  const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string }>>([]);
+  const [accountResults, setAccountResults] = useState<Array<{ id: string; name: string; industry?: string | null }>>([]);
   // Additive "Contacts & requirements" capture on edit — new people met on this
   // revisit. Starts empty (existing contacts show on the lead detail page); each
   // non-blank row is sent as the lead PATCH `contacts[]` and resolved server-side
@@ -203,7 +203,21 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // Spark: link the lead's person to an EXISTING contact via typeahead (no duplicate).
   const [personContactId, setPersonContactId] = useState('');
   const [personQuery, setPersonQuery] = useState('');
-  const [personResults, setPersonResults] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null; email?: string | null; department?: string | null }>>([]);
+  const [personResults, setPersonResults] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; title?: string | null; phone?: string | null; email?: string | null; department?: string | null; account_id?: string | null; account_name?: string | null }>>([]);
+  // Linking an existing contact also brings in their company and that company's industry, so the rep doesn't
+  // re-enter what the CRM already knows. A company the rep has already linked is kept (never silently swapped).
+  const adoptContactCompany = (c: { account_id?: string | null; account_name?: string | null }) => {
+    const accId = (c.account_id || '').trim();
+    if (!accId || !b2bAccounts) return;
+    setForm((f) => (f.account_id ? f : { ...f, account_id: accId, company: c.account_name || f.company }));
+    crmAccounts.get(accId)
+      .then((r) => {
+        const a = r.data;
+        if (!a) return;
+        setForm((f) => (f.account_id !== accId ? f : { ...f, company: f.company || a.name || '', industry: (a.industry || '').trim() || f.industry }));
+      })
+      .catch(() => { /* the company link stands; industry stays as it was */ });
+  };
   useEffect(() => { if (open) { setPersonContactId(''); setPersonQuery(''); setPersonResults([]); } }, [open, lead]);
   useEffect(() => {
     if (!open || !sparkStructured || personContactId) { setPersonResults([]); return; }
@@ -224,7 +238,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     let off = false;
     const t = setTimeout(() => {
       crmAccounts.list({ q: term, limit: 8 })
-        .then((r) => { if (!off) setAccountResults(((r.data as any[]) || []).map((a) => ({ id: a.id, name: a.name })).filter((a) => a.id && a.name)); })
+        .then((r) => { if (!off) setAccountResults(((r.data as any[]) || []).map((a) => ({ id: a.id, name: a.name, industry: a.industry })).filter((a) => a.id && a.name)); })
         .catch(() => { if (!off) setAccountResults([]); });
     }, 250);
     return () => { off = true; clearTimeout(t); };
@@ -616,7 +630,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                       <div role="listbox" style={{ position: 'absolute', zIndex: 20, top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--panel, var(--card))', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
                         {personResults.map((c) => (
                           <button key={c.id} type="button" role="option"
-                            onClick={() => { setForm((f) => ({ ...f, first_name: c.first_name || '', last_name: c.last_name || '', title: c.title || f.title, phone: c.phone || f.phone, email: c.email || f.email, department: (c.department as string) || f.department })); setPersonContactId(c.id); setPersonResults([]); setPersonQuery([c.first_name, c.last_name].filter(Boolean).join(' ')); }}
+                            onClick={() => { setForm((f) => ({ ...f, first_name: c.first_name || '', last_name: c.last_name || '', title: c.title || f.title, phone: c.phone || f.phone, email: c.email || f.email, department: (c.department as string) || f.department })); setPersonContactId(c.id); adoptContactCompany(c); setPersonResults([]); setPersonQuery([c.first_name, c.last_name].filter(Boolean).join(' ')); }}
                             style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13.5 }}>
                             <span aria-hidden>👤</span>
                             <span style={{ fontWeight: 600 }}>{[c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Unnamed contact'}</span>
@@ -758,7 +772,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                             <button
                               key={a.id}
                               type="button"
-                              onClick={() => { setForm((f) => ({ ...f, company: a.name, account_id: a.id })); setAccountResults([]); }}
+                              onClick={() => { setForm((f) => ({ ...f, company: a.name, account_id: a.id, industry: (a.industry || '').trim() || f.industry })); setAccountResults([]); }}
                               style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}
                             >
                               <span aria-hidden>🏢</span>
