@@ -146,6 +146,9 @@ export default function LeadPreviewPanel({
 
   const details: Array<{ k: string; label: string; value: string }> = [];
   const add = (key: string, label: string, value?: string | null) => { if (value && !hid(key)) details.push({ k: key, label: lbl(key, label), value }); };
+  // Lead serial number (connected-B2B / Spark only). Server-owned, always shown when present — it is the lead's
+  // unique, human-readable id (SR/LD/2627-12) that maps the form back to this lead.
+  if (isB2bClientActive() && lead.ref_no) details.push({ k: 'ref_no', label: 'Lead No', value: lead.ref_no });
   add('phone', 'Phone', lead.phone);
   add('email', 'Email', lead.email);
   if (!hid('owner_id')) details.push({ k: 'owner_id', label: lbl('owner_id', 'Owner'), value: lead.owner_name || 'Unassigned' });
