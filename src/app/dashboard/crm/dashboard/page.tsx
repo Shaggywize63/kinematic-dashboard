@@ -226,12 +226,16 @@ export default function CrmDashboardPage() {
         const r = await crmAnalytics.dashboardComplete(range, unit);
         if (cancel) return;
         const d = r.data;
-        setSummary(d.summary);
-        setFunnel(d.funnel);
-        setPipelineValue(d.pipelineValue);
-        setWinRate(d.winRate);
-        setForecast(d.forecast);
-        setScoreDist(d.leadScoreDistribution);
+        // Fall back to each state's initial shape rather than trusting the payload to be
+        // complete. A response missing `forecast` or `leadScoreDistribution` used to put
+        // `undefined` into state, and the very next render hit `forecast.map(...)` — which
+        // threw and took the whole dashboard (sidebar included) down to an error boundary.
+        setSummary(d.summary ?? null);
+        setFunnel(d.funnel ?? []);
+        setPipelineValue(d.pipelineValue ?? []);
+        setWinRate(d.winRate ?? []);
+        setForecast(d.forecast ?? []);
+        setScoreDist(d.leadScoreDistribution ?? []);
       } catch (e: any) {
         toast.error(e.message || 'Failed to load CRM analytics');
       } finally {
