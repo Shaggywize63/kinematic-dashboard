@@ -423,9 +423,11 @@ function EventsModal({ integration, onClose }: { integration: Integration; onClo
 
   const downloadXml = (eventId: string) => {
     // GET with auth header — open in a new tab won't carry the JWT, so build a one-shot blob.
-    api.get<string>(`${BASE}/events/${eventId}/xml`, { responseType: 'text' as any }).then(
-      (xml) => {
-        const blob = new Blob([xml as unknown as string], { type: 'application/xml' });
+    // api.download (not api.get): the body is XML, and api.get always JSON-parses the response,
+    // which made every download fail with the XML's first bytes as the error message.
+    api.download(`${BASE}/events/${eventId}/xml`).then(
+      (raw) => {
+        const blob = new Blob([raw], { type: 'application/xml' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url; a.download = `${eventId}.tally.xml`;

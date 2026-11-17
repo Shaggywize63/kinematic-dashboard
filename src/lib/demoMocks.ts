@@ -994,7 +994,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
   const {
     CRM_LEADS, CRM_DEALS, CRM_ACCOUNTS, CRM_CONTACTS, CRM_ACTIVITIES,
     CRM_PIPELINES, CRM_SOURCES, CRM_TERRITORIES, CRM_PRODUCTS, CRM_WA_TEMPLATES_SEED,
-    readDemoCustomFields, writeDemoCustomFields, readDemoWaTemplates, CRM_SETTINGS,
+    readDemoCustomFields, writeDemoCustomFields, CRM_SETTINGS,
     CRM_DASHBOARD_COMPLETE, CRM_DASHBOARD_SUMMARY, CRM_PIPELINE_VALUE, CRM_FUNNEL,
     CRM_WIN_RATE, CRM_SALES_CYCLE, CRM_FORECAST, CRM_HEATMAP, CRM_LEAD_SOURCE_ROI,
     CRM_SCORE_DIST, CRM_LEAD_VELOCITY, CRM_TIME_TO_FIRST_TOUCH, CRM_STUCK_LEADS_KPI,
@@ -1009,7 +1009,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
   } = __seed;
   // ROUTE_PLANS lives as a local const in this file (generic). The insurance
   // bundle supplies its own; fall back to the generic when not set.
-  const ACTIVE_ROUTE_PLANS = (__seed.ROUTE_PLANS as typeof ROUTE_PLANS | undefined) ?? ROUTE_PLANS;
+  const ACTIVE_ROUTE_PLANS = ('ROUTE_PLANS' in __seed ? (__seed.ROUTE_PLANS as typeof ROUTE_PLANS | undefined) : undefined) ?? ROUTE_PLANS;
 
   if (m === 'GET') {
     // ── Expenses (frontend prototype: forgery/forensics highlights over demo claims) ──

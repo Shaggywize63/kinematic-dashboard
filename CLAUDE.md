@@ -81,8 +81,21 @@ rendering has repeatedly shifted the geometry and swapped the dot colours.
   `logo-k-*.png` derivatives (transparent, ~256px), and everything follows.
 
 ## Build / check
-- `npx tsc --noEmit` — a pre-existing `baseUrl` deprecation warning is expected;
-  treat only other errors as failures.
+- **Install dependencies first: `npm ci`, then `npx tsc --noEmit` (or
+  `npm run typecheck`).** Without `node_modules`, `npx` downloads whatever the
+  latest `tsc` is, which stops at the tsconfig (e.g. TS5101 `baseUrl`
+  deprecation) and type-checks **nothing**, so the run looks clean while
+  checking zero files. With deps installed you get the lockfile's TypeScript.
+- Expected result: **no output, exit 0.** Every diagnostic is a real failure.
+  (`baseUrl` was dropped from `tsconfig.json`, so TS5101 no longer appears;
+  if a newer TypeScript ever reports it again, that is the one tolerated code.)
+- `next build` will NOT catch type errors: `next.config.mjs` sets
+  `typescript.ignoreBuildErrors: true`, so the Amplify deploy ships them. The
+  **Typecheck** workflow (`.github/workflows/typecheck.yml`) runs
+  `npm ci && tsc --noEmit` on every PR and fails on any error, so keep it green.
+- Don't silence an error with a cast. A wrong prop or token name (e.g.
+  `message` vs `description`, `T.textDim` vs `T.dim`) means the UI silently
+  shows nothing at runtime, so use the real name.
 
 ## Deploy — AWS Amplify (NOT Vercel)
 Hosting moved to **AWS Amplify** (app `kinematic-dashboard`, id `d2xwgojs475bh0`,

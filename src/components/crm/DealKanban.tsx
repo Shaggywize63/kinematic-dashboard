@@ -16,7 +16,7 @@ function StageColumn({ stage, deals, showWeighted }: { stage: Stage; deals: Deal
   const total = deals.reduce((s, d) => {
     const amount = d.amount || 0;
     if (!showWeighted) return s + amount;
-    const pct = d.ai_win_probability ?? d.probability ?? stage.default_probability ?? 100;
+    const pct = d.ai_win_probability ?? d.probability ?? stage.probability ?? 100;
     return s + (amount * pct) / 100;
   }, 0);
   return (

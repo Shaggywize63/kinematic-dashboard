@@ -304,7 +304,7 @@ export default function SmartSearch({ open, onClose, navGroups, userId, hideKini
                       <div style={{ fontSize: 14, color: kini ? '#E01E2C' : 'var(--text)', fontWeight: kini ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {kini ? row.label : <Highlight text={row.label} term={debouncedQ} />}
                       </div>
-                      {row.sub && (
+                      {row.kind !== 'kini' && row.sub && (
                         <div style={{ fontSize: 12.5, color: 'var(--text-dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           <Highlight text={row.sub} term={debouncedQ} />
                         </div>

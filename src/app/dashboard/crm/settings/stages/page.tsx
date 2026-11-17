@@ -142,7 +142,7 @@ export default function StagesSettings() {
                     <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, fontWeight: 700, textTransform: 'uppercase', background: s.stage_type === 'won' ? 'rgba(16,185,129,0.12)' : s.stage_type === 'lost' ? 'rgba(239,68,68,0.10)' : 'var(--s2)', color: s.stage_type === 'won' ? '#10b981' : s.stage_type === 'lost' ? '#ef4444' : 'var(--text-dim)' }}>{s.stage_type}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{s.probability ?? (s as any).default_probability ?? 0}%</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{s.probability ?? 0}%</span>
                     <button onClick={() => remove(s)} disabled={!!busy[s.id]} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '3px 9px', borderRadius: 6, fontSize: 11, cursor: 'pointer', opacity: busy[s.id] ? 0.5 : 1 }}>
                       {busy[s.id] ? '…' : 'Delete'}
                     </button>

@@ -81,6 +81,11 @@ export default function LeadsListPage() {
   // (it looks at localStorage) so the server and client markup agree.
   const [b2bLeads, setB2bLeads] = useState(false);
   useEffect(() => { setB2bLeads(isB2bClientActive()); }, []);
+  // The signed-in user, read after mount for the same reason: getStoredUser() is null on the server, so anything
+  // the first render derives from it (the admin-only "Update scores" button, the BMW / walk-in / campaign variants)
+  // must come from this state, or the server and client markup disagree (a hydration mismatch).
+  const [storedUser, setStoredUser] = useState<ReturnType<typeof getStoredUser>>(null);
+  useEffect(() => { setStoredUser(getStoredUser()); }, []);
   // Quick preview + score breakdown + filters drawer.
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [scoreLead, setScoreLead] = useState<Lead | null>(null);
@@ -89,7 +94,7 @@ export default function LeadsListPage() {
   // "All"; otherwise a campaign custom-field value sent as ?campaign= so the
   // list becomes that campaign's section. All three sections are views of the
   // same shared lead set (the lead profile links a customer across campaigns).
-  const campaignSections = canViewTelecallerReport(getStoredUser());
+  const campaignSections = canViewTelecallerReport(storedUser);
   const [campaignSection, setCampaignSection] = useState<string | null>(null);
   // Clients that set lead_form.owner_assignment='admin_only' let only an admin choose an owner: no "Assign to me" /
   // "Assign to…" on a selection, no inline owner picker on a row (the owner column is plain text for everyone else)
@@ -112,12 +117,12 @@ export default function LeadsListPage() {
   // their preset role is admin-tier — mirror the backend gate exactly.
   const [rescoring, setRescoring] = useState(false);
   const canRescoreAll = useMemo(() => {
-    const u = getStoredUser();
+    const u = storedUser;
     const role = (u?.role || '').toLowerCase();
     const scope = u?.org_role_data_scope; // 'own' | 'team' | 'all' | null (null ≈ all)
     const isAdminTier = ['super_admin', 'admin', 'sub_admin'].includes(role);
     return isAdminTier && scope !== 'own' && scope !== 'team';
-  }, []);
+  }, [storedUser]);
   const handleRescoreAll = async () => {
     if (rescoring) return;
     setRescoring(true);
@@ -176,12 +181,12 @@ export default function LeadsListPage() {
   // BMW removes the AI score entirely — the Score column + its sort are dropped
   // and the score surfaces in the table / card-stack / preview are gated via the
   // wrapped fieldHelpers below.
-  const isBmw = useMemo(() => isBmwActive(getStoredUser()), []);
+  const isBmw = useMemo(() => isBmwActive(storedUser), [storedUser]);
   // A Walk-in Executive captures via the walk-in "Not Purchased" form only, so
   // their "New lead" buttons point there instead of the standard lead form.
   const newLeadHref = useMemo(
-    () => (isWalkInExecutive(getStoredUser()) ? '/dashboard/crm/walk-in' : '/dashboard/crm/leads/new'),
-    [],
+    () => (isWalkInExecutive(storedUser) ? '/dashboard/crm/walk-in' : '/dashboard/crm/leads/new'),
+    [storedUser],
   );
   const hiddenSet = useMemo(() => {
     const s = new Set(view.prefs.hidden);

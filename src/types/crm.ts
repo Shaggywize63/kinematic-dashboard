@@ -236,7 +236,7 @@ export interface Pipeline {
 }
 export interface Stage {
   id: string; pipeline_id: string; name: string; position: number;
-  default_probability: number; is_won: boolean; is_lost: boolean; color?: string | null;
+  probability: number; is_won: boolean; is_lost: boolean; color?: string | null;
   // Backend-classified stage kind ('open' | 'won' | 'lost'). Widely read across
   // the deal UI (stage progress, kanban, close flow) to decide terminal stages.
   stage_type?: 'open' | 'won' | 'lost' | string | null;
@@ -456,7 +456,7 @@ export interface ImportJob {
   filename: string;
   status: 'pending' | 'preview' | 'committed' | 'failed';
   total_rows?: number; imported_rows?: number; failed_rows?: number;
-  errors?: Array<{ row: number; message: string }>;
+  errors?: Array<{ row: number; reason: string }>;
   mapping?: Record<string, string>;
   created_at: string; updated_at: string;
 }

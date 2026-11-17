@@ -93,9 +93,10 @@ export default function CustomFieldsDetailCard({ entity, customFields, skipKeys 
   }, [defs, cf]);
 
   const skip = new Set(skipKeys ?? []);
-  const rows: Array<{ key: string; label: string; node: React.ReactNode }> = defs
+  type Row = { key: string; label: string; node: React.ReactNode };
+  const rows: Row[] = defs
     .filter((def) => !skip.has(def.field_key))
-    .map((def) => {
+    .map((def): Row | null => {
       const val = cf[def.field_key];
       if (val === undefined || val === null || val === '') return null;
       // Lookup fields can be stored as either a raw UUID string (legacy
@@ -115,7 +116,7 @@ export default function CustomFieldsDetailCard({ entity, customFields, skipKeys 
       if (node === null) return null;
       return { key: def.field_key, label: def.label || def.field_key, node };
     })
-    .filter((r): r is { key: string; label: string; node: React.ReactNode } => r !== null);
+    .filter((r): r is Row => r !== null);
 
   if (rows.length === 0) return null;
 

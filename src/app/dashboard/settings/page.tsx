@@ -404,7 +404,7 @@ export default function SettingsPage() {
       // Send X-Client-Id explicitly so the new role is stamped to the picked
       // client; otherwise the auto-attached header from the global picker (or
       // null for unscoped) is used.
-      const headers = roleForm.client_id ? { 'X-Client-Id': roleForm.client_id } : {};
+      const headers: Record<string, string> = roleForm.client_id ? { 'X-Client-Id': roleForm.client_id } : {};
       await api.post('/api/v1/roles', {
         name: roleForm.name.trim(),
         description: roleForm.description || null,

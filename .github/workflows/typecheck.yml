@@ -1,0 +1,67 @@
+name: Typecheck
+
+# `next build` runs with `typescript.ignoreBuildErrors: true` (next.config.mjs), so the Amplify
+# deploy never fails on a type error. This job is the gate: a PR with any TypeScript error fails here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: typecheck-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tsc:
+    name: tsc --noEmit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # Plain `npm ci`, no `npm install` fallback: the check is only meaningful against the
+      # lockfile's TypeScript and type packages, so an install failure must fail the job.
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Type-check
+        run: |
+          # --no-install: never let npx download a different tsc. Without node_modules a downloaded
+          # tsc stops at the tsconfig and checks nothing, which is how this check used to pass vacuously.
+          TSC="npx --no-install tsc"
+          $TSC --version
+
+          # Guard against a vacuous run: tsc must actually load the app's source files.
+          checked=$($TSC --noEmit --listFilesOnly | grep -c '/src/' || true)
+          echo "Source files in the program: $checked"
+          if [ "$checked" -lt 100 ]; then
+            echo "::error::tsc loaded only $checked src/ files; the type-check did not run against the app."
+            exit 1
+          fi
+
+          status=0
+          log="${RUNNER_TEMP:-/tmp}/tsc.log"
+          $TSC --noEmit --pretty false > "$log" 2>&1 || status=$?
+          cat "$log"
+
+          # TS5101 (the `baseUrl` deprecation from newer TypeScript) is the only tolerated
+          # diagnostic. Anything else fails the job.
+          errors=$(grep -E 'error TS[0-9]+' "$log" | grep -v 'error TS5101' || true)
+          if [ -n "$errors" ]; then
+            # One annotation per error, on the offending line in the PR diff.
+            echo "$errors" | sed -E 's/^(.+)\(([0-9]+),([0-9]+)\): error (TS[0-9]+): (.*)$/::error file=\1,line=\2,col=\3,title=\4::\5/'
+            echo "::error::$(echo "$errors" | wc -l) TypeScript error(s)."
+            exit 1
+          fi
+          if [ "$status" -ne 0 ] && ! grep -q 'error TS5101' "$log"; then
+            echo "::error::tsc exited with status $status."
+            exit "$status"
+          fi
+          echo "Type-check passed."
