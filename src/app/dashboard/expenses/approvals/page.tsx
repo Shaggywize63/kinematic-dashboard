@@ -2,9 +2,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Check, ClipboardCheck, X } from 'lucide-react';
+import { AlertTriangle, Banknote, ClipboardCheck, Eye, MapPin, ShieldCheck } from 'lucide-react';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { Badge, Button, Card, EmptyState, Input, Segmented, T } from '../../../../components/ui';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 import { Col, DataTable, Modal, SearchBox, Toolbar } from '../../../../components/finance/ui';
 import { ExpensesShell, Field, FlagBadge, RemarkDialog, errText, fmtDate, money, useExpenseRoles } from '../../../../components/expenses/kit';
 import { RiskBadge } from '../../../../components/expenses/ForensicHighlights';
@@ -123,7 +124,7 @@ export default function ApprovalsPage() {
     { key: 'amount', label: 'Amount', align: 'right', render: (c) => <strong>{money(c.total_amount, c.currency)}</strong> },
     { key: 'checks', label: 'Policy checks', nowrap: false, render: (c) => {
       const f = c.ai_flags ?? [];
-      return f.length === 0 ? <Badge tone="ok">Clear</Badge> : (
+      return f.length === 0 ? <Badge tone="ok"><InlineIcon icon={ShieldCheck} size={12} />Clear</Badge> : (
         <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
           {f.slice(0, 2).map((x, i) => <FlagBadge key={i} flag={x} />)}{f.length > 2 && <Badge>+{f.length - 2}</Badge>}
         </span>
@@ -132,7 +133,7 @@ export default function ApprovalsPage() {
     ...(isDemo ? ([{ key: 'risk', label: 'Forgery risk', render: (c) => <RiskBadge findings={c.forensic_findings} /> }] as Col<ExpenseClaim>[]) : []),
     { key: 'act', label: '', align: 'right', render: (c) => (
       <span style={{ display: 'inline-flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
-        <Button size="sm" onClick={() => router.push(`/dashboard/expenses/${c.id}`)}>Review</Button>
+        <Button size="sm" icon={<Eye size={14} strokeWidth={2} />} onClick={() => router.push(`/dashboard/expenses/${c.id}`)}>Review</Button>
         <Button size="sm" variant="primary" disabled={busy || flaggedHigh(c)} title={flaggedHigh(c) ? 'Open the claim to review the flagged points' : 'Approve every line'} onClick={() => approve([c.id])}>Approve</Button>
         <Button size="sm" variant="danger" disabled={busy} onClick={() => setRejecting([c.id])}>Reject</Button>
       </span>
@@ -156,27 +157,27 @@ export default function ApprovalsPage() {
       <Toolbar>
         {canAdmin && (
           <Segmented<Tab> value={tab} onChange={setTab} options={[
-            { value: 'review', label: `To review${pending.length ? ` (${pending.length})` : ''}` },
-            { value: 'pay', label: `Ready to pay${toPay.length ? ` (${toPay.length})` : ''}` },
+            { value: 'review', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ClipboardCheck} size={14} />{`To review${pending.length ? ` (${pending.length})` : ''}`}</span> },
+            { value: 'pay', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Banknote} size={14} />{`Ready to pay${toPay.length ? ` (${toPay.length})` : ''}`}</span> },
           ]} />
         )}
         <SearchBox value={q} onChange={setQ} placeholder="Search by name, employee ID or claim no." />
-        {selectedCity && <Badge>{selectedCity}</Badge>}
+        {selectedCity && <Badge><InlineIcon icon={MapPin} size={12} />{selectedCity}</Badge>}
       </Toolbar>
 
       {tab === 'review' && pickedIds.length > 0 && (
         <Card padding={12} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: T.panel }}>
           <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>{pickedIds.length} selected</span>
           <span style={{ flex: 1 }} />
-          <Button size="sm" variant="primary" icon={<Check size={14} strokeWidth={2} />} disabled={busy || pickedFlagged}
+          <Button size="sm" variant="primary" disabled={busy || pickedFlagged}
             title={pickedFlagged ? 'Some selected claims have flagged points — review those individually' : undefined} onClick={() => approve(pickedIds)}>Approve selected</Button>
-          <Button size="sm" variant="danger" icon={<X size={14} strokeWidth={2} />} disabled={busy} onClick={() => setRejecting(pickedIds)}>Reject selected</Button>
+          <Button size="sm" variant="danger" disabled={busy} onClick={() => setRejecting(pickedIds)}>Reject selected</Button>
           <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())}>Clear</Button>
         </Card>
       )}
 
       {error ? (
-        <Card><EmptyState title="Couldn’t load the queue" description={error} action={<Button onClick={load}>Try again</Button>} /></Card>
+        <Card><EmptyState icon={<AlertTriangle size={20} strokeWidth={1.5} />} title="Couldn’t load the queue" description={error} action={<Button onClick={load}>Try again</Button>} /></Card>
       ) : !loading && list.length === 0 && !q ? (
         <Card><EmptyState icon={<ClipboardCheck size={20} strokeWidth={1.5} />} title={tab === 'review' ? 'Nothing waiting for you' : 'No approved claims to pay'}
           description={tab === 'review' ? 'New claims from your team appear here as soon as they are submitted.' : 'Approved claims show up here until you mark them reimbursed.'} /></Card>

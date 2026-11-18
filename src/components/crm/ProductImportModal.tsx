@@ -6,6 +6,7 @@ import {
   PRODUCT_IMPORT_MAX_ROWS, PRODUCT_TEMPLATE_CSV, parseProductCsv, toBulkRows, type ProductImportRow,
 } from '../../lib/csv';
 import type { ProductBulkResult } from '../../types/crm';
+import { Upload } from 'lucide-react';
 import { Button, T } from '../ui';
 
 // Products -> "Import from file" (connected-B2B). The CSV is read in the browser, previewed, and sent in one call to
@@ -80,7 +81,7 @@ export default function ProductImportModal({ onClose, onImported }: { onClose: (
         style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.lg, width: '100%', maxWidth: 820, padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 18, color: T.text }}>Import products from a file</h2>
+            <h2 style={{ margin: 0, fontSize: 18, color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}><Upload aria-hidden size={18} strokeWidth={2} style={{ color: T.dim, flexShrink: 0 }} />Import products from a file</h2>
             <div style={{ fontSize: 13, color: T.dim, marginTop: 4, lineHeight: 1.45 }}>
               A CSV file with one product per line. Columns: Reference and Name are required; Make, Brand, Unit, Price, Category and Description are optional.
             </div>

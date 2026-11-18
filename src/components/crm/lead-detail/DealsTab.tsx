@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowRightLeft, Handshake, PackagePlus, Plus } from 'lucide-react';
+import { ArrowRightLeft, CalendarDays, Handshake, PackagePlus, Plus } from 'lucide-react';
+import { metricIconFor } from '../../../lib/labelIcons';
+import { InlineIcon } from '../../ui/PageIcon';
 import type { Deal } from '../../../types/crm';
 import { crmLeads } from '../../../lib/crmApi';
 import { getStoredUser } from '../../../lib/auth';
@@ -75,6 +77,7 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <SectionCard
         title="Deals"
+        icon={Handshake}
         count={deals.length}
         // Spark & Ray: several deals can be opened for one lead / customer — the link carries lead_id (+ account_id when converted).
         aside={newDealHref ? <Button size="sm" variant="primary" href={newDealHref} icon={<Plus size={14} strokeWidth={2} />}>New deal</Button> : undefined}
@@ -103,12 +106,15 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon
               </div>
             )}
             {!spark && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 1, background: T.border, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden', marginBottom: 14 }}>
-              {rollup.map(([label, value, color]) => (
+              {rollup.map(([label, value, color]) => {
+                const RollIcon = label === 'Total' ? metricIconFor('value') : metricIconFor(label);
+                return (
                 <div key={label} style={{ background: T.card, padding: '10px 14px', flex: '1 1 110px', minWidth: 0 }}>
-                  <div style={{ ...eyebrowStyle, fontSize: 10 }}>{label}</div>
+                  <div style={{ ...eyebrowStyle, fontSize: 10, display: 'flex', alignItems: 'center', gap: 6 }}>{RollIcon && <InlineIcon icon={RollIcon} size={13} />}{label}</div>
                   <div style={{ marginTop: 3, fontFamily: T.mono, fontSize: 15, fontWeight: 650, color, whiteSpace: 'nowrap' }}>{formatINR(value)}</div>
                 </div>
-              ))}
+                );
+              })}
             </div>}
             {showFulfillBalance && bal?.has_interest && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 14px', background: 'var(--s3)', border: `1px solid ${T.border}`, borderRadius: 10, marginBottom: 14 }}>
@@ -134,7 +140,7 @@ export default function DealsTab({ leadId, deals, canConvert, onConvert, hideWon
                     <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, color: T.dim }}>
                       {d.stage_name && <span>{d.stage_name}</span>}
                       <Badge tone={DEAL_TONE[d.status] ?? 'neutral'} dot style={{ textTransform: 'capitalize', height: 20 }}>{d.status}</Badge>
-                      {d.expected_close_date && <span>Closes {fmtDate(d.expected_close_date)}</span>}
+                      {d.expected_close_date && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={CalendarDays} size={12} />Closes {fmtDate(d.expected_close_date)}</span>}
                       {d.quotation_no && <span data-testid="deal-quotation-no" style={{ fontFamily: T.mono, fontSize: 11.5, fontWeight: 600, padding: '1px 8px', borderRadius: 999, background: T.infoWash, color: T.info }}>Quotation {d.quotation_no}</span>}
                     </div>
                     {spark && <BrandChips brands={d.brands} style={{ marginTop: 6 }} />}

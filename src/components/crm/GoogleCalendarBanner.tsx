@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { CalendarPlus, RefreshCw, Unplug } from 'lucide-react';
 import api from '../../lib/api';
 
 type Status = { connected: boolean; email?: string; configured?: boolean };
@@ -159,9 +160,11 @@ export default function GoogleCalendarBanner({ onSynced }: { onSynced?: () => vo
             fontSize: 12,
             fontWeight: 600,
             cursor: (syncing || busy) ? 'not-allowed' : 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
           }}
         >
-          {syncing ? 'Syncing…' : '↻ Sync now'}
+          <RefreshCw aria-hidden size={13} strokeWidth={2} />
+          {syncing ? 'Syncing…' : 'Sync now'}
         </button>
         <button
           type="button"
@@ -176,8 +179,10 @@ export default function GoogleCalendarBanner({ onSynced }: { onSynced?: () => vo
             fontSize: 12,
             fontWeight: 600,
             cursor: busy ? 'not-allowed' : 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
           }}
         >
+          <Unplug aria-hidden size={13} strokeWidth={2} />
           {busy ? '…' : 'Disconnect'}
         </button>
       </div>
@@ -209,6 +214,7 @@ export default function GoogleCalendarBanner({ onSynced }: { onSynced?: () => vo
           boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
         }}
       >
+        <CalendarPlus aria-hidden size={15} strokeWidth={2} />
         {busy ? 'Redirecting…' : 'Connect Google Calendar'}
       </button>
     </div>

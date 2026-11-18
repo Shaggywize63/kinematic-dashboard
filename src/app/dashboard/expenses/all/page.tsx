@@ -2,11 +2,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Download } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Download, MapPin, Receipt, ScrollText, Tags, Timer, Users, type LucideIcon } from 'lucide-react';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { Badge, Button, Card, EmptyState, Input, Select, T, useIsCompact } from '../../../../components/ui';
-import { Col, DataTable, Pager, SearchBox, Stat, Toolbar, useDebounced } from '../../../../components/finance/ui';
-import { ClaimStatusBadge, ExpensesShell, errText, fmtDate, isPartial, money, payable, saveBlob } from '../../../../components/expenses/kit';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
+import { Col, DataTable, Pager, SearchBox, Toolbar, useDebounced } from '../../../../components/finance/ui';
+import { ClaimStatusBadge, ExpensesShell, IconStat, STATUS_ICON, errText, fmtDate, isPartial, money, payable, saveBlob } from '../../../../components/expenses/kit';
 import { RiskBadge } from '../../../../components/expenses/ForensicHighlights';
 import Link from 'next/link';
 import api from '../../../../lib/api';
@@ -166,22 +167,22 @@ export default function AllClaimsPage() {
         <Input aria-label="Submitted from" type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} style={{ width: 150 }} />
         <span style={{ fontSize: 13, color: T.mute }}>to</span>
         <Input aria-label="Submitted to" type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} style={{ width: 150 }} />
-        {selectedCity && <Badge>{selectedCity}</Badge>}
+        {selectedCity && <Badge><InlineIcon icon={MapPin} size={12} />{selectedCity}</Badge>}
       </Toolbar>
 
       {error ? (
-        <Card><EmptyState title="Couldn’t load claims" description={error} action={<Button onClick={load}>Try again</Button>} /></Card>
+        <Card><EmptyState icon={<AlertTriangle size={20} strokeWidth={1.5} />} title="Couldn’t load claims" description={error} action={<Button onClick={load}>Try again</Button>} /></Card>
       ) : (
         <>
           {t && (
             <Card padding={20}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 20 }}>
-                <Stat label="Claimed" value={money(t.claimed)} hint={`${t.claims} ${t.claims === 1 ? 'claim' : 'claims'}`} />
-                <Stat label="Awaiting approval" value={money(t.pending_amount)} hint={`${t.pending_count} claims`} tone={t.pending_count ? 'warn' : undefined} />
-                <Stat label="Approved" value={money(t.approved_amount)} hint={`${t.approved_count} to be paid`} tone={t.approved_count ? 'ok' : undefined} />
-                <Stat label="Reimbursed" value={money(t.reimbursed_amount)} hint={`${t.reimbursed_count} claims`} />
-                <Stat label="Rejected" value={money(t.rejected_amount)} hint={`${t.rejected_count} claims`} tone={t.rejected_count ? 'red' : undefined} />
-                <Stat label="Decision time" value={t.avg_turnaround_hours != null ? `${t.avg_turnaround_hours < 48 ? `${t.avg_turnaround_hours}h` : `${Math.round(t.avg_turnaround_hours / 24)}d`}` : '—'}
+                <IconStat icon={Receipt} label="Claimed" value={money(t.claimed)} hint={`${t.claims} ${t.claims === 1 ? 'claim' : 'claims'}`} />
+                <IconStat icon={STATUS_ICON.submitted} label="Awaiting approval" value={money(t.pending_amount)} hint={`${t.pending_count} claims`} tone={t.pending_count ? 'warn' : undefined} />
+                <IconStat icon={STATUS_ICON.approved} label="Approved" value={money(t.approved_amount)} hint={`${t.approved_count} to be paid`} tone={t.approved_count ? 'ok' : undefined} />
+                <IconStat icon={STATUS_ICON.reimbursed} label="Reimbursed" value={money(t.reimbursed_amount)} hint={`${t.reimbursed_count} claims`} />
+                <IconStat icon={STATUS_ICON.rejected} label="Rejected" value={money(t.rejected_amount)} hint={`${t.rejected_count} claims`} tone={t.rejected_count ? 'red' : undefined} />
+                <IconStat icon={Timer} label="Decision time" value={t.avg_turnaround_hours != null ? `${t.avg_turnaround_hours < 48 ? `${t.avg_turnaround_hours}h` : `${Math.round(t.avg_turnaround_hours / 24)}d`}` : '—'}
                   hint={t.auto_approved_count ? `${t.auto_approved_count} auto-approved` : 'Average, manual'} />
               </div>
             </Card>
@@ -191,21 +192,21 @@ export default function AllClaimsPage() {
             <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {policiesReady && !oneCategory && (
                 <Card padding={20}>
-                  <SectionTitle>By category</SectionTitle>
+                  <SectionTitle icon={Tags}>By category</SectionTitle>
                   <BarList rows={summary.by_category.map((c) => ({ label: categoryLabel(rules, c.category, summary.by_category.map((x) => x.category)), value: c.amount }))} format={(n) => money(n)} />
                 </Card>
               )}
               <Card padding={20}>
-                <SectionTitle>By month</SectionTitle>
+                <SectionTitle icon={CalendarDays}>By month</SectionTitle>
                 <BarList rows={summary.by_month.slice(-6).map((m) => ({ label: m.month, value: m.amount, sub: `${m.claims} claims` }))} format={(n) => money(n)} />
               </Card>
               <Card padding={20}>
-                <SectionTitle>Top claimants</SectionTitle>
+                <SectionTitle icon={Users}>Top claimants</SectionTitle>
                 <BarList rows={summary.top_people.slice(0, 6).map((p) => ({ label: p.name || 'Unknown', value: p.amount, sub: `${p.claims} claims` }))} format={(n) => money(n)} />
               </Card>
               {summary.by_policy.length > 1 && (
                 <Card padding={20}>
-                  <SectionTitle>By policy</SectionTitle>
+                  <SectionTitle icon={ScrollText}>By policy</SectionTitle>
                   <BarList rows={summary.by_policy.map((p) => ({ label: p.policy, value: p.amount, sub: `${p.claims} claims` }))} format={(n) => money(n)} />
                 </Card>
               )}
@@ -222,6 +223,6 @@ export default function AllClaimsPage() {
   );
 }
 
-function SectionTitle({ children }: { children: string }) {
-  return <div style={{ fontFamily: T.heading, fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 14 }}>{children}</div>;
+function SectionTitle({ children, icon }: { children: string; icon: LucideIcon }) {
+  return <div style={{ fontFamily: T.heading, fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={icon} size={16} style={{ color: T.dim }} />{children}</div>;
 }

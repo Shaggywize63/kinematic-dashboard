@@ -1,6 +1,8 @@
 'use client';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { CalendarClock, Handshake, History, Star, type LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../ui/PageIcon';
 import type { Deal } from '../../../types/crm';
 import type { LeadUpdate } from '../../../lib/crmApi';
 import type { ConversationRow } from '../../../lib/conversationsApi';
@@ -35,10 +37,10 @@ export function nextFollowUp(activities: DetailActivity[]): DetailActivity | nul
   return [...open].sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())[0];
 }
 
-function Tile({ label, onClick, children }: { label: string; onClick?: () => void; children: ReactNode }) {
+function Tile({ label, icon, onClick, children }: { label: string; icon?: LucideIcon; onClick?: () => void; children: ReactNode }) {
   const body = (
     <>
-      <div style={{ ...eyebrowStyle, fontSize: 10 }}>{label}</div>
+      <div style={{ ...eyebrowStyle, fontSize: 10, display: 'flex', alignItems: 'center', gap: 6 }}>{icon && <InlineIcon icon={icon} size={13} />}{label}</div>
       {children}
     </>
   );
@@ -79,7 +81,7 @@ export default function KpiStrip({
   const tiles: ReactNode[] = [];
   if (showScore) {
     tiles.push(
-      <Tile key="score" label="Lead score">
+      <Tile key="score" label="Lead score" icon={Star}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <ScoreRing score={lead.score} grade={lead.score_grade} size={46} label={false} />
           <div style={{ minWidth: 0 }}>
@@ -93,7 +95,7 @@ export default function KpiStrip({
     );
   }
   tiles.push(
-    <Tile key="touch" label="Last contact" onClick={() => onOpenTab('timeline')}>
+    <Tile key="touch" label="Last contact" icon={History} onClick={() => onOpenTab('timeline')}>
       <div style={{ fontSize: 17, fontWeight: 700, fontFamily: T.heading, letterSpacing: '-0.01em', color: touch && !quiet ? T.text : T.warn }}>
         {touch ? relTime(touch) : 'No contact yet'}
       </div>
@@ -104,21 +106,21 @@ export default function KpiStrip({
   );
   tiles.push(
     next && due ? (
-      <Tile key="next" label="Next follow-up" onClick={() => onOpenTab('timeline')}>
+      <Tile key="next" label="Next follow-up" icon={CalendarClock} onClick={() => onOpenTab('timeline')}>
         <div style={{ fontSize: 17, fontWeight: 700, fontFamily: T.heading, letterSpacing: '-0.01em', color: due.overdue ? T.red : T.text }}>{due.label}</div>
         <div style={{ fontSize: 12, color: T.dim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={next.subject || undefined}>
           {TYPE_LABEL[next.type] || prettifySlug(next.type)}{next.subject ? ` · ${next.subject}` : ''}
         </div>
       </Tile>
     ) : (
-      <Tile key="next" label="Next follow-up">
+      <Tile key="next" label="Next follow-up" icon={CalendarClock}>
         <div style={{ fontSize: 17, fontWeight: 700, fontFamily: T.heading, letterSpacing: '-0.01em', color: T.dim }}>Nothing scheduled</div>
         <Link href={`/dashboard/crm/activities/new?lead_id=${lead.id}&type=task&subject=${encodeURIComponent('Follow up')}`} style={{ fontSize: 12, fontWeight: 600, color: T.red, textDecoration: 'none' }}>Schedule one →</Link>
       </Tile>
     ),
   );
   tiles.push(
-    <Tile key="deals" label="Deals" onClick={() => onOpenTab('deals')}>
+    <Tile key="deals" label="Deals" icon={Handshake} onClick={() => onOpenTab('deals')}>
       <div style={{ fontSize: 17, fontWeight: 700, fontFamily: T.heading, letterSpacing: '-0.01em', color: deals.length ? T.text : T.dim }}>
         {deals.length ? formatINR(dealTotal) : 'No deals yet'}
       </div>

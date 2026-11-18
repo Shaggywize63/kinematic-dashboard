@@ -24,6 +24,8 @@ import {
 } from '../../../../lib/crmApi';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { BookOpen, Check, Download, FileSpreadsheet, Pencil, Plus, Trash2, Upload } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 // One row from /api/v1/crm/locations — the per-tenant city allow-list
 // managed under Settings → Locations. We only care about the city name
@@ -267,22 +269,25 @@ export default function PeopleDirectoryPage() {
     <div style={{ maxWidth: 1200 }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>People Directory</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <PageIcon />
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>People Directory</h1>
+          </div>
           <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>
             Per-client address book — dealers, influencers, referrers. Records here are searchable from any lookup field configured against this object.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button onClick={handleExport} style={btnSecondary}>Export CSV</button>
-          <button onClick={downloadTemplate} style={btnSecondary}>Download template</button>
+          <button onClick={handleExport} style={btnSecondary}><InlineIcon icon={Download} />Export CSV</button>
+          <button onClick={downloadTemplate} style={btnSecondary}><InlineIcon icon={FileSpreadsheet} />Download template</button>
           <Link
             href="/dashboard/crm/people-directory/import"
             style={btnSecondary}
-          >Bulk Import</Link>
+          ><InlineIcon icon={Upload} />Bulk Import</Link>
           <button
             onClick={() => setEditing({})}
             style={btnPrimary}
-          >+ New Person</button>
+          ><InlineIcon icon={Plus} />New Person</button>
         </div>
       </header>
 
@@ -349,9 +354,12 @@ export default function PeopleDirectoryPage() {
             {!loading && rows.length === 0 && (
               <tr>
                 <td colSpan={8} style={{ padding: 36, textAlign: 'center', color: 'var(--text-dim)' }}>
+                  <IconTile icon={BookOpen} size={40} iconSize={20} style={{ marginBottom: 10 }} />
+                  <div>
                   {search.trim() || typeFilter || cityFilter
                     ? 'No matching entries.'
-                    : (<>Nothing here yet. Use <strong>Bulk Import</strong> to load a roster from CSV/XLSX, or <strong>+ New Person</strong> to add one.</>)}
+                    : (<>Nothing here yet. Use <strong>Bulk Import</strong> to load a roster from CSV/XLSX, or <strong>New Person</strong> to add one.</>)}
+                  </div>
                 </td>
               </tr>
             )}
@@ -373,8 +381,8 @@ export default function PeopleDirectoryPage() {
                     {r.address || <span style={{ color: 'var(--text-dim)' }}>—</span>}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    <button onClick={() => setEditing(r)} style={rowBtn}>Edit</button>
-                    <button onClick={() => handleDelete(r.id)} style={{ ...rowBtn, color: '#E11D48' }}>Delete</button>
+                    <button onClick={() => setEditing(r)} style={rowBtn}><InlineIcon icon={Pencil} size={12} />Edit</button>
+                    <button onClick={() => handleDelete(r.id)} style={{ ...rowBtn, color: '#E11D48' }}><InlineIcon icon={Trash2} size={12} />Delete</button>
                   </td>
                 </tr>
               );
@@ -465,7 +473,7 @@ export default function PeopleDirectoryPage() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
             <button onClick={() => setEditing(null)} style={btnSecondary}>Cancel</button>
-            <button onClick={handleSave} style={btnPrimary}>{editing.id ? 'Save changes' : 'Add'}</button>
+            <button onClick={handleSave} style={btnPrimary}><InlineIcon icon={editing.id ? Check : Plus} />{editing.id ? 'Save changes' : 'Add'}</button>
           </div>
         </Modal>
       )}
@@ -564,9 +572,9 @@ function TypePicker({
 // CLAUDE.md: "Inline styles (no CSS modules)".
 const thStyle: React.CSSProperties = { padding: '10px 12px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3 };
 const tdStyle: React.CSSProperties = { padding: '10px 12px', color: 'var(--text)' };
-const rowBtn: React.CSSProperties = { background: 'transparent', border: 'none', color: 'var(--primary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginLeft: 10 };
-const btnPrimary: React.CSSProperties = { padding: '8px 14px', borderRadius: 8, background: 'var(--primary)', color: '#fff', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer' };
-const btnSecondary: React.CSSProperties = { padding: '8px 14px', borderRadius: 8, background: 'transparent', color: 'var(--text)', fontWeight: 600, fontSize: 13, border: '1px solid var(--border)', cursor: 'pointer', textDecoration: 'none' };
+const rowBtn: React.CSSProperties = { background: 'transparent', border: 'none', color: 'var(--primary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 4 };
+const btnPrimary: React.CSSProperties = { padding: '8px 14px', borderRadius: 8, background: 'var(--primary)', color: '#fff', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 };
+const btnSecondary: React.CSSProperties = { padding: '8px 14px', borderRadius: 8, background: 'transparent', color: 'var(--text)', fontWeight: 600, fontSize: 13, border: '1px solid var(--border)', cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 };
 const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 8, background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13 };
 const typePill: React.CSSProperties = {
   display: 'inline-block', padding: '2px 8px', borderRadius: 50, fontSize: 11, fontWeight: 700,

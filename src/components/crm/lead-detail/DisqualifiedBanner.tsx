@@ -1,5 +1,5 @@
 'use client';
-import { RotateCcw } from 'lucide-react';
+import { Ban, RotateCcw, XCircle } from 'lucide-react';
 import { Button, Eyebrow, T } from '../../ui';
 import { fmtIST } from './format';
 
@@ -17,7 +17,7 @@ export default function DisqualifiedBanner({
   return (
     <div role="status" style={{ background: lost ? T.redWash : T.warnWash, border: `1px solid ${lost ? T.red : T.warn}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
       <div style={{ flex: 1, minWidth: 220 }}>
-        <Eyebrow style={{ color: lost ? T.red : T.warn }}>{lost ? 'Lead marked as lost' : 'Lead disqualified'}</Eyebrow>
+        <Eyebrow style={{ color: lost ? T.red : T.warn, display: 'flex', alignItems: 'center', gap: 6 }}>{lost ? <XCircle aria-hidden size={13} strokeWidth={2} /> : <Ban aria-hidden size={13} strokeWidth={2} />}{lost ? 'Lead marked as lost' : 'Lead disqualified'}</Eyebrow>
         {lostReason && <div style={{ color: T.text, marginTop: 4, fontSize: 13.5 }}>Reason: {lostReason}</div>}
         {disqualifiedAt && <div style={{ color: T.dim, marginTop: 2, fontSize: 12.5, fontFamily: T.mono }}>{fmtIST(disqualifiedAt)}</div>}
       </div>

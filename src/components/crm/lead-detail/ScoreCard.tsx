@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { Gauge, RefreshCw } from 'lucide-react';
 import type { LeadScore } from '../../../types/crm';
 import { breakdownFactors, llmAdjustmentOf } from '../../../lib/crm/scoreFactors';
 import { Button, Card, T } from '../../ui';
@@ -46,7 +46,7 @@ export default function ScoreCard({ lead, score, scoring, onRescore }: { lead: L
     <Card padding={16}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <h2 style={{ margin: 0, fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>Lead score</h2>
+          <h2 style={{ margin: 0, fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, display: 'inline-flex', alignItems: 'center', gap: 8 }}><Gauge aria-hidden size={16} strokeWidth={2} style={{ color: T.dim, flexShrink: 0 }} />Lead score</h2>
           <AiBadge />
         </div>
         <Button size="sm" onClick={onRescore} disabled={scoring} icon={<RefreshCw size={13} strokeWidth={1.9} className={scoring ? 'km-spin' : undefined} aria-hidden />}>

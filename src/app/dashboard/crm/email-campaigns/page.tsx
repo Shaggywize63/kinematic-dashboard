@@ -13,6 +13,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { crmEmailCampaigns, type EmailCampaign } from '../../../../lib/crmApi';
 import { getStoredUser } from '../../../../lib/auth';
+import { Link2, Lock, Mail, Plus, Upload } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -145,7 +147,10 @@ export default function EmailCampaignsPage() {
     <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.white, paddingBottom: 40 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 22, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>Email Campaigns</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+            <PageIcon />
+            <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: 0 }}>Email Campaigns</h1>
+          </div>
           <p style={{ color: C.gray, fontSize: 13, margin: 0, maxWidth: 660 }}>
             Send a saved email template to a segment of your contacts. Unsubscribed and bounced addresses are skipped automatically, opens &amp; clicks are tracked, and every email carries a one-click unsubscribe.
             {usage && <span> · <b style={{ color: C.white }}>{usage.emails_this_month}</b> sent this month.</span>}
@@ -157,9 +162,9 @@ export default function EmailCampaignsPage() {
             {/* Google Contacts → leads import removed (it flooded the CRM with
                 every auto-collected address). The Google connection control is
                 kept for the OAuth link itself. */}
-            <button onClick={connectGoogle} style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, border: `1px solid ${C.border}`, cursor: 'pointer' }}>{gStatus?.connected ? 'Reconnect Google' : 'Connect Google'}</button>
-            <Link href="/dashboard/crm/leads/import" style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: `1px solid ${C.border}` }}>Import CSV</Link>
-            <Link href="/dashboard/crm/email-campaigns/new" style={{ background: C.red, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ New campaign</Link>
+            <button onClick={connectGoogle} style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, border: `1px solid ${C.border}`, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Link2} />{gStatus?.connected ? 'Reconnect Google' : 'Connect Google'}</button>
+            <Link href="/dashboard/crm/leads/import" style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: `1px solid ${C.border}`, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Upload} />Import CSV</Link>
+            <Link href="/dashboard/crm/email-campaigns/new" style={{ background: C.red, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />New campaign</Link>
           </>}
         </div>
       </div>
@@ -172,6 +177,7 @@ export default function EmailCampaignsPage() {
         <div style={{ ...card, color: C.gray, fontSize: 13 }}>Loading…</div>
       ) : enabled === false ? (
         <div style={{ ...card, textAlign: 'center', padding: '48px 20px' }}>
+          <IconTile icon={Lock} size={40} iconSize={20} style={{ marginBottom: 10 }} />
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Email Campaigns is a paid add-on</div>
           <div style={{ color: C.gray, fontSize: 13, maxWidth: 460, margin: '0 auto' }}>
             This feature isn&apos;t enabled for your account yet. Contact your Kinematic administrator to turn on bulk email campaigns.
@@ -179,13 +185,14 @@ export default function EmailCampaignsPage() {
         </div>
       ) : rows.length === 0 ? (
         <div style={{ ...card, textAlign: 'center', padding: '48px 20px' }}>
+          <IconTile icon={Mail} size={40} iconSize={20} style={{ marginBottom: 10 }} />
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>No campaigns yet</div>
           <div style={{ color: C.gray, fontSize: 13, marginBottom: 18, maxWidth: 480, margin: '0 auto 18px' }}>
             Import a list of email contacts, then send them a campaign from a saved template.
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-            <Link href="/dashboard/crm/leads/import" style={{ background: C.s3, color: C.white, padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: `1px solid ${C.border}` }}>Import contacts</Link>
-            <Link href="/dashboard/crm/email-campaigns/new" style={{ background: C.red, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ New campaign</Link>
+            <Link href="/dashboard/crm/leads/import" style={{ background: C.s3, color: C.white, padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: `1px solid ${C.border}`, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Upload} />Import contacts</Link>
+            <Link href="/dashboard/crm/email-campaigns/new" style={{ background: C.red, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />New campaign</Link>
           </div>
         </div>
       ) : (

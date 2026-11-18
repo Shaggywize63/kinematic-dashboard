@@ -9,6 +9,7 @@ import { EXPIRY_WINDOW_DAYS } from '../../../../lib/hrms/people/learningEngine';
 import type { Certificate, LearningState } from '../../../../lib/hrms/people/types';
 import { Muted, SimulationBadge, Stack } from '../shared';
 import type { LearningView } from './view';
+import { isLive } from '../../../../lib/hrms/live/store';
 import CertificateModal from './CertificateModal';
 
 export default function CertificatesTab({ db, st, view }: { db: HrmsDb; st: LearningState; view: LearningView }) {
@@ -48,7 +49,7 @@ export default function CertificatesTab({ db, st, view }: { db: HrmsDb; st: Lear
     <Stack gap={14}>
       <Toolbar>
         <SearchBox value={q} onChange={setQ} placeholder="Search number, person or course" width={300} />
-        <SimulationBadge>Mock certificate numbers</SimulationBadge>
+        {!isLive() && <SimulationBadge>Mock certificate numbers</SimulationBadge>}
       </Toolbar>
       <div data-testid="certificates-table"><DataTable columns={columns} rows={rows} minWidth={860} empty="No certificates match." /></div>
       <Muted>A certificate is issued when a person passes the quiz with {70}% or more. Courses with a refresher show when the certificate lapses.</Muted>

@@ -7,6 +7,8 @@ import ConfirmModal from '../../../../components/ConfirmModal';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useClient } from '../../../../context/ClientContext';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { AlertTriangle, Check, CheckCircle2, Clock, Download, Eye, EyeOff, FileText, FolderOpen, Map as MapIcon, MapPin, Pause, Pencil, Play, Plus, PowerOff, RefreshCw, RotateCcw, Search, Store, Trash2, Upload, XCircle, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon, type IconTone } from '../../../../components/ui/PageIcon';
 
 const C = {
   bg: 'var(--bg)', 
@@ -498,7 +500,7 @@ export default function OutletManagementPage() {
           style={{ ...inp, borderColor: formErrs[id] ? C.red : C.border }}
           value={form[id]} onChange={e => setForm(p => ({ ...p, [id]: e.target.value }))}/>
       )}
-      {formErrs[id] && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrs[id]}</div>}
+      {formErrs[id] && <div style={{ fontSize:11, color:C.red, marginTop:3, display:'flex', alignItems:'center', gap:4 }}><InlineIcon icon={AlertTriangle} size={11} />{formErrs[id]}</div>}
     </div>
   );
 
@@ -560,12 +562,15 @@ export default function OutletManagementPage() {
 
         {/* ── Header ── */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:12 }}>
-          <div>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
-              Outlet Management
-            </div>
-            <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>
-              All retail & trade outlets in your network
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <PageIcon />
+            <div>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
+                Outlet Management
+              </div>
+              <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>
+                All retail & trade outlets in your network
+              </div>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -573,21 +578,21 @@ export default function OutletManagementPage() {
               style={{ padding:'8px 14px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10,
                 color:C.gray, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
                 display:'flex', alignItems:'center', gap:6 }}>
-              ↺ Refresh
+              <InlineIcon icon={RefreshCw} />Refresh
             </button>
             {(isPlatformAdmin || user?.role === 'client') && (
               <button onClick={() => setShowBulk(true)}
                 style={{ padding:'8px 14px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10,
                   color:C.blue, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
                   display:'flex', alignItems:'center', gap:6 }}>
-                📦 Bulk Upload
+                <InlineIcon icon={Upload} />Bulk Upload
               </button>
             )}
             <button onClick={() => { setForm(emptyForm); setSaveErr(null); setSaveOk(false); setFormErrs({}); setShowAdd(true); }}
               style={{ padding:'8px 16px', background:C.red, border:'none', borderRadius:10,
                 color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
                 display:'flex', alignItems:'center', gap:6, boxShadow:`0 4px 16px ${C.redB}` }}>
-              + Add Outlet
+              <InlineIcon icon={Plus} />Add Outlet
             </button>
           </div>
         </div>
@@ -597,7 +602,8 @@ export default function OutletManagementPage() {
           <Card style={{ padding:'14px 18px', border:`1px solid ${C.yellow}55`, background:C.yellowD }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
               <div>
-                <div style={{ fontSize:13, fontWeight:700, color:C.white }}>
+                <div style={{ fontSize:13, fontWeight:700, color:C.white, display:'flex', alignItems:'center', gap:8 }}>
+                  <InlineIcon icon={Clock} size={16} style={{ color:C.yellow }} />
                   {pendingOutlets.length} outlet{pendingOutlets.length === 1 ? '' : 's'} waiting for approval
                 </div>
                 <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>
@@ -606,11 +612,12 @@ export default function OutletManagementPage() {
               </div>
               <button onClick={() => { setShowReview(v => !v); setReviewErr(null); }}
                 style={{ padding:'8px 14px', background:C.yellow, border:'none', borderRadius:10, color:'#000',
-                  fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                  fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'inline-flex', alignItems:'center', gap:6 }}>
+                <InlineIcon icon={showReview ? EyeOff : Eye} size={14} />
                 {showReview ? 'Hide' : 'Review'}
               </button>
             </div>
-            {reviewErr && <div style={{ fontSize:12, color:C.red, marginTop:10 }}>⚠ {reviewErr}</div>}
+            {reviewErr && <div style={{ fontSize:12, color:C.red, marginTop:10, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={AlertTriangle} size={13} />{reviewErr}</div>}
             {showReview && (
               <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:8 }}>
                 {pendingOutlets.map(o => (
@@ -624,18 +631,18 @@ export default function OutletManagementPage() {
                         {[o.owner_name, o.phone, o.trade_type === 'on_trade' ? 'On-trade' : o.trade_type === 'off_trade' ? 'Off-trade' : null, o.store_type]
                           .filter(Boolean).join(' · ') || 'No contact details'}
                       </div>
-                      {o.address && <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>📍 {o.address}</div>}
+                      {o.address && <div style={{ fontSize:10, color:C.grayd, marginTop:2, display:'flex', alignItems:'center', gap:4 }}><InlineIcon icon={MapPin} size={11} />{o.address}</div>}
                     </div>
                     <div style={{ display:'flex', gap:8 }}>
                       <button disabled={reviewBusy === o.id} onClick={() => decide(o, 'approved')}
                         style={{ padding:'7px 14px', background:C.green, border:'none', borderRadius:9, color:'#000',
-                          fontSize:12, fontWeight:700, cursor:'pointer', opacity: reviewBusy === o.id ? 0.6 : 1 }}>
-                        ✓ Approve
+                          fontSize:12, fontWeight:700, cursor:'pointer', opacity: reviewBusy === o.id ? 0.6 : 1, display:'inline-flex', alignItems:'center', gap:6 }}>
+                        <InlineIcon icon={CheckCircle2} size={14} />Approve
                       </button>
                       <button disabled={reviewBusy === o.id} onClick={() => { setRejectTarget(o); setRejectReason(''); setReviewErr(null); }}
                         style={{ padding:'7px 14px', background:'transparent', border:`1px solid ${C.red}`, borderRadius:9,
-                          color:C.red, fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                        ✕ Reject
+                          color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6 }}>
+                        <InlineIcon icon={XCircle} size={14} />Reject
                       </button>
                     </div>
                   </div>
@@ -660,7 +667,8 @@ export default function OutletManagementPage() {
                 <button disabled={!rejectReason.trim() || reviewBusy === rejectTarget.id}
                   onClick={() => decide(rejectTarget, 'rejected', rejectReason.trim())}
                   style={{ padding:'9px 16px', background:C.red, border:'none', borderRadius:10, color:'#fff',
-                    fontSize:13, fontWeight:700, cursor:'pointer', opacity: !rejectReason.trim() ? 0.5 : 1 }}>
+                    fontSize:13, fontWeight:700, cursor:'pointer', opacity: !rejectReason.trim() ? 0.5 : 1, display:'inline-flex', alignItems:'center', gap:6 }}>
+                  <InlineIcon icon={XCircle} />
                   Reject outlet
                 </button>
               </div>
@@ -670,13 +678,14 @@ export default function OutletManagementPage() {
 
         {/* ── KPI row ── */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
-          {[
-            { label:'Total Outlets',  value:safeOutlets.length, color:C.blue,   sub:'All registered' },
-            { label:'Active',         value:activeCount,         color:C.green,  sub:'Currently active' },
-            { label:'Inactive',       value:inactiveCount,       color:C.red,    sub:'Deactivated' },
-            { label:'Zones Covered',  value:new Set(safeOutlets.map(o=>o.zone_id).filter(Boolean)).size, color:C.yellow, sub:'Unique zones' },
-          ].map((k,i) => (
-            <div key={i} style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, padding:'18px 20px' }}>
+          {([
+            { label:'Total Outlets',  value:safeOutlets.length, color:C.blue,   sub:'All registered', icon:Store, tone:'brand' },
+            { label:'Active',         value:activeCount,         color:C.green,  sub:'Currently active', icon:CheckCircle2, tone:'ok' },
+            { label:'Inactive',       value:inactiveCount,       color:C.red,    sub:'Deactivated', icon:PowerOff, tone:'red' },
+            { label:'Zones Covered',  value:new Set(safeOutlets.map(o=>o.zone_id).filter(Boolean)).size, color:C.yellow, sub:'Unique zones', icon:MapIcon, tone:'warn' },
+          ] as { label:string; value:number; color:string; sub:string; icon:LucideIcon; tone:IconTone }[]).map((k,i) => (
+            <div key={i} style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, padding:'18px 20px', position:'relative' }}>
+              <IconTile icon={k.icon} tone={k.tone} style={{ position:'absolute', top:14, right:14 }} />
               {loading ? <Shimmer h={28} br={5}/> : (
                 <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color:k.color, lineHeight:1 }}>{k.value}</div>
               )}
@@ -690,7 +699,7 @@ export default function OutletManagementPage() {
         <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
           {/* Search */}
           <div style={{ position:'relative', flex:1, minWidth:220 }}>
-            <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', fontSize:13, color:C.grayd }}>🔍</span>
+            <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', fontSize:13, color:C.grayd, display:'inline-flex' }}><InlineIcon icon={Search} size={14} /></span>
             <input placeholder="Search outlet name, code, owner, phone…"
               value={search} onChange={e => setSearch(e.target.value)}
               style={{ ...inp, paddingLeft:32 }}/>
@@ -727,12 +736,12 @@ export default function OutletManagementPage() {
           <Card style={{ padding:'20px 22px', background:C.redD, border:`1px solid ${C.redB}` }}>
             <div style={{ color:C.red, fontWeight:700, marginBottom:6 }}>Failed to load outlets</div>
             <div style={{ fontSize:13, color:C.gray, marginBottom:12 }}>{error}</div>
-            <button onClick={fetchAll} style={{ ...btnS, flex:'unset', padding:'7px 14px', fontSize:12 }}>Retry</button>
+            <button onClick={fetchAll} style={{ ...btnS, flex:'unset', padding:'7px 14px', fontSize:12, display:'inline-flex', alignItems:'center', gap:6 }}><InlineIcon icon={RotateCcw} size={14} />Retry</button>
           </Card>
         ) : filtered.length === 0 ? (
           <Card style={{ padding:'40px 22px' }}>
             <div style={{ textAlign:'center', color:C.grayd, fontSize:13 }}>
-              <div style={{ fontSize:32, marginBottom:12 }}>🏪</div>
+              <IconTile icon={Store} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 12px' }} />
               <div style={{ fontWeight:600, marginBottom:4 }}>No outlets found</div>
               <div style={{ fontSize:12 }}>{search ? `No results for "${search}"` : 'Add your first outlet to get started'}</div>
             </div>
@@ -783,8 +792,8 @@ export default function OutletManagementPage() {
                 <div>
                   <div style={{ fontSize:13, fontWeight:700, color:C.white }}>{o.name}</div>
                   {o.address && (
-                    <div style={{ fontSize:10, color:C.grayd, marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                      📍 {o.address}
+                    <div style={{ fontSize:10, color:C.grayd, marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', display:'flex', alignItems:'center', gap:4 }}>
+                      <InlineIcon icon={MapPin} size={11} />{o.address}
                     </div>
                   )}
                 </div>
@@ -831,7 +840,7 @@ export default function OutletManagementPage() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       onMouseEnter={e => (e.currentTarget.style.background = C.s3)}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      ✏️
+                      <InlineIcon icon={Pencil} size={14} style={{ color:C.gray }} />
                     </button>
                   )}
                   <button title={o.is_active ? 'Deactivate' : 'Activate'} onClick={() => toggleActive(o)}
@@ -840,7 +849,7 @@ export default function OutletManagementPage() {
                       display:'flex', alignItems:'center', justifyContent:'center' }}
                     onMouseEnter={e => (e.currentTarget.style.background = C.s3)}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                    {o.is_active ? '⏸' : '▶️'}
+                    <InlineIcon icon={o.is_active ? Pause : Play} size={14} style={{ color:C.gray }} />
                   </button>
                   {isPlatformAdmin && (
                     <button title="Delete outlet" onClick={() => setDeleteConfirm({show:true, item:o})}
@@ -849,7 +858,7 @@ export default function OutletManagementPage() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       onMouseEnter={e => { e.currentTarget.style.background = C.s3; e.currentTarget.style.color = C.red; }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit'; }}>
-                      🗑️
+                      <InlineIcon icon={Trash2} size={14} />
                     </button>
                   )}
                 </div>
@@ -877,11 +886,11 @@ export default function OutletManagementPage() {
             </div>
             {OutletForm()}
             {saveErr && <div style={{ marginTop:14, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
-            {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Outlet created!</div>}
+            {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={CheckCircle2} size={14} />Outlet created!</div>}
             <div style={{ display:'flex', gap:10, marginTop:20 }}>
               <button style={btnS} onClick={() => setShowAdd(false)}>Cancel</button>
-              <button style={btnP} onClick={doAdd} disabled={saving || !form.name}>
-                {saving ? <Spin/> : '+ Create Outlet'}
+              <button style={{ ...btnP, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6 }} onClick={doAdd} disabled={saving || !form.name}>
+                {saving ? <Spin/> : <><InlineIcon icon={Plus} />Create Outlet</>}
               </button>
             </div>
           </div>
@@ -901,11 +910,11 @@ export default function OutletManagementPage() {
             </div>
             {OutletForm()}
             {saveErr && <div style={{ marginTop:14, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
-            {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Saved!</div>}
+            {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={CheckCircle2} size={14} />Saved!</div>}
             <div style={{ display:'flex', gap:10, marginTop:20 }}>
               <button style={btnS} onClick={() => setShowEdit(false)}>Cancel</button>
-              <button style={btnP} onClick={doEdit} disabled={saving || !form.name}>
-                {saving ? <Spin/> : '✓ Save Changes'}
+              <button style={{ ...btnP, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6 }} onClick={doEdit} disabled={saving || !form.name}>
+                {saving ? <Spin/> : <><InlineIcon icon={Check} />Save Changes</>}
               </button>
             </div>
           </div>
@@ -934,17 +943,17 @@ export default function OutletManagementPage() {
               <button onClick={resetBulk} style={{ background: 'none', border: 'none', color: C.gray, fontSize: 20, cursor: 'pointer' }}>✕</button>
             </div>
 
-            {bulkErr && <div style={{ color: C.red, fontSize: 13, marginBottom: 16 }}>⚠ {bulkErr}</div>}
+            {bulkErr && <div style={{ color: C.red, fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={AlertTriangle} size={14} />{bulkErr}</div>}
 
             {bulkRows.length === 0 ? (
               <div style={{ border: `2px dashed ${C.border}`, borderRadius: 16, padding: 40, textAlign: 'center' }}>
-                <div style={{ fontSize: 40, marginBottom: 10 }}>📄</div>
+                <IconTile icon={FileText} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />
                 <div style={{ fontSize: 15, fontWeight: 700 }}>Select stores CSV</div>
                 <div style={{ fontSize: 13, color: C.gray, marginTop: 10, marginBottom: 20 }}>Click below to upload your store network data</div>
                 <input type="file" accept=".csv" onChange={onFile} style={{ display: 'none' }} id="bulk-store-file" />
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                  <label htmlFor="bulk-store-file" style={{ ...btnP, padding: '10px 20px', cursor: 'pointer', flex: 'unset' }}>Choose File</label>
-                  <button onClick={downloadTemplate} style={{ ...btnS, padding: '10px 20px', flex: 'unset' }}>Download Template</button>
+                  <label htmlFor="bulk-store-file" style={{ ...btnP, padding: '10px 20px', cursor: 'pointer', flex: 'unset', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={FolderOpen} />Choose File</label>
+                  <button onClick={downloadTemplate} style={{ ...btnS, padding: '10px 20px', flex: 'unset', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} />Download Template</button>
                 </div>
               </div>
             ) : (
@@ -983,7 +992,8 @@ export default function OutletManagementPage() {
                 <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                   <button onClick={resetBulk} style={btnS}>Cancel</button>
                   {!bulkDone ? (
-                    <button onClick={runBulk} disabled={bulkBusy} style={{ ...btnP, flex: 2, opacity: bulkBusy ? 0.7 : 1 }}>
+                    <button onClick={runBulk} disabled={bulkBusy} style={{ ...btnP, flex: 2, opacity: bulkBusy ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <InlineIcon icon={Upload} />
                       {bulkBusy ? 'Processing...' : 'Start Upload'}
                     </button>
                   ) : (

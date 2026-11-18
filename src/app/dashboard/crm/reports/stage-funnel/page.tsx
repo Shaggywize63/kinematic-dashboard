@@ -6,6 +6,8 @@ import type { Deal, Pipeline, Stage } from '../../../../../types/crm';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
+import { Download } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 // Stage funnel = count of deals per stage in pipeline order, plus the
 // conversion ratio from each stage to the next. Strategic report — shows
@@ -150,14 +152,14 @@ export default function StageFunnelPage() {
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
         <div>
-          <h3 style={{ color: 'var(--text)', margin: 0 }}>Stage Funnel</h3>
+          <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}><PageIcon size={32} />Stage Funnel</h3>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Deal count per stage and drop-off between stages. Red drops &gt; 50% flag potential leaks.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <select value={selectedPipeline} onChange={(e) => setSelectedPipeline(e.target.value)} style={sel} disabled={pipelines.length === 0}>
             {pipelines.map((p) => <option key={p.id} value={p.id}>{(p as any).name}</option>)}
           </select>
-          <button onClick={() => downloadCsv('stage-funnel', rows)} disabled={loading || rows.length === 0} style={csvBtn}>⬇ CSV</button>
+          <button onClick={() => downloadCsv('stage-funnel', rows)} disabled={loading || rows.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
         </div>
       </div>
 
@@ -253,7 +255,7 @@ function inr(n: number): string {
   return `₹${Math.round(n)}`;
 }
 const sel: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px', borderRadius: 8, fontSize: 13 };
-const csvBtn: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700 };
+const csvBtn: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 };
 const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, borderBottom: '1px solid var(--border)' };
 const thNum: React.CSSProperties = { ...th, textAlign: 'right' };
 const td: React.CSSProperties = { padding: '8px 10px', color: 'var(--text)', borderBottom: '1px solid var(--border)' };

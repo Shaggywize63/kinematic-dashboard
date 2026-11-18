@@ -6,6 +6,9 @@ import { crmActivities } from '../../lib/crmApi';
 import type { Activity } from '../../types/crm';
 import { prettifySlug } from '../../lib/activityTypes';
 import { ActivityTypeIcon } from './shared/ActivityTypeIcon';
+import type { LucideIcon } from 'lucide-react';
+import { AlarmClock, Bell, CheckCheck, CheckCircle2, CheckSquare, Hourglass, Inbox, IndianRupee, Megaphone, Receipt, UserPlus } from 'lucide-react';
+import { IconTile, InlineIcon } from '../ui/PageIcon';
 
 // Bell-icon dropdown. Surfaces TWO sources so the web matches the mobile
 // notification centre:
@@ -54,16 +57,16 @@ interface FeedNotif {
 
 // Icon per backend notification type — keeps parity with the mobile feed's
 // type glyphs. Falls back to a bell for unknown kinds.
-function notifEmoji(type?: string): string {
+function notifIcon(type?: string): LucideIcon {
   const t = (type || '').toLowerCase();
-  if (t.startsWith('expense')) return '🧾';
+  if (t.startsWith('expense')) return Receipt;
   switch (t) {
-    case 'lead_stagnant': case 'lead_at_risk': return '⏳';
-    case 'deal_closing': case 'deal_won': return '💰';
-    case 'task_overdue': case 'task_due': return '✅';
-    case 'lead_assigned': case 'assignment': return '🎯';
-    case 'broadcast': case 'announcement': return '📢';
-    default: return '🔔';
+    case 'lead_stagnant': case 'lead_at_risk': return Hourglass;
+    case 'deal_closing': case 'deal_won': return IndianRupee;
+    case 'task_overdue': case 'task_due': return CheckSquare;
+    case 'lead_assigned': case 'assignment': return UserPlus;
+    case 'broadcast': case 'announcement': return Megaphone;
+    default: return Bell;
   }
 }
 
@@ -380,13 +383,13 @@ export default function NotificationBell() {
                   title="Mark everything as read / done"
                   className="km-btn"
                   data-variant="ghost"
-                  style={{ background: 'transparent', border: '1px solid transparent', color: 'var(--text-dim)', fontSize: 12, fontWeight: 600, height: 26, padding: '0 8px', borderRadius: 6, cursor: clearing ? 'wait' : 'pointer', fontFamily: 'inherit' }}
+                  style={{ background: 'transparent', border: '1px solid transparent', color: 'var(--text-dim)', fontSize: 12, fontWeight: 600, height: 26, padding: '0 8px', borderRadius: 6, cursor: clearing ? 'wait' : 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                 >
-                  {clearing ? 'Clearing…' : 'Mark all read'}
+                  {!clearing && <InlineIcon icon={CheckCheck} size={14} />}{clearing ? 'Clearing…' : 'Mark all read'}
                 </button>
               )}
-              <Link href="/dashboard/notifications" onClick={() => setOpen(false)} style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                Open inbox
+              <Link href="/dashboard/notifications" onClick={() => setOpen(false)} style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <InlineIcon icon={Inbox} size={14} />Open inbox
               </Link>
             </div>
           </div>
@@ -395,7 +398,10 @@ export default function NotificationBell() {
             <div style={{ padding: 18, fontSize: 12, color: 'var(--text-dim)', textAlign: 'center' }}>Loading…</div>
           )}
           {!loading && totalItems === 0 && (
-            <div style={{ padding: 18, fontSize: 12, color: 'var(--text-dim)', textAlign: 'center' }}>You&apos;re all caught up. 🎉</div>
+            <div style={{ padding: 18, fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <IconTile icon={CheckCircle2} size={40} iconSize={20} />
+              You&apos;re all caught up.
+            </div>
           )}
 
           {/* Personal feed (stagnant leads, deals closing, assignments, broadcasts…) */}
@@ -406,7 +412,7 @@ export default function NotificationBell() {
                 <Link href={href} onClick={() => { markNotifRead(n.id); setOpen(false); }} style={{ display: 'block', padding: '10px 14px', textDecoration: 'none' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                     <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: n.is_read ? 600 : 800 }}>
-                      <span style={{ marginRight: 6 }}>{notifEmoji(n.type)}</span>
+                      <span style={{ marginRight: 6, display: 'inline-flex', verticalAlign: 'middle', color: 'var(--text-dim)' }}><InlineIcon icon={notifIcon(n.type)} size={16} /></span>
                       {n.title || 'Notification'}
                     </span>
                     <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
@@ -424,8 +430,8 @@ export default function NotificationBell() {
           {/* Activity reminders header — only when there are reminders to show
               alongside the feed, so the two sources stay distinguishable. */}
           {sortedActivities.length > 0 && sortedNotifs.length > 0 && (
-            <div style={{ padding: '8px 14px 4px', fontSize: 10, fontWeight: 800, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--text-dim)' }}>
-              Activity reminders
+            <div style={{ padding: '8px 14px 4px', fontSize: 10, fontWeight: 800, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <InlineIcon icon={AlarmClock} size={12} />Activity reminders
             </div>
           )}
 

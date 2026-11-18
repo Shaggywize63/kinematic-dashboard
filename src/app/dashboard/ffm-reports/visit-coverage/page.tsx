@@ -4,6 +4,9 @@ import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { RangePresetPicker, presetRange } from '../../../../components/attendance/RangePresets';
 import { ffmReports, type VisitCoveragePayload } from '../../../../components/ffm/reports/ffmReportsApi';
 import { csvLine, rangeProblem } from '../../../../components/ffm/reports/reportUtils';
+import { Building2, CheckCircle2, Download, Inbox, Landmark, MapPinOff, Users, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../lib/labelIcons';
 
 /**
  * Visit Coverage — universe (planned) vs covered (visited) outlets, by city and by rep, over a chosen
@@ -105,11 +108,14 @@ export default function VisitCoverageReport() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <PageIcon />
+          <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>Visit Coverage</h1>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-dim)' }}>
             Outlets in the planned universe vs outlets the team actually visited.
           </p>
+          </div>
         </div>
         <button
           onClick={exportCsv}
@@ -117,10 +123,11 @@ export default function VisitCoverageReport() {
           style={{
             background: 'var(--primary)', color: '#fff', border: 'none', padding: '8px 14px',
             borderRadius: 8, fontWeight: 700, cursor: canExport ? 'pointer' : 'not-allowed',
-            opacity: canExport ? 1 : 0.5, fontSize: 13,
+            opacity: canExport ? 1 : 0.5, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6,
           }}
         >
-          ⬇ Export CSV
+          <InlineIcon icon={Download} />
+          Export CSV
         </button>
       </header>
 
@@ -134,18 +141,19 @@ export default function VisitCoverageReport() {
       ) : error ? (
         <div role="alert" style={{ padding: 16, color: '#ef4444' }}>{error}</div>
       ) : !data ? (
-        <div style={{ padding: 16, color: 'var(--text-dim)' }}>No coverage data available yet.</div>
+        <div style={{ padding: 16, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 12 }}><IconTile icon={Inbox} size={40} iconSize={20} />No coverage data available yet.</div>
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
-            <Stat label="Universe" value={universe.toLocaleString('en-IN')} />
-            <Stat label="Covered"  value={covered.toLocaleString('en-IN')} accent="#10B981" />
-            <Stat label="Gap"      value={gap.toLocaleString('en-IN')} accent={gap > 0 ? '#EF4444' : undefined} />
+            <Stat label="Universe" icon={Building2} value={universe.toLocaleString('en-IN')} />
+            <Stat label="Covered"  icon={CheckCircle2} value={covered.toLocaleString('en-IN')} accent="#10B981" />
+            <Stat label="Gap"      icon={MapPinOff} value={gap.toLocaleString('en-IN')} accent={gap > 0 ? '#EF4444' : undefined} />
             <Stat label="Coverage" value={`${coveragePct}%`} accent={pctColor(coveragePct)} />
           </div>
 
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid var(--border)' }}>
+            <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <InlineIcon icon={Landmark} size={16} />
               By city
             </div>
             <div style={{ overflowX: 'auto' }}>
@@ -162,7 +170,7 @@ export default function VisitCoverageReport() {
                 </thead>
                 <tbody>
                   {cityRows.length === 0 && (
-                    <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>No planned outlets in the selected range.</td></tr>
+                    <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}><IconTile icon={MapPinOff} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />No planned outlets in the selected range.</td></tr>
                   )}
                   {city.sorted.map((c) => {
                     const pct = c.universe > 0 ? Math.round((c.covered / c.universe) * 100) : 0;
@@ -189,7 +197,8 @@ export default function VisitCoverageReport() {
 
           {repRows.length > 0 && (
             <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-              <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid var(--border)' }}>
+              <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <InlineIcon icon={Users} size={16} />
                 By rep
               </div>
               <div style={{ overflowX: 'auto' }}>
@@ -235,10 +244,11 @@ export default function VisitCoverageReport() {
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function Stat({ label, value, accent, icon }: { label: string; value: string; accent?: string; icon?: LucideIcon }) {
+  const Icon = icon ?? metricIconFor(label);
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>{Icon && <InlineIcon icon={Icon} size={14} />}{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color: accent ?? 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>
   );

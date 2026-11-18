@@ -1,5 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
+import { Code2, Columns2, Eye } from 'lucide-react';
+import { InlineIcon } from '../../ui/PageIcon';
 
 /**
  * Side-by-side HTML editor for email bodies. The left pane is a raw HTML
@@ -47,7 +49,8 @@ export default function HtmlEmailEditor({
               border: '1px solid var(--border)', cursor: 'pointer',
               background: view === v ? 'var(--primary)' : 'transparent',
               color: view === v ? '#fff' : 'var(--text-dim)',
-            }}>{v === 'split' ? 'Split' : v === 'code' ? 'HTML' : 'Preview'}</button>
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+            }}><InlineIcon icon={v === 'split' ? Columns2 : v === 'code' ? Code2 : Eye} size={12} />{v === 'split' ? 'Split' : v === 'code' ? 'HTML' : 'Preview'}</button>
           ))}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>

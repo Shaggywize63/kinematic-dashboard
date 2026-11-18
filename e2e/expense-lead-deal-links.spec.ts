@@ -124,8 +124,8 @@ test.describe('Claim editor: lead and deal pickers', () => {
     await page.getByRole('heading', { name: 'New expense claim' }).click(); // close the list without picking
 
     await pickFrom(page, 'Deal', 'Plugs for Q3');
-    await expect(page.getByText('💼 Plugs for Q3')).toBeVisible();
-    await expect(page.getByText('👤 Asha Rao · 98765 43210')).toBeVisible();
+    await expect(page.getByTestId('link-picked-deal')).toContainText('Plugs for Q3');
+    await expect(page.getByTestId('link-picked-lead')).toContainText('Asha Rao · 98765 43210');
     await saveDraft(page);
     await expect.poll(() => seen.claimBodies.length).toBe(1);
     expect(seen.claimBodies[0]).toMatchObject({ lead_id: 'lead-1', deal_id: 'deal-1' });
@@ -136,7 +136,7 @@ test.describe('Claim editor: lead and deal pickers', () => {
     const seen = await setup(page);
     await newClaimWithLine(page);
     await pickFrom(page, 'Deal', 'Coils for Q4');
-    await expect(page.getByText('👤 Ravi Kumar')).toBeVisible();
+    await expect(page.getByTestId('link-picked-lead')).toContainText('Ravi Kumar');
     await saveDraft(page);
     await expect.poll(() => seen.claimBodies.length).toBe(1);
     expect(seen.claimBodies[0]).toMatchObject({ lead_id: 'lead-2', deal_id: 'deal-9' });
@@ -156,7 +156,7 @@ test.describe('Claim editor: lead and deal pickers', () => {
 
     // Swapping to another lead removes the deal (it belongs to Ravi).
     await page.getByRole('button', { name: 'Clear lead' }).click();
-    await expect(page.getByText('💼 Coils for Q4')).toHaveCount(0);
+    await expect(page.getByTestId('link-picked-deal')).toHaveCount(0);
     await pickFrom(page, 'Lead', /^Asha Rao/);
     await saveDraft(page);
     await expect.poll(() => seen.claimBodies.length).toBe(1);
@@ -167,8 +167,8 @@ test.describe('Claim editor: lead and deal pickers', () => {
     await scopeToSpark(page);
     const seen = await setup(page, { claim: claim(LINKED) });
     await page.goto(`/dashboard/expenses/${CLAIM_ID}/edit`);
-    await expect(page.getByText('👤 Asha Rao')).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText('💼 Plugs for Q3')).toBeVisible();
+    await expect(page.getByTestId('link-picked-lead')).toContainText('Asha Rao', { timeout: 30_000 });
+    await expect(page.getByTestId('link-picked-deal')).toContainText('Plugs for Q3');
     await saveDraft(page);
     await expect.poll(() => seen.claimBodies.length).toBe(1);
     expect(seen.claimBodies[0]).toMatchObject({ lead_id: 'lead-1', deal_id: 'deal-1' });
@@ -178,11 +178,11 @@ test.describe('Claim editor: lead and deal pickers', () => {
     await scopeToSpark(page);
     const seen = await setup(page, { claim: claim(LINKED) });
     await page.goto(`/dashboard/expenses/${CLAIM_ID}/edit`);
-    await expect(page.getByText('💼 Plugs for Q3')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('link-picked-deal')).toContainText('Plugs for Q3', { timeout: 30_000 });
 
     await page.getByRole('button', { name: 'Clear deal' }).click();
-    await expect(page.getByText('💼 Plugs for Q3')).toHaveCount(0);
-    await expect(page.getByText('👤 Asha Rao')).toBeVisible();
+    await expect(page.getByTestId('link-picked-deal')).toHaveCount(0);
+    await expect(page.getByTestId('link-picked-lead')).toContainText('Asha Rao');
     await saveDraft(page);
     await expect.poll(() => seen.claimBodies.length).toBe(1);
     expect(seen.claimBodies[0]).toMatchObject({ lead_id: 'lead-1', deal_id: null });
@@ -192,7 +192,7 @@ test.describe('Claim editor: lead and deal pickers', () => {
     await scopeToSpark(page);
     const seen = await setup(page, { claim: claim(LINKED) });
     await page.goto(`/dashboard/expenses/${CLAIM_ID}/edit`);
-    await expect(page.getByText('👤 Asha Rao')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('link-picked-lead')).toContainText('Asha Rao', { timeout: 30_000 });
     await page.getByRole('button', { name: 'Clear lead' }).click();
     await expect(page.getByRole('textbox', { name: 'Lead', exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Deal', exact: true })).toBeVisible();

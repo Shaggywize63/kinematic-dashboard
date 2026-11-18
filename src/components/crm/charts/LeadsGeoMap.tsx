@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LocateFixed, Search } from 'lucide-react';
+import { BarChart3, Building2, LocateFixed, Search } from 'lucide-react';
 import { INDIA_STATES, INDIA_CENTRE } from '../../../lib/indiaStates';
 import { breakdownFactors } from '../../../lib/crm/scoreFactors';
 import { applyMapTheme, baseMapOptions, circleSymbol, escapeHtml, infoHtml, MAP_COLORS, useDocumentTheme, useGoogleMaps, type GMaps, type MapTheme } from '../../../lib/googleMaps';
@@ -453,7 +453,7 @@ export default function LeadsGeoMap({ leads, height = 620, colorBy = 'status' }:
       {/* Side panel — search + summary + top cities */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
         <div style={{ padding: 12, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8 }}>
-          <Eyebrow style={{ marginBottom: 8 }}>Find on map</Eyebrow>
+          <Eyebrow style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><Search aria-hidden size={12} strokeWidth={2} />Find on map</Eyebrow>
           <div style={{ position: 'relative' }}>
             <Search size={14} strokeWidth={1.6} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-mute)', pointerEvents: 'none' }} />
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="State, city, district…" style={{ paddingLeft: 30, height: 32, fontSize: 13 }} />
@@ -481,13 +481,13 @@ export default function LeadsGeoMap({ leads, height = 620, colorBy = 'status' }:
         </div>
 
         <div style={{ padding: 12, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8 }}>
-          <Eyebrow>Geo summary</Eyebrow>
+          <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><BarChart3 aria-hidden size={12} strokeWidth={2} />Geo summary</Eyebrow>
           <div style={{ fontFamily: T.heading, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text)', marginTop: 4, lineHeight: 1.15 }}>{totalMapped.toLocaleString()} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-dim)', fontFamily: 'inherit' }}>mapped</span></div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{byState.length} state{byState.length === 1 ? '' : 's'} · {byCity.length} cit{byCity.length === 1 ? 'y' : 'ies'}{unmapped > 0 ? ` · ${unmapped} unmapped` : ''}</div>
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8 }}>
-          <div style={{ padding: '10px 12px 6px', borderBottom: '1px solid var(--border)' }}><Eyebrow>Top cities</Eyebrow></div>
+          <div style={{ padding: '10px 12px 6px', borderBottom: '1px solid var(--border)' }}><Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Building2 aria-hidden size={12} strokeWidth={2} />Top cities</Eyebrow></div>
           {byCity.length === 0 ? (
             <div style={{ padding: 16, fontSize: 12.5, color: 'var(--text-dim)' }}>No leads with mapped cities yet.</div>
           ) : byCity.map((c) => {

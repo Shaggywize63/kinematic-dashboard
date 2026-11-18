@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
+import { BadgeCheck, FileText, FlaskConical, IndianRupee, type LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../ui/PageIcon';
 import api from '../../../lib/api';
 import { crmSettings } from '../../../lib/crmApi';
 import { buildFieldHelpers, extractFieldOverrides, type FieldHelpers } from '../../../lib/crmFieldOverrides';
@@ -45,6 +47,9 @@ export function useAssignableUsers(enabled: boolean, known: UserOption[] = []): 
   const extra = known.filter((k) => k.id && !users.some((u) => u.id === k.id));
   return extra.length ? [...users, ...extra] : users;
 }
+
+// One icon per deal section, on both the edit form and the read view.
+const SECTION_ICON: Record<string, LucideIcon> = { quotation: FileText, pricing: IndianRupee, product_trial: FlaskConical, approvals: BadgeCheck };
 
 const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 };
 const inp: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box' };
@@ -185,7 +190,7 @@ export default function DealSections({
     <div data-testid="deal-sections" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {enabledDealSections(sections).map((s) => (
         <section key={s.key} data-testid={`deal-section-${s.key}`} aria-label={s.label} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, background: 'var(--s2)' }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>{s.label}</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={SECTION_ICON[s.key]} size={15} style={{ color: 'var(--text-dim)' }} />{s.label}</div>
           {body(s)}
         </section>
       ))}
@@ -262,7 +267,7 @@ export function DealSectionsView({ deal, sections, fields }: {
     <div data-testid="deal-sections-view" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       {shown.map(({ s, r }) => (
         <div key={s.key} data-testid={`deal-section-view-${s.key}`} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{s.label}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={SECTION_ICON[s.key]} size={16} style={{ color: 'var(--text-dim)' }} />{s.label}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
             {r.map(([k, label, value]) => <ReadRow key={k} label={L(k, label)} value={value} />)}
           </div>

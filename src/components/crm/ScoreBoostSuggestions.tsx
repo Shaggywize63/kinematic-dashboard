@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { CheckCircle2, PencilLine, TrendingUp } from 'lucide-react';
 import type { Lead } from '../../types/crm';
 import { crmSettings } from '../../lib/crmApi';
 
@@ -92,7 +93,7 @@ export default function ScoreBoostSuggestions({
 
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Boost this score</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><TrendingUp aria-hidden size={16} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Boost this score</div>
       <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
         Add the missing signals below to raise the lead score. Re-score after updating to see the new number.
       </div>
@@ -113,8 +114,10 @@ export default function ScoreBoostSuggestions({
                 color: s.action === 'qualify' ? '#fff' : 'var(--text)',
                 padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
                 cursor: busy ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', opacity: busy ? 0.6 : 1,
+                display: 'inline-flex', alignItems: 'center', gap: 5,
               }}
             >
+              {s.action === 'qualify' ? <CheckCircle2 aria-hidden size={13} strokeWidth={2} /> : <PencilLine aria-hidden size={13} strokeWidth={2} />}
               {s.action === 'qualify' ? 'Mark Qualified' : 'Add detail'}
             </button>
           </div>

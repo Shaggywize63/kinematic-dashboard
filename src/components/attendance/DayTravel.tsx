@@ -14,6 +14,8 @@ import api, { type AttendanceTravel, type AttendanceTravelLeg, type AttendanceTr
 import { fmtClock } from '../../lib/visitTime';
 import { fmtKm } from '../../lib/travelReport';
 import { Badge, Button, Eyebrow, T } from '../ui';
+import { Route } from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 
 type State =
   | { phase: 'loading' }
@@ -80,7 +82,7 @@ export default function DayTravel({ userId, date, refreshKey }: { userId: string
   if (state.phase === 'loading') {
     return (
       <div data-testid="day-travel" role="status" aria-busy="true" style={box}>
-        <Eyebrow style={{ marginBottom: 6 }}>Distance travelled</Eyebrow>
+        <Eyebrow style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Route} size={13} />Distance travelled</Eyebrow>
         <div style={{ fontSize: 12.5, color: T.mute }}>Working out the route…</div>
       </div>
     );
@@ -89,7 +91,7 @@ export default function DayTravel({ userId, date, refreshKey }: { userId: string
   if (state.phase === 'error') {
     return (
       <div data-testid="day-travel" style={box}>
-        <Eyebrow style={{ marginBottom: 6 }}>Distance travelled</Eyebrow>
+        <Eyebrow style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Route} size={13} />Distance travelled</Eyebrow>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5, color: T.dim }}>
           <span>Couldn’t load the distance for this day.</span>
           <Button size="sm" onClick={load}>Retry</Button>
@@ -102,7 +104,7 @@ export default function DayTravel({ userId, date, refreshKey }: { userId: string
   if (!t.attendance_id || t.legs.length === 0) {
     return (
       <div data-testid="day-travel" style={box}>
-        <Eyebrow style={{ marginBottom: 6 }}>Distance travelled</Eyebrow>
+        <Eyebrow style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Route} size={13} />Distance travelled</Eyebrow>
         <div style={{ fontSize: 12.5, color: T.dim }}>
           {t.attendance_id ? 'No travel recorded for this day.' : 'No attendance on this day, so nothing to measure.'}
         </div>
@@ -116,7 +118,7 @@ export default function DayTravel({ userId, date, refreshKey }: { userId: string
     <div data-testid="day-travel" style={box}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
         <div>
-          <Eyebrow style={{ marginBottom: 4 }}>Distance travelled</Eyebrow>
+          <Eyebrow style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Route} size={13} />Distance travelled</Eyebrow>
           <div data-testid="day-travel-total" style={{ fontFamily: T.mono, fontSize: 20, fontWeight: 600, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{fmtKm(t.total_km)}</div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

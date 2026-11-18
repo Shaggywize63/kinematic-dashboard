@@ -1,5 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
+import { CalendarClock, History } from 'lucide-react';
 import type { LeadUpdate } from '../../../lib/crmApi';
 import type { ConversationRow } from '../../../lib/conversationsApi';
 import { Button, Card, T } from '../../ui';
@@ -108,7 +109,7 @@ export default function TimelineTab({
       </Card>
 
       {upcoming.length > 0 && (
-        <SectionCard title="Up next" count={upcoming.length} accent={overdue > 0 ? T.red : T.info} aside={overdue > 0 ? <span style={{ fontSize: 12, fontWeight: 650, color: T.red }}>{overdue} overdue</span> : undefined}>
+        <SectionCard title="Up next" icon={CalendarClock} count={upcoming.length} accent={overdue > 0 ? T.red : T.info} aside={overdue > 0 ? <span style={{ fontSize: 12, fontWeight: 650, color: T.red }}>{overdue} overdue</span> : undefined}>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {upcoming.map((a, i) => (
               <ActivityRow
@@ -128,6 +129,7 @@ export default function TimelineTab({
 
       <SectionCard
         title="History"
+        icon={History}
         count={history.length}
         aside={
           counts.all > 0 ? (

@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate } from '../../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
+import { Check, Filter, Plus } from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 
 /**
  * Retailer Sales (tertiary) — list + manual capture form for
@@ -140,7 +142,7 @@ export default function TertiarySalesPage() {
         right={
           <div style={{ display: 'flex', gap: 8 }}>
             <Link href="/dashboard/distribution/last-mile" style={btnLink}>← Overview</Link>
-            <Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : '+ Capture'}</Btn>
+            <Btn onClick={() => setShowForm((s) => !s)} icon={showForm ? null : <InlineIcon icon={Plus} />}>{showForm ? 'Cancel' : 'Capture'}</Btn>
           </div>
         }
       />
@@ -165,14 +167,14 @@ export default function TertiarySalesPage() {
             </div>
           </div>
           <div style={{ marginTop: 14 }}>
-            <Btn disabled={busy} onClick={submit}>{busy ? 'Saving…' : 'Capture'}</Btn>
+            <Btn disabled={busy} onClick={submit} icon={<InlineIcon icon={Check} />}>{busy ? 'Saving…' : 'Capture'}</Btn>
           </div>
         </Card>
       )}
 
       <Card style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>Filter</span>
+          <span style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Filter} size={14} />Filter</span>
           <SF
             label=""
             value={filterCapture}

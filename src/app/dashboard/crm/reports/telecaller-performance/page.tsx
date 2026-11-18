@@ -6,6 +6,10 @@ import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { TelecallerPerfRow, TelecallerPerfDaily } from '../../../../../types/crm';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../../lib/labelIcons';
+
+const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
 /**
  * Telecaller Performance — the Kinematic replacement for the Excel "Call
@@ -140,7 +144,7 @@ function Header({ range, onChange }: { range: { from: string; to: string }; onCh
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
       <div>
         <Link href="/dashboard/crm/reports" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none' }}>← All reports</Link>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px' }}>Telecaller Performance</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Telecaller Performance</h1>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
           Calls, connects, interest and scheme ₹ per telecaller — the Call Tracker, live.
         </p>
@@ -182,7 +186,7 @@ function KpiStrip({ totals, connectRate, loading }: { totals: Totals | null; con
           background: 'var(--s2)', border: '1px solid var(--border)', borderLeft: `3px solid ${k.accent}`,
           borderRadius: 12, padding: '12px 14px',
         }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{k.label}</div>
+          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{kpiIcon(k.label)}{k.label}</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{loading ? '—' : k.value}</div>
         </div>
       ))}

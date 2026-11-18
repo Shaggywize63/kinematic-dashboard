@@ -6,6 +6,8 @@ import api from '../../lib/api';
 import { crmEmailTemplates, crmWhatsappTemplates } from '../../lib/crmApi';
 import { sanitiseEmailHtml } from '../../lib/sanitiseEmailHtml';
 import HtmlEmailEditor from './email/HtmlEmailEditor';
+import { Check, ChevronDown, ChevronRight, Languages, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 
 export type TemplateDraft = {
   channel: 'email' | 'whatsapp';
@@ -188,10 +190,10 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
       footer={
         <>
           {!isNew && form.id && (
-            <button type="button" onClick={remove} disabled={deleting} style={btn.danger(deleting)}>{deleting ? 'Deleting…' : 'Delete'}</button>
+            <button type="button" onClick={remove} disabled={deleting} style={btn.danger(deleting)}>{!deleting && <InlineIcon icon={Trash2} />}{deleting ? 'Deleting…' : 'Delete'}</button>
           )}
           <button type="button" onClick={onClose} style={btn.secondary}>Cancel</button>
-          <button type="button" onClick={submit} disabled={busy} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save'}</button>
+          <button type="button" onClick={submit} disabled={busy} style={btn.primary(busy)}>{!busy && <InlineIcon icon={Check} />}{busy ? 'Saving…' : 'Save'}</button>
         </>
       }>
       {isEmail ? (
@@ -225,9 +227,10 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
                     background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)',
                     padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
                     cursor: uploading ? 'wait' : 'pointer', opacity: uploading ? 0.7 : 1,
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
                   }}
                 >
-                  {uploading ? 'Importing…' : '⬆ Upload HTML'}
+                  {!uploading && <InlineIcon icon={Upload} size={14} />}{uploading ? 'Importing…' : 'Upload HTML'}
                 </button>
               </div>
             </div>
@@ -364,7 +367,7 @@ function TranslationsPanel({ form, setForm }: { form: TemplateDraft; setForm: (f
     <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>Translations</div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Languages} size={14} style={{ color: 'var(--text-dim)' }} />Translations</div>
           <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Auto-translate body + header + footer via Claude. Placeholders like <code style={{ fontFamily: 'monospace' }}>{'{{1}}'}</code> are preserved verbatim.</div>
         </div>
         {existingCodes.length > 0 && (
@@ -386,11 +389,11 @@ function TranslationsPanel({ form, setForm }: { form: TemplateDraft; setForm: (f
                 border: `1px solid ${isPicked ? 'var(--primary)' : 'var(--border)'}`,
                 background: isPicked ? 'var(--primary)' : has ? 'rgba(0,217,126,0.1)' : 'transparent',
                 color: isPicked ? '#fff' : has ? '#10b981' : 'var(--text-dim)',
-                cursor: 'pointer', fontWeight: 700,
+                cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4,
               }}
               title={has ? 'Translation saved — re-translate to refresh' : 'Pick to translate'}
             >
-              {l.label}{has ? ' ✓' : ''}
+              {l.label}{has && <InlineIcon icon={Check} size={12} />}
             </button>
           );
         })}
@@ -401,19 +404,19 @@ function TranslationsPanel({ form, setForm }: { form: TemplateDraft; setForm: (f
           type="button"
           onClick={() => translate(picked)}
           disabled={busy || picked.length === 0}
-          style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (busy || picked.length === 0) ? 0.5 : 1 }}
+          style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (busy || picked.length === 0) ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
-          {busy ? 'Translating…' : picked.length === 0 ? 'Pick languages to translate' : `Translate ${picked.length}`}
+          {!busy && <InlineIcon icon={Languages} size={14} />}{busy ? 'Translating…' : picked.length === 0 ? 'Pick languages to translate' : `Translate ${picked.length}`}
         </button>
         {existingCodes.length > 0 && (
           <button
             type="button"
             onClick={() => translate(existingCodes)}
             disabled={busy}
-            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.5 : 1 }}
+            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
             title="Re-translate every saved language using the latest source"
           >
-            Refresh all
+            <InlineIcon icon={RefreshCw} size={14} />Refresh all
           </button>
         )}
       </div>
@@ -432,7 +435,7 @@ function TranslationsPanel({ form, setForm }: { form: TemplateDraft; setForm: (f
                   style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left' }}
                 >
                   <span style={{ fontSize: 12, fontWeight: 700 }}>{label}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{open ? '▼' : '▶'}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)', display: 'inline-flex' }}><InlineIcon icon={open ? ChevronDown : ChevronRight} size={14} /></span>
                 </button>
                 {open && (
                   <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-dim)' }}>
@@ -462,6 +465,6 @@ function Select(p: { label: string; value: string; onChange: (v: string) => void
 }
 const btn = {
   secondary: { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 } as React.CSSProperties,
-  primary: (busy: boolean): React.CSSProperties => ({ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 700, fontSize: 13, opacity: busy ? 0.7 : 1 }),
-  danger: (busy: boolean): React.CSSProperties => ({ background: 'var(--s3)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 600, fontSize: 13, opacity: busy ? 0.7 : 1, marginRight: 'auto' }),
+  primary: (busy: boolean): React.CSSProperties => ({ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 700, fontSize: 13, opacity: busy ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }),
+  danger: (busy: boolean): React.CSSProperties => ({ background: 'var(--s3)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 600, fontSize: 13, opacity: busy ? 0.7 : 1, marginRight: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }),
 };

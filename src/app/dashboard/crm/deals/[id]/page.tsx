@@ -3,6 +3,11 @@ import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import {
+  ArrowLeft, ArrowLeftRight, CalendarDays, CheckCircle2, CheckSquare, CircleDot, FileText, History, IndianRupee, Kanban, Milestone,
+  Package, Pencil, Percent, Phone, Plus, RefreshCw, RotateCcw, Store, Trash2, Trophy, UserRound, Users, Weight, XCircle, type LucideIcon,
+} from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmDeals, crmPipelines, crmAi, crmLineItems, crmLeads, crmProducts } from '../../../../../lib/crmApi';
 import InlineEditText from '../../../../../components/crm/InlineEditText';
 import type { Deal, Pipeline, DealHistoryEntry, DealContact, Activity, NextBestAction, WinProbability, DealLineItem, Lead, Product } from '../../../../../types/crm';
@@ -514,7 +519,9 @@ export default function DealDetailPage() {
         <div style={{ flex: '2 1 380px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+              <div style={{ flex: '1 1 220px', minWidth: 0, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <PageIcon />
+                <div style={{ flex: 1, minWidth: 0 }}>
                 {/* Inline per-field edit — rename the deal in place, no popup. */}
                 <InlineEditText
                   value={deal.name || ''}
@@ -551,33 +558,35 @@ export default function DealDetailPage() {
                       {deal.lead_phone && <span> · {deal.lead_phone}</span>}
                     </>
                   )}
-                  {pipeline && (<><span> · </span><span title="Current pipeline">📋 {pipeline.name}</span></>)}
+                  {pipeline && (<><span> · </span><span title="Current pipeline" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'bottom' }}><InlineIcon icon={Kanban} size={13} />{pipeline.name}</span></>)}
+                </div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <button onClick={() => setPipelineModalOpen(true)}
-                  style={{ background: hasPipeline ? 'var(--s3)' : 'var(--primary)', border: hasPipeline ? '1px solid var(--border)' : 'none', color: hasPipeline ? 'var(--text)' : '#fff', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
-                  {hasPipeline ? 'Move pipeline' : '+ Add to pipeline'}
+                  style={{ background: hasPipeline ? 'var(--s3)' : 'var(--primary)', border: hasPipeline ? '1px solid var(--border)' : 'none', color: hasPipeline ? 'var(--text)' : '#fff', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <InlineIcon icon={hasPipeline ? ArrowLeftRight : Plus} />
+                  {hasPipeline ? 'Move pipeline' : 'Add to pipeline'}
                 </button>
-                <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+                <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Pencil} />Edit</button>
                 {deal.status === 'open' && !isBmw && (
-                  <button onClick={() => openCloseModal('won')} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Close Deal</button>
+                  <button onClick={() => openCloseModal('won')} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={CheckCircle2} />Close Deal</button>
                 )}
                 {deal.status !== 'open' && (
-                  <button onClick={reopenDeal} disabled={reopening} style={{ background: 'var(--s3)', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.6 : 1 }}>{reopening ? 'Re-opening...' : 'Re-open Deal'}</button>
+                  <button onClick={reopenDeal} disabled={reopening} style={{ background: 'var(--s3)', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={RotateCcw} />{reopening ? 'Re-opening...' : 'Re-open Deal'}</button>
                 )}
-                <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}>{deleting ? 'Deleting...' : 'Delete'}</button>
-                <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
+                <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Trash2} />{deleting ? 'Deleting...' : 'Delete'}</button>
+                <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ArrowLeft} />Back</button>
               </div>
             </div>
             {deal.status === 'won' && (
-              <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.4)', color: '#10b981', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: 'center' }}>
-                ✓ This deal is closed as WON
+              <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.4)', color: '#10b981', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <InlineIcon icon={Trophy} />This deal is closed as WON
               </div>
             )}
             {deal.status === 'lost' && (
-              <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: 'center' }}>
-                ✗ This deal is closed as LOST
+              <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <InlineIcon icon={XCircle} />This deal is closed as LOST
               </div>
             )}
             {(() => {
@@ -621,7 +630,7 @@ export default function DealDetailPage() {
                   border: '1px solid var(--border)', borderRadius: 14, padding: '18px 22px', marginBottom: 14,
                 }}>
                   {showAmount && <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>{dealFields.labelFor('amount', 'Amount')}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={IndianRupee} size={13} />{dealFields.labelFor('amount', 'Amount')}</div>
                     <div style={{ fontSize: 30, color: 'var(--text)', fontWeight: 800, lineHeight: 1.1, marginTop: 4 }}>
                       {formatINR(Number(deal.amount) || 0)}
                     </div>
@@ -647,7 +656,7 @@ export default function DealDetailPage() {
                     <>
                       {showAmount && <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />}
                       <div>
-                        <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>Weight</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Weight} size={13} />Weight</div>
                         <div style={{ fontSize: 30, color: 'var(--text)', fontWeight: 800, lineHeight: 1.1, marginTop: 4 }}>
                           {formatKg(kg)}
                         </div>
@@ -661,16 +670,17 @@ export default function DealDetailPage() {
               {/* Dealer is stamped server-side on the deal row — surfaced here
                   so reps see it in the summary, not only in the custom-fields
                   card further down. Hidden when the tenant doesn't stamp it. */}
-              {deal.dealer_name && <Field label="Dealer" value={deal.dealer_name} />}
-              {!dealFields.isHidden('stage_id') && <Field label={dealFields.labelFor('stage_id', 'Stage')} value={deal.stage_name} />}
+              {deal.dealer_name && <Field label="Dealer" icon={Store} value={deal.dealer_name} />}
+              {!dealFields.isHidden('stage_id') && <Field label={dealFields.labelFor('stage_id', 'Stage')} icon={Milestone} value={deal.stage_name} />}
               {/* Spark & Ray: only their deal rows carry a quotation number. */}
-              {deal.quotation_no && !spark && <Field label="Quotation no." value={deal.quotation_no} />}
-              <Field label="Status" valueNode={<Badge tone={deal.status === 'won' ? 'ok' : deal.status === 'lost' ? 'red' : 'info'} dot style={{ textTransform: 'capitalize' }}>{deal.status}</Badge>} />
+              {deal.quotation_no && !spark && <Field label="Quotation no." icon={FileText} value={deal.quotation_no} />}
+              <Field label="Status" icon={CircleDot} valueNode={<Badge tone={deal.status === 'won' ? 'ok' : deal.status === 'lost' ? 'red' : 'info'} dot style={{ textTransform: 'capitalize' }}>{deal.status}</Badge>} />
               {/* Win probability is hidden for BMW — their steel-dealer flow
                   tracks booked volume, not a forecast likelihood. */}
               {!isBmw && !dealFields.isHidden('probability') && (
               <Field
                 label={dealFields.labelFor('probability', 'Probability')}
+                icon={Percent}
                 value={`${probabilityPct(deal.probability)}`}
                 editValue={`${probabilityPct(deal.probability)}`}
                 displaySuffix="%"
@@ -690,6 +700,7 @@ export default function DealDetailPage() {
               )}
               {!dealFields.isHidden('expected_close_date') && <Field
                 label={dealFields.labelFor('expected_close_date', 'Close Date')}
+                icon={CalendarDays}
                 value={fmtIst(deal.expected_close_date).date}
                 trailing={deal.status === 'open' && deal.expected_close_date ? <CloseDueBadge date={deal.expected_close_date} /> : undefined}
                 editValue={deal.expected_close_date ? new Date(deal.expected_close_date).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) : ''}
@@ -705,13 +716,13 @@ export default function DealDetailPage() {
                   }
                 }}
               />}
-              {!dealFields.isHidden('owner_id') && <Field label={dealFields.labelFor('owner_id', 'Owner')} value={deal.owner_name} />}
-              {deal.lead_phone && <Field label="Lead Phone" value={deal.lead_phone} />}
+              {!dealFields.isHidden('owner_id') && <Field label={dealFields.labelFor('owner_id', 'Owner')} icon={UserRound} value={deal.owner_name} />}
+              {deal.lead_phone && <Field label="Lead Phone" icon={Phone} value={deal.lead_phone} />}
             </div>}
           </div>
 
           <SafeRender label="contacts">
-            <Card title={`Contacts (${contacts.length})`}>
+            <Card title={`Contacts (${contacts.length})`} icon={Users}>
               {contacts.length === 0 ? (
                 <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>
                   {deal.primary_contact_id ? (
@@ -773,7 +784,7 @@ export default function DealDetailPage() {
           </SafeRender>
 
           <SafeRender label="activities">
-            <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?deal_id=${id}`} /></Card>
+            <Card title={`Activities (${activities.length})`} icon={CheckSquare}><ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?deal_id=${id}`} /></Card>
           </SafeRender>
 
           {/* BMW does not use the upsell flow — hide the Upsells section for them. */}
@@ -784,7 +795,7 @@ export default function DealDetailPage() {
           )}
 
           <SafeRender label="history">
-            <Card title="History">
+            <Card title="History" icon={History}>
               {usefulHistory.length === 0 ? (
                 <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No events yet.</div>
               ) : (
@@ -834,7 +845,7 @@ export default function DealDetailPage() {
           {/* Connected-B2B: what was spent to win this deal (claims linked to it) vs. its value. Renders nothing for other clients. */}
           <SafeRender label="expenses"><EntityExpensesCard kind="deal" id={id} /></SafeRender>
           {primary && primary.contact_id && (
-            <Card title="Primary Contact">
+            <Card title="Primary Contact" icon={UserRound}>
               <Link href={`/dashboard/crm/contacts/${primary.contact_id}`} style={chipLink}>
                 → {primary.contact?.full_name || `${primary.contact?.first_name || ''} ${primary.contact?.last_name || ''}`.trim() || 'View contact'}
               </Link>
@@ -865,7 +876,8 @@ export default function DealDetailPage() {
           </SafeRender>
           )}
           {!isChampion && !isBmw && (
-          <button onClick={loadWinProb} disabled={winBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
+          <button onClick={loadWinProb} disabled={winBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <InlineIcon icon={RefreshCw} size={14} />
             {winBusy ? 'Predicting…' : 'Re-forecast Win Probability'}
           </button>
           )}
@@ -903,11 +915,11 @@ export default function DealDetailPage() {
       {closeOpen && (
         <div onClick={(e) => { if (e.target === e.currentTarget) setCloseOpen(false); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, maxWidth: 460, width: '100%' }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Close Deal</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={CheckCircle2} size={18} style={{ color: 'var(--text-dim)' }} />Close Deal</div>
             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Mark this deal as won or lost. You can re-open it later if needed.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-              <button type="button" onClick={() => setCloseOutcome('won')} style={{ padding: '12px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: closeOutcome === 'won' ? '2px solid #10b981' : '1px solid var(--border)', background: closeOutcome === 'won' ? 'rgba(16,185,129,0.12)' : 'var(--s3)', color: closeOutcome === 'won' ? '#10b981' : 'var(--text)' }}>✓ Won</button>
-              <button type="button" onClick={() => setCloseOutcome('lost')} style={{ padding: '12px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: closeOutcome === 'lost' ? '2px solid #ef4444' : '1px solid var(--border)', background: closeOutcome === 'lost' ? 'rgba(239,68,68,0.10)' : 'var(--s3)', color: closeOutcome === 'lost' ? '#ef4444' : 'var(--text)' }}>✗ Lost</button>
+              <button type="button" onClick={() => setCloseOutcome('won')} style={{ padding: '12px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: closeOutcome === 'won' ? '2px solid #10b981' : '1px solid var(--border)', background: closeOutcome === 'won' ? 'rgba(16,185,129,0.12)' : 'var(--s3)', color: closeOutcome === 'won' ? '#10b981' : 'var(--text)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><InlineIcon icon={Trophy} />Won</button>
+              <button type="button" onClick={() => setCloseOutcome('lost')} style={{ padding: '12px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: closeOutcome === 'lost' ? '2px solid #ef4444' : '1px solid var(--border)', background: closeOutcome === 'lost' ? 'rgba(239,68,68,0.10)' : 'var(--s3)', color: closeOutcome === 'lost' ? '#ef4444' : 'var(--text)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><InlineIcon icon={XCircle} />Lost</button>
             </div>
             {closeOutcome === 'lost' ? (
               <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -966,7 +978,7 @@ export default function DealDetailPage() {
             )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setCloseOpen(false)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-              <button onClick={closeDeal} disabled={closing} style={{ background: closeOutcome === 'won' ? '#10b981' : '#ef4444', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: closing ? 'not-allowed' : 'pointer', fontSize: 13, opacity: closing ? 0.7 : 1 }}>{closing ? 'Closing...' : `Close as ${closeOutcome === 'won' ? 'Won' : 'Lost'}`}</button>
+              <button onClick={closeDeal} disabled={closing} style={{ background: closeOutcome === 'won' ? '#10b981' : '#ef4444', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: closing ? 'not-allowed' : 'pointer', fontSize: 13, opacity: closing ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={closeOutcome === 'won' ? CheckCircle2 : XCircle} />{closing ? 'Closing...' : `Close as ${closeOutcome === 'won' ? 'Won' : 'Lost'}`}</button>
             </div>
           </div>
         </div>
@@ -1195,7 +1207,7 @@ function DealProductsCard({ deal }: { deal: Deal }) {
   }
 
   return (
-    <Card title={`Products${saving ? ' · Saving…' : ''}`}>
+    <Card title={`Products${saving ? ' · Saving…' : ''}`} icon={Package}>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
@@ -1546,10 +1558,10 @@ const smallBtnPrimary: React.CSSProperties  = { background: 'var(--primary)', bo
 const smallBtnGhost: React.CSSProperties    = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' };
 const smallBtnDanger: React.CSSProperties   = { background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' };
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, children, icon }: { title: string; children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{title}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>{icon && <InlineIcon icon={icon} size={16} style={{ color: 'var(--text-dim)' }} />}{title}</div>
       {children}
     </div>
   );
@@ -1573,8 +1585,10 @@ function CloseDueBadge({ date }: { date: string }) {
   return null;
 }
 
-function Field({ label, value, valueNode, trailing, onSave, type, editValue, displaySuffix }: {
+function Field({ label, value, valueNode, trailing, onSave, type, editValue, displaySuffix, icon }: {
   label: string;
+  /** A small dim icon before the label. */
+  icon?: LucideIcon;
   value?: string | null;
   /** A rendered value (a badge) in place of the plain text. */
   valueNode?: React.ReactNode;
@@ -1587,7 +1601,7 @@ function Field({ label, value, valueNode, trailing, onSave, type, editValue, dis
 }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>{icon && <InlineIcon icon={icon} size={12} />}{label}</div>
       {onSave ? (
         <div style={{ marginTop: 2 }}>
           <InlineEditText

@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { ArrowLeft, Check, Trash2 } from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmProducts, crmProductCategories, crmMakes, crmBrands } from '../../../../../lib/crmApi';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import type { Product, ProductCategory, Make, Brand } from '../../../../../types/crm';
@@ -76,9 +78,9 @@ export default function ProductDetailPage() {
 
   return (
     <form onSubmit={save} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 760 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <h2 style={{ margin: 0, fontSize: 18, color: 'var(--text)' }}>{product.name}</h2>
-        <button type="button" onClick={remove} style={{ background: 'transparent', border: '1px solid #E01E2C', color: '#E01E2C', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Delete</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, fontSize: 18, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />{product.name}</h2>
+        <button type="button" onClick={remove} style={{ background: 'transparent', border: '1px solid #E01E2C', color: '#E01E2C', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Trash2} size={14} />Delete</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         <Field label={b2b ? 'Product reference' : 'SKU'} error={refError}><input value={product.sku} onChange={(e) => { setProduct({ ...product, sku: e.target.value }); setRefError(''); }} required aria-invalid={refError ? true : undefined} style={refError ? { ...input, borderColor: '#E01E2C' } : input} /></Field>
@@ -119,8 +121,8 @@ export default function ProductDetailPage() {
         </Field>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end' }}>
-        <button type="button" onClick={() => router.back()} style={btnGhost}>Back</button>
-        <button type="submit" disabled={busy} style={btnPrimary}>{busy ? 'Saving...' : 'Save'}</button>
+        <button type="button" onClick={() => router.back()} style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ArrowLeft} />Back</button>
+        <button type="submit" disabled={busy} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Check} />{busy ? 'Saving...' : 'Save'}</button>
       </div>
     </form>
   );

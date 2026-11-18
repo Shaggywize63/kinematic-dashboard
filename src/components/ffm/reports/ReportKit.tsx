@@ -12,6 +12,9 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
 import { RangePresetPicker } from '../../attendance/RangePresets';
 import { downloadCsv, rangeProblem, toCsv, type CsvCell, type CsvColumn } from './reportUtils';
+import { Download, Inbox, RotateCcw, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../ui/PageIcon';
+import { metricIconFor } from '../../../lib/labelIcons';
 
 // ── data loading ──────────────────────────────────────────────────────────
 
@@ -54,9 +57,12 @@ export function ReportHeader({ title, intro, onExport, exportDisabled, exportLab
 }) {
   return (
     <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-      <div style={{ minWidth: 0, flex: '1 1 260px' }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{title}</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>{intro}</p>
+      <div style={{ minWidth: 0, flex: '1 1 260px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <PageIcon />
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{title}</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>{intro}</p>
+        </div>
       </div>
       {onExport && (
         <button
@@ -64,9 +70,11 @@ export function ReportHeader({ title, intro, onExport, exportDisabled, exportLab
           style={{
             background: 'var(--primary)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 8, fontWeight: 700,
             cursor: exportDisabled ? 'not-allowed' : 'pointer', fontSize: 13, opacity: exportDisabled ? 0.6 : 1,
+            display: 'inline-flex', alignItems: 'center', gap: 6,
           }}
         >
-          ⬇ {exportLabel}
+          <InlineIcon icon={Download} />
+          {exportLabel}
         </button>
       )}
     </header>
@@ -110,10 +118,12 @@ export function StatGrid({ children }: { children: ReactNode }) {
   return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>{children}</div>;
 }
 
-export function Stat({ label, value, accent, hint, testId }: { label: string; value: ReactNode; accent?: string; hint?: ReactNode; testId?: string }) {
+/** A figure tile. Its icon comes from the shared vocabulary for the label unless `icon` names one (`null` = none). */
+export function Stat({ label, value, accent, hint, testId, icon }: { label: string; value: ReactNode; accent?: string; hint?: ReactNode; testId?: string; icon?: LucideIcon | null }) {
+  const Icon = icon === undefined ? metricIconFor(label) : icon;
   return (
     <div data-testid={testId} style={{ ...card, borderRadius: 10, padding: 12, minWidth: 0 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>{Icon && <InlineIcon icon={Icon} size={14} />}{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color: accent ?? 'var(--text)', marginTop: 4, wordBreak: 'break-word' }}>{value}</div>
       {hint && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{hint}</div>}
     </div>
@@ -130,7 +140,7 @@ export function StatusBox({ loading, error, onRetry, children }: { loading: bool
     return (
       <div role="alert" style={{ ...card, padding: 16, color: '#ef4444', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <span>{error}</span>
-        {onRetry && <button type="button" onClick={onRetry} style={{ background: 'var(--s3)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Retry</button>}
+        {onRetry && <button type="button" onClick={onRetry} style={{ background: 'var(--s3)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={RotateCcw} size={14} />Retry</button>}
       </div>
     );
   }
@@ -181,7 +191,7 @@ export function DataTable<T>({ cols, rows, rowKey, empty, initialSort, footer, m
         </thead>
         <tbody>
           {sorted.length === 0 ? (
-            <tr><td colSpan={cols.length} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)', whiteSpace: 'normal' }}>{empty}</td></tr>
+            <tr><td colSpan={cols.length} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)', whiteSpace: 'normal' }}><IconTile icon={Inbox} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />{empty}</td></tr>
           ) : sorted.map((r) => (
             <tr key={rowKey(r)} style={{ borderTop: '1px solid var(--border)' }}>
               {cols.map((c) => <td key={c.key} style={tdStyle(c.align)}>{c.cell ? c.cell(r) : String(c.csv(r) ?? '—')}</td>)}

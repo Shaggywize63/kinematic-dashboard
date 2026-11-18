@@ -59,7 +59,7 @@ export default function PromotionsPage() {
       <PageHeader
         title="Trade Promotions"
         subtitle="Price-off · Free goods · Display · Slotting · Volume rebate. Budgets, claims & ROI."
-        right={<a href="/dashboard/distribution/promotions/new"><Btn>+ New Promotion</Btn></a>}
+        right={<a href="/dashboard/distribution/promotions/new"><Btn>New Promotion</Btn></a>}
       />
 
       <Card style={{ marginBottom: 22 }}>

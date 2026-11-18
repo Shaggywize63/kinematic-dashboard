@@ -21,6 +21,8 @@ import { useActivityTypes } from '../../../lib/activityTypes';
 import { resolveStages, BUILTIN_STAGES, type StageDef } from '../../../lib/leadStages';
 import type { Automation, AutomationCondition, Pipeline, EmailTemplate, WhatsappTemplate } from '../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../shared/UserSearchSelect';
+import { Check, Minus, MousePointerClick, Plus, Trash2 } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../ui/PageIcon';
 
 // ── Trigger / action catalogues (must match automations.service.ts) ──
 const TRIGGER_GROUPS: Array<{ group: string; items: Array<{ value: string; label: string; entity: 'lead' | 'deal' | 'activity'; timed?: boolean }> }> = [
@@ -505,7 +507,7 @@ export default function AutomationCanvas() {
     <div style={{ display: 'grid', gridTemplateColumns: '230px 1fr 328px', gap: 12, height: 'calc(100vh - 160px)', minHeight: 520 }}>
       {/* ── left: flow list ── */}
       <aside style={{ ...card, padding: 12, overflowY: 'auto' }}>
-        <button onClick={addFlow} style={{ ...btnDashed, width: '100%', marginBottom: 12 }}>＋ New flow</button>
+        <button onClick={addFlow} style={{ ...btnDashed, width: '100%', marginBottom: 12 }}><InlineIcon icon={Plus} />New flow</button>
         <div style={railLabel}>Your flows</div>
         {flows.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '8px 6px' }}>No flows yet. Create your first one.</div>}
         {flows.map((f, i) => (
@@ -532,8 +534,8 @@ export default function AutomationCanvas() {
                 <span style={swKnob(cur.active)} />
               </button>
               <span style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600 }}>{cur.active ? 'Active' : 'Paused'}</span>
-              <button onClick={saveFlow} disabled={saving} style={btnPrimary}>{saving ? 'Saving…' : 'Save flow'}</button>
-              <button onClick={deleteFlow} disabled={busy} style={btnDanger}>Delete</button>
+              <button onClick={saveFlow} disabled={saving} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}>{!saving && <InlineIcon icon={Check} />}{saving ? 'Saving…' : 'Save flow'}</button>
+              <button onClick={deleteFlow} disabled={busy} style={{ ...btnDanger, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Trash2} />Delete</button>
             </>
           ) : <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>Select a flow, or create a new one.</div>}
         </div>
@@ -542,14 +544,17 @@ export default function AutomationCanvas() {
           backgroundImage: 'radial-gradient(circle at 1px 1px, var(--border) 1.3px, transparent 0)', backgroundSize: '22px 22px' }}>
           {cur && (
             <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 5, display: 'flex', alignItems: 'center', gap: 4, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: '4px 6px', boxShadow: '0 6px 18px rgba(0,0,0,0.18)' }}>
-              <button onClick={() => setZoom((z) => Number(Math.max(0.4, z - 0.1).toFixed(3)))} title="Zoom out" style={zoomBtn}>−</button>
+              <button onClick={() => setZoom((z) => Number(Math.max(0.4, z - 0.1).toFixed(3)))} title="Zoom out" style={zoomBtn}><InlineIcon icon={Minus} size={14} /></button>
               <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', minWidth: 34, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
-              <button onClick={() => setZoom((z) => Number(Math.min(1.5, z + 0.1).toFixed(3)))} title="Zoom in" style={zoomBtn}>＋</button>
+              <button onClick={() => setZoom((z) => Number(Math.min(1.5, z + 0.1).toFixed(3)))} title="Zoom in" style={zoomBtn}><InlineIcon icon={Plus} size={14} /></button>
               <button onClick={fitToWidth} title="Fit to width" style={{ ...zoomBtn, width: 'auto', padding: '0 8px', fontSize: 11, fontWeight: 700 }}>Fit</button>
             </div>
           )}
           {!cur ? (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>Nothing selected.</div>
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <IconTile icon={MousePointerClick} size={40} iconSize={20} />
+              Nothing selected.
+            </div>
           ) : (
             <div style={{ position: 'relative', width: canvasW * zoom, height: canvasH * zoom }}>
             <div style={{ position: 'relative', width: canvasW, height: canvasH, padding: 18, transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
@@ -584,7 +589,7 @@ export default function AutomationCanvas() {
 
               <button onClick={() => setPalette(true)}
                 style={{ ...btnDashed, position: 'absolute', left: CX.act + 18, top: BASEY + 18 + cur.actions.length * GAPY, width: NW }}>
-                ＋ Add step
+                <InlineIcon icon={Plus} />Add step
               </button>
             </div>
             </div>
@@ -629,7 +634,7 @@ export default function AutomationCanvas() {
             <datalist id={`fields-${triggerMeta(cur.trigger_type).entity}`}>
               {(FIELD_SUGGESTIONS[triggerMeta(cur.trigger_type).entity] || []).map((f) => <option key={f} value={f} />)}
             </datalist>
-            <button onClick={() => patch({ conditions: [...cur.conditions, { field: '', op: '=', value: '' }] })} style={{ ...btnDashed, width: '100%', marginTop: 4 }}>＋ Add condition</button>
+            <button onClick={() => patch({ conditions: [...cur.conditions, { field: '', op: '=', value: '' }] })} style={{ ...btnDashed, width: '100%', marginTop: 4 }}><InlineIcon icon={Plus} />Add condition</button>
           </Inspector>
         ) : (() => {
           const i = node.i ?? 0; const a = cur.actions[i]; if (!a) return null;
@@ -651,7 +656,7 @@ export default function AutomationCanvas() {
                   </div>
                 </Field>
                 <Note>A wait turns this flow into a <b>timed sequence</b> — the steps run in order and pause here until due (saved to the Sequences engine).</Note>
-                <button onClick={() => removeAction(i)} style={{ ...btnGhostSm, color: '#ef4444', border: 'none', marginTop: 12, padding: 0 }}>✕ Remove this wait</button>
+                <button onClick={() => removeAction(i)} style={{ ...btnGhostSm, color: '#ef4444', border: 'none', marginTop: 12, padding: 0, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Trash2} size={14} />Remove this wait</button>
               </Inspector>
             );
           }
@@ -680,10 +685,10 @@ export default function AutomationCanvas() {
                 <datalist id={`gate-fields-${ent}`}>
                   {(FIELD_SUGGESTIONS[ent] || []).map((f) => <option key={f} value={f} />)}
                 </datalist>
-                <button onClick={() => setConds([...conds, { field: '', op: '=', value: '' }])} style={{ ...btnDashed, width: '100%', marginTop: 4 }}>＋ Add condition</button>
+                <button onClick={() => setConds([...conds, { field: '', op: '=', value: '' }])} style={{ ...btnDashed, width: '100%', marginTop: 4 }}><InlineIcon icon={Plus} />Add condition</button>
                 <div style={{ height: 10 }} />
                 <Note>A branch gate turns this flow into a <b>sequence</b> — on save, a failing condition stops the run here (saved to the Sequences engine).</Note>
-                <button onClick={() => removeAction(i)} style={{ ...btnGhostSm, color: '#ef4444', border: 'none', marginTop: 12, padding: 0 }}>✕ Remove this branch</button>
+                <button onClick={() => removeAction(i)} style={{ ...btnGhostSm, color: '#ef4444', border: 'none', marginTop: 12, padding: 0, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Trash2} size={14} />Remove this branch</button>
               </Inspector>
             );
           }
@@ -698,7 +703,7 @@ export default function AutomationCanvas() {
               <ActionConfig action={a.action_type} cfg={a.action_config}
                 setCfg={(p) => patchAction(i, { action_config: { ...a.action_config, ...p } })}
                 users={users} pipelines={pipelines} emailTemplates={emailTemplates} waTemplates={waTemplates} stagesForPipeline={stagesFor} leadStages={leadStages} />
-              <button onClick={() => removeAction(i)} style={{ ...btnGhostSm, color: '#ef4444', border: 'none', marginTop: 12, padding: 0 }}>✕ Remove this action</button>
+              <button onClick={() => removeAction(i)} style={{ ...btnGhostSm, color: '#ef4444', border: 'none', marginTop: 12, padding: 0, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Trash2} size={14} />Remove this action</button>
             </Inspector>
           );
         })()}
@@ -935,7 +940,7 @@ const railLabel: React.CSSProperties = { fontSize: 10.5, letterSpacing: 1, textT
 const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 15px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 };
 const btnDanger: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: '#ef4444', padding: '8px 13px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 };
 const btnGhostSm: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 9px', borderRadius: 6, cursor: 'pointer', fontSize: 12 };
-const btnDashed: React.CSSProperties = { background: 'transparent', border: '1.5px dashed var(--border)', color: 'var(--text-dim)', padding: '10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 650 };
+const btnDashed: React.CSSProperties = { background: 'transparent', border: '1.5px dashed var(--border)', color: 'var(--text-dim)', padding: '10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 650, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 };
 const paletteItem: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 11, width: '100%', border: 'none', background: 'transparent', borderRadius: 8, padding: '8px 10px', textAlign: 'left', cursor: 'pointer' };
 const andPill: React.CSSProperties = { fontSize: 10, fontWeight: 800, letterSpacing: 1, color: '#D98A0A', background: 'color-mix(in srgb, #D98A0A 16%, transparent)', padding: '2px 7px', borderRadius: 5 };
 const flowItem = (sel: boolean): React.CSSProperties => ({

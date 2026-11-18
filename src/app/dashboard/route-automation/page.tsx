@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { api } from '../../../lib/api';
+import { AlertTriangle, Building2, Check, CheckCircle2, Eye, Gauge, History, MapPin, Plus, SlidersHorizontal, Sparkles, Users, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../components/ui/PageIcon';
 
 /**
  * Automated Route Plans — the manager picks an auto-assignment METHOD; the
@@ -228,14 +230,17 @@ export default function RouteAutomationPage() {
 
   return (
     <div style={{ padding: '24px 20px', maxWidth: 1040, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-        <div>
-          <h1 style={{ fontFamily: 'var(--heading, inherit)', fontSize: 24, fontWeight: 700, color: C.text, margin: 0 }}>Automated Route Plans</h1>
-          <p style={{ fontSize: 13, color: C.sec, margin: '4px 0 0' }}>
-            Choose how outlets are auto-assigned to field executives. The method is saved and can be changed any time. You can always <Link href="/dashboard/route-plan" style={{ color: C.red }}>add a plan manually</Link>.
-          </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flex: '1 1 320px' }}>
+          <PageIcon />
+          <div>
+            <h1 style={{ fontFamily: 'var(--heading, inherit)', fontSize: 24, fontWeight: 700, color: C.text, margin: 0 }}>Automated Route Plans</h1>
+            <p style={{ fontSize: 13, color: C.sec, margin: '4px 0 0' }}>
+              Choose how outlets are auto-assigned to field executives. The method is saved and can be changed any time. You can always <Link href="/dashboard/route-plan" style={{ color: C.red }}>add a plan manually</Link>.
+            </p>
+          </div>
         </div>
-        <Link href="/dashboard/route-plan" style={{ ...ghostBtn, textDecoration: 'none' }}>+ Add manually</Link>
+        <Link href="/dashboard/route-plan" style={{ ...ghostBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />Add manually</Link>
       </div>
 
       {error && <div style={{ margin: '16px 0 0', fontSize: 13, color: C.red, background: C.s2, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 14px' }}>{error}</div>}
@@ -245,7 +250,7 @@ export default function RouteAutomationPage() {
       {!loading && (
         <>
           {/* METHOD PICKER */}
-          <div style={{ marginTop: 20, fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: C.tert }}>Assignment method</div>
+          <div style={{ marginTop: 20, fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: C.tert, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={SlidersHorizontal} size={16} />Assignment method</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, marginTop: 10 }}>
             {methods.map((m) => {
               const sel = m.id === method;
@@ -302,15 +307,18 @@ export default function RouteAutomationPage() {
             )}
 
             <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-              <button onClick={saveMethod} disabled={saving} style={dirty ? btn(C.blue, saving) : ghostBtn}>
+              <button onClick={saveMethod} disabled={saving} style={{ ...(dirty ? btn(C.blue, saving) : ghostBtn), display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <InlineIcon icon={Check} />
                 {saving ? 'Saving…' : dirty ? 'Save method' : 'Method saved'}
               </button>
               {!isManual && (
                 <>
-                  <button onClick={runPreview} disabled={previewing} style={{ ...ghostBtn, opacity: previewing ? 0.6 : 1 }}>
+                  <button onClick={runPreview} disabled={previewing} style={{ ...ghostBtn, opacity: previewing ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <InlineIcon icon={Eye} />
                     {previewing ? 'Previewing…' : 'Preview assignment'}
                   </button>
-                  <button onClick={runAssign} disabled={running} style={btn(C.red, running)}>
+                  <button onClick={runAssign} disabled={running} style={{ ...btn(C.red, running), display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <InlineIcon icon={Sparkles} />
                     {running ? 'Assigning…' : 'Generate & assign'}
                   </button>
                 </>
@@ -322,6 +330,7 @@ export default function RouteAutomationPage() {
           {/* FIELD EXECUTIVE LOCATIONS */}
           <div style={{ ...card, marginTop: 16, padding: 0, overflow: 'hidden' }}>
             <button onClick={() => setShowFes((v) => !v)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <InlineIcon icon={MapPin} size={16} style={{ color: C.tert }} />
               <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Field executive locations</span>
               {noLocCount > 0
                 ? <span style={{ fontSize: 11, fontWeight: 700, color: C.red, background: 'rgba(224,30,44,.14)', borderRadius: 6, padding: '2px 8px' }}>{noLocCount} without a location</span>
@@ -333,7 +342,7 @@ export default function RouteAutomationPage() {
                 <div style={{ padding: '0 16px 10px', fontSize: 12, color: C.tert, lineHeight: 1.5 }}>
                   A rep has no coordinates until they first check in. The planner uses their live GPS, else a base you set here, else their last captured fix, else their zone. Reps with <strong style={{ color: C.sec }}>no location</strong> can still be assigned by Cadence / Territory / Recurring methods, but the map-based methods (Nearest, Clusters, Balanced) need a point — set a base or use their last known fix.
                 </div>
-                {fes.length === 0 && <div style={{ padding: '10px 16px 16px', fontSize: 13, color: C.tert }}>No field executives found.</div>}
+                {fes.length === 0 && <div style={{ padding: '10px 16px 16px', fontSize: 13, color: C.tert, display: 'flex', alignItems: 'center', gap: 10 }}><IconTile icon={Users} size={40} iconSize={20} />No field executives found.</div>}
                 {fes.map((fe) => {
                   const badge = SOURCE_BADGE[fe.start_source] || SOURCE_BADGE.none;
                   const d = feDraft[fe.user_id] || { lat: fe.base?.lat != null ? String(fe.base.lat) : '', lng: fe.base?.lng != null ? String(fe.base.lng) : '' };
@@ -352,12 +361,13 @@ export default function RouteAutomationPage() {
                           <input value={d.lng} onChange={(e) => setFeDraft((m) => ({ ...m, [fe.user_id]: { ...d, lng: e.target.value } }))} placeholder="lng"
                             style={{ width: 88, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', color: C.text, fontSize: 12.5 }} />
                           <button disabled={feSaving === fe.user_id} onClick={() => saveFeBase(fe.user_id, { lat: Number(d.lat), lng: Number(d.lng) })}
-                            style={{ ...btn(C.blue, feSaving === fe.user_id), padding: '7px 12px', fontSize: 12.5 }}>
+                            style={{ ...btn(C.blue, feSaving === fe.user_id), padding: '7px 12px', fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <InlineIcon icon={Check} size={14} />
                             {feSaving === fe.user_id ? 'Saving…' : 'Save base'}
                           </button>
                           {fe.last_capture && (
                             <button disabled={feSaving === fe.user_id} onClick={() => saveFeBase(fe.user_id, { use_last_capture: true })}
-                              style={{ ...ghostBtn, padding: '7px 12px', fontSize: 12.5 }}>Use last known</button>
+                              style={{ ...ghostBtn, padding: '7px 12px', fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={History} size={14} />Use last known</button>
                           )}
                         </>
                       )}
@@ -377,7 +387,7 @@ export default function RouteAutomationPage() {
                 {runResult.replaced ? ` · replaced ${runResult.replaced} previous auto plan${runResult.replaced === 1 ? '' : 's'}` : ''}
                 {runResult.summary.unassigned_outlets ? ` · ${runResult.summary.unassigned_outlets} couldn't be placed (over capacity)` : ''}.
               </div>
-              <Link href={`/dashboard/route-plan?date=${runResult.plan_date}`} style={{ ...ghostBtn, textDecoration: 'none', display: 'inline-block', marginTop: 12 }}>View route plans →</Link>
+              <Link href={`/dashboard/route-plan?date=${runResult.plan_date}`} style={{ ...ghostBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12 }}><InlineIcon icon={Eye} />View route plans →</Link>
             </div>
           )}
 
@@ -385,16 +395,16 @@ export default function RouteAutomationPage() {
           {preview && (
             <div style={{ marginTop: 16 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
-                {[
-                  { l: 'Field executives', v: s!.fe_count },
-                  { l: 'Outlets due', v: s!.due_pool },
-                  { l: 'Will be assigned', v: s!.assigned_outlets },
-                  { l: 'Unassigned', v: s!.unassigned_outlets, warn: s!.unassigned_outlets > 0 },
-                  { l: 'Cap / rep', v: s!.cap_per_fe },
-                ].map((t) => (
+                {([
+                  { l: 'Field executives', v: s!.fe_count, icon: Users },
+                  { l: 'Outlets due', v: s!.due_pool, icon: Building2 },
+                  { l: 'Will be assigned', v: s!.assigned_outlets, icon: CheckCircle2 },
+                  { l: 'Unassigned', v: s!.unassigned_outlets, warn: s!.unassigned_outlets > 0, icon: AlertTriangle },
+                  { l: 'Cap / rep', v: s!.cap_per_fe, icon: Gauge },
+                ] as { l: string; v: number; warn?: boolean; icon: LucideIcon }[]).map((t) => (
                   <div key={t.l} style={{ ...card, padding: 12 }}>
                     <div style={{ fontSize: 22, fontWeight: 800, color: t.warn ? C.red : C.text }}>{t.v}</div>
-                    <div style={{ fontSize: 11.5, color: C.tert, marginTop: 2 }}>{t.l}</div>
+                    <div style={{ fontSize: 11.5, color: C.tert, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={t.icon} size={14} />{t.l}</div>
                   </div>
                 ))}
               </div>
@@ -406,7 +416,7 @@ export default function RouteAutomationPage() {
               )}
 
               <div style={{ ...card, marginTop: 12, padding: 0, overflow: 'hidden' }}>
-                {preview.fes.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.tert, fontSize: 13 }}>No outlets are due — set cadence in Outlet Priorities, or check that reps have locations.</div>}
+                {preview.fes.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.tert, fontSize: 13 }}><IconTile icon={Building2} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />No outlets are due — set cadence in Outlet Priorities, or check that reps have locations.</div>}
                 {preview.fes.map((fe) => (
                   <div key={fe.user_id} style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>

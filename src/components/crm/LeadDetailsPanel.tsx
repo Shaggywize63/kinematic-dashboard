@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { Building2, Gauge, MapPin, MessageCircle, Package, ShieldCheck, SlidersHorizontal, StickyNote, UserRound, type LucideIcon } from 'lucide-react';
 import SignedImage from '@/components/shared/SignedImage';
 import { crmCustomFields, crmLookup, crmProducts } from '../../lib/crmApi';
 import type { CustomField, Lead, Product } from '../../types/crm';
@@ -330,6 +331,12 @@ export default function LeadDetailsPanel({ lead, onPatch, fields }: Props) {
 
 // ─── Section card ──────────────────────────────────────────────────
 
+// One icon per section (by title), shown before the section heading.
+const SECTION_ICON: Record<string, LucideIcon> = {
+  'Contact preferences': MessageCircle, Company: Building2, Personal: UserRound, 'Address & location': MapPin,
+  'Products of interest': Package, 'Score & dates': Gauge, 'Custom fields': SlidersHorizontal, Consent: ShieldCheck, 'Notes & tags': StickyNote,
+};
+
 function SectionCard({
   title, items,
 }: {
@@ -338,10 +345,12 @@ function SectionCard({
 }) {
   const visible = items.filter(([, v]) => v !== null && v !== undefined && v !== '');
   if (visible.length === 0) return null;
+  const Icon = SECTION_ICON[title];
 
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-jetbrains)', fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-mute)', fontWeight: 500 }}>
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-jetbrains)', fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-mute)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+        {Icon && <Icon aria-hidden size={13} strokeWidth={2} style={{ flexShrink: 0 }} />}
         {title}
       </div>
       <div style={{ padding: '12px 16px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>

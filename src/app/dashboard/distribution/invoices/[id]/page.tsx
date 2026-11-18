@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Btn, Th, Td, inr, fmtDate, statusColor } from '../../../../../components/distribution/Atoms';
+import { BookOpen, CircleDot, CreditCard, FileText, IndianRupee, Link2, Package, Send, ShoppingCart, Truck } from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 
 export default function InvoiceDetail() {
   const params = useParams();
@@ -45,24 +47,24 @@ export default function InvoiceDetail() {
       {/* Cross-links: back to order, forward to dispatch + payments */}
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', fontSize: 13 }}>
-          <span style={{ color: 'var(--text-dim)' }}>Source:</span>
-          <a href={`/dashboard/distribution/orders/${inv.order_id}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Order →</a>
+          <span style={{ color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Link2} size={14} />Source:</span>
+          <a href={`/dashboard/distribution/orders/${inv.order_id}`} style={{ color: 'var(--primary)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={ShoppingCart} size={14} />Order →</a>
           <span style={{ color: 'var(--text-dim)' }}>·</span>
-          <a href={`/dashboard/distribution/distributors/${inv.distributor_id}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Distributor →</a>
+          <a href={`/dashboard/distribution/distributors/${inv.distributor_id}`} style={{ color: 'var(--primary)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Truck} size={14} />Distributor →</a>
           <span style={{ color: 'var(--text-dim)' }}>·</span>
-          <a href={`/dashboard/distribution/payments?outlet_id=${inv.outlet_id}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Outlet payments →</a>
+          <a href={`/dashboard/distribution/payments?outlet_id=${inv.outlet_id}`} style={{ color: 'var(--primary)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={CreditCard} size={14} />Outlet payments →</a>
           <span style={{ color: 'var(--text-dim)' }}>·</span>
-          <a href={`/dashboard/distribution/ledger?outlet_id=${inv.outlet_id}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Outlet ledger →</a>
+          <a href={`/dashboard/distribution/ledger?outlet_id=${inv.outlet_id}`} style={{ color: 'var(--primary)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={BookOpen} size={14} />Outlet ledger →</a>
           {inv.dispatch_id && <>
             <span style={{ color: 'var(--text-dim)' }}>·</span>
-            <a href={`/dashboard/distribution/dispatches`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Dispatch {inv.dispatch_id?.slice(0, 8)}…</a>
+            <a href={`/dashboard/distribution/dispatches`} style={{ color: 'var(--primary)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Send} size={14} />Dispatch {inv.dispatch_id?.slice(0, 8)}…</a>
           </>}
         </div>
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 22 }}>
         <Card>
-          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Line items</div>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, ...cardHead }}><InlineIcon icon={Package} size={16} style={{ color: 'var(--dim)' }} />Line items</div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead><tr>
               <Th>SKU</Th><Th>HSN</Th><Th>Qty</Th><Th style={{ textAlign: 'right' }}>Unit</Th><Th style={{ textAlign: 'right' }}>Taxable</Th><Th>GST</Th><Th style={{ textAlign: 'right' }}>Total</Th>
@@ -89,7 +91,7 @@ export default function InvoiceDetail() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Card>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Status</div>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, ...cardHead }}><InlineIcon icon={CircleDot} size={16} style={{ color: 'var(--dim)' }} />Status</div>
             <Pill color={statusColor(inv.status)}>{inv.status}</Pill>
             <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div>IRN: <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text)' }}>{inv.irn ? inv.irn.slice(0, 24) + '…' : <Pill color="amber">pending</Pill>}</span></div>
@@ -104,7 +106,7 @@ export default function InvoiceDetail() {
           {/* PMC DELTA — B2B/B2C billing type + delivery crew (driver / helper). */}
           {(inv.bill_type || inv.driver_name || inv.helper_name) && (
             <Card>
-              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Bill details</div>
+              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, ...cardHead }}><InlineIcon icon={FileText} size={16} style={{ color: 'var(--dim)' }} />Bill details</div>
               {inv.bill_type && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '4px 0', color: 'var(--text-dim)' }}>
                   <span>Billing type</span><Pill color={inv.bill_type === 'B2B' ? 'blue' : 'green'}>{inv.bill_type}</Pill>
@@ -116,7 +118,7 @@ export default function InvoiceDetail() {
           )}
 
           <Card>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Tax breakdown</div>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, ...cardHead }}><InlineIcon icon={IndianRupee} size={16} style={{ color: 'var(--dim)' }} />Tax breakdown</div>
             <Row k="Gross amount" v={inr(Number(inv.taxable_value) + Number(inv.discount_total || 0))} />
             <Row k="Subtotal"     v={inr(inv.subtotal)} />
             <Row k="Discount"     v={`- ${inr(inv.discount_total)}`} />
@@ -136,6 +138,8 @@ export default function InvoiceDetail() {
     </div>
   );
 }
+
+const cardHead: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 };
 
 function Row({ k, v }: { k: string; v: string }) {
   return <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', color: 'var(--text-dim)' }}><span>{k}</span><span style={{ color: 'var(--text)', fontFamily: 'JetBrains Mono, monospace' }}>{v}</span></div>;

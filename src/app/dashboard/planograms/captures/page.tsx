@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import planogramApi from '../../../../lib/planogramApi';
+import { Camera, Hourglass, RefreshCw } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import type { CaptureListItem } from '../../../../types/planogram';
 import {
@@ -281,6 +283,7 @@ export default function CapturesPage() {
   return (
     <SectionCard
       title="Captures"
+      icon={Camera}
       caption={
         loading
           ? 'Loading…'
@@ -310,11 +313,12 @@ export default function CapturesPage() {
               opacity: uploading ? 0.65 : 1,
             }}
           >
+            <InlineIcon icon={uploading ? Hourglass : Camera} />
             {uploading
               ? progress && progress.total > 1
-                ? `⏳ ${progress.done}/${progress.total}…`
-                : '⏳ Analyzing…'
-              : '📷 Upload shelf photos'}
+                ? `${progress.done}/${progress.total}…`
+                : 'Analyzing…'
+              : 'Upload shelf photos'}
           </button>
           <input
             ref={shelfFileRef}
@@ -467,9 +471,12 @@ export default function CapturesPage() {
                         opacity: busyIds.has(c.id) ? 0.5 : 1,
                         fontSize: 14,
                         lineHeight: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
                     >
-                      {busyIds.has(c.id) ? '…' : '↻'}
+                      {busyIds.has(c.id) ? '…' : <InlineIcon icon={RefreshCw} size={14} />}
                     </button>
                   </td>
                 </tr>

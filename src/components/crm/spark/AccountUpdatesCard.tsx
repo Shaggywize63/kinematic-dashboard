@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Pencil, Send, Trash2 } from 'lucide-react';
 import { crmAccounts, type AccountUpdate } from '../../../lib/crmApi';
 import type { Contact } from '../../../types/crm';
 import { getStoredUser } from '../../../lib/auth';
@@ -117,7 +118,7 @@ export default function AccountUpdatesCard({ accountId, contacts, onChanged }: {
         />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, color: T.mute }}>{draft.length}/{MAX} · stamps your name and time</span>
-          <Button variant="primary" size="sm" onClick={submit} disabled={saving || !draft.trim()}>{saving ? 'Posting…' : 'Post'}</Button>
+          <Button variant="primary" size="sm" onClick={submit} disabled={saving || !draft.trim()} icon={<Send size={14} strokeWidth={2} aria-hidden />}>{saving ? 'Posting…' : 'Post'}</Button>
         </div>
       </div>
 
@@ -180,8 +181,8 @@ function UpdateRow({ u, contacts, canEdit, canDelete, onEdit, onDelete }: {
           <span style={{ fontSize: 10, color: T.dim }} title={fmtIST(u.created_at)}>{relTime(u.created_at)}</span>
           {!editing && (canEdit || canDelete) && (
             <span style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
-              {canEdit && <button style={link} onClick={() => { setText(u.body); setCid(u.contact_id || ''); setEditing(true); }}>Edit</button>}
-              {canDelete && !confirmDel && <button style={{ ...link, color: T.red }} onClick={() => setConfirmDel(true)}>Delete</button>}
+              {canEdit && <button style={{ ...link, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => { setText(u.body); setCid(u.contact_id || ''); setEditing(true); }}><Pencil size={12} strokeWidth={2} aria-hidden />Edit</button>}
+              {canDelete && !confirmDel && <button style={{ ...link, color: T.red, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => setConfirmDel(true)}><Trash2 size={12} strokeWidth={2} aria-hidden />Delete</button>}
               {canDelete && confirmDel && (
                 <>
                   <span style={{ fontSize: 11, color: T.dim }}>Delete?</span>

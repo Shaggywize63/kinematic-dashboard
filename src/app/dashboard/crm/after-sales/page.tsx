@@ -1,6 +1,8 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { CheckCircle2, Download, FileText, History, Minus, MessageSquareText, PenLine, Plus, ShoppingBag, SkipForward, Upload, UserCheck, UserRound, XCircle, type LucideIcon } from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../components/ui/PageIcon';
 import { crmAfterSales } from '../../../../lib/crmApi';
 import type {
   AfterSalesConfig, AfterSalesRecordInput, AfterSalesImportResult, AfterSalesRecordRow,
@@ -67,21 +69,25 @@ export default function AfterSalesPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <PageIcon name="chatText" />
+        <div>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px' }}>After-Sales Feedback</h1>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
           Add after-sales customers for the telecaller to call. Each record is auto-assigned and appears in the telecaller&rsquo;s My Calls.
         </p>
+        </div>
       </div>
 
       <AssignmentCard />
 
       <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, overflowX: 'auto' }}>
-        {([['manual', 'Manual Entry'], ['bulk', 'Bulk Upload'], ['records', 'Recent Records']] as const).map(([key, label]) => (
+        {([['manual', 'Manual Entry', PenLine], ['bulk', 'Bulk Upload', Upload], ['records', 'Recent Records', History]] as const).map(([key, label, icon]) => (
           <button key={key} onClick={() => setTab(key)} style={{
             padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', border: 'none', cursor: 'pointer',
             color: tab === key ? '#fff' : 'var(--text-dim)', background: tab === key ? 'var(--primary)' : 'transparent',
-          }}>{label}</button>
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+          }}><InlineIcon icon={icon} size={14} />{label}</button>
         ))}
       </div>
 
@@ -119,7 +125,7 @@ function AssignmentCard() {
     <Card>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>Auto-assign new records to</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={UserCheck} size={15} style={{ color: 'var(--text-dim)' }} />Auto-assign new records to</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
             Every After-Sales record you add is assigned to this telecaller.
           </div>
@@ -176,7 +182,7 @@ function ManualEntry() {
 
   return (
     <Card>
-      <SectionTitle>Customer</SectionTitle>
+      <SectionTitle icon={UserRound}>Customer</SectionTitle>
       <Grid>
         <Field label="Customer name *"><input style={inputStyle()} value={rec.name ?? ''} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Anita Sharma" /></Field>
         <Field label="Phone *"><input style={inputStyle()} value={rec.phone ?? ''} onChange={(e) => set('phone', e.target.value)} placeholder="10-digit mobile" /></Field>
@@ -185,7 +191,7 @@ function ManualEntry() {
         <Field label="State"><input style={inputStyle()} value={rec.state ?? ''} onChange={(e) => set('state', e.target.value)} /></Field>
       </Grid>
 
-      <SectionTitle>Purchase</SectionTitle>
+      <SectionTitle icon={ShoppingBag}>Purchase</SectionTitle>
       <Grid>
         <Field label="Product / item"><input style={inputStyle()} value={rec.product ?? ''} onChange={(e) => set('product', e.target.value)} placeholder="e.g. Gold necklace" /></Field>
         <Field label="Purchase date"><input type="date" style={inputStyle()} value={(rec.purchase_date as string) ?? ''} onChange={(e) => set('purchase_date', e.target.value)} /></Field>
@@ -196,13 +202,15 @@ function ManualEntry() {
       <button onClick={() => setShowFeedback((s) => !s)} style={{
         marginTop: 6, alignSelf: 'flex-start', background: 'none', border: 'none', cursor: 'pointer',
         color: 'var(--primary)', fontSize: 12, fontWeight: 700, padding: 0,
+        display: 'inline-flex', alignItems: 'center', gap: 6,
       }}>
-        {showFeedback ? '− Hide feedback fields' : '+ Add feedback (optional)'}
+        <InlineIcon icon={showFeedback ? Minus : Plus} size={13} />
+        {showFeedback ? 'Hide feedback fields' : 'Add feedback (optional)'}
       </button>
 
       {showFeedback && (
         <>
-          <SectionTitle>Feedback (optional)</SectionTitle>
+          <SectionTitle icon={MessageSquareText}>Feedback (optional)</SectionTitle>
           <Grid>
             <Field label="Product satisfaction"><Select options={SATISFACTION} value={rec.product_satisfaction ?? ''} onChange={(v) => set('product_satisfaction', v)} /></Field>
             <Field label="Staff behaviour"><Select options={SATISFACTION} value={rec.staff_behaviour ?? ''} onChange={(v) => set('staff_behaviour', v)} /></Field>
@@ -223,7 +231,7 @@ function ManualEntry() {
       )}
 
       <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-        <button onClick={submit} disabled={!canSave} style={primaryBtn(!canSave)}>{saving ? 'Saving…' : 'Add record'}</button>
+        <button onClick={submit} disabled={!canSave} style={{ ...primaryBtn(!canSave), display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />{saving ? 'Saving…' : 'Add record'}</button>
         <button onClick={() => { setRec(emptyRecord()); setShowFeedback(false); }} disabled={saving} style={ghostBtn()}>Clear</button>
       </div>
     </Card>
@@ -264,14 +272,14 @@ function BulkUpload() {
 
   return (
     <Card>
-      <SectionTitle>Upload a CSV or Excel file</SectionTitle>
+      <SectionTitle icon={Upload}>Upload a CSV or Excel file</SectionTitle>
       <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>
         The first row must be column headers. <strong>name</strong> and <strong>phone</strong> are required; every other column is optional.
         Duplicate phone numbers are skipped. Accepts <code>.csv</code>, <code>.xlsx</code> and <code>.xls</code>.
       </p>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-        <button onClick={downloadTemplate} style={ghostBtn()}>↓ Download template</button>
+        <button onClick={downloadTemplate} style={{ ...ghostBtn(), display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} />Download template</button>
         <input
           ref={inputRef}
           type="file"
@@ -279,7 +287,8 @@ function BulkUpload() {
           onChange={(e) => { setFile(e.target.files?.[0] ?? null); setResult(null); }}
           style={{ fontSize: 13, color: 'var(--text)' }}
         />
-        <button onClick={upload} disabled={!file || uploading} style={primaryBtn(!file || uploading)}>
+        <button onClick={upload} disabled={!file || uploading} style={{ ...primaryBtn(!file || uploading), display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <InlineIcon icon={Upload} />
           {uploading ? 'Uploading…' : 'Upload & import'}
         </button>
       </div>
@@ -287,10 +296,10 @@ function BulkUpload() {
       {result && (
         <div style={{ marginTop: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10 }}>
-            <Stat label="Rows" value={result.total} accent="#3E9EFF" />
-            <Stat label="Created" value={result.created} accent="#10B981" />
-            <Stat label="Skipped" value={result.skipped} accent="#F59E0B" />
-            <Stat label="Failed" value={result.failed} accent="#EF4444" />
+            <Stat label="Rows" value={result.total} accent="#3E9EFF" icon={FileText} />
+            <Stat label="Created" value={result.created} accent="#10B981" icon={CheckCircle2} />
+            <Stat label="Skipped" value={result.skipped} accent="#F59E0B" icon={SkipForward} />
+            <Stat label="Failed" value={result.failed} accent="#EF4444" icon={XCircle} />
           </div>
           {result.unassigned && (
             <div style={{ marginTop: 10, fontSize: 12, color: '#F59E0B' }}>
@@ -337,7 +346,7 @@ function RecentRecords() {
   return (
     <Card>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
-        <SectionTitle>Recent after-sales records</SectionTitle>
+        <SectionTitle icon={History}>Recent after-sales records</SectionTitle>
         <input placeholder="Search name or phone" value={search} onChange={(e) => setSearch(e.target.value)} style={inputStyle(false, 240)} />
       </div>
       <div style={{ overflowX: 'auto' }}>
@@ -376,8 +385,8 @@ function RecentRecords() {
 function Card({ children }: { children: React.ReactNode }) {
   return <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 18 }}>{children}</div>;
 }
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: 'var(--text-dim)', margin: '10px 0 8px' }}>{children}</div>;
+function SectionTitle({ children, icon }: { children: React.ReactNode; icon?: LucideIcon }) {
+  return <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: 'var(--text-dim)', margin: '10px 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>{icon && <InlineIcon icon={icon} size={14} />}{children}</div>;
 }
 function Grid({ children }: { children: React.ReactNode }) {
   return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>{children}</div>;
@@ -398,10 +407,10 @@ function Select({ options, value, onChange }: { options: string[]; value: string
     </select>
   );
 }
-function Stat({ label, value, accent }: { label: string; value: number; accent: string }) {
+function Stat({ label, value, accent, icon }: { label: string; value: number; accent: string; icon?: LucideIcon }) {
   return (
     <div style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderLeft: `3px solid ${accent}`, borderRadius: 10, padding: '10px 12px' }}>
-      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</div>
+      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{icon && <InlineIcon icon={icon} size={12} />}{label}</div>
       <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginTop: 2 }}>{value}</div>
     </div>
   );

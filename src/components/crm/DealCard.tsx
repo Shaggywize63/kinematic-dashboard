@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Sparkles } from 'lucide-react';
+import { Building2, Sparkles } from 'lucide-react';
 import type { Deal } from '../../types/crm';
 import OwnerAvatar from './shared/OwnerAvatar';
 import { formatINR } from '../../lib/formatCurrency';
@@ -21,7 +21,10 @@ export default function DealCard({ deal, dragHandleProps }: { deal: Deal; dragHa
       }}
     >
       <Link href={`/dashboard/crm/deals/${deal.id}`} className="km-entity-link" style={{ fontSize: 13.5, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title="Open deal detail">{deal.name}</Link>
-      <div style={{ fontSize: 12, color: deal.account_name ? T.dim : T.mute, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{deal.account_name || '—'}</div>
+      <div style={{ fontSize: 12, color: deal.account_name ? T.dim : T.mute, marginTop: 2, display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+        <Building2 aria-hidden size={12} strokeWidth={2} style={{ flexShrink: 0 }} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{deal.account_name || '—'}</span>
+      </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, gap: 8 }}>
         <span style={{ fontFamily: T.mono, fontSize: 12.5, fontVariantNumeric: 'tabular-nums', color: T.text }}>{formatINR(deal.amount)}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

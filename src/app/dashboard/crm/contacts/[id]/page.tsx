@@ -3,6 +3,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import {
+  Activity as ActivityIcon, ArrowLeft, BarChart3, Building2, Cake, CalendarCheck, CalendarDays, CheckSquare, Handshake, Mail, MapPin,
+  Megaphone, MessageCircle, Pencil, Phone, ShoppingCart, StickyNote, Trash2, User, UserRound, type LucideIcon,
+} from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../../lib/labelIcons';
 import { crmContacts } from '../../../../../lib/crmApi';
 import type { Contact, Activity, Deal, Note, EmailLog } from '../../../../../types/crm';
 import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
@@ -73,7 +79,7 @@ export default function ContactDetailPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, flexWrap: 'wrap' }}>
             <OwnerAvatar name={fullName} size={52} />
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -86,11 +92,11 @@ export default function ContactDetailPage() {
                   : (c.title ? `${c.title}${c.account_name ? ` · ${c.account_name}` : ''}` : (c.account_name || '—'))}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {spark && (
-                <button onClick={() => setAccountOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>{c.account_id ? 'Change company' : 'Add to a company'}</button>
+                <button onClick={() => setAccountOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Building2} />{c.account_id ? 'Change company' : 'Add to a company'}</button>
               )}
-              <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
+              <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Pencil} />Edit</button>
               <button
                 onClick={async () => {
                   if (!window.confirm(`Delete ${fullName}? This removes the contact from your CRM and cannot be undone from here.`)) return;
@@ -106,37 +112,38 @@ export default function ContactDetailPage() {
                 }}
                 disabled={deleting}
                 aria-label={`Delete ${fullName}`}
-                style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: deleting ? 'wait' : 'pointer', opacity: deleting ? 0.6 : 1 }}
+                style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: deleting ? 'wait' : 'pointer', opacity: deleting ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
+                <InlineIcon icon={Trash2} />
                 {deleting ? 'Deleting…' : 'Delete'}
               </button>
-              <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
+              <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ArrowLeft} />Back</button>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13 }}>
-            <Field label="Email" value={c.email} />
+            <Field label="Email" icon={Mail} value={c.email} />
             <PhoneField phone={c.phone} prefill={waPrefill} contactId={c.id} displayName={fullName} />
             {!isB2C && c.account_id ? (
-              <FieldLink label={spark ? 'Company' : 'Account'} href={`/dashboard/crm/accounts/${c.account_id}`} value={c.account_name || 'View account'} />
+              <FieldLink label={spark ? 'Company' : 'Account'} icon={Building2} href={`/dashboard/crm/accounts/${c.account_id}`} value={c.account_name || 'View account'} />
             ) : (
-              <Field label="Owner" value={c.owner_name} />
+              <Field label="Owner" icon={UserRound} value={c.owner_name} />
             )}
-            <Field label="Created" value={new Date(c.created_at).toLocaleDateString()} />
-            {c.preferred_contact_method && <Field label="Preferred" value={c.preferred_contact_method} />}
+            <Field label="Created" icon={CalendarDays} value={new Date(c.created_at).toLocaleDateString()} />
+            {c.preferred_contact_method && <Field label="Preferred" icon={MessageCircle} value={c.preferred_contact_method} />}
           </div>
         </div>
 
         {isB2C && (
-          <Card title="Customer Profile">
+          <Card title="Customer Profile" icon={UserRound}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13 }}>
-              <Field label="Date of Birth" value={c.date_of_birth ? new Date(c.date_of_birth).toLocaleDateString() : null} />
-              <Field label="Gender" value={c.gender ? c.gender.replace(/_/g, ' ') : null} />
-              <Field label="Customer Since" value={c.customer_since ? new Date(c.customer_since).toLocaleDateString() : null} />
-              <Field label="Last Purchase" value={c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString() : null} />
-              <Field label="Referral" value={c.referral_source} />
-              <Field label="Marketing Consent" value={c.marketing_consent ? 'Yes' : 'No'} />
-              <Field label="WhatsApp Consent" value={c.whatsapp_consent ? 'Yes' : 'No'} />
-              <Field label="Address" value={[c.address_line1, c.address_line2, c.city, c.state, c.postal_code, c.country].filter(Boolean).join(', ') || null} />
+              <Field label="Date of Birth" icon={Cake} value={c.date_of_birth ? new Date(c.date_of_birth).toLocaleDateString() : null} />
+              <Field label="Gender" icon={User} value={c.gender ? c.gender.replace(/_/g, ' ') : null} />
+              <Field label="Customer Since" icon={CalendarCheck} value={c.customer_since ? new Date(c.customer_since).toLocaleDateString() : null} />
+              <Field label="Last Purchase" icon={ShoppingCart} value={c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString() : null} />
+              <Field label="Referral" icon={Megaphone} value={c.referral_source} />
+              <Field label="Marketing Consent" icon={Mail} value={c.marketing_consent ? 'Yes' : 'No'} />
+              <Field label="WhatsApp Consent" icon={MessageCircle} value={c.whatsapp_consent ? 'Yes' : 'No'} />
+              <Field label="Address" icon={MapPin} value={[c.address_line1, c.address_line2, c.city, c.state, c.postal_code, c.country].filter(Boolean).join(', ') || null} />
             </div>
           </Card>
         )}
@@ -145,7 +152,7 @@ export default function ContactDetailPage() {
             the contact has no stored values. */}
         <CustomFieldsDetailCard entity="contact" customFields={c.custom_fields} />
 
-        <Card title={`Deals (${deals.length})`}>
+        <Card title={`Deals (${deals.length})`} icon={Handshake}>
           {deals.length === 0 ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No deals linked to this contact.</div>
           ) : (
@@ -163,12 +170,12 @@ export default function ContactDetailPage() {
           )}
         </Card>
 
-        <Card title={`Activities (${activities.length})`}>
+        <Card title={`Activities (${activities.length})`} icon={CheckSquare}>
           <ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?contact_id=${id}`} />
         </Card>
 
         {emails.length > 0 && (
-          <Card title={`Emails (${emails.length})`}>
+          <Card title={`Emails (${emails.length})`} icon={Mail}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {emails.slice(0, 8).map((e) => (
                 <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--s3)', borderRadius: 8, fontSize: 12 }}>
@@ -181,7 +188,7 @@ export default function ContactDetailPage() {
         )}
 
         {notes.length > 0 && (
-          <Card title={`Notes (${notes.length})`}>
+          <Card title={`Notes (${notes.length})`} icon={StickyNote}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {notes.map((n) => (
                 <div key={n.id} style={{ padding: 12, background: 'var(--s3)', borderRadius: 8, fontSize: 13, color: 'var(--text)' }}>
@@ -196,7 +203,7 @@ export default function ContactDetailPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         {isB2C && (
-          <Card title="Customer 360">
+          <Card title="Customer 360" icon={BarChart3}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
               <Stat label="Lifetime Value" value={formatINR(c.lifetime_value || 0)} />
               <Stat label="Total Orders" value={String(c.total_orders || 0)} />
@@ -206,7 +213,7 @@ export default function ContactDetailPage() {
           </Card>
         )}
         {!isB2C && (
-          <Card title="Engagement">
+          <Card title="Engagement" icon={ActivityIcon}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
               <Stat label="Open Deals" value={String(deals.filter((d) => d.status === 'open').length)} />
               <Stat label="Won Deals" value={String(wonDeals.length)} />
@@ -217,7 +224,7 @@ export default function ContactDetailPage() {
         )}
 
         {!isB2C && c.account_id && (
-          <Card title={spark ? 'Linked Company' : 'Linked Account'}>
+          <Card title={spark ? 'Linked Company' : 'Linked Account'} icon={Building2}>
             <Link href={`/dashboard/crm/accounts/${c.account_id}`} style={chipLink}>→ {c.account_name || 'View account'}</Link>
           </Card>
         )}
@@ -235,28 +242,28 @@ export default function ContactDetailPage() {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, children, icon }: { title: string; children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{title}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>{icon && <InlineIcon icon={icon} size={16} style={{ color: 'var(--text-dim)' }} />}{title}</div>
       {children}
     </div>
   );
 }
 
-function Field({ label, value }: { label: string; value?: string | null }) {
+function Field({ label, value, icon }: { label: string; value?: string | null; icon?: LucideIcon }) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>{icon && <InlineIcon icon={icon} size={12} />}{label}</div>
       <div style={{ color: 'var(--text)', marginTop: 2 }}>{value || '—'}</div>
     </div>
   );
 }
 
-function FieldLink({ label, value, href }: { label: string; value: string; href: string }) {
+function FieldLink({ label, value, href, icon }: { label: string; value: string; href: string; icon?: LucideIcon }) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>{icon && <InlineIcon icon={icon} size={12} />}{label}</div>
       <Link href={href} style={{ color: 'var(--primary)', marginTop: 2, display: 'inline-block', textDecoration: 'underline' }}>{value}</Link>
     </div>
   );
@@ -265,7 +272,7 @@ function FieldLink({ label, value, href }: { label: string; value: string; href:
 function PhoneField({ phone, prefill, contactId, displayName }: { phone?: string | null; prefill: string; contactId: string; displayName: string }) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Phone</div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={Phone} size={12} />Phone</div>
       <div style={{ color: 'var(--text)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span>{phone || '—'}</span>
         <CallButton phone={phone} prefillSubject={`Call with ${displayName}`} contactId={contactId} size="sm" />
@@ -285,9 +292,10 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: 'business'
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
+  const Icon = metricIconFor(label);
   return (
     <div style={{ background: 'var(--s3)', borderRadius: 8, padding: '10px 12px' }}>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>{Icon && <InlineIcon icon={Icon} size={12} />}{label}</div>
       <div style={{ color: 'var(--text)', fontSize: 16, fontWeight: 800, marginTop: 2 }}>{value}</div>
     </div>
   );

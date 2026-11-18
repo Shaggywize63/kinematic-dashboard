@@ -179,9 +179,9 @@ test.describe('2. activity Outcome', () => {
     await scopeToSpark(page);
     await setup(page, reqs);
     await page.goto('/dashboard/crm/activities');
-    const row = page.locator('div').filter({ hasText: /^.*Call about quote/ }).filter({ has: page.getByRole('button', { name: '✎ Edit' }) }).last();
+    const row = page.locator('div').filter({ hasText: /^.*Call about quote/ }).filter({ has: page.getByRole('button', { name: 'Edit', exact: true }) }).last();
     await expect(page.getByText('Call about quote')).toBeVisible({ timeout: 30_000 });
-    await row.getByRole('button', { name: '✎ Edit' }).click();
+    await row.getByRole('button', { name: 'Edit', exact: true }).click();
     const outcome = page.getByLabel('Outcome');
     await expect(outcome).toHaveValue('PO expected Friday');
     await outcome.fill('');
@@ -200,7 +200,7 @@ test.describe('2. activity Outcome', () => {
     await setup(page, reqs, { activities: [ACT_TEXT_ONLY] });
     await page.goto('/dashboard/crm/activities');
     await expect(page.getByText('Intro visit')).toBeVisible({ timeout: 30_000 });
-    await page.getByRole('button', { name: '✎ Edit' }).click();
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(page.getByLabel('Outcome')).toHaveValue('');
     await page.getByRole('button', { name: 'Save changes' }).click();
     await expect.poll(() => writes(reqs, 'PATCH', /\/crm\/activities\/a2$/).length).toBe(1);
@@ -212,7 +212,7 @@ test.describe('2. activity Outcome', () => {
     await scopeToSpark(page);
     await setup(page, reqs, { activities: [ACT_TEXT_ONLY] });
     await page.goto('/dashboard/crm/activities');
-    await page.getByRole('button', { name: '✓ Mark Complete' }).click({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Mark Complete' }).click({ timeout: 30_000 });
     const dialog = page.getByRole('dialog', { name: 'Complete activity' });
     await dialog.getByRole('button', { name: 'Mark complete' }).click();
     await expect(dialog.getByRole('alert')).toContainText('Outcome is required');
@@ -344,7 +344,7 @@ test.describe('5. account Addresses card', () => {
     await expect(card.getByRole('link', { name: 'Open Head office on the map' })).toBeVisible();
 
     // Add: label + address search (backend places proxy) -> fields + pin filled -> save.
-    await card.getByRole('button', { name: '+ Add address' }).click();
+    await card.getByRole('button', { name: 'Add address' }).click();
     const dialog = page.getByRole('dialog', { name: 'Add address' });
     await dialog.getByRole('button', { name: 'Save' }).click();
     await expect(dialog.getByRole('alert')).toContainText('Label is required');
@@ -388,7 +388,7 @@ test.describe('5. account Addresses card', () => {
     await setup(page, reqs);
     await page.goto('/dashboard/crm/accounts/acc-1');
     await expect(page.getByTestId('account-addresses')).toContainText('No addresses yet', { timeout: 30_000 });
-    await expect(page.getByRole('button', { name: '+ Add address' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add address' })).toBeVisible();
   });
 
   test('non-Spark has no Addresses card and never calls the sites API', async ({ page }) => {
@@ -427,7 +427,7 @@ test.describe('6. contacts <-> company', () => {
     await scopeToSpark(page);
     await setup(page, reqs);
     await page.goto('/dashboard/crm/accounts/acc-1');
-    const add = page.getByRole('link', { name: '+ Add contact' });
+    const add = page.getByRole('link', { name: 'Add contact' });
     await expect(add).toBeVisible({ timeout: 30_000 });
     await expect(add).toHaveAttribute('href', /\/dashboard\/crm\/contacts\/new\?account_id=acc-1&account_name=Acme%20Forge/);
     await add.click();

@@ -11,6 +11,7 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { FileText } from 'lucide-react';
 import { Button, Card, Eyebrow, IconButton, Input, T } from '../ui';
 import { crmLeads } from '../../lib/crmApi';
 import { isB2bClientActive } from '../../lib/b2bClient';
@@ -76,7 +77,7 @@ export default function SampleInvoicesCard({ lead, onSaved }: { lead: LifecycleL
 
   return (
     <Card padding={18} style={{ minWidth: 0 }}>
-      <Eyebrow style={{ marginBottom: 8 }}>Sample invoices</Eyebrow>
+      <Eyebrow style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><FileText aria-hidden size={13} strokeWidth={2} />Sample invoices</Eyebrow>
       <form
         onSubmit={(e) => { e.preventDefault(); add(); }}
         style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}

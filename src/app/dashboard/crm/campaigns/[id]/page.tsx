@@ -16,6 +16,9 @@ import {
 } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import { downloadBlob } from '../../../../../lib/financeFormat';
+import type { LucideIcon } from 'lucide-react';
+import { Ban, CalendarClock, CheckCheck, Clock, Download, Eye, FlaskConical, MessageCircle, Pause, Percent, Play, Reply, Rocket, Send, Users, XCircle } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -23,8 +26,8 @@ const C = {
   red: '#E01E2C', green: '#00D97E', blue: '#3E9EFF', amber: '#F5A623',
 };
 const card: React.CSSProperties = { background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22, marginBottom: 16 };
-const btnPrimary: React.CSSProperties = { background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' };
-const btnGhost: React.CSSProperties = { background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' };
+const btnPrimary: React.CSSProperties = { background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 };
+const btnGhost: React.CSSProperties = { background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 };
 
 const STATUS_COLOR: Record<BroadcastStatus, string> = {
   draft: C.gray, scheduled: C.blue, sending: C.amber, paused: C.grayd,
@@ -49,11 +52,11 @@ async function downloadCsv(path: string, filename: string) {
   }
 }
 
-function Stat({ n, label, color }: { n: number; label: string; color: string }) {
+function Stat({ n, label, color, icon }: { n: number; label: string; color: string; icon?: LucideIcon }) {
   return (
     <div style={{ flex: 1, minWidth: 90, textAlign: 'center' }}>
       <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, color }}>{n}</div>
-      <div style={{ fontSize: 11, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</div>
+      <div style={{ fontSize: 11, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>{icon && <InlineIcon icon={icon} size={12} />}{label}</div>
     </div>
   );
 }
@@ -142,6 +145,7 @@ export default function CampaignDetailPage() {
       <div style={{ marginBottom: 18 }}>
         <Link href="/dashboard/crm/campaigns" style={{ color: C.gray, fontSize: 12, textDecoration: 'none' }}>← Campaigns</Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '6px 0 2px', flexWrap: 'wrap' }}>
+          <PageIcon />
           <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: 0 }}>{b.name}</h1>
           <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 6, color: STATUS_COLOR[b.status], background: 'var(--s4)', border: `1px solid ${C.border}`, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{b.status}</span>
         </div>
@@ -159,13 +163,13 @@ export default function CampaignDetailPage() {
           <div style={{ height: '100%', width: `${pct}%`, background: b.status === 'completed' ? C.green : C.blue, transition: 'width .4s' }} />
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Stat n={b.total_recipients} label="Recipients" color={C.white} />
-          <Stat n={b.sent_count} label="Sent" color={C.blue} />
-          <Stat n={b.delivered_count} label="Delivered" color={C.green} />
-          <Stat n={b.read_count} label="Read" color={C.green} />
-          <Stat n={b.failed_count} label="Failed" color={C.red} />
-          <Stat n={remaining} label="Queued" color={C.grayd} />
-          <Stat n={b.skipped_count} label="Suppressed" color={C.amber} />
+          <Stat n={b.total_recipients} label="Recipients" icon={Users} color={C.white} />
+          <Stat n={b.sent_count} label="Sent" icon={Send} color={C.blue} />
+          <Stat n={b.delivered_count} label="Delivered" icon={CheckCheck} color={C.green} />
+          <Stat n={b.read_count} label="Read" icon={Eye} color={C.green} />
+          <Stat n={b.failed_count} label="Failed" icon={XCircle} color={C.red} />
+          <Stat n={remaining} label="Queued" icon={Clock} color={C.grayd} />
+          <Stat n={b.skipped_count} label="Suppressed" icon={Ban} color={C.amber} />
         </div>
       </div>
 
@@ -173,11 +177,11 @@ export default function CampaignDetailPage() {
       {analytics && (
         <div style={card}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-            <Stat n={analytics.delivery_rate} label="Delivery %" color={C.green} />
-            <Stat n={analytics.read_rate} label="Read %" color={C.green} />
-            <Stat n={analytics.reply_rate} label="Reply %" color={C.blue} />
-            <Stat n={analytics.failure_rate} label="Failure %" color={C.red} />
-            <Stat n={analytics.replied} label="Replies" color={C.blue} />
+            <Stat n={analytics.delivery_rate} label="Delivery %" icon={Percent} color={C.green} />
+            <Stat n={analytics.read_rate} label="Read %" icon={Percent} color={C.green} />
+            <Stat n={analytics.reply_rate} label="Reply %" icon={Percent} color={C.blue} />
+            <Stat n={analytics.failure_rate} label="Failure %" icon={Percent} color={C.red} />
+            <Stat n={analytics.replied} label="Replies" icon={MessageCircle} color={C.blue} />
           </div>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, color: C.gray, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
             {b.est_cost != null && <span>Est. cost: <b style={{ color: C.white }}>{analytics.cost_currency} {b.est_cost.toFixed(2)}</b></span>}
@@ -191,12 +195,12 @@ export default function CampaignDetailPage() {
 
       {/* Controls */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
-        {canLaunch && <button disabled={busy} onClick={() => act(() => crmBroadcasts.launch(id).then((r) => ({ data: r.data })), 'Launched.')} style={btnPrimary}>{b.scheduled_at ? 'Schedule & queue' : 'Launch now'}</button>}
-        {b.status === 'sending' && <button disabled={busy} onClick={() => act(() => crmBroadcasts.pause(id).then((r) => ({ data: r.data })), 'Paused.')} style={btnGhost}>Pause</button>}
-        {b.status === 'paused' && <button disabled={busy} onClick={() => act(() => crmBroadcasts.resume(id).then((r) => ({ data: r.data })), 'Resumed.')} style={btnPrimary}>Resume</button>}
-        {b.status === 'scheduled' && <button disabled={busy} onClick={() => act(() => crmBroadcasts.pause(id).then((r) => ({ data: r.data })), 'Paused.')} style={btnGhost}>Pause schedule</button>}
+        {canLaunch && <button disabled={busy} onClick={() => act(() => crmBroadcasts.launch(id).then((r) => ({ data: r.data })), 'Launched.')} style={btnPrimary}><InlineIcon icon={b.scheduled_at ? CalendarClock : Rocket} />{b.scheduled_at ? 'Schedule & queue' : 'Launch now'}</button>}
+        {b.status === 'sending' && <button disabled={busy} onClick={() => act(() => crmBroadcasts.pause(id).then((r) => ({ data: r.data })), 'Paused.')} style={btnGhost}><InlineIcon icon={Pause} />Pause</button>}
+        {b.status === 'paused' && <button disabled={busy} onClick={() => act(() => crmBroadcasts.resume(id).then((r) => ({ data: r.data })), 'Resumed.')} style={btnPrimary}><InlineIcon icon={Play} />Resume</button>}
+        {b.status === 'scheduled' && <button disabled={busy} onClick={() => act(() => crmBroadcasts.pause(id).then((r) => ({ data: r.data })), 'Paused.')} style={btnGhost}><InlineIcon icon={Pause} />Pause schedule</button>}
         {['sending', 'paused', 'scheduled'].includes(b.status) && <button disabled={busy} onClick={() => act(() => crmBroadcasts.cancel(id).then((r) => ({ data: r.data })), 'Cancelled.')} style={{ ...btnGhost, color: C.red }}>Cancel</button>}
-        {b.status !== 'completed' && b.status !== 'cancelled' && <button disabled={busy} onClick={sendTest} style={btnGhost}>Send test</button>}
+        {b.status !== 'completed' && b.status !== 'cancelled' && <button disabled={busy} onClick={sendTest} style={btnGhost}><InlineIcon icon={FlaskConical} />Send test</button>}
         {b.status === 'sending' && <span style={{ alignSelf: 'center', fontSize: 12, color: C.amber }}>● sending live…</span>}
       </div>
 
@@ -211,19 +215,20 @@ export default function CampaignDetailPage() {
             </button>
           ))}
           <button onClick={() => downloadCsv(crmBroadcasts.csvPath(id), `campaign-${b.name.replace(/[^a-z0-9]+/gi, '-')}.csv`)}
-            style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'transparent', color: C.gray, border: `1px solid ${C.border}` }}>
-            ↓ Export CSV
+            style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'transparent', color: C.gray, border: `1px solid ${C.border}`, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <InlineIcon icon={Download} size={14} />Export CSV
           </button>
         </div>
         {recipients.length === 0 ? (
-          <div style={{ padding: '28px 16px', textAlign: 'center', color: C.gray, fontSize: 13 }}>
+          <div style={{ padding: '28px 16px', textAlign: 'center', color: C.gray, fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <IconTile icon={Users} size={40} iconSize={20} />
             {canLaunch ? 'Recipients are resolved when you launch the campaign.' : 'No recipients in this view.'}
           </div>
         ) : (
           <div>
             {recipients.map((r, i) => (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderTop: i === 0 ? 'none' : `1px solid ${C.border}`, fontSize: 13 }}>
-                <span style={{ flex: 1, minWidth: 0, color: C.white }}>{r.phone || '—'}{r.replied_at && <span style={{ marginLeft: 6, fontSize: 10, color: C.blue }}>↩ replied</span>}</span>
+                <span style={{ flex: 1, minWidth: 0, color: C.white }}>{r.phone || '—'}{r.replied_at && <span style={{ marginLeft: 6, fontSize: 10, color: C.blue, display: 'inline-flex', alignItems: 'center', gap: 3, verticalAlign: 'middle' }}><InlineIcon icon={Reply} size={11} />replied</span>}</span>
                 {(r.skip_reason || r.error) && <span style={{ fontSize: 11, color: C.grayd, flex: 1, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.skip_reason || r.error}{r.attempts && r.attempts > 1 ? ` · ${r.attempts} tries` : ''}</span>}
                 <span style={{ fontSize: 11, fontWeight: 800, color: RCPT_COLOR[r.status], textTransform: 'uppercase', minWidth: 72, textAlign: 'right' }}>{r.status}</span>
               </div>

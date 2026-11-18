@@ -9,6 +9,8 @@ import { useTargetTypes } from '../../../../../lib/useTargetTypes';
 import { Segmented } from '../../../../../components/ui';
 import RupeeTargets from '../../../../../components/crm/RupeeTargets';
 import CallsTargets from '../../../../../components/crm/CallsTargets';
+import { Check, IndianRupee, Layers, Phone, Target, UserCog, UserPlus, Wallet } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 interface U {
   id: string; name: string; role: string;
@@ -146,7 +148,7 @@ export default function TargetsSettingsPage() {
 
   const inputStyle: React.CSSProperties = { width: 72, background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, textAlign: 'center' };
   const selStyle: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, width: '100%' };
-  const btnStyle: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' };
+  const btnStyle: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 };
   // A row that wraps its controls below the name on narrow screens.
   const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' };
   const controlsStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: narrow ? 0 : 'auto' };
@@ -157,7 +159,7 @@ export default function TargetsSettingsPage() {
   if (champion) {
     return (
       <div style={{ maxWidth: 760, width: '100%' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px' }}>My weekly target</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />My weekly target</h1>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 18px' }}>
           Your weekly lead target is set by your manager. Track progress here and on the home dashboard.
         </p>
@@ -165,7 +167,8 @@ export default function TargetsSettingsPage() {
           {loading ? (
             <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>Loading…</div>
           ) : !myTarget || myTarget.target === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <IconTile icon={Target} size={40} iconSize={20} />
               No target set yet. Ask your manager to assign one.
             </div>
           ) : (
@@ -182,7 +185,7 @@ export default function TargetsSettingsPage() {
 
   return (
     <div style={{ maxWidth: rupee ? 980 : 760, width: '100%' }}>
-      <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px' }}>Targets</h1>
+      <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Targets</h1>
       <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 18px' }}>
         {rupee
           ? `Set the monthly ${rupee.label.toLowerCase()} in rupees for each hierarchy level. Everyone at that level inherits it. You can override individuals below. Progress is what your team logs each month.`
@@ -196,9 +199,9 @@ export default function TargetsSettingsPage() {
       {(rupeeTypes.length > 0 || showCalls) && (
         <div style={{ margin: '0 0 16px', overflowX: 'auto' }}>
           <Segmented value={rupee ? rupee.key : mode} onChange={setMode} options={[
-            { value: 'lead' as const, label: 'Lead target' },
-            ...rupeeTypes.map((t) => ({ value: t.key as 'sales' | 'collection', label: t.label })),
-            ...(showCalls ? [{ value: 'calls' as const, label: 'Calls / day' }] : []),
+            { value: 'lead' as const, label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={UserPlus} size={14} />Lead target</span> },
+            ...rupeeTypes.map((t) => ({ value: t.key as 'sales' | 'collection', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={t.key === 'collection' ? Wallet : IndianRupee} size={14} />{t.label}</span> })),
+            ...(showCalls ? [{ value: 'calls' as const, label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Phone} size={14} />Calls / day</span> }] : []),
           ]} />
         </div>
       )}
@@ -210,7 +213,7 @@ export default function TargetsSettingsPage() {
       ) : (<>
       {/* Per-hierarchy-level targets — the primary control */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Targets by hierarchy level</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Layers} size={16} style={{ color: 'var(--text-dim)' }} />Targets by hierarchy level</div>
         <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>The weekly lead target for every user at each level.</p>
         {loading ? (
           <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: 12 }}>Loading…</div>
@@ -234,7 +237,7 @@ export default function TargetsSettingsPage() {
                     style={inputStyle} />
                   <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>/week</span>
                   <button onClick={() => saveLevel(l.id)} disabled={savingLevel === l.id} style={{ ...btnStyle, opacity: savingLevel === l.id ? 0.6 : 1 }}>
-                    {savingLevel === l.id ? 'Saving…' : 'Save'}
+                    {savingLevel !== l.id && <InlineIcon icon={Check} size={14} />}{savingLevel === l.id ? 'Saving…' : 'Save'}
                   </button>
                 </div>
               </div>
@@ -245,7 +248,7 @@ export default function TargetsSettingsPage() {
 
       {/* Individual overrides — optional fine-tuning */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Individual overrides <span style={{ fontWeight: 500, color: 'var(--text-dim)' }}>(optional)</span></div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><InlineIcon icon={UserCog} size={16} style={{ color: 'var(--text-dim)' }} />Individual overrides <span style={{ fontWeight: 500, color: 'var(--text-dim)' }}>(optional)</span></div>
         <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>Pick a level (and optional city) to list its people and override specific individuals. Blank uses their level target.</p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
           <select value={pickLevel} onChange={(e) => setPickLevel(e.target.value)} style={{ ...selStyle, flex: '1 1 200px', minWidth: 0 }}>
@@ -277,7 +280,7 @@ export default function TargetsSettingsPage() {
                         onChange={(e) => setOverrides((m) => ({ ...m, [u.id]: parseInt(e.target.value || '0', 10) || 0 }))}
                         style={inputStyle} />
                       <button onClick={() => saveOne(u)} disabled={savingId === u.id} style={{ ...btnStyle, background: 'var(--s3)', color: 'var(--text)', border: '1px solid var(--border)', opacity: savingId === u.id ? 0.6 : 1 }}>
-                        {savingId === u.id ? 'Saving…' : 'Save'}
+                        {savingId !== u.id && <InlineIcon icon={Check} size={14} />}{savingId === u.id ? 'Saving…' : 'Save'}
                       </button>
                     </div>
                   </div>
@@ -292,12 +295,12 @@ export default function TargetsSettingsPage() {
 
       {/* Fallback default — for anyone with no level + no individual target */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Fallback default</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Target} size={16} style={{ color: 'var(--text-dim)' }} />Fallback default</div>
         <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>Used only for people with no hierarchy level and no individual target.</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <input type="number" min={0} value={defaultTarget} onChange={(e) => setDefaultTarget(parseInt(e.target.value || '0', 10) || 0)} style={inputStyle} />
           <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>leads / week</span>
-          <button onClick={saveDefault} disabled={savingLevel === '__default__'} style={{ ...btnStyle, opacity: savingLevel === '__default__' ? 0.6 : 1 }}>{savingLevel === '__default__' ? 'Saving…' : 'Save fallback'}</button>
+          <button onClick={saveDefault} disabled={savingLevel === '__default__'} style={{ ...btnStyle, opacity: savingLevel === '__default__' ? 0.6 : 1 }}>{savingLevel !== '__default__' && <InlineIcon icon={Check} size={14} />}{savingLevel === '__default__' ? 'Saving…' : 'Save fallback'}</button>
         </div>
       </div>
       </>)}

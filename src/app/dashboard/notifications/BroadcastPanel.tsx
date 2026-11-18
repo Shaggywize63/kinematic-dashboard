@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { Trash2 } from 'lucide-react';
+import { History, PenSquare, Send, Trash2 } from 'lucide-react';
+import { InlineIcon } from '../../../components/ui/PageIcon';
 import api from '../../../lib/api';
 import { useAuth } from '../../../hooks/useAuth';
 import RecipientPicker from '../../../components/RecipientPicker';
@@ -115,7 +116,7 @@ export default function BroadcastPanel() {
         <Card padding={24}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <Eyebrow>Compose</Eyebrow>
+              <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={PenSquare} size={13} />Compose</Eyebrow>
               <div style={{ fontSize: 13, color: T.dim }}>Send an in-app (and optionally push) message to the people you pick.</div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1fr 200px', gap: '16px 20px' }}>
@@ -145,7 +146,7 @@ export default function BroadcastPanel() {
               </div>
             </label>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Button variant="primary" onClick={send} disabled={sending}>{sending ? 'Sending…' : 'Send broadcast'}</Button>
+              <Button variant="primary" onClick={send} disabled={sending} icon={<InlineIcon icon={Send} />}>{sending ? 'Sending…' : 'Send broadcast'}</Button>
             </div>
           </div>
         </Card>
@@ -167,7 +168,7 @@ export default function BroadcastPanel() {
       <Card padding={0}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: `1px solid ${T.border}` }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700 }}>Sent</div>
+            <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'center' }}><InlineIcon icon={History} size={16} style={{ color: T.dim }} />Sent</div>
             {total > 0 && <span style={{ fontFamily: T.mono, fontSize: 11, color: T.mute }}>{total}</span>}
           </div>
           {isPlatformAdmin && history.length > 0 && (
@@ -188,7 +189,7 @@ export default function BroadcastPanel() {
             </thead>
             <tbody>
               {history.length === 0 ? (
-                <tr><td colSpan={6} style={{ ...td, borderBottom: 0, padding: 0 }}><EmptyState title="No broadcasts yet" description="Messages you send from here show up in every recipient's inbox and, with push on, on their phone." /></td></tr>
+                <tr><td colSpan={6} style={{ ...td, borderBottom: 0, padding: 0 }}><EmptyState icon={<Send size={20} strokeWidth={1.8} />} title="No broadcasts yet" description="Messages you send from here show up in every recipient's inbox and, with push on, on their phone." /></td></tr>
               ) : sorted.map((h) => {
                 const pct = h.recipients_count ? Math.round((h.read_count / h.recipients_count) * 100) : 0;
                 return (

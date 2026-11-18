@@ -5,6 +5,8 @@ import SignedImage from '@/components/shared/SignedImage';
 import { extractImageUrls } from '../../../lib/utils';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
 import { fmtClock, fmtMinutes, fmtStamp, stampMs, visitMinutes } from '../../../lib/visitTime';
+import { Building2, Check, CheckCircle2, ClipboardList, Clock, Eye, FileText, LogIn, LogOut, MapPin, MinusCircle, Pencil, Radio, RefreshCw, Store, Timer, User, X, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon, type IconTone } from '../../../components/ui/PageIcon';
 
 const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple:'#9B6EFF',gray:'#7A8BA0',grayd:'#2E445E',s2:'#131B2A',border:'#1E2D45',white:'#FFFFFF' };
 
@@ -186,8 +188,8 @@ export default function SubmissionsPage() {
     if (qt === 'yes_no') {
       const isYes = String(val).toLowerCase() === 'yes' || val === true;
       return (
-        <span style={{ color: isYes ? C.green : C.red, fontWeight: 700 }}>
-          {isYes ? '✓ Yes' : '✕ No'}
+        <span style={{ color: isYes ? C.green : C.red, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <InlineIcon icon={isYes ? Check : X} size={14} />{isYes ? 'Yes' : 'No'}
         </span>
       );
     }
@@ -195,7 +197,9 @@ export default function SubmissionsPage() {
     // (the submission's linked account) rather than the raw id.
     if (qt === 'company') {
       const name = (details as any)?.crm_accounts?.name;
-      return name ? `🏢 ${name}` : (val ? '🏢 Linked company' : '—');
+      return (name || val)
+        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Building2} size={14} />{name || 'Linked company'}</span>
+        : '—';
     }
     if (typeof val === 'object' && val !== null) return JSON.stringify(val);
     return String(val ?? '—');
@@ -205,11 +209,15 @@ export default function SubmissionsPage() {
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800 }}>TFF Submissions</div>
-          <div style={{ fontSize:13, color:C.gray, marginTop:3 }}>Total forms filled</div>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <PageIcon name="clipboardCheck" />
+          <div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800 }}>TFF Submissions</div>
+            <div style={{ fontSize:13, color:C.gray, marginTop:3 }}>Total forms filled</div>
+          </div>
         </div>
-        <button onClick={fetchData} style={{ padding:'9px 16px', background:C.red, color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+        <button onClick={fetchData} style={{ padding:'9px 16px', background:C.red, color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'inline-flex', alignItems:'center', gap:6 }}>
+          <InlineIcon icon={RefreshCw} />
           Refresh
         </button>
       </div>
@@ -222,12 +230,13 @@ export default function SubmissionsPage() {
 
       {/* Stats */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
-        {[
-          { l:'Total Submissions', v:total, c:C.blue },
-          { l:'Effective (TFF)', v:tffCount, c:C.green },
-          { l:'Non-TFF', v:nonTff, c:C.gray },
-        ].map((s, i) => (
-          <div key={i} style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        {([
+          { l:'Total Submissions', v:total, c:C.blue, icon:FileText, tone:'info' },
+          { l:'Effective (TFF)', v:tffCount, c:C.green, icon:CheckCircle2, tone:'ok' },
+          { l:'Non-TFF', v:nonTff, c:C.gray, icon:MinusCircle, tone:'neutral' },
+        ] as { l:string; v:number; c:string; icon:LucideIcon; tone:IconTone }[]).map((s, i) => (
+          <div key={i} style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20, position:'relative' }}>
+            <IconTile icon={s.icon} tone={s.tone} style={{ position:'absolute', top:16, right:16 }} />
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color:s.c }}>{s.v}</div>
             <div style={{ fontSize:12, color:C.gray, marginTop:6 }}>{s.l}</div>
           </div>
@@ -250,7 +259,7 @@ export default function SubmissionsPage() {
         {loading ? (
           <div style={{ padding:48, textAlign:'center', color:C.grayd, fontSize:14 }}>Loading submissions...</div>
         ) : submissions.length === 0 ? (
-          <div style={{ padding:48, textAlign:'center', color:C.grayd, fontSize:14 }}>No submissions found</div>
+          <div style={{ padding:48, textAlign:'center', color:C.grayd, fontSize:14 }}><IconTile icon={FileText} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 10px' }} />No submissions found</div>
         ) : (
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
@@ -304,13 +313,14 @@ export default function SubmissionsPage() {
                     </td>
                     <td style={{ padding:'12px 16px' }}>
                       <div style={{ display:'flex', gap:4 }}>
-                        <span title="Check-in GPS" style={{ opacity: s.check_in_gps ? 1 : 0.2, cursor: s.check_in_gps ? 'pointer' : 'default' }} onClick={() => s.check_in_gps && window.open(`https://maps.google.com/?q=${s.check_in_gps}`)}>📍</span>
-                        <span title="Submission GPS" style={{ opacity: (s as any).gps ? 1 : 0.2, cursor: (s as any).gps ? 'pointer' : 'default' }} onClick={() => (s as any).gps && window.open(`https://maps.google.com/?q=${(s as any).gps}`)}>📡</span>
+                        <span title="Check-in GPS" style={{ opacity: s.check_in_gps ? 1 : 0.2, cursor: s.check_in_gps ? 'pointer' : 'default' }} onClick={() => s.check_in_gps && window.open(`https://maps.google.com/?q=${s.check_in_gps}`)}><InlineIcon icon={MapPin} size={14} style={{ color:C.blue }} /></span>
+                        <span title="Submission GPS" style={{ opacity: (s as any).gps ? 1 : 0.2, cursor: (s as any).gps ? 'pointer' : 'default' }} onClick={() => (s as any).gps && window.open(`https://maps.google.com/?q=${(s as any).gps}`)}><InlineIcon icon={Radio} size={14} style={{ color:C.blue }} /></span>
                       </div>
                     </td>
                     <td style={{ padding:'12px 16px' }}>
                       <button onClick={() => viewDetails(s)}
-                        style={{ fontSize:12, color:C.blue, background:'none', border:'none', cursor:'pointer', fontFamily:"DM Sans,sans-serif", fontWeight:600 }}>
+                        style={{ fontSize:12, color:C.blue, background:'none', border:'none', cursor:'pointer', fontFamily:"DM Sans,sans-serif", fontWeight:600, display:'inline-flex', alignItems:'center', gap:6 }}>
+                        <InlineIcon icon={Eye} size={14} />
                         View
                       </button>
                     </td>
@@ -354,14 +364,14 @@ export default function SubmissionsPage() {
                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                  {!loadingDetails && details && !editing && (
                    <button onClick={startEdit}
-                     style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, padding:'8px 14px', cursor:'pointer', color:C.blue, fontSize:13, fontWeight:700 }}>Edit</button>
+                     style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, padding:'8px 14px', cursor:'pointer', color:C.blue, fontSize:13, fontWeight:700, display:'inline-flex', alignItems:'center', gap:6 }}><InlineIcon icon={Pencil} />Edit</button>
                  )}
                  {editing && (
                    <>
                      <button onClick={() => { setEditing(false); setEditError(''); }} disabled={saving}
                        style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, padding:'8px 14px', cursor:'pointer', color:C.gray, fontSize:13, fontWeight:700 }}>Cancel</button>
                      <button onClick={saveEdits} disabled={saving}
-                       style={{ background:C.green, border:'none', borderRadius:10, padding:'8px 16px', cursor:saving?'default':'pointer', color:'#06281B', fontSize:13, fontWeight:800, opacity:saving?0.7:1 }}>{saving ? 'Saving…' : 'Save'}</button>
+                       style={{ background:C.green, border:'none', borderRadius:10, padding:'8px 16px', cursor:saving?'default':'pointer', color:'#06281B', fontSize:13, fontWeight:800, opacity:saving?0.7:1, display:'inline-flex', alignItems:'center', gap:6 }}><InlineIcon icon={Check} />{saving ? 'Saving…' : 'Save'}</button>
                    </>
                  )}
                  <button onClick={() => setSelected(null)}
@@ -372,18 +382,18 @@ export default function SubmissionsPage() {
             <div style={{ padding: 28 }}>
               {/* Info Grid */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:32 }}>
-                {[
-                  ['FE Name', selected.users?.name],
-                  ['Company', (details as any)?.crm_accounts?.name],
-                  ['Outlet', (selected as any).store_name || selected.outlet_name],
-                  ['Form', selected.form_templates?.name],
-                  ['Timestamp', new Date(selected.submitted_at).toLocaleString('en-IN')],
-                  ['Check-in', fmtStamp(selected.check_in_at)],
-                  ['Check-out', fmtStamp(selected.check_out_at)],
-                  ['Time spent', fmtMinutes(visitMinutes(selected))],
-                ].map(([k,v]) => (
+                {([
+                  ['FE Name', selected.users?.name, User],
+                  ['Company', (details as any)?.crm_accounts?.name, Building2],
+                  ['Outlet', (selected as any).store_name || selected.outlet_name, Store],
+                  ['Form', selected.form_templates?.name, FileText],
+                  ['Timestamp', new Date(selected.submitted_at).toLocaleString('en-IN'), Clock],
+                  ['Check-in', fmtStamp(selected.check_in_at), LogIn],
+                  ['Check-out', fmtStamp(selected.check_out_at), LogOut],
+                  ['Time spent', fmtMinutes(visitMinutes(selected)), Timer],
+                ] as [string, unknown, LucideIcon][]).map(([k,v,icon]) => (
                   <div key={String(k)}>
-                    <div style={{ fontSize:11, color:C.gray, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>{String(k)}</div>
+                    <div style={{ fontSize:11, color:C.gray, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={icon} size={13} />{String(k)}</div>
                     <div style={{ fontSize:14, fontWeight:600 }}>{String(v || '—')}</div>
                   </div>
                 ))}
@@ -407,17 +417,17 @@ export default function SubmissionsPage() {
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {selected.check_in_gps && (
-                      <a href={`https://www.google.com/maps?q=${selected.check_in_gps}`} target="_blank" rel="noreferrer" style={{ padding: '6px 12px', background: C.s2, border: `1px solid ${C.border}`, color: C.blue, borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>📍 In</a>
+                      <a href={`https://www.google.com/maps?q=${selected.check_in_gps}`} target="_blank" rel="noreferrer" style={{ padding: '6px 12px', background: C.s2, border: `1px solid ${C.border}`, color: C.blue, borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={MapPin} size={13} />In</a>
                     )}
                     {selected.check_out_gps && (
-                      <a href={`https://www.google.com/maps?q=${selected.check_out_gps}`} target="_blank" rel="noreferrer" style={{ padding: '6px 12px', background: C.s2, border: `1px solid ${C.border}`, color: C.blue, borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>📍 Out</a>
+                      <a href={`https://www.google.com/maps?q=${selected.check_out_gps}`} target="_blank" rel="noreferrer" style={{ padding: '6px 12px', background: C.s2, border: `1px solid ${C.border}`, color: C.blue, borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={MapPin} size={13} />Out</a>
                     )}
                   </div>
                 </div>
               )}
 
               <div style={{ borderTop: `1.5px solid ${C.border}`, paddingTop: 24 }}>
-                <h4 style={{ fontSize:15, fontWeight:800, marginBottom:16, color:C.blue }}>Form Responses</h4>
+                <h4 style={{ fontSize:15, fontWeight:800, marginBottom:16, color:C.blue, display:'flex', alignItems:'center', gap:8 }}><InlineIcon icon={ClipboardList} size={16} />Form Responses</h4>
                 {editing && (
                   <div style={{ fontSize:12, color:C.grayd, marginBottom:12 }}>Editing answers — photo/signature fields stay as captured. Changes are saved with an audit trail.</div>
                 )}

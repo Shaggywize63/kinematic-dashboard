@@ -4,6 +4,8 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, fmtDate } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { AlertTriangle, ArrowLeftRight, Check, CheckCircle2, Hash, PackageCheck, PackagePlus, Truck, XCircle } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 const ADJUST_REASONS = ['receipt', 'adjustment', 'damage', 'return', 'transfer', 'correction'];
 
@@ -139,15 +141,15 @@ export default function DistributorStockPage() {
       </Card>
 
       {!distributorId ? (
-        <Card><div style={{ fontSize: 13, color: 'var(--text-dim)', textAlign: 'center', padding: '20px 0' }}>Select a distributor to view its stock.</div></Card>
+        <Card><div style={{ fontSize: 13, color: 'var(--text-dim)', textAlign: 'center', padding: '20px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}><IconTile icon={Truck} size={40} iconSize={20} />Select a distributor to view its stock.</div></Card>
       ) : (
         <>
           {/* Totals */}
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
             <StatCard label="SKUs on hand" value={rows.length} />
-            <StatCard label="Total qty" value={totalQty.toLocaleString('en-IN')} />
-            <StatCard label="Available" value={totalAvail.toLocaleString('en-IN')} accent="var(--green)" />
-            <StatCard label="Out of stock" value={outCount} accent={outCount ? 'var(--primary)' : undefined} />
+            <StatCard label="Total qty" icon={Hash} value={totalQty.toLocaleString('en-IN')} />
+            <StatCard label="Available" icon={PackageCheck} value={totalAvail.toLocaleString('en-IN')} accent="var(--green)" />
+            <StatCard label="Out of stock" icon={AlertTriangle} value={outCount} accent={outCount ? 'var(--primary)' : undefined} />
           </div>
 
           {/* On-hand table */}
@@ -186,7 +188,7 @@ export default function DistributorStockPage() {
 
           {/* Receive / adjust stock */}
           <Card style={{ marginTop: 22, marginBottom: 22 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Receive / adjust stock</div>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={PackagePlus} size={16} style={{ color: 'var(--dim)' }} />Receive / adjust stock</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, alignItems: 'end' }}>
               <div style={{ gridColumn: 'span 2' }}>
                 <div style={labelStyle}>SKU *</div>
@@ -214,16 +216,16 @@ export default function DistributorStockPage() {
                 <input value={adj.note} placeholder="Optional — GRN #, damage details, etc." onChange={(e) => setAdj({ ...adj, note: e.target.value })} style={inputStyle} />
               </div>
             </div>
-            {msg && <div style={{ marginTop: 10, fontSize: 12, color: msg.kind === 'ok' ? 'var(--green)' : 'var(--primary)' }}>{msg.kind === 'ok' ? '✓ ' : '✗ '}{msg.text}</div>}
+            {msg && <div style={{ marginTop: 10, fontSize: 12, color: msg.kind === 'ok' ? 'var(--green)' : 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={msg.kind === 'ok' ? CheckCircle2 : XCircle} size={14} />{msg.text}</div>}
             <div style={{ marginTop: 14 }}>
-              <Btn disabled={saving} onClick={submitAdjust}>{saving ? 'Posting…' : 'Post movement'}</Btn>
+              <Btn disabled={saving} onClick={submitAdjust} icon={<InlineIcon icon={Check} />}>{saving ? 'Posting…' : 'Post movement'}</Btn>
             </div>
           </Card>
 
           {/* Movements ledger (collapsible) */}
           <Card>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>Movements ledger</div>
+              <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={ArrowLeftRight} size={16} style={{ color: 'var(--dim)' }} />Movements ledger</div>
               <Btn variant="ghost" onClick={() => setShowMovements((v) => !v)}>{showMovements ? 'Hide' : 'Show'}</Btn>
             </div>
             {showMovements && (

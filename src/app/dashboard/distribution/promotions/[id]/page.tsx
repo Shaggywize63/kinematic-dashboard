@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Btn, StatCard, fmtDate, inr } from '../../../../../components/distribution/Atoms';
+import { Banknote, CircleDot, Info, IndianRupee, Percent, Receipt, Target, TrendingUp } from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 
 const PROMO_STATUSES = ['draft', 'active', 'paused', 'closed'];
 
@@ -164,7 +166,7 @@ export default function PromotionDetail() {
 
       {/* Status controls */}
       <Card style={{ marginBottom: 22 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>Status</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, ...cardHead }}><InlineIcon icon={CircleDot} size={16} style={{ color: 'var(--dim)' }} />Status</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {PROMO_STATUSES.map((st) => (
             <Btn key={st} variant={promo.status === st ? 'primary' : 'ghost'} disabled={promo.status === st} onClick={() => changeStatus(st)}>{st}</Btn>
@@ -174,16 +176,16 @@ export default function PromotionDetail() {
 
       {/* ROI summary */}
       <Card style={{ marginBottom: 22 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8 }}>ROI & Budget</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, ...cardHead }}><InlineIcon icon={TrendingUp} size={16} />ROI & Budget</div>
         {summary ? (
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             <StatCard label="Budget" value={inr(summary.budget_amount || 0)} hint={summary.currency || 'INR'} />
-            <StatCard label="Claimed" value={inr(summary.claimed_total || 0)} hint={`${summary.claim_count || 0} claim(s)`} />
+            <StatCard label="Claimed" icon={IndianRupee} value={inr(summary.claimed_total || 0)} hint={`${summary.claim_count || 0} claim(s)`} />
             <StatCard label="Approved" value={inr(summary.approved_total || 0)} accent="var(--accent)" />
-            <StatCard label="Settled" value={inr(summary.settled_total || 0)} accent="var(--green)" />
-            <StatCard label="Budget used" value={pct(summary.budget_utilization_pct)} />
+            <StatCard label="Settled" icon={Banknote} value={inr(summary.settled_total || 0)} accent="var(--green)" />
+            <StatCard label="Budget used" icon={Percent} value={pct(summary.budget_utilization_pct)} />
             <StatCard label="Generated sales" value={inr(summary.generated_sales || 0)} hint={`${summary.order_count || 0} order(s)`} />
-            <StatCard label="ROI" value={roiFmt(summary.roi)} accent="var(--green)" />
+            <StatCard label="ROI" icon={TrendingUp} value={roiFmt(summary.roi)} accent="var(--green)" />
           </div>
         ) : <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>Summary unavailable.</div>}
       </Card>
@@ -191,7 +193,7 @@ export default function PromotionDetail() {
       {/* Basic fields + edit */}
       <Card style={{ marginBottom: 22 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>Details</div>
+          <div style={{ fontWeight: 700, fontSize: 14, ...cardHead }}><InlineIcon icon={Info} size={16} style={{ color: 'var(--dim)' }} />Details</div>
           {!editing && <Btn variant="ghost" onClick={() => setEditing(true)}>Edit</Btn>}
         </div>
 
@@ -222,7 +224,7 @@ export default function PromotionDetail() {
 
       {/* Targeting */}
       <Card style={{ marginBottom: 22 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8 }}>Targeting</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, ...cardHead }}><InlineIcon icon={Target} size={16} />Targeting</div>
         <pre style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, color: 'var(--text)', fontSize: 11, lineHeight: 1.5, fontFamily: 'JetBrains Mono, monospace', overflow: 'auto', margin: 0 }}>
 {JSON.stringify(promo.targeting || {}, null, 2)}
         </pre>
@@ -230,7 +232,7 @@ export default function PromotionDetail() {
 
       {/* Claims */}
       <Card>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Claims</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, ...cardHead }}><InlineIcon icon={Receipt} size={16} style={{ color: 'var(--dim)' }} />Claims</div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
             <th style={thStyle}>Claim #</th>
@@ -260,7 +262,7 @@ export default function PromotionDetail() {
                         <Btn variant="ghost" onClick={() => approveClaim(c.id)}>Approve</Btn>
                         <Btn variant="danger" onClick={() => rejectClaim(c.id)}>Reject</Btn>
                       </>}
-                      {st === 'approved' && <Btn onClick={() => settleClaim(c.id)}>Settle</Btn>}
+                      {st === 'approved' && <Btn onClick={() => settleClaim(c.id)} icon={<InlineIcon icon={Banknote} />}>Settle</Btn>}
                     </div>
                   </td>
                 </tr>
@@ -289,5 +291,6 @@ export default function PromotionDetail() {
   );
 }
 
+const cardHead: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 };
 const thStyle: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, borderBottom: '1px solid var(--border)' };
 const tdStyle: React.CSSProperties = { padding: '10px 12px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };

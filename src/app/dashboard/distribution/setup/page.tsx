@@ -10,6 +10,9 @@ import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import api from '../../../../lib/api';
 import { palette as C, Card, Row, PageHeader, Pill, Btn } from '../../../../components/distribution/Atoms';
+import { ArrowDown, ArrowUp, Check, ChevronRight, ListChecks, Plus, Route, Trash2 } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
+import { stageIcon } from '../../../../components/distribution/stageIcons';
 
 interface Stage { key: string; label: string; entity?: string | null; icon?: string | null; optional?: boolean; }
 
@@ -95,6 +98,7 @@ export default function NetworkSetupPage() {
         {/* Stage builder */}
         <Card>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <InlineIcon icon={Route} size={16} style={{ color: C.dim }} />
             <div style={{ fontSize: 15, fontWeight: 800 }}>Your route to market</div>
             {isDefault && <Pill color="amber">default</Pill>}
             {dirty && <Pill color="blue">unsaved</Pill>}
@@ -105,13 +109,13 @@ export default function NetworkSetupPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {stages.map((s, i) => (
                 <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.s2, border: `1px solid ${C.border}`, borderRadius: 11, padding: '9px 12px' }}>
-                  <span style={{ fontSize: 18 }}>{s.icon || '•'}</span>
+                  <InlineIcon icon={stageIcon(s)} size={18} style={{ color: 'var(--primary)' }} />
                   <input value={s.label} onChange={(e) => rename(i, e.target.value)}
                     style={{ flex: 1, background: 'transparent', border: 'none', color: C.text, fontSize: 14, fontWeight: 600, outline: 'none' }} />
                   <span style={{ fontSize: 11, color: C.dim }}>{i === 0 ? 'source' : i === stages.length - 1 ? 'end customer' : (s.entity || 'stage')}</span>
-                  <button onClick={() => move(i, -1)} disabled={i === 0} title="Move up" style={arrowBtn(i === 0)}>↑</button>
-                  <button onClick={() => move(i, 1)} disabled={i === stages.length - 1} title="Move down" style={arrowBtn(i === stages.length - 1)}>↓</button>
-                  <button onClick={() => remove(i)} disabled={stages.length <= 2} title="Remove" style={{ ...arrowBtn(stages.length <= 2), color: C.red }}>✕</button>
+                  <button onClick={() => move(i, -1)} disabled={i === 0} title="Move up" style={arrowBtn(i === 0)}><InlineIcon icon={ArrowUp} size={13} /></button>
+                  <button onClick={() => move(i, 1)} disabled={i === stages.length - 1} title="Move down" style={arrowBtn(i === stages.length - 1)}><InlineIcon icon={ArrowDown} size={13} /></button>
+                  <button onClick={() => remove(i)} disabled={stages.length <= 2} title="Remove" style={{ ...arrowBtn(stages.length <= 2), color: C.red }}><InlineIcon icon={Trash2} size={13} /></button>
                 </div>
               ))}
             </div>
@@ -122,9 +126,9 @@ export default function NetworkSetupPage() {
             <Row style={{ gap: 8 }}>
               {PRESETS.map((p) => (
                 <button key={p.key} onClick={() => addPreset(p)} disabled={stages.some((x) => x.key === p.key)}
-                  style={presetBtn(stages.some((x) => x.key === p.key))}>{p.icon} {p.label}</button>
+                  style={presetBtn(stages.some((x) => x.key === p.key))}><InlineIcon icon={stageIcon(p)} size={14} />{p.label}</button>
               ))}
-              <button onClick={addCustom} style={presetBtn(false)}>＋ Custom</button>
+              <button onClick={addCustom} style={presetBtn(false)}><InlineIcon icon={Plus} size={14} />Custom</button>
             </Row>
           </div>
 
@@ -137,7 +141,7 @@ export default function NetworkSetupPage() {
 
         {/* Setup checklist */}
         <Card>
-          <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>Setup checklist</div>
+          <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={ListChecks} size={16} style={{ color: C.dim }} />Setup checklist</div>
           <div style={{ fontSize: 12.5, color: C.dim, marginBottom: 12 }}>{pct}% complete</div>
           <div style={{ height: 7, borderRadius: 99, background: C.s3, overflow: 'hidden', marginBottom: 14 }}>
             <div style={{ width: `${pct}%`, height: '100%', background: 'var(--green)' }} />
@@ -146,12 +150,12 @@ export default function NetworkSetupPage() {
             {checklist.map((c) => (
               <Link key={c.label} href={c.href} style={{ textDecoration: 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.border}`, background: c.done ? 'rgba(34,197,94,0.08)' : 'transparent' }}>
-                  <span style={{ width: 22, height: 22, borderRadius: '50%', flex: 'none', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, background: c.done ? 'var(--green)' : 'var(--s3)', color: c.done ? '#04150F' : C.dim }}>{c.done ? '✓' : ''}</span>
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', flex: 'none', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, background: c.done ? 'var(--green)' : 'var(--s3)', color: c.done ? '#04150F' : C.dim }}>{c.done ? <InlineIcon icon={Check} size={13} /> : null}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 600, color: C.text }}>{c.label}</div>
                     {c.hint && <div style={{ fontSize: 11.5, color: C.dim }}>{c.hint}</div>}
                   </div>
-                  <span style={{ color: C.dim, fontSize: 16 }}>›</span>
+                  <InlineIcon icon={ChevronRight} size={16} style={{ color: C.dim }} />
                 </div>
               </Link>
             ))}
@@ -163,8 +167,8 @@ export default function NetworkSetupPage() {
 }
 
 function arrowBtn(disabled: boolean): CSSProperties {
-  return { background: 'transparent', border: `1px solid var(--border)`, color: 'var(--text-dim)', borderRadius: 7, width: 26, height: 26, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, fontSize: 12 };
+  return { background: 'transparent', border: `1px solid var(--border)`, color: 'var(--text-dim)', borderRadius: 7, width: 26, height: 26, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1, fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
 }
 function presetBtn(added: boolean): CSSProperties {
-  return { background: 'var(--s3)', border: `1px dashed var(--border)`, color: added ? 'var(--text-dim)' : 'var(--text)', borderRadius: 999, padding: '6px 12px', fontSize: 12.5, cursor: added ? 'not-allowed' : 'pointer', opacity: added ? 0.5 : 1 };
+  return { background: 'var(--s3)', border: `1px dashed var(--border)`, color: added ? 'var(--text-dim)' : 'var(--text)', borderRadius: 999, padding: '6px 12px', fontSize: 12.5, cursor: added ? 'not-allowed' : 'pointer', opacity: added ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 };
 }

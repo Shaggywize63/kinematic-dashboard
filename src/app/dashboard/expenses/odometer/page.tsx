@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Gauge } from 'lucide-react';
 import { Card, EmptyState, Input, Select, T } from '../../../../components/ui';
+import { IconTile } from '../../../../components/ui/PageIcon';
 import { Col, DataTable, Toolbar } from '../../../../components/finance/ui';
 import {
   ClaimStatusBadge, ExpensesShell, PhotoLink, errText, fmtDate, money, useExpenseRoles, vehicleName,
@@ -100,7 +101,7 @@ export default function OdometerHistoryPage() {
       ) : (
         <Card padding={0} style={{ overflow: 'hidden' }}>
           <DataTable<OdometerHistoryRow> columns={cols} rows={rows} loading={loading}
-            empty={filtered ? 'No readings match these filters.' : 'No odometer readings yet — they appear here once a travel claim with readings is saved.'}
+            empty={<span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}><IconTile icon={Gauge} size={40} iconSize={20} />{filtered ? 'No readings match these filters.' : 'No odometer readings yet — they appear here once a travel claim with readings is saved.'}</span>}
             onRowClick={(r) => router.push(`/dashboard/expenses/${r.claim_id}`)} />
           {rows.length >= LIMIT && (
             <div style={{ padding: '10px 14px', fontSize: 12.5, color: T.mute, borderTop: `1px solid ${T.border}` }}>

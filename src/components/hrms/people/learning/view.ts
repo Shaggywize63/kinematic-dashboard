@@ -1,7 +1,8 @@
 // Everything the Learning tabs need, worked out once per data change from the core database and the learning state.
 
 import type { Employee, HrmsDb, Id } from '../../../../lib/hrms/types';
-import { PREVIEW_TODAY } from '../../../../lib/hrms/seed';
+import { isLive } from '../../../../lib/hrms/live/store';
+import { learnToday } from '../../../../lib/hrms/people/learningClock';
 import type { Assignment, AssignmentStatus, Course, LearningState } from '../../../../lib/hrms/people/types';
 import {
   audienceText, coverageBy, currentAssignments, eligibleFor, expiringCertificates, isLearner, missingAssignments, overallCoverage, overdueItems, progressPct, requiredFor, statusOf,
@@ -10,7 +11,7 @@ import {
 export interface AssignmentRow { id: string; a: Assignment; e: Employee; c: Course; status: AssignmentStatus; pct: number }
 
 export function buildLearningView(db: HrmsDb, st: LearningState) {
-  const today = PREVIEW_TODAY;
+  const today = learnToday();
   const emp = new Map(db.employees.map((e) => [e.id, e]));
   const course = new Map(st.courses.map((c) => [c.id, c]));
   const dep = new Map(db.departments.map((d) => [d.id, d.name]));
@@ -45,6 +46,9 @@ export function buildLearningView(db: HrmsDb, st: LearningState) {
   };
 }
 export type LearningView = ReturnType<typeof buildLearningView>;
+
+/** What a logged reminder means in each mode: nothing is sent in either, there is no message service behind it yet. */
+export const reminderLoggedText = (): string => (isLive() ? 'Reminder logged. No message is sent yet: there is no mail or message service behind it.' : 'Reminder logged. Nothing was sent in this preview.');
 
 export const STATUS_LABEL: Record<AssignmentStatus, string> = { not_started: 'Not started', in_progress: 'In progress', completed: 'Completed', overdue: 'Overdue' };
 export const STATUS_TONE_MAP: Record<AssignmentStatus, 'neutral' | 'info' | 'ok' | 'red'> = { not_started: 'neutral', in_progress: 'info', completed: 'ok', overdue: 'red' };

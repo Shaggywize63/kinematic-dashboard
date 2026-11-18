@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Building2 } from 'lucide-react';
 import { crmAccounts, crmContacts } from '../../../lib/crmApi';
 import type { Account, Contact } from '../../../types/crm';
 import { apiErrorText, arr } from '../../../lib/sparkAccounts';
@@ -50,6 +51,7 @@ export default function ContactAccountModal({ contact, open, onClose, onSaved }:
       onClose={onClose}
       width={460}
       title={changing ? 'Change company' : 'Add to a company'}
+      icon={Building2}
       subtitle={changing ? `${name} currently belongs to ${contact.account_name || 'a company'}.` : `Link ${name} to a company.`}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={save} disabled={busy || !accountId || accountId === (contact.account_id || '')}>{busy ? 'Saving…' : 'Save'}</Button></>}
     >

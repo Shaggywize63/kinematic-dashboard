@@ -4,6 +4,9 @@ import {
   Badge, Button, Card as UiCard, Eyebrow, PageHeader as UiPageHeader, T, eyebrowStyle,
   type ButtonSize, type Tone,
 } from '../ui';
+import type { LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon } from '../ui/PageIcon';
+import { metricIconFor, ICON_SIZE } from '../../lib/labelIcons';
 
 /**
  * Distribution atoms — the module-level building blocks every supply-chain
@@ -35,10 +38,14 @@ export const palette = C;
 
 /** Stat tile: mono eyebrow label, Manrope 26/700 value, dim hint. `accent`
  *  colours the value (pass `T.red` / `T.warn` / `T.ok`, never a hex). */
-export function StatCard({ label, value, hint, accent, style }: { label: string; value: React.ReactNode; hint?: string; accent?: string; style?: React.CSSProperties }) {
+export function StatCard({ label, value, hint, accent, style, icon }: { label: string; value: React.ReactNode; hint?: string; accent?: string; style?: React.CSSProperties; icon?: LucideIcon | null }) {
+  const Icon = icon === undefined ? metricIconFor(label) : icon;
   return (
     <UiCard padding={16} style={{ minWidth: 160, flex: 1, ...style }}>
-      <Eyebrow>{label}</Eyebrow>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <Eyebrow>{label}</Eyebrow>
+        {Icon && <IconTile icon={Icon} tone="brand" size={26} iconSize={14} />}
+      </div>
       <div style={{ fontFamily: T.heading, fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.15, color: accent || T.text, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
       {hint && <div style={{ fontSize: 12.5, color: T.dim, marginTop: 4 }}>{hint}</div>}
     </UiCard>
@@ -70,13 +77,16 @@ export function Card({ children, style, padding = 20, className }: { children: R
 /** Card header row: Manrope 15/700 title + optional right-side actions. Use
  *  inside `Card padding={0}` above a table (hairline below) or inside a
  *  padded card (`bare`). */
-export function CardTitle({ children, right, bare, style }: { children: React.ReactNode; right?: React.ReactNode; bare?: boolean; style?: React.CSSProperties }) {
+export function CardTitle({ children, right, bare, style, icon }: { children: React.ReactNode; right?: React.ReactNode; bare?: boolean; style?: React.CSSProperties; icon?: LucideIcon }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
       padding: bare ? 0 : '14px 16px', marginBottom: bare ? 12 : 0, borderBottom: bare ? 0 : `1px solid ${T.border}`, ...style,
     }}>
-      <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>{children}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>
+        {icon && <InlineIcon icon={icon} size={ICON_SIZE.cardTitle} style={{ color: T.dim }} />}
+        {children}
+      </div>
       {right && <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>{right}</div>}
     </div>
   );

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, Note, fmtDate } from '../../../../components/distribution/Atoms';
 import { downloadCsv } from '../../../../lib/exportCsv';
+import { BarChart3, CheckCircle2, ClipboardCheck, SlidersHorizontal, TrendingDown, TrendingUp, Truck, XCircle } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 // Today in YYYY-MM-DD (local), for the date inputs' defaults.
 const todayStr = () => {
@@ -209,19 +211,19 @@ export default function ClosingStockPage() {
       </Card>
 
       {!distributorId ? (
-        <Card><div style={{ fontSize: 13, color: 'var(--text-dim)', textAlign: 'center', padding: '20px 0' }}>Select a distributor to start a stock count.</div></Card>
+        <Card><div style={{ fontSize: 13, color: 'var(--text-dim)', textAlign: 'center', padding: '20px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}><IconTile icon={Truck} size={40} iconSize={20} />Select a distributor to start a stock count.</div></Card>
       ) : (
         <>
           {/* Summary */}
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
-            <StatCard label="Counted" value={summary.counted || 0} />
-            <StatCard label="Matches" value={summary.matched || 0} accent="var(--green)" />
-            <StatCard label="Over" value={summary.over || 0} accent={summary.over ? 'var(--green)' : undefined} />
-            <StatCard label="Short" value={summary.short || 0} accent={summary.short ? 'var(--primary)' : undefined} />
-            <StatCard label="Adjusted" value={summary.adjusted || 0} />
+            <StatCard label="Counted" icon={ClipboardCheck} value={summary.counted || 0} />
+            <StatCard label="Matches" icon={CheckCircle2} value={summary.matched || 0} accent="var(--green)" />
+            <StatCard label="Over" icon={TrendingUp} value={summary.over || 0} accent={summary.over ? 'var(--green)' : undefined} />
+            <StatCard label="Short" icon={TrendingDown} value={summary.short || 0} accent={summary.short ? 'var(--primary)' : undefined} />
+            <StatCard label="Adjusted" icon={SlidersHorizontal} value={summary.adjusted || 0} />
           </div>
 
-          {msg && <Note tone={msg.kind === 'ok' ? 'ok' : 'red'} style={{ marginBottom: 14 }}>{msg.kind === 'ok' ? '✓ ' : '✗ '}{msg.text}</Note>}
+          {msg && <Note tone={msg.kind === 'ok' ? 'ok' : 'red'} style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={msg.kind === 'ok' ? CheckCircle2 : XCircle} size={14} />{msg.text}</Note>}
 
           {/* Worksheet */}
           <Card style={{ marginBottom: 14 }}>
@@ -280,7 +282,7 @@ export default function ClosingStockPage() {
           {/* Optional report (date range) */}
           <Card>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>Closing-stock report (date range)</div>
+              <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={BarChart3} size={16} style={{ color: 'var(--dim)' }} />Closing-stock report (date range)</div>
               <Btn variant="ghost" onClick={() => setShowReport((v) => !v)}>{showReport ? 'Hide' : 'Show'}</Btn>
             </div>
             {showReport && (
@@ -294,7 +296,7 @@ export default function ClosingStockPage() {
                     <div style={labelStyle}>To</div>
                     <input type="date" value={to} max={todayStr()} onChange={(e) => setTo(e.target.value)} style={selStyle} />
                   </div>
-                  <Btn variant="secondary" onClick={loadReport}>Load report</Btn>
+                  <Btn variant="secondary" onClick={loadReport} icon={<InlineIcon icon={BarChart3} />}>Load report</Btn>
                   <Btn variant="ghost" onClick={exportReport} disabled={!reportRows.length}>Export CSV</Btn>
                 </div>
                 <div style={{ overflowX: 'auto' }}>

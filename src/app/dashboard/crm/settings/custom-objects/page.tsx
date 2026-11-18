@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmCustomObjects, crmCustomFields, type CustomObject } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
+import { Boxes, CheckCircle2, ListChecks, Pause, Play, Plus, Table2, Trash2 } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 // Field types offered in the object field editor. A subset of the full
 // crm_custom_field_defs types — the ones that make sense for a record form
@@ -147,7 +149,10 @@ export default function CustomObjectsSettings() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Custom Objects</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <PageIcon />
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Custom Objects</h1>
+        </div>
         <p style={{ fontSize: 12.5, color: 'var(--text-dim)', margin: '4px 0 0', maxWidth: 640 }}>
           Model record types unique to your business — Properties, Vehicles, Policies, Tickets — each with its own
           fields, records, search, and mobile parity. Start from a template below or build one from scratch.
@@ -171,8 +176,9 @@ export default function CustomObjectsSettings() {
                 <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>{tpl.label_plural}</span>
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>{tpl.description}</div>
-              <div style={{ fontSize: 11, color: exists ? 'var(--text-dim)' : 'var(--primary)', fontWeight: 700, marginTop: 2 }}>
-                {exists ? '✓ Already added' : applyingTpl === tpl.id ? 'Creating…' : `+ Use template · ${tpl.fields.length} fields`}
+              <div style={{ fontSize: 11, color: exists ? 'var(--text-dim)' : 'var(--primary)', fontWeight: 700, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                {exists ? <InlineIcon icon={CheckCircle2} size={12} /> : applyingTpl !== tpl.id ? <InlineIcon icon={Plus} size={12} /> : null}
+                {exists ? 'Already added' : applyingTpl === tpl.id ? 'Creating…' : `Use template · ${tpl.fields.length} fields`}
               </div>
             </button>
           );
@@ -180,7 +186,7 @@ export default function CustomObjectsSettings() {
       </div>
 
       <div style={card}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Create Custom Object</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Plus} size={16} style={{ color: 'var(--text-dim)' }} />Create Custom Object</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>
           Define your own record type (e.g. Property, Vehicle, Policy) with its own fields — beyond the built-in Leads / Contacts / Deals / Accounts.
         </div>
@@ -207,20 +213,23 @@ export default function CustomObjectsSettings() {
           <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description (optional)" style={{ ...input, gridColumn: '1 / -1' }} />
         </div>
         <div style={{ marginTop: 10 }}>
-          <button onClick={create} disabled={creating} style={btnPrimary}>{creating ? 'Creating…' : '+ Create object'}</button>
+          <button onClick={create} disabled={creating} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}>{!creating && <InlineIcon icon={Plus} />}{creating ? 'Creating…' : 'Create object'}</button>
         </div>
       </div>
 
       <div style={card}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>Custom Objects ({objects.length})</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Boxes} size={16} style={{ color: 'var(--text-dim)' }} />Custom Objects ({objects.length})</div>
         {loading ? <div style={dim}>Loading…</div> : objects.length === 0 ? (
-          <div style={dim}>No custom objects yet. Create one above.</div>
+          <div style={{ ...dim, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '12px 0', textAlign: 'center' }}>
+            <IconTile icon={Boxes} size={40} iconSize={20} />
+            No custom objects yet. Create one above.
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {objects.map((o) => (
               <div key={o.id} style={{ background: 'var(--s3)', borderRadius: 10, padding: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 20 }}>{o.icon || '🧩'}</span>
+                  {o.icon ? <span style={{ fontSize: 20 }}>{o.icon}</span> : <InlineIcon icon={Boxes} size={20} style={{ color: 'var(--text-dim)' }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
                       {o.label_plural}
@@ -229,10 +238,10 @@ export default function CustomObjectsSettings() {
                     <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'monospace' }}>{o.key}</div>
                     {o.description && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{o.description}</div>}
                   </div>
-                  <button onClick={() => setExpanded(expanded === o.key ? null : o.key)} style={btnSmallGhost}>{expanded === o.key ? 'Hide fields' : 'Fields'}</button>
-                  <Link href={`/dashboard/crm/objects/${o.key}`} style={{ ...btnSmallGhost, textDecoration: 'none' }}>Records →</Link>
-                  <button onClick={() => toggleActive(o)} disabled={!!busy[o.id + '_t']} style={btnSmallGhost}>{o.is_active ? 'Deactivate' : 'Activate'}</button>
-                  <button onClick={() => remove(o)} disabled={!!busy[o.id + '_d']} style={btnSmallDanger}>{busy[o.id + '_d'] ? '…' : 'Delete'}</button>
+                  <button onClick={() => setExpanded(expanded === o.key ? null : o.key)} style={btnSmallGhost}><InlineIcon icon={ListChecks} size={12} />{expanded === o.key ? 'Hide fields' : 'Fields'}</button>
+                  <Link href={`/dashboard/crm/objects/${o.key}`} style={{ ...btnSmallGhost, textDecoration: 'none' }}><InlineIcon icon={Table2} size={12} />Records →</Link>
+                  <button onClick={() => toggleActive(o)} disabled={!!busy[o.id + '_t']} style={btnSmallGhost}><InlineIcon icon={o.is_active ? Pause : Play} size={12} />{o.is_active ? 'Deactivate' : 'Activate'}</button>
+                  <button onClick={() => remove(o)} disabled={!!busy[o.id + '_d']} style={btnSmallDanger}>{!busy[o.id + '_d'] && <InlineIcon icon={Trash2} size={12} />}{busy[o.id + '_d'] ? '…' : 'Delete'}</button>
                 </div>
                 {expanded === o.key && <FieldEditor objectKey={o.key} />}
               </div>
@@ -296,7 +305,7 @@ function FieldEditor({ objectKey }: { objectKey: string }) {
 
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Fields</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ListChecks} size={14} />Fields</div>
       {loading ? <div style={dim}>Loading…</div> : fields.length === 0 ? (
         <div style={{ ...dim, marginBottom: 8 }}>No fields yet — add the first below.</div>
       ) : (
@@ -308,7 +317,7 @@ function FieldEditor({ objectKey }: { objectKey: string }) {
               <span style={pill}>{f.field_type}</span>
               {f.required && <span style={{ ...pill, color: '#ef4444', borderColor: '#ef4444' }}>required</span>}
               <span style={{ flex: 1 }} />
-              <button onClick={() => remove(f)} style={btnSmallDanger}>Remove</button>
+              <button onClick={() => remove(f)} style={btnSmallDanger}><InlineIcon icon={Trash2} size={12} />Remove</button>
             </div>
           ))}
         </div>
@@ -325,7 +334,7 @@ function FieldEditor({ objectKey }: { objectKey: string }) {
         {NEEDS_OPTIONS.has(ftype) && (
           <input value={foptions} onChange={(e) => setFoptions(e.target.value)} placeholder="Options (comma-separated)" style={{ ...inputSm, gridColumn: '1 / -1' }} />
         )}
-        <button onClick={add} disabled={adding} style={{ ...btnPrimary, gridColumn: '1 / -1', padding: '7px 12px', fontSize: 12 }}>{adding ? 'Adding…' : '+ Add field'}</button>
+        <button onClick={add} disabled={adding} style={{ ...btnPrimary, gridColumn: '1 / -1', padding: '7px 12px', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{!adding && <InlineIcon icon={Plus} size={14} />}{adding ? 'Adding…' : 'Add field'}</button>
       </div>
     </div>
   );
@@ -336,7 +345,7 @@ const dim: React.CSSProperties = { color: 'var(--text-dim)', fontSize: 13 };
 const input: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
 const inputSm: React.CSSProperties = { background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px', borderRadius: 6, fontSize: 12 };
 const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 };
-const btnSmallGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11 };
-const btnSmallDanger: React.CSSProperties = { background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11 };
+const btnSmallGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6 };
+const btnSmallDanger: React.CSSProperties = { background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6 };
 const badge: React.CSSProperties = { marginLeft: 8, fontSize: 10, background: 'var(--s2)', color: 'var(--text-dim)', padding: '2px 7px', borderRadius: 4, fontWeight: 700 };
 const pill: React.CSSProperties = { fontSize: 10, border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '1px 6px', borderRadius: 10, fontFamily: 'monospace' };

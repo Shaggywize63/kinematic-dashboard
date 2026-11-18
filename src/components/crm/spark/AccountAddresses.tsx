@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { MapPin } from 'lucide-react';
+import { Check, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
+import { InlineIcon } from '../../ui/PageIcon';
 import { toast } from 'sonner';
 import { crmSites, type AccountSite } from '../../../lib/crmApi';
 import {
@@ -59,13 +60,13 @@ export default function AccountAddresses({ accountId, openNewSignal = 0 }: {
   return (
     <div id="plants" data-section="plants" data-testid="account-addresses" style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, scrollMarginTop: 84 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <h2 id="plants-heading" style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{`Plants / Addresses (${sites.length})`}</h2>
-        <button type="button" onClick={() => setEditing('new')} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Add address</button>
+        <h2 id="plants-heading" style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={MapPin} size={16} style={{ color: 'var(--text-dim)' }} />{`Plants / Addresses (${sites.length})`}</h2>
+        <button type="button" onClick={() => setEditing('new')} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />Add address</button>
       </div>
       {loading ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div>
       ) : sites.length === 0 ? (
-        <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No addresses yet. Add the head office, plants or delivery locations.</div>
+        <div style={{ color: 'var(--text-dim)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={MapPin} size={14} />No addresses yet. Add the head office, plants or delivery locations.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {sites.map((s) => {
@@ -89,8 +90,8 @@ export default function AccountAddresses({ accountId, openNewSignal = 0 }: {
                   {s.notes && <div style={{ color: 'var(--text-dim)', fontSize: 12, marginTop: 2, whiteSpace: 'pre-wrap' }}>{s.notes}</div>}
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  <button type="button" onClick={() => setEditing(s)} aria-label={`Edit address ${s.name}`} disabled={busyId === s.id} style={ghostBtn}>Edit</button>
-                  <button type="button" onClick={() => remove(s)} aria-label={`Delete address ${s.name}`} disabled={busyId === s.id} style={{ ...ghostBtn, color: '#ef4444', borderColor: 'rgba(239,68,68,0.5)' }}>Delete</button>
+                  <button type="button" onClick={() => setEditing(s)} aria-label={`Edit address ${s.name}`} disabled={busyId === s.id} style={{ ...ghostBtn, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Pencil} size={14} />Edit</button>
+                  <button type="button" onClick={() => remove(s)} aria-label={`Delete address ${s.name}`} disabled={busyId === s.id} style={{ ...ghostBtn, color: '#ef4444', borderColor: 'rgba(239,68,68,0.5)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Trash2} size={14} />Delete</button>
                 </div>
               </div>
             );
@@ -159,9 +160,10 @@ function AddressForm({ accountId, site, onClose, onSaved }: {
       onClose={onClose}
       width={560}
       title={site ? 'Edit address' : 'Add address'}
+      icon={MapPin}
       footer={<>
         <button type="button" onClick={onClose} disabled={busy} style={ghostBtn}>Cancel</button>
-        <button type="button" onClick={save} disabled={busy} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>{busy ? 'Saving…' : 'Save'}</button>
+        <button type="button" onClick={save} disabled={busy} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Check} size={14} />{busy ? 'Saving…' : 'Save'}</button>
       </>}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -169,7 +171,7 @@ function AddressForm({ accountId, site, onClose, onSaved }: {
         <div>
           {/* The picker renders its own "Search address" label. */}
           <GoogleAddressAutocomplete deviceFill={false} backend onSelect={onPick} />
-          {hasPin && <div style={{ fontSize: 11, color: 'var(--ok)', marginTop: 4 }}>📍 Map pin set from the picked address</div>}
+          {hasPin && <div style={{ fontSize: 11, color: 'var(--ok)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={MapPin} size={12} />Map pin set from the picked address</div>}
         </div>
         <Row label="Address line 1"><input aria-label="Address line 1" value={f.address_line1} onChange={(e) => set('address_line1')(e.target.value)} style={inp} /></Row>
         <Row label="Address line 2"><input aria-label="Address line 2" value={f.address_line2} onChange={(e) => set('address_line2')(e.target.value)} style={inp} /></Row>

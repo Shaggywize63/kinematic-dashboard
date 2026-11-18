@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import api from '../../../../../lib/api';
+import { Check, Eye, EyeOff, ListChecks, Pencil, Plus, Trash2 } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 // Settings → Activity Subjects — admins curate the dropdown reps see
 // on /crm/activities/new (above the free-text subject input). Backend
@@ -22,6 +24,7 @@ const inputStyle: React.CSSProperties = {
 const btn: React.CSSProperties = {
   background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px',
   borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', gap: 6,
 };
 const btnSec: React.CSSProperties = { ...btn, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)' };
 
@@ -125,6 +128,7 @@ export default function ActivitySubjectsSettingsPage() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <PageIcon />
         <h1 style={{ margin: 0, fontSize: 22, color: 'var(--text)' }}>Activity Subjects</h1>
         <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
           {loading ? 'Loading…' : `${sorted.length} subject${sorted.length === 1 ? '' : 's'}`}
@@ -146,7 +150,7 @@ export default function ActivitySubjectsSettingsPage() {
             style={inputStyle}
           />
           <button onClick={handleAdd} disabled={savingNew || !newName.trim()} style={btn}>
-            {savingNew ? 'Adding…' : 'Add'}
+            {!savingNew && <InlineIcon icon={Plus} />}{savingNew ? 'Adding…' : 'Add'}
           </button>
         </div>
       </div>
@@ -165,7 +169,8 @@ export default function ActivitySubjectsSettingsPage() {
           <tbody>
             {sorted.length === 0 && !loading && (
               <tr><td colSpan={4} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>
-                No subjects yet — add one above.
+                <IconTile icon={ListChecks} size={40} iconSize={20} style={{ marginBottom: 8 }} />
+                <div>No subjects yet — add one above.</div>
               </td></tr>
             )}
             {sorted.map((row, idx) => {
@@ -203,18 +208,18 @@ export default function ActivitySubjectsSettingsPage() {
                   <td style={{ padding: '8px 12px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {isEditing ? (
                       <>
-                        <button style={btn} onClick={() => handleRename(row.id)}>Save</button>
+                        <button style={btn} onClick={() => handleRename(row.id)}><InlineIcon icon={Check} size={14} />Save</button>
                         <button style={btnSec} onClick={() => setEditing((p) => { const o = { ...p }; delete o[row.id]; return o; })}>Cancel</button>
                       </>
                     ) : (
                       <>
-                        <button style={btnSec} onClick={() => setEditing((p) => ({ ...p, [row.id]: row.name }))}>Rename</button>
+                        <button style={btnSec} onClick={() => setEditing((p) => ({ ...p, [row.id]: row.name }))}><InlineIcon icon={Pencil} size={14} />Rename</button>
                         <button style={btnSec} onClick={() => move(row, 'up')} disabled={idx === 0}>↑</button>
                         <button style={btnSec} onClick={() => move(row, 'down')} disabled={idx === sorted.length - 1}>↓</button>
                         <button style={btnSec} onClick={() => toggleActive(row)}>
-                          {row.is_active === false ? 'Show' : 'Hide'}
+                          <InlineIcon icon={row.is_active === false ? Eye : EyeOff} size={14} />{row.is_active === false ? 'Show' : 'Hide'}
                         </button>
-                        <button style={{ ...btnSec, color: '#ef4444', borderColor: '#ef4444' }} onClick={() => remove(row.id)}>Delete</button>
+                        <button style={{ ...btnSec, color: '#ef4444', borderColor: '#ef4444' }} onClick={() => remove(row.id)}><InlineIcon icon={Trash2} size={14} />Delete</button>
                       </>
                     )}
                   </td>

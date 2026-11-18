@@ -8,6 +8,14 @@
  */
 
 import { useEffect, useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import {
+  ArrowLeftRight, BarChart3, BookOpen, Building2, CircleHelp, ClipboardCheck, Clock, Contact, FileSpreadsheet, FileText, Filter, Hammer,
+  Hourglass, IndianRupee, Kanban, Languages, LayoutDashboard, LayoutGrid, LifeBuoy, Lightbulb, LineChart, Mail, MessageCircle, Mic, Package,
+  PauseCircle, PenLine, Percent, Phone, RotateCcw, Route, Scale, Search, Settings, Sparkles, Target, Timer, TrendingUp, Trophy, UserPlus,
+  Users, Workflow, XCircle, Zap,
+} from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 const RED = '#E01E2C';
 const BLUE = '#3E9EFF';
@@ -80,7 +88,7 @@ const T: Record<string, Partial<Record<LangCode, string>>> = {
     or: 'ପ୍ରତ୍ୟେକ ରିପୋର୍ଟ ଗୋଟିଏ କ୍ଲିକରେ — ଏଗୁଡ଼ିକ ଲାଇଭ୍ ଲିଙ୍କ୍।',
     as: 'প্ৰতিটো ৰিপ‌ৰ্ট এক ক্লিক দূৰৈত — এইবোৰ লাইভ লিংক।',
   },
-  '✦ KINI AI capabilities': { hi: '✦ KINI AI क्षमताएँ', bn: '✦ KINI AI ক্ষমতা', or: '✦ KINI AI କ୍ଷମତା', as: '✦ KINI AI সক্ষমতা' },
+  'KINI AI capabilities': { hi: 'KINI AI क्षमताएँ', bn: 'KINI AI ক্ষমতা', or: 'KINI AI କ୍ଷମତା', as: 'KINI AI সক্ষমতা' },
   'What the AI copilot can do for you inside the CRM.': {
     hi: 'CRM के अंदर AI कोपायलट आपके लिए क्या कर सकता है।',
     bn: 'CRM-এর ভিতরে AI কোপাইলট আপনার জন্য কী করতে পারে।',
@@ -629,42 +637,42 @@ const STAGES = [
 // The 13 CRM modules — what each one is for, in one line plus a short
 // "use it when…" trigger. Mirrors the CrmSubNav order so the help reads
 // top-down the same way the rep navigates.
-const MODULES: Array<{ icon: string; title: string; what: string; when: string }> = [
-  { icon: '📊', title: 'Dashboard (Overview)', what: 'Stat cards (open pipeline, win rate, avg deal), the geo-map of leads, and your pinned analytics widgets.', when: 'Use it when you start your day to see what changed overnight.' },
-  { icon: '🎯', title: 'Leads',                what: 'Full list with filters (status, source, owner, score, state/city/district), AI score badges, bulk-assign, CSV import. Lead detail layout is fully responsive — read it on a phone in the car between meetings.', when: 'Use it when you need to slice prospects — "show me hot leads in Mumbai assigned to Ramesh".' },
-  { icon: '📈', title: 'Lead Analytics',       what: 'Customisable widget grid: lead velocity, time-to-first-touch, stuck leads, cohort conversion, score-band conversion, territory map. Pin any widget to your Overview.', when: 'Use it weekly to see where the funnel is leaking.' },
-  { icon: '👥', title: 'Contacts',             what: 'Your people directory. B2C contacts carry consent + loyalty tier; B2B contacts link to an Account.', when: 'Use it to manage individuals across multiple deals or repeat customers.' },
-  { icon: '🏢', title: 'Accounts',             what: 'Company records that group contacts + deals together. Industry, revenue, domain, owner.', when: 'B2B sellers: this is the canonical "who is the buying organisation" view.' },
-  { icon: '💼', title: 'Deals',                what: 'Open opportunities with stage, amount, probability, expected close date, line items. Toggle ☰ List ⇄ ▦ Kanban from the header — kanban filters by pipeline so you can drag deals between stages.', when: 'Use it to see your active pipeline. Switch to Kanban on Monday morning to triage; stay on List for bulk edits and filters.' },
-  { icon: '📋', title: 'Pipeline',             what: 'Directory of pipelines (Enterprise, SMB, Channel etc.). Each row shows stages, open-deal count + total value. + New Pipeline lets you create the pipeline AND its stages (Open / Won / Lost, colour-coded) in one modal — no separate Settings trip.', when: 'Use it when you set up a new sales motion or want a high-level "what pipelines exist?" view. Kanban view of any pipeline → its row → Kanban →.' },
-  { icon: '📦', title: 'Products',             what: 'SKU catalogue with price, weight, GST rate, category. Deals reference products via line items.', when: 'Set up once when you onboard; touch when prices change.' },
-  { icon: '✅', title: 'Activities',           what: 'Call logs, meetings, emails, WhatsApp, tasks — every touchpoint a rep records.', when: 'Use it as your daily to-do. Calendar view shows what is due this week.' },
-  { icon: '💬', title: 'WhatsApp',             what: 'Send templates, see conversations, track delivery. Built on Meta Business API.', when: 'Use it for templated outreach (broadcast) or one-off replies on the same record.' },
-  { icon: '📑', title: 'Reports',              what: '10 built-in reports: Rep Leaderboard, Stage Funnel, Stuck Deals, Lead Aging, Win/Loss, Forecast, Sales Cycle, Activity Heatmap, Lead Source ROI, plus a Custom Report Builder.', when: 'Use it monthly for review; export any report to CSV.' },
-  { icon: '⚙️', title: 'Settings',             what: '14 sub-pages: Team Members, Pipelines, Stages, Sources, Activity Types, Integrations, Automations, Assignment Rules, Territories, Scoring Model, Custom Fields, States & Cities, Business Type, Appearance.', when: 'Initial set-up + occasional tweaks.' },
-  { icon: '❓', title: 'Help',                 what: "You're here.", when: 'When a teammate asks "how does X work?" — point them here.' },
+const MODULES: Array<{ icon: LucideIcon; title: string; what: string; when: string }> = [
+  { icon: LayoutDashboard, title: 'Dashboard (Overview)', what: 'Stat cards (open pipeline, win rate, avg deal), the geo-map of leads, and your pinned analytics widgets.', when: 'Use it when you start your day to see what changed overnight.' },
+  { icon: Users, title: 'Leads',                what: 'Full list with filters (status, source, owner, score, state/city/district), AI score badges, bulk-assign, CSV import. Lead detail layout is fully responsive — read it on a phone in the car between meetings.', when: 'Use it when you need to slice prospects — "show me hot leads in Mumbai assigned to Ramesh".' },
+  { icon: LineChart, title: 'Lead Analytics',       what: 'Customisable widget grid: lead velocity, time-to-first-touch, stuck leads, cohort conversion, score-band conversion, territory map. Pin any widget to your Overview.', when: 'Use it weekly to see where the funnel is leaking.' },
+  { icon: Contact, title: 'Contacts',             what: 'Your people directory. B2C contacts carry consent + loyalty tier; B2B contacts link to an Account.', when: 'Use it to manage individuals across multiple deals or repeat customers.' },
+  { icon: Building2, title: 'Accounts',             what: 'Company records that group contacts + deals together. Industry, revenue, domain, owner.', when: 'B2B sellers: this is the canonical "who is the buying organisation" view.' },
+  { icon: IndianRupee, title: 'Deals',                what: 'Open opportunities with stage, amount, probability, expected close date, line items. Toggle ☰ List ⇄ ▦ Kanban from the header — kanban filters by pipeline so you can drag deals between stages.', when: 'Use it to see your active pipeline. Switch to Kanban on Monday morning to triage; stay on List for bulk edits and filters.' },
+  { icon: Kanban, title: 'Pipeline',             what: 'Directory of pipelines (Enterprise, SMB, Channel etc.). Each row shows stages, open-deal count + total value. + New Pipeline lets you create the pipeline AND its stages (Open / Won / Lost, colour-coded) in one modal — no separate Settings trip.', when: 'Use it when you set up a new sales motion or want a high-level "what pipelines exist?" view. Kanban view of any pipeline → its row → Kanban →.' },
+  { icon: Package, title: 'Products',             what: 'SKU catalogue with price, weight, GST rate, category. Deals reference products via line items.', when: 'Set up once when you onboard; touch when prices change.' },
+  { icon: ClipboardCheck, title: 'Activities',           what: 'Call logs, meetings, emails, WhatsApp, tasks — every touchpoint a rep records.', when: 'Use it as your daily to-do. Calendar view shows what is due this week.' },
+  { icon: MessageCircle, title: 'WhatsApp',             what: 'Send templates, see conversations, track delivery. Built on Meta Business API.', when: 'Use it for templated outreach (broadcast) or one-off replies on the same record.' },
+  { icon: FileSpreadsheet, title: 'Reports',              what: '10 built-in reports: Rep Leaderboard, Stage Funnel, Stuck Deals, Lead Aging, Win/Loss, Forecast, Sales Cycle, Activity Heatmap, Lead Source ROI, plus a Custom Report Builder.', when: 'Use it monthly for review; export any report to CSV.' },
+  { icon: Settings, title: 'Settings',             what: '14 sub-pages: Team Members, Pipelines, Stages, Sources, Activity Types, Integrations, Automations, Assignment Rules, Territories, Scoring Model, Custom Fields, States & Cities, Business Type, Appearance.', when: 'Initial set-up + occasional tweaks.' },
+  { icon: CircleHelp, title: 'Help',                 what: "You're here.", when: 'When a teammate asks "how does X work?" — point them here.' },
 ];
 
-const ACTIONS: Array<{ icon: string; color: string; title: string; detail: string }> = [
-  { icon: '📞', color: '#1E88E5', title: 'Call',        detail: 'Dials the lead/contact and immediately logs a call activity. Cancel to keep the bare entry, save to add notes + duration.' },
+const ACTIONS: Array<{ icon: LucideIcon; color: string; title: string; detail: string }> = [
+  { icon: Phone, color: '#1E88E5', title: 'Call',        detail: 'Dials the lead/contact and immediately logs a call activity. Cancel to keep the bare entry, save to add notes + duration.' },
   // WhatsApp action keeps the chat-bubble emoji but uses the same neutral
   // grey colour as Mark Unqualified so it doesn't stand out as the only
   // brand-coloured row in the action list.
-  { icon: '💬', color: '#757575', title: 'WhatsApp',    detail: 'Opens a pre-filled WhatsApp thread. The conversation is captured by KINI Auto-Response if enabled.' },
-  { icon: '✨', color: '#8E24AA', title: 'AI Score',    detail: 'Re-runs the KINI AI scoring model on the lead. The badge changes — green means high intent (70-100).' },
-  { icon: '🔀', color: RED,       title: 'Convert',     detail: 'Promotes the lead to Contact + Account + Deal. The deal name pre-fills from the lead (editable); you land straight on the new Deal page so you can keep working.' },
-  { icon: '🧭', color: BLUE,      title: 'Add to pipeline',  detail: 'On the Deal detail. Picks a pipeline for the deal, lands it on the first open stage, and refreshes the stage stepper. Reads "Move pipeline" when the deal is already on one.' },
-  { icon: '👤', color: '#FB8C00', title: 'Assign',      detail: 'Hands the lead/deal to another rep on the same team. Only same-client teammates are shown.' },
-  { icon: '⏸️', color: '#757575', title: 'Mark Unqualified', detail: 'Closes the lead as not a fit (with a reason). Hidden from active views; can be reopened from the lead detail later.' },
-  { icon: '❌', color: '#EF4444', title: 'Mark Lost',   detail: 'Closes the lead/deal as lost to a competitor / no decision. Captures reason for the Lost Reasons analytics widget.' },
-  { icon: '↩️', color: '#10B981', title: 'Reopen',      detail: 'Flips an Unqualified / Lost / Converted lead back to Working. Used when a closed deal comes back to life.' },
+  { icon: MessageCircle, color: '#757575', title: 'WhatsApp',    detail: 'Opens a pre-filled WhatsApp thread. The conversation is captured by KINI Auto-Response if enabled.' },
+  { icon: Sparkles, color: '#8E24AA', title: 'AI Score',    detail: 'Re-runs the KINI AI scoring model on the lead. The badge changes — green means high intent (70-100).' },
+  { icon: ArrowLeftRight, color: RED,       title: 'Convert',     detail: 'Promotes the lead to Contact + Account + Deal. The deal name pre-fills from the lead (editable); you land straight on the new Deal page so you can keep working.' },
+  { icon: Kanban, color: BLUE,      title: 'Add to pipeline',  detail: 'On the Deal detail. Picks a pipeline for the deal, lands it on the first open stage, and refreshes the stage stepper. Reads "Move pipeline" when the deal is already on one.' },
+  { icon: UserPlus, color: '#FB8C00', title: 'Assign',      detail: 'Hands the lead/deal to another rep on the same team. Only same-client teammates are shown.' },
+  { icon: PauseCircle, color: '#757575', title: 'Mark Unqualified', detail: 'Closes the lead as not a fit (with a reason). Hidden from active views; can be reopened from the lead detail later.' },
+  { icon: XCircle, color: '#EF4444', title: 'Mark Lost',   detail: 'Closes the lead/deal as lost to a competitor / no decision. Captures reason for the Lost Reasons analytics widget.' },
+  { icon: RotateCcw, color: '#10B981', title: 'Reopen',      detail: 'Flips an Unqualified / Lost / Converted lead back to Working. Used when a closed deal comes back to life.' },
 ];
 
 // KINI AI capabilities — what the AI assistant can actually do in CRM.
 // Reps land on the help page wondering "what should I ask KINI?", so this
 // section doubles as inspiration + a cheat-sheet.
-const KINI_CAPABILITIES: Array<{ icon: string; title: string; detail: string; examples: string[] }> = [
-  { icon: '🔍', title: 'Fetch your CRM data',
+const KINI_CAPABILITIES: Array<{ icon: LucideIcon; title: string; detail: string; examples: string[] }> = [
+  { icon: Search, title: 'Fetch your CRM data',
     detail: 'Ask in plain language; KINI runs the right query and renders cards (lead lists, deal lists, summaries).',
     examples: [
       '"Show my top 5 hottest leads"',
@@ -672,7 +680,7 @@ const KINI_CAPABILITIES: Array<{ icon: string; title: string; detail: string; ex
       '"List Mumbai contacts who have not been called in 30 days"',
       '"How many leads did Ramesh add this week?"',
     ]},
-  { icon: '✍️', title: 'Create + edit records',
+  { icon: PenLine, title: 'Create + edit records',
     detail: 'KINI can add leads, log activities, move deal stages, and assign owners — no form-filling. Mobile numbers are validated to 10 digits, no alphabets, so dial-tos always work.',
     examples: [
       '"Add lead Rakesh from Acme Steel, mobile 98765 43210"',
@@ -680,38 +688,38 @@ const KINI_CAPABILITIES: Array<{ icon: string; title: string; detail: string; ex
       '"Move the Reliance deal to Negotiation"',
       '"Assign all unassigned Bangalore leads to Priya"',
     ]},
-  { icon: '🎯', title: 'Score & prioritise leads',
+  { icon: Target, title: 'Score & prioritise leads',
     detail: 'AI lead scoring uses the ICP weights you configured + behavioural signals (page visits, response time, deal history).',
     examples: [
       '"Re-score this lead"',
       '"Which leads improved their score this week?"',
       '"Why is this lead a 92?"',
     ]},
-  { icon: '🧭', title: 'Next-Best-Action for deals',
+  { icon: Zap, title: 'Next-Best-Action for deals',
     detail: 'Given a deal\'s stage, last activity, and competitor profile, KINI suggests the single highest-impact next move.',
     examples: [
       '"What should I do next on the Tata deal?"',
       '"Refresh next best action for all my open deals"',
     ]},
-  { icon: '📊', title: 'Win-probability prediction',
+  { icon: Percent, title: 'Win-probability prediction',
     detail: 'A model-backed probability separate from the rep\'s manual guess. Drives the Forecast chart.',
     examples: [
       '"Predict win prob for this deal"',
       '"Which Negotiation-stage deals are likely to slip?"',
     ]},
-  { icon: '✉️', title: 'Draft email replies',
+  { icon: Mail, title: 'Draft email replies',
     detail: 'Generates context-aware follow-ups in your tone. Uses the lead/deal history as grounding so KINI doesn\'t fabricate.',
     examples: [
       '"Draft a follow-up to Acme proposal"',
       '"Write a check-in email for any lead silent > 7 days"',
     ]},
-  { icon: '📝', title: 'Summarise accounts + deals',
+  { icon: FileText, title: 'Summarise accounts + deals',
     detail: 'One-paragraph summary of an Account or Deal — every activity, every note, every linked lead.',
     examples: [
       '"Summarise the HDFC account"',
       '"What is the history of the Hero Motocorp deal?"',
     ]},
-  { icon: '🌐', title: 'Multi-language',
+  { icon: Languages, title: 'Multi-language',
     detail: 'KINI replies in the language you write to it: English, हिन्दी (Devanagari), বাংলা, ଓଡ଼ିଆ, অসমীয়া. Tool calls (arguments, IDs) stay in English so data integrity is preserved.',
     examples: [
       // Hindi: "Log a meeting with Ramesh tomorrow at 11 am"
@@ -719,7 +727,7 @@ const KINI_CAPABILITIES: Array<{ icon: string; title: string; detail: string; ex
       // Bengali: "Show me deals closing this month"
       '"এই মাসে ক্লোজ হতে যাওয়া ডিলগুলো দেখান"',
     ]},
-  { icon: '🎤', title: 'Voice in + voice out',
+  { icon: Mic, title: 'Voice in + voice out',
     detail: 'Hold the mic button on the chat widget. KINI transcribes via the browser\'s speech API and answers back if you enable Hands-Free in the header.',
     examples: [
       '"Hey KINI, log a call with Ramesh — discussed pricing, follow-up next Tuesday."',
@@ -728,18 +736,18 @@ const KINI_CAPABILITIES: Array<{ icon: string; title: string; detail: string; ex
 
 // Analytics — surfaced as a dedicated section since reps often ask
 // "where do I see X?". Linked cards take them straight to each report.
-const ANALYTICS: Array<{ icon: string; title: string; href: string; detail: string }> = [
-  { icon: '📈', title: 'Lead Analytics',       href: '/dashboard/crm/leads/analytics',      detail: 'Lead velocity, time-to-first-touch, stuck leads, score-band conversion, territory heatmap.' },
-  { icon: '🏆', title: 'Rep Leaderboard',      href: '/dashboard/crm/reports/rep-leaderboard', detail: 'Calls / meetings / wins per rep — week, month, or custom range.' },
-  { icon: '🪜', title: 'Stage Funnel',         href: '/dashboard/crm/reports/stage-funnel', detail: 'How many deals pass through each stage. Spot the leaky step.' },
-  { icon: '⏳', title: 'Stuck Deals',          href: '/dashboard/crm/reports/stuck-deals',  detail: 'Deals that haven\'t moved in 14+ days. Sortable by days-in-stage and amount.' },
-  { icon: '⌛', title: 'Lead Aging',           href: '/dashboard/crm/reports/lead-aging',   detail: 'Days since last contact, per lead. Use it to triage which old leads to call back.' },
-  { icon: '🎲', title: 'Win/Loss',             href: '/dashboard/crm/reports/win-loss',     detail: 'Win rate by stage, source, owner, and lost-reason. Drill into any segment.' },
-  { icon: '🔮', title: 'Forecast',             href: '/dashboard/crm/reports/forecast',     detail: 'Weighted pipeline rolled up by month, scaled by KINI AI win probability.' },
-  { icon: '⏱',  title: 'Sales Cycle',          href: '/dashboard/crm/reports/sales-cycle',  detail: 'Average days lead-to-won / lead-to-lost, segmented by source and product.' },
-  { icon: '🔥', title: 'Activity Heatmap',     href: '/dashboard/crm/reports/activity-heatmap', detail: 'Calls + meetings + WhatsApp by hour-of-day and day-of-week. Plan outreach blocks.' },
-  { icon: '💰', title: 'Lead Source ROI',      href: '/dashboard/crm/reports/lead-source-roi', detail: 'Cost-per-lead vs revenue closed, per source. Tells you where to spend next month.' },
-  { icon: '🛠', title: 'Custom Report Builder', href: '/dashboard/crm/reports/builder',      detail: 'Drag-drop fields to build any report. Save and pin it to your dashboard.' },
+const ANALYTICS: Array<{ icon: LucideIcon; title: string; href: string; detail: string }> = [
+  { icon: LineChart, title: 'Lead Analytics',       href: '/dashboard/crm/leads/analytics',      detail: 'Lead velocity, time-to-first-touch, stuck leads, score-band conversion, territory heatmap.' },
+  { icon: Trophy, title: 'Rep Leaderboard',      href: '/dashboard/crm/reports/rep-leaderboard', detail: 'Calls / meetings / wins per rep — week, month, or custom range.' },
+  { icon: Filter, title: 'Stage Funnel',         href: '/dashboard/crm/reports/stage-funnel', detail: 'How many deals pass through each stage. Spot the leaky step.' },
+  { icon: Hourglass, title: 'Stuck Deals',          href: '/dashboard/crm/reports/stuck-deals',  detail: 'Deals that haven\'t moved in 14+ days. Sortable by days-in-stage and amount.' },
+  { icon: Clock, title: 'Lead Aging',           href: '/dashboard/crm/reports/lead-aging',   detail: 'Days since last contact, per lead. Use it to triage which old leads to call back.' },
+  { icon: Scale, title: 'Win/Loss',             href: '/dashboard/crm/reports/win-loss',     detail: 'Win rate by stage, source, owner, and lost-reason. Drill into any segment.' },
+  { icon: TrendingUp, title: 'Forecast',             href: '/dashboard/crm/reports/forecast',     detail: 'Weighted pipeline rolled up by month, scaled by KINI AI win probability.' },
+  { icon: Timer,  title: 'Sales Cycle',          href: '/dashboard/crm/reports/sales-cycle',  detail: 'Average days lead-to-won / lead-to-lost, segmented by source and product.' },
+  { icon: LineChart, title: 'Activity Heatmap',     href: '/dashboard/crm/reports/activity-heatmap', detail: 'Calls + meetings + WhatsApp by hour-of-day and day-of-week. Plan outreach blocks.' },
+  { icon: Route, title: 'Lead Source ROI',      href: '/dashboard/crm/reports/lead-source-roi', detail: 'Cost-per-lead vs revenue closed, per source. Tells you where to spend next month.' },
+  { icon: Hammer, title: 'Custom Report Builder', href: '/dashboard/crm/reports/builder',      detail: 'Drag-drop fields to build any report. Save and pin it to your dashboard.' },
 ];
 
 const TIPS = [
@@ -769,7 +777,7 @@ export default function CrmHelpPage() {
         gap: 10, flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>
-          🌐 {tr('Display language', lang)}
+          <InlineIcon icon={Languages} size={13} style={{ verticalAlign: '-2px', marginRight: 5 }} />{tr('Display language', lang)}
         </span>
         <select
           value={lang}
@@ -788,7 +796,7 @@ export default function CrmHelpPage() {
 
       <Hero lang={lang} />
 
-      <Section lang={lang} label="The lead-to-deal lifecycle" sub="From first touch to closed-won (or closed-lost).">
+      <Section lang={lang} icon={Workflow} label="The lead-to-deal lifecycle" sub="From first touch to closed-won (or closed-lost).">
         <div style={{
           background: 'var(--s2)',
           border: '1px solid var(--border)',
@@ -825,7 +833,7 @@ export default function CrmHelpPage() {
         </div>
       </Section>
 
-      <Section lang={lang} label="CRM modules" sub="What lives where, and when to reach for it.">
+      <Section lang={lang} icon={LayoutGrid} label="CRM modules" sub="What lives where, and when to reach for it.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 10 }}>
           {MODULES.map((m) => (
             <div key={m.title} style={{
@@ -835,8 +843,8 @@ export default function CrmHelpPage() {
               <div style={{
                 width: 36, height: 36, borderRadius: 10,
                 background: 'var(--s3)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18, flexShrink: 0,
-              }}>{m.icon}</div>
+                fontSize: 18, flexShrink: 0, color: 'var(--text-dim)',
+              }}><InlineIcon icon={m.icon} size={18} /></div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 3 }}>{tr(m.title, lang)}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 6 }}>{tr(m.what, lang)}</div>
@@ -847,7 +855,7 @@ export default function CrmHelpPage() {
         </div>
       </Section>
 
-      <Section lang={lang} label="Quick actions" sub="The buttons on a lead/contact/deal record.">
+      <Section lang={lang} icon={Zap} label="Quick actions" sub="The buttons on a lead/contact/deal record.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
           {ACTIONS.map((a) => (
             <div key={a.title} style={{
@@ -865,7 +873,7 @@ export default function CrmHelpPage() {
                 color: a.color,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 16, flexShrink: 0,
-              }}>{a.icon}</div>
+              }}><InlineIcon icon={a.icon} size={17} /></div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 3 }}>{tr(a.title, lang)}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>{tr(a.detail, lang)}</div>
@@ -875,7 +883,7 @@ export default function CrmHelpPage() {
         </div>
       </Section>
 
-      <Section lang={lang} label="Reports & analytics" sub="Every report is one click away — these are the live links.">
+      <Section lang={lang} icon={BarChart3} label="Reports & analytics" sub="Every report is one click away — these are the live links.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
           {ANALYTICS.map((a) => (
             <a key={a.title} href={a.href} style={{
@@ -888,8 +896,8 @@ export default function CrmHelpPage() {
                 width: 36, height: 36, borderRadius: 10,
                 background: BLUE + '1F',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18, flexShrink: 0,
-              }}>{a.icon}</div>
+                fontSize: 18, flexShrink: 0, color: BLUE,
+              }}><InlineIcon icon={a.icon} size={18} /></div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 3 }}>{tr(a.title, lang)} <span style={{ color: BLUE, fontSize: 11, fontWeight: 800 }}>→</span></div>
                 <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>{tr(a.detail, lang)}</div>
@@ -899,7 +907,7 @@ export default function CrmHelpPage() {
         </div>
       </Section>
 
-      <Section lang={lang} label="✦ KINI AI capabilities" sub="What the AI copilot can do for you inside the CRM.">
+      <Section lang={lang} icon={Sparkles} label="KINI AI capabilities" sub="What the AI copilot can do for you inside the CRM.">
         <div style={{
           background: `linear-gradient(135deg, ${RED}0D, #6366f10D)`,
           border: `1px solid ${RED}33`,
@@ -923,8 +931,8 @@ export default function CrmHelpPage() {
                   width: 32, height: 32, borderRadius: 8,
                   background: RED + '1F',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 16, flexShrink: 0,
-                }}>{k.icon}</div>
+                  fontSize: 16, flexShrink: 0, color: RED,
+                }}><InlineIcon icon={k.icon} size={16} /></div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{tr(k.title, lang)}</div>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 10 }}>{tr(k.detail, lang)}</div>
@@ -942,7 +950,7 @@ export default function CrmHelpPage() {
         </div>
       </Section>
 
-      <Section lang={lang} label="Tips & tricks" sub="Small habits that save hours a week.">
+      <Section lang={lang} icon={Lightbulb} label="Tips & tricks" sub="Small habits that save hours a week.">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {TIPS.map((t, i) => (
             <div key={i} style={{
@@ -954,14 +962,14 @@ export default function CrmHelpPage() {
               border: '1px solid var(--border)',
               borderRadius: 8,
             }}>
-              <span style={{ fontSize: 14 }}>💡</span>
+              <span style={{ fontSize: 14, display: 'inline-flex', color: 'var(--warn)', marginTop: 2 }}><InlineIcon icon={Lightbulb} size={15} /></span>
               <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>{tr(t, lang)}</span>
             </div>
           ))}
         </div>
       </Section>
 
-      <Section lang={lang} label="Need more help?">
+      <Section lang={lang} icon={LifeBuoy} label="Need more help?">
         <div style={{
           // Neutral surface — keeps brand red exclusively for the KINI AI
           // capabilities section above and the global KINI chat affordance.
@@ -975,21 +983,21 @@ export default function CrmHelpPage() {
           </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <a href={`tel:${SUPPORT_PHONE_DIAL}`} style={contactBtn}>
-              <span style={{ fontSize: 18 }}>📞</span>
+              <span style={{ fontSize: 18, display: 'inline-flex', color: 'var(--text-dim)' }}><InlineIcon icon={Phone} size={18} /></span>
               <div>
                 <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>{tr('Call', lang)}</div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{SUPPORT_PHONE}</div>
               </div>
             </a>
             <a href={`mailto:${SUPPORT_EMAIL}?subject=Kinematic%20CRM%20support`} style={contactBtn}>
-              <span style={{ fontSize: 18 }}>✉️</span>
+              <span style={{ fontSize: 18, display: 'inline-flex', color: 'var(--text-dim)' }}><InlineIcon icon={Mail} size={18} /></span>
               <div>
                 <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>{tr('Email', lang)}</div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{SUPPORT_EMAIL}</div>
               </div>
             </a>
             <a href={`https://wa.me/${SUPPORT_PHONE_DIAL.replace('+', '')}`} target="_blank" rel="noopener noreferrer" style={contactBtn}>
-              <span style={{ fontSize: 18 }}>💬</span>
+              <span style={{ fontSize: 18, display: 'inline-flex', color: 'var(--text-dim)' }}><InlineIcon icon={MessageCircle} size={18} /></span>
               <div>
                 <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>{tr('WhatsApp', lang)}</div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{SUPPORT_PHONE}</div>
@@ -1019,7 +1027,7 @@ function Hero({ lang }: { lang: LangCode }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 26,
           border: '1px solid var(--border)',
-        }}>📚</div>
+        }}><BookOpen aria-hidden size={24} strokeWidth={2} /></div>
         <div>
           <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{tr('How Kinematic CRM works', lang)}</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{tr('Everything you need to ship deals — at a glance.', lang)}</div>
@@ -1034,7 +1042,7 @@ function Hero({ lang }: { lang: LangCode }) {
   );
 }
 
-function Section({ lang, label, sub, children }: { lang: LangCode; label: string; sub?: string; children: React.ReactNode }) {
+function Section({ lang, label, sub, children, icon }: { lang: LangCode; label: string; sub?: string; children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <div>
       <div style={{
@@ -1045,7 +1053,8 @@ function Section({ lang, label, sub, children }: { lang: LangCode; label: string
         letterSpacing: 1,
         textTransform: 'uppercase',
         marginBottom: sub ? 4 : 12,
-      }}>{tr(label, lang)}</div>
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>{icon && <InlineIcon icon={icon} size={14} />}{tr(label, lang)}</div>
       {sub && <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 12 }}>{tr(sub, lang)}</div>}
       {children}
     </div>

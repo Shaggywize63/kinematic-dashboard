@@ -4,6 +4,8 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Gauge, Package, Truck } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 const FLAG_META: Record<string, { color: 'gray' | 'green' | 'red' | 'amber' | 'blue'; label: string }> = {
   overstock:  { color: 'red',   label: 'Overstock' },
@@ -68,10 +70,10 @@ export default function ReconciliationPage() {
 
       {/* Summary */}
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
-        <StatCard label="Primary (sell-in)" value={Number(summary.primary || 0).toLocaleString('en-IN')} />
-        <StatCard label="Secondary (sell-out)" value={Number(summary.secondary || 0).toLocaleString('en-IN')} accent="var(--green)" />
-        <StatCard label="Variance" value={Number(summary.variance || 0).toLocaleString('en-IN')} accent={Number(summary.variance) > 0 ? 'var(--primary)' : 'var(--accent)'} hint={Number(summary.variance) > 0 ? 'building at distributor' : 'drawing down'} />
-        <StatCard label="Sell-through" value={summary.sell_through != null ? `${summary.sell_through}×` : '—'} />
+        <StatCard label="Primary (sell-in)" icon={ArrowDownToLine} value={Number(summary.primary || 0).toLocaleString('en-IN')} />
+        <StatCard label="Secondary (sell-out)" icon={ArrowUpFromLine} value={Number(summary.secondary || 0).toLocaleString('en-IN')} accent="var(--green)" />
+        <StatCard label="Variance" icon={ArrowLeftRight} value={Number(summary.variance || 0).toLocaleString('en-IN')} accent={Number(summary.variance) > 0 ? 'var(--primary)' : 'var(--accent)'} hint={Number(summary.variance) > 0 ? 'building at distributor' : 'drawing down'} />
+        <StatCard label="Sell-through" icon={Gauge} value={summary.sell_through != null ? `${summary.sell_through}×` : '—'} />
       </div>
 
       {/* Filters + view toggle */}
@@ -85,8 +87,8 @@ export default function ReconciliationPage() {
             </select></div>
           <div style={{ flex: 1 }} />
           <div style={{ display: 'inline-flex', gap: 4, background: 'var(--s2)', borderRadius: 10, padding: 3 }}>
-            <Btn variant={view === 'distributor' ? 'primary' : 'ghost'} onClick={() => setView('distributor')}>By distributor</Btn>
-            <Btn variant={view === 'sku' ? 'primary' : 'ghost'} onClick={() => setView('sku')}>By SKU</Btn>
+            <Btn variant={view === 'distributor' ? 'primary' : 'ghost'} onClick={() => setView('distributor')} icon={<InlineIcon icon={Truck} />}>By distributor</Btn>
+            <Btn variant={view === 'sku' ? 'primary' : 'ghost'} onClick={() => setView('sku')} icon={<InlineIcon icon={Package} />}>By SKU</Btn>
           </div>
         </div>
       </Card>

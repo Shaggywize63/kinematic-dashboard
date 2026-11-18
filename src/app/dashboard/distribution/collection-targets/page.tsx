@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Th, Td, Btn, StatCard, Note, inr } from '../../../../components/distribution/Atoms';
 import { downloadCsv } from '../../../../lib/exportCsv';
+import { CheckCircle2, IndianRupee, XCircle } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 // Current month as YYYY-MM for the <input type="month"> default.
 const curMonth = () => {
@@ -131,10 +133,10 @@ export default function CollectionTargetsPage() {
         <StatCard label="Users" value={summary.users || 0} />
         <StatCard label="With target" value={summary.with_target || 0} accent={summary.with_target ? 'var(--accent)' : undefined} />
         <StatCard label="Total target" value={inr(Number(summary.total_target || 0))} />
-        <StatCard label="Total collected" value={inr(Number(summary.total_actual || 0))} accent="var(--green)" />
+        <StatCard label="Total collected" icon={IndianRupee} value={inr(Number(summary.total_actual || 0))} accent="var(--green)" />
       </div>
 
-      {msg && <Note tone={msg.kind === 'ok' ? 'ok' : 'red'} style={{ marginBottom: 14 }}>{msg.kind === 'ok' ? '✓ ' : '✗ '}{msg.text}</Note>}
+      {msg && <Note tone={msg.kind === 'ok' ? 'ok' : 'red'} style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={msg.kind === 'ok' ? CheckCircle2 : XCircle} size={14} />{msg.text}</Note>}
 
       <Card>
         <div style={{ overflowX: 'auto' }}>

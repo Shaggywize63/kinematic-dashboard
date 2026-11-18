@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import api, { type ApiError, type AttendanceRules, type AttendanceRulesPayload } from '../lib/api';
 import { useClient } from '../context/ClientContext';
 import { Badge, Button, Eyebrow, Field, Input, T } from './ui';
+import { Clock } from 'lucide-react';
+import { InlineIcon } from './ui/PageIcon';
 
 const DAYS = [
   { n: 0, short: 'Sun', full: 'Sunday' },
@@ -228,7 +230,7 @@ export default function AttendanceRulesCard() {
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <Eyebrow>Attendance & shift rules</Eyebrow>
+          <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Clock} size={13} />Attendance & shift rules</Eyebrow>
           <div style={{ fontSize: 13, color: T.dim }}>Shift window, late grace, weekly offs and check-in options for the selected client.</div>
         </div>
         {phase === 'ready' && (

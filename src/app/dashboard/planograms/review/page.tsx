@@ -3,6 +3,8 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import planogramApi from '../../../../lib/planogramApi';
+import { ClipboardCheck, Eye } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import type { CaptureListItem } from '../../../../types/planogram';
 import {
@@ -65,6 +67,7 @@ export default function ReviewQueuePage() {
   return (
     <SectionCard
       title="Review queue"
+      icon={ClipboardCheck}
       caption={
         loading
           ? 'Loading…'
@@ -133,7 +136,7 @@ export default function ReviewQueuePage() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      Review →
+                      <InlineIcon icon={Eye} size={14} />Review →
                     </Link>
                   </td>
                 </tr>

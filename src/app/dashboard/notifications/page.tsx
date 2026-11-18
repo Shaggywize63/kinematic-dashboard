@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Bell, BellOff, BellRing, CalendarClock, Check, CheckCheck, ClipboardCheck, Hourglass,
+  Bell, BellDot, BellOff, BellRing, CalendarClock, Check, CheckCheck, ClipboardCheck, Hourglass,
   Inbox as InboxIcon, Megaphone, Radio, Receipt, Trophy, UserPlus,
 } from 'lucide-react';
 import api from '../../../lib/api';
@@ -263,7 +263,12 @@ export default function NotificationsPage() {
                   padding: '0 10px', borderRadius: 6, border: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 500,
                   background: on ? 'var(--s3)' : 'transparent', color: on ? T.text : T.dim, textAlign: 'left', minWidth: narrow ? 'auto' : 0,
                 }}>
-                  <span>{f.label}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <span aria-hidden style={{ display: 'inline-flex', color: on ? T.text : T.mute }}>
+                      {f.id === 'all' ? <InboxIcon size={16} strokeWidth={1.6} /> : f.id === 'unread' ? <BellDot size={16} strokeWidth={1.6} /> : KIND_META[f.id].icon}
+                    </span>
+                    {f.label}
+                  </span>
                   <span style={{ fontFamily: T.mono, fontSize: 11, color: on ? T.dim : T.mute }}>{f.count}</span>
                 </button>
               );

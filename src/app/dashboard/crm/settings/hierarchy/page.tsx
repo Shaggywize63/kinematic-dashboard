@@ -11,6 +11,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import api from '../../../../../lib/api';
+import { Layers, Plus, Trash2, Users, Workflow } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 interface Level {
   id: string;
@@ -216,7 +218,7 @@ export default function HierarchyPage() {
           padding: 24,
         }}
       >
-        <h2 style={{ margin: '0 0 8px', color: C.text, fontSize: 18 }}>Org Hierarchy</h2>
+        <h2 style={{ margin: '0 0 8px', color: C.text, fontSize: 18, display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Org Hierarchy</h2>
         <p style={{ margin: 0, color: C.dim, fontSize: 13, lineHeight: 1.6 }}>
           Hierarchy-based RBAC isn&apos;t enabled for this client yet. Existing role-based
           user management (city manager / supervisor / sub-admin) is in effect — and the
@@ -236,7 +238,7 @@ export default function HierarchyPage() {
           padding: 18,
         }}
       >
-        <h2 style={{ margin: 0, color: C.text, fontSize: 18 }}>Org Hierarchy</h2>
+        <h2 style={{ margin: 0, color: C.text, fontSize: 18, display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Org Hierarchy</h2>
         <p style={{ margin: '4px 0 0', color: C.dim, fontSize: 12, lineHeight: 1.6 }}>
           Define your management levels (e.g. Director → RSM → ASM → Sales Executive) and
           assign each user to a level plus their direct supervisor. Reads in the CRM
@@ -253,8 +255,8 @@ export default function HierarchyPage() {
           padding: 18,
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>
-          Levels
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <InlineIcon icon={Layers} size={16} style={{ color: C.dim }} />Levels
         </div>
         <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>
           Listed top → bottom. Reorder with ↑/↓. Renaming saves on blur.
@@ -296,8 +298,8 @@ export default function HierarchyPage() {
           <span style={{ fontSize: 11, color: C.dim }}>
             Next order: {(sortedLevels.at(-1)?.level_order ?? 0) + 1}
           </span>
-          <button type="button" onClick={addLevel} style={{ ...btnPrimary, padding: '8px 14px' }}>
-            + Add level
+          <button type="button" onClick={addLevel} style={{ ...btnPrimary, padding: '8px 14px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <InlineIcon icon={Plus} />Add level
           </button>
         </div>
 
@@ -312,7 +314,8 @@ export default function HierarchyPage() {
               borderRadius: 8,
             }}
           >
-            No levels defined yet. Add the top-of-org level above to start.
+            <IconTile icon={Workflow} size={40} iconSize={20} style={{ marginBottom: 8 }} />
+            <div>No levels defined yet. Add the top-of-org level above to start.</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -361,10 +364,10 @@ export default function HierarchyPage() {
                 <button
                   type="button"
                   onClick={() => deleteLevel(lvl.id)}
-                  style={{ ...btnGhost, color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
+                  style={{ ...btnGhost, color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
                   title="Delete"
                 >
-                  Delete
+                  <InlineIcon icon={Trash2} size={12} />Delete
                 </button>
               </div>
             ))}
@@ -380,8 +383,8 @@ export default function HierarchyPage() {
           padding: 18,
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>
-          Members ({members.length})
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <InlineIcon icon={Users} size={16} style={{ color: C.dim }} />Members ({members.length})
         </div>
         <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>
           Pick a level and a direct supervisor for each user. The supervisor selector

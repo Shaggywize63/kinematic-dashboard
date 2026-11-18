@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { Footprints, MapPin, RefreshCw } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock, Footprints, MapPin, RefreshCw, type LucideIcon } from 'lucide-react';
 import crmApi, { type MarketingVisit } from '../../../../lib/crmApi';
 import { useAuth } from '../../../../hooks/useAuth';
 import { canViewFieldVisits } from '../../../../lib/clientFeatures';
@@ -99,16 +99,16 @@ export default function FieldVisitsPage() {
             Showing the most recent {visits.length ? `${visits.length} ` : ''}visits.
           </div>
         </div>
-        <Link href="/dashboard/crm/reports/field-visits" style={{ color: 'var(--primary)', fontSize: 13, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-          Field-executive rollup →
+        <Link href="/dashboard/crm/reports/field-visits" style={{ color: 'var(--primary)', fontSize: 13, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <BarChart3 aria-hidden size={14} strokeWidth={2} />Field-executive rollup →
         </Link>
       </div>
 
       {/* Summary tiles */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-        <Tile label="Total" value={counts.total} highlight />
-        <Tile label="In Progress" value={counts.inProgress} />
-        <Tile label="Completed" value={counts.completed} />
+        <Tile label="Total" value={counts.total} highlight icon={Footprints} />
+        <Tile label="In Progress" value={counts.inProgress} icon={Clock} />
+        <Tile label="Completed" value={counts.completed} icon={CheckCircle2} />
       </div>
 
       {/* Controls */}
@@ -218,13 +218,13 @@ const cell: CSSProperties = {
   padding: '9px 12px', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)', verticalAlign: 'top',
 };
 
-function Tile({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
+function Tile({ label, value, highlight, icon: Icon }: { label: string; value: number; highlight?: boolean; icon?: LucideIcon }) {
   return (
     <div style={{
       background: highlight ? 'var(--primary)' : 'var(--s3)',
       border: '1px solid var(--border)', borderRadius: 10, padding: '8px 14px', minWidth: 96,
     }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: highlight ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)' }}>{label}</div>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: highlight ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 5 }}>{Icon && <Icon aria-hidden size={12} strokeWidth={2} style={{ flexShrink: 0 }} />}{label}</div>
       <div style={{ fontSize: 18, fontWeight: 800, color: highlight ? '#fff' : 'var(--text)', marginTop: 2 }}>{value.toLocaleString('en-IN')}</div>
     </div>
   );

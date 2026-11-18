@@ -3,6 +3,10 @@ import { useEffect, useState } from 'react';
 import api from '../../../lib/api';
 import { Card, Row, StatCard, PageHeader, Pill, Th, Td, inr, fmtDate, statusColor } from '../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
+import { LayoutGrid, ShoppingCart } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../components/ui/PageIcon';
+import { NAV_ICONS } from '../../../components/ui/icons';
+import { iconNameForPath } from '../../../lib/routeIcons';
 
 // Type-aware column sorting for the recent-orders list (raw values per key).
 const orderVal = (o: any, key: string): unknown => {
@@ -81,23 +85,30 @@ export default function DistributionOverview() {
 
       {/* Module navigation tiles — every sub-module of distribution + planograms */}
       <Card style={{ marginBottom: 22 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8 }}>Module shortcuts</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={LayoutGrid} size={16} />Module shortcuts</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-          {NAV_TILES.map((t) => (
-            <a key={t.href} href={t.href} style={{
-              display: 'block', textDecoration: 'none', padding: 14, borderRadius: 10,
-              background: 'var(--s2)', border: '1px solid var(--border)', transition: 'border-color 0.15s, transform 0.15s',
-            }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{t.label}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{t.sub}</div>
-            </a>
-          ))}
+          {NAV_TILES.map((t) => {
+            // The same glyph the tile's sidebar entry draws (lib/routeIcons.ts).
+            const icon = iconNameForPath(t.href);
+            return (
+              <a key={t.href} href={t.href} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10, textDecoration: 'none', padding: 14, borderRadius: 10,
+                background: 'var(--s2)', border: '1px solid var(--border)', transition: 'border-color 0.15s, transform 0.15s',
+              }}>
+                {icon && <IconTile icon={NAV_ICONS[icon]} tone="brand" size={30} iconSize={16} />}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{t.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{t.sub}</div>
+                </div>
+              </a>
+            );
+          })}
         </div>
       </Card>
 
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div style={{ fontWeight: 700, fontSize: 16 }}>Recent orders</div>
+          <div style={{ fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={ShoppingCart} size={16} style={{ color: 'var(--dim)' }} />Recent orders</div>
           <a href="/dashboard/distribution/orders" style={{ color: 'var(--primary)', fontSize: 13, fontWeight: 700 }}>View all →</a>
         </div>
         {loading ? <div style={{ color: 'var(--text-dim)' }}>Loading…</div> : (

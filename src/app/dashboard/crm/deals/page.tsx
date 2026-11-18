@@ -427,7 +427,7 @@ function DealsListPage() {
               icon={<KanbanSquare size={20} strokeWidth={1.6} />}
               title="No pipeline yet"
               description="The Kanban view groups open deals by stage. Create a pipeline first."
-              action={<Button variant="primary" href="/dashboard/crm/pipeline">Go to Pipeline</Button>}
+              action={<Button variant="primary" href="/dashboard/crm/pipeline" icon={<KanbanSquare size={16} strokeWidth={1.8} />}>Go to Pipeline</Button>}
             />
           </Card>
         ) : stages.length === 0 ? (

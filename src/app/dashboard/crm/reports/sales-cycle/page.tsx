@@ -12,6 +12,8 @@ import {
 } from '../../../../../components/crm/reports/ReportFilters';
 import { PlusDataTable, usePlusTable } from '../../../../../components/crm/analytics/PlusReport';
 import { fmtDays, fmtInt, monthLabel, type Column } from '../../../../../lib/crm/plusFormat';
+import { Download } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 // The API returns one row per month the deals were CLOSED, with the average days from deal creation to close, and now
 // also how many deals sit behind it and how spread they are. The extras are optional so an older backend still renders.
@@ -61,7 +63,7 @@ export default function SalesCyclePage() {
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
         <div>
-          <h3 style={{ color: 'var(--text)', margin: 0 }}>Sales Cycle</h3>
+          <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}><PageIcon size={32} />Sales Cycle</h3>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Days from a deal being created to being closed won, by the month it closed.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -70,8 +72,8 @@ export default function SalesCyclePage() {
             onClick={() => downloadCsv('sales-cycle', tbl.csvRows())}
             disabled={loading || data.length === 0}
             aria-label="Download CSV"
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, height: 36 }}
-          >⬇ CSV</button>
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, height: 36, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          ><InlineIcon icon={Download} size={14} />CSV</button>
         </div>
       </div>
       {loading ? <div style={{ color: 'var(--text-dim)' }}>Loading...</div> : (

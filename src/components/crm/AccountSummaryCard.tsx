@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { FileText, Sparkles } from 'lucide-react';
 import { crmAi } from '../../lib/crmApi';
 import AiBadge from './shared/AiBadge';
 
@@ -22,10 +23,11 @@ export default function AccountSummaryCard({ accountId, initial }: { accountId: 
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Account 360 Summary</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><FileText aria-hidden size={16} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Account 360 Summary</div>
           <AiBadge />
         </div>
-        <button onClick={generate} disabled={busy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>
+        <button onClick={generate} disabled={busy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <Sparkles aria-hidden size={12} strokeWidth={2} />
           {busy ? 'Summarizing...' : 'Generate'}
         </button>
       </div>

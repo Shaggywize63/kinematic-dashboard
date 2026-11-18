@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { ffmAnalytics, TlsdPoint, UniqueOutletsRow } from '../../../lib/ffmAnalyticsConfig';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
+import { BarChart3, Building2, CalendarDays, ListOrdered, Package, ShoppingCart, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../components/ui/PageIcon';
 
 /**
  * Beat Productivity — the beat_productivity module surface (off by default).
@@ -54,7 +56,10 @@ export default function BeatProductivityPage() {
   if (loading) return <div style={{ padding: 16, color: 'var(--text-dim)' }}>Loading beat productivity…</div>;
   if (gated) return (
     <div style={{ padding: 24, maxWidth: 520 }}>
-      <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>Beat Productivity</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <PageIcon />
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>Beat Productivity</h1>
+      </div>
       <p style={{ marginTop: 10, fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
         This module isn’t enabled for your account. Ask your administrator to turn on
         <strong style={{ color: 'var(--text)' }}> Beat Productivity</strong> for this client to unlock
@@ -75,29 +80,34 @@ export default function BeatProductivityPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <header>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>Beat Productivity</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-dim)' }}>
-          Lines sold per day and how many outlets each rep actually turned productive.
-        </p>
+      <header style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <PageIcon />
+        <div>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>Beat Productivity</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-dim)' }}>
+            Lines sold per day and how many outlets each rep actually turned productive.
+          </p>
+        </div>
       </header>
 
       {empty ? (
-        <div style={{ padding: 16, color: 'var(--text-dim)', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
+        <div style={{ padding: 16, color: 'var(--text-dim)', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <IconTile icon={ShoppingCart} size={40} iconSize={20} />
           No orders or visits in the window yet — this fills in as reps book orders on their beats.
         </div>
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-            <Stat label="Lines (30d)" value={totalLines.toLocaleString('en-IN')} />
-            <Stat label="Orders (30d)" value={totalOrders.toLocaleString('en-IN')} accent="#3E9EFF" />
-            <Stat label="Avg drop size" value={`${avgDrop}`} accent="#10B981" />
-            <Stat label="Avg lines / day" value={`${avgLinesDay}`} />
+            <Stat label="Lines (30d)" icon={ListOrdered} value={totalLines.toLocaleString('en-IN')} />
+            <Stat label="Orders (30d)" icon={ShoppingCart} value={totalOrders.toLocaleString('en-IN')} accent="#3E9EFF" />
+            <Stat label="Avg drop size" icon={Package} value={`${avgDrop}`} accent="#10B981" />
+            <Stat label="Avg lines / day" icon={CalendarDays} value={`${avgLinesDay}`} />
           </div>
 
           {/* TLSD daily bars — inline, theme-aware, no chart lib. */}
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <InlineIcon icon={BarChart3} size={16} />
               Total Lines Sold per Day
             </div>
             {tlsd.length === 0 ? (
@@ -118,7 +128,8 @@ export default function BeatProductivityPage() {
 
           {/* Unique / productive outlets per rep. */}
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid var(--border)' }}>
+            <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <InlineIcon icon={Building2} size={16} />
               Unique vs productive outlets — this month
             </div>
             {outlets.length === 0 ? (
@@ -158,10 +169,10 @@ export default function BeatProductivityPage() {
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function Stat({ label, value, accent, icon }: { label: string; value: string; accent?: string; icon: LucideIcon }) {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={icon} size={14} />{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color: accent ?? 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>
   );

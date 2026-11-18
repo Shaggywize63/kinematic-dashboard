@@ -2,6 +2,9 @@
 import { useEffect, useState } from 'react';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Th, Td, Btn, Pill, inr } from '../../../../../components/distribution/Atoms';
+import { Activity, Boxes, FileText, IndianRupee, Package, Percent, Receipt, StickyNote, Store, Tags, Wallet } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 const fmtDay = (s?: string) => {
   if (!s) return { date: '—', day: '' };
@@ -9,10 +12,12 @@ const fmtDay = (s?: string) => {
   catch { return { date: s, day: '' }; }
 };
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, icon, children }: { title: string; icon?: LucideIcon; children: React.ReactNode }) {
   return (
     <Card>
-      <div style={{ fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--text-dim)', marginBottom: 12 }}>{title}</div>
+      <div style={{ fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--text-dim)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+        {icon && <InlineIcon icon={icon} size={16} />}{title}
+      </div>
       {children}
     </Card>
   );
@@ -73,7 +78,7 @@ export default function DsrReport() {
       />
 
       {loading ? <div style={{ color: 'var(--text-dim)' }}>Loading…</div>
-        : !rep ? <div style={{ color: 'var(--text-dim)' }}>No challans available.</div>
+        : !rep ? <div style={{ color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '32px 0' }}><IconTile icon={FileText} size={40} iconSize={20} />No challans available.</div>
           : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               {/* Challan header */}
@@ -106,7 +111,7 @@ export default function DsrReport() {
 
               {/* Performance + Stock summary */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18 }}>
-                <Section title="Performance Summary">
+                <Section title="Performance Summary" icon={Activity}>
                   <KV k="Total Shops Visited" v={rep.performance.shops_visited} />
                   <KV k="Productive Calls" v={rep.performance.productive_calls} />
                   <KV k="Non-Productive Calls" v={rep.performance.nonproductive_calls} />
@@ -116,7 +121,7 @@ export default function DsrReport() {
                   <KV k="Total Discount" v={inr(rep.performance.total_discount)} />
                   <KV k="Average Bill Value" v={inr(rep.performance.average_bill_value)} />
                 </Section>
-                <Section title="Stock Summary">
+                <Section title="Stock Summary" icon={Package}>
                   <KV k="Total Issued Qty" v={rep.stock_summary.total_issued} />
                   <KV k="Total Sold Qty" v={rep.stock_summary.total_sold} />
                   <KV k="Total Returned Qty" v={rep.stock_summary.total_returned} />
@@ -125,7 +130,7 @@ export default function DsrReport() {
               </div>
 
               {/* Product-wise stock & sales */}
-              <Section title="Product-wise Stock & Sales">
+              <Section title="Product-wise Stock & Sales" icon={Boxes}>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
                     <thead><tr>
@@ -160,7 +165,7 @@ export default function DsrReport() {
 
               {/* Sales / Collection / Expenses */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18 }}>
-                <Section title="Sales Summary">
+                <Section title="Sales Summary" icon={IndianRupee}>
                   <KV k="Gross Sales" v={inr(rep.sales_summary.gross_sales)} />
                   <KV k="Total Discount" v={`- ${inr(rep.sales_summary.total_discount)}`} />
                   <KV k="Net Sales" v={inr(rep.sales_summary.net_sales)} />
@@ -168,13 +173,13 @@ export default function DsrReport() {
                   <KV k="Round Off" v={inr(rep.sales_summary.round_off)} />
                   <KV k="Final Net Sales" v={inr(rep.sales_summary.final_net_sales)} strong />
                 </Section>
-                <Section title="Collection Summary">
+                <Section title="Collection Summary" icon={Wallet}>
                   {rep.collection.map((c: any) => (
                     <KV key={c.mode} k={c.mode.replace('_', ' ').replace(/\b\w/g, (m: string) => m.toUpperCase())} v={inr(c.amount)} />
                   ))}
                   <KV k="Total Collection" v={inr(rep.total_collection)} strong />
                 </Section>
-                <Section title="Other Expenses">
+                <Section title="Other Expenses" icon={Receipt}>
                   <KV k="Loading / Unloading" v={inr(rep.expenses.loading)} />
                   <KV k="Transport" v={inr(rep.expenses.transport)} />
                   <KV k="Miscellaneous" v={inr(rep.expenses.misc)} />
@@ -184,7 +189,7 @@ export default function DsrReport() {
 
               {/* Top shops / Category / GST */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18 }}>
-                <Section title="Top Shops by Sale">
+                <Section title="Top Shops by Sale" icon={Store}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr><Th>Shop</Th><Th style={{ textAlign: 'right' }}>Bills</Th><Th style={{ textAlign: 'right' }}>Value</Th></tr></thead>
                     <tbody>
@@ -195,7 +200,7 @@ export default function DsrReport() {
                     </tbody>
                   </table>
                 </Section>
-                <Section title="Category-wise Sales">
+                <Section title="Category-wise Sales" icon={Tags}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr><Th>Category</Th><Th style={{ textAlign: 'right' }}>Value</Th><Th style={{ textAlign: 'right' }}>%</Th></tr></thead>
                     <tbody>
@@ -206,7 +211,7 @@ export default function DsrReport() {
                     </tbody>
                   </table>
                 </Section>
-                <Section title="GST Summary">
+                <Section title="GST Summary" icon={Percent}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr><Th>GST %</Th><Th style={{ textAlign: 'right' }}>Taxable</Th><Th style={{ textAlign: 'right' }}>CGST</Th><Th style={{ textAlign: 'right' }}>SGST</Th></tr></thead>
                     <tbody>
@@ -221,7 +226,7 @@ export default function DsrReport() {
 
               {rep.remarks && (
                 <Card>
-                  <div style={{ fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--text-dim)', marginBottom: 8 }}>Today&apos;s Remarks</div>
+                  <div style={{ fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--text-dim)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={StickyNote} size={16} />Today&apos;s Remarks</div>
                   <div style={{ fontSize: 14 }}>{rep.remarks}</div>
                 </Card>
               )}

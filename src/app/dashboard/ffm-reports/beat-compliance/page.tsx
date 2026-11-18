@@ -1,5 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
+import { CalendarDays, CalendarX, MapPin, Percent, XCircle } from 'lucide-react';
 import { presetRange } from '../../../../components/attendance/RangePresets';
 import { ffmReports, type BeatCompliancePayload, type BeatRep, type BeatWeek } from '../../../../components/ffm/reports/ffmReportsApi';
 import {
@@ -71,11 +72,11 @@ export default function BeatComplianceReport() {
 
       <StatusBox loading={loading} error={error} onRetry={reload}>
         <StatGrid>
-          <Stat label="Adherence" value={fmtPct(t?.adherence_pct ?? 0)} hint={data?.median_adherence_pct != null ? `median rep ${fmtPct(data.median_adherence_pct)}` : undefined} />
-          <Stat label="Planned calls" value={fmtInt(t?.planned ?? 0)} />
-          <Stat label="Visited" value={fmtInt(t?.visited ?? 0)} />
-          <Stat label="Missed" value={fmtInt(t?.missed ?? 0)} />
-          <Stat label="Plan days, no visit" value={fmtInt(t?.zero_visit_days ?? 0)} hint={`of ${fmtInt(t?.plan_days ?? 0)} plan days`} />
+          <Stat label="Adherence" icon={Percent} value={fmtPct(t?.adherence_pct ?? 0)} hint={data?.median_adherence_pct != null ? `median rep ${fmtPct(data.median_adherence_pct)}` : undefined} />
+          <Stat label="Planned calls" icon={CalendarDays} value={fmtInt(t?.planned ?? 0)} />
+          <Stat label="Visited" icon={MapPin} value={fmtInt(t?.visited ?? 0)} />
+          <Stat label="Missed" icon={XCircle} value={fmtInt(t?.missed ?? 0)} />
+          <Stat label="Plan days, no visit" icon={CalendarX} value={fmtInt(t?.zero_visit_days ?? 0)} hint={`of ${fmtInt(t?.plan_days ?? 0)} plan days`} />
         </StatGrid>
 
         <div style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>By week</div>

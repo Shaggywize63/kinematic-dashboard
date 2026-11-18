@@ -1,7 +1,9 @@
 'use client';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { AlertTriangle, Info, ListChecks, ScanSearch, ShieldAlert, Users, type LucideIcon } from 'lucide-react';
 import { Badge, Button, Card, Input, T, type Tone } from '../ui';
+import { InlineIcon } from '../ui/PageIcon';
 import {
   FORENSIC_CHECKS, THRESHOLD_META, loadForensicsConfig, saveForensicsConfig,
   DEFAULT_FORENSICS_CONFIG, type ForensicsConfig, type Severity,
@@ -9,6 +11,9 @@ import {
 
 const SEV_TONE: Record<Severity, Tone> = { info: 'info', warn: 'warn', high: 'red' };
 const SEV_LABEL: Record<Severity, string> = { info: 'Info', warn: 'Review', high: 'High risk' };
+// Same glyphs as the highlights a manager sees on a claim (ForensicHighlights).
+const SEV_ICON: Record<Severity, LucideIcon> = { info: Info, warn: AlertTriangle, high: ShieldAlert };
+const SEV_COLOR: Record<Severity, string> = { info: T.info, warn: T.warn, high: T.red };
 
 /**
  * Manager-facing controls for the forgery/forensics checks: the editable
@@ -27,7 +32,7 @@ export default function ForensicsSettings() {
     <Card padding={20}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>Forgery &amp; forensics checks</div>
+          <div style={{ fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={ScanSearch} size={16} style={{ color: T.dim }} />Forgery &amp; forensics checks</div>
           <div style={{ fontSize: 13, color: T.mute, marginTop: 2, maxWidth: 560, lineHeight: 1.5 }}>
             What gets highlighted to a manager when a claim is submitted. Thresholds apply the next time a claim or the approval queue is opened.
           </div>
@@ -54,17 +59,18 @@ export default function ForensicsSettings() {
         })}
       </div>
 
-      <div style={{ marginTop: 22, fontSize: 11.5, fontWeight: 700, color: T.dim, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-        Scenarios checked on every claim
+      <div style={{ marginTop: 22, fontSize: 11.5, fontWeight: 700, color: T.dim, textTransform: 'uppercase', letterSpacing: 0.4, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <InlineIcon icon={ListChecks} size={14} />Scenarios checked on every claim
       </div>
       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column' }}>
         {FORENSIC_CHECKS.map((chk, i) => (
           <div key={chk.code} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 0', borderTop: i ? `1px solid ${T.border}` : 0 }}>
+            <InlineIcon icon={SEV_ICON[chk.severity] ?? Info} size={16} style={{ color: SEV_COLOR[chk.severity] ?? T.info, marginTop: 2 }} />
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 600, fontSize: 13.5 }}>{chk.title}</span>
                 <Badge tone={SEV_TONE[chk.severity]}>{SEV_LABEL[chk.severity]}</Badge>
-                {chk.crossClaim && <Badge tone="neutral">Across people</Badge>}
+                {chk.crossClaim && <Badge tone="neutral"><InlineIcon icon={Users} size={12} />Across people</Badge>}
               </div>
               <div style={{ fontSize: 13, color: T.dim, lineHeight: 1.5, marginTop: 2 }}>{chk.description}</div>
             </div>

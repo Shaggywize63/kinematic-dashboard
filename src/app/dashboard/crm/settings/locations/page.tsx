@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { useClient } from '../../../../../context/ClientContext';
+import { Check, CheckCircle2, MapPinned, Plus, Trash2, Upload } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 // Settings → Locations — manage the State / City / District / Block master
 // list per client. Powers the cascading filters on the Leads page. Supports
@@ -45,6 +47,7 @@ const inputStyle: React.CSSProperties = {
 const btn: React.CSSProperties = {
   background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 16px',
   borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', gap: 6,
 };
 const btnSec: React.CSSProperties = { ...btn, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)' };
 
@@ -149,7 +152,7 @@ export default function LocationsSettingsPage() {
     <div style={{ color: 'var(--text)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Locations</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Locations</h2>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
             State → City → District → Block master list. The Block field is driven by the
             tenant&apos;s block catalogue so the same picker shows up on the lead form, scoped
@@ -157,8 +160,8 @@ export default function LocationsSettingsPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button style={btnSec} onClick={() => setShowBulk(true)}>Bulk Import</button>
-          <button style={btn}    onClick={() => setShowAdd(true)}>+ Add Location</button>
+          <button style={btnSec} onClick={() => setShowBulk(true)}><InlineIcon icon={Upload} />Bulk Import</button>
+          <button style={btn}    onClick={() => setShowAdd(true)}><InlineIcon icon={Plus} />Add Location</button>
         </div>
       </div>
 
@@ -176,7 +179,8 @@ export default function LocationsSettingsPage() {
         {loading && unified.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>Loading…</div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <IconTile icon={MapPinned} size={40} iconSize={20} />
             {unified.length === 0 ? 'No locations yet. Add some or bulk-import a list.' : 'No matches.'}
           </div>
         ) : filtered.map((r) => (
@@ -208,7 +212,7 @@ export default function LocationsSettingsPage() {
               )}
             </div>
             <div style={{ textAlign: 'right' }}>
-              <button onClick={() => remove(r)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12 }} title="Delete">✕</button>
+              <button onClick={() => remove(r)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12, display: 'inline-flex' }} title="Delete"><InlineIcon icon={Trash2} size={14} /></button>
             </div>
           </div>
         ))}
@@ -443,7 +447,7 @@ function AddLocationModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
       </div>
       <ModalActions>
         <button style={btnSec} onClick={onClose}>Cancel</button>
-        <button style={btn}    onClick={save} disabled={saving || !cityId}>{saving ? 'Saving…' : 'Save'}</button>
+        <button style={btn}    onClick={save} disabled={saving || !cityId}>{!saving && <InlineIcon icon={Check} />}{saving ? 'Saving…' : 'Save'}</button>
       </ModalActions>
     </Modal>
   );
@@ -530,7 +534,7 @@ function BulkImportModal({ onClose, onDone }: { onClose: () => void; onDone: () 
       )}
       <ModalActions>
         <button style={btnSec} onClick={onClose}>{summary ? 'Close' : 'Cancel'}</button>
-        <button style={btn}    onClick={submit} disabled={busy || !!summary}>{busy ? `Importing… ${pct}%` : (summary ? 'Imported' : 'Import')}</button>
+        <button style={btn}    onClick={submit} disabled={busy || !!summary}>{!busy && <InlineIcon icon={summary ? CheckCircle2 : Upload} />}{busy ? `Importing… ${pct}%` : (summary ? 'Imported' : 'Import')}</button>
       </ModalActions>
     </Modal>
   );

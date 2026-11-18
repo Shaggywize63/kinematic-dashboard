@@ -10,6 +10,7 @@ import { PASS_MARK, gradeQuiz, minutesText, progressPct, type QuizResult } from 
 import { completeLesson, submitQuiz } from '../../../../lib/hrms/people/learningActions';
 import type { LearningState } from '../../../../lib/hrms/people/types';
 import type { Employee } from '../../../../lib/hrms/types';
+import { isLive } from '../../../../lib/hrms/live/store';
 import { Muted, SimulationBadge, Stack } from '../shared';
 
 export default function LessonModal({ st, assignmentId, employees, onClose, onCertificate }: {
@@ -20,6 +21,7 @@ export default function LessonModal({ st, assignmentId, employees, onClose, onCe
   const person = a && employees.get(a.employeeId);
   const [answers, setAnswers] = useState<(number | undefined)[]>([]);
   const [last, setLast] = useState<{ result: QuizResult; certificateId?: string } | null>(null);
+  const [busy, setBusy] = useState(false);
   if (!a || !course || !person) return null;
 
   const total = course.lessons.length;
@@ -28,10 +30,19 @@ export default function LessonModal({ st, assignmentId, employees, onClose, onCe
   const allAnswered = course.quiz.every((_, i) => answers[i] !== undefined);
   const live = allAnswered ? gradeQuiz(course, answers) : null;
 
-  function submit() {
-    const r = submitQuiz(a!.id, answers);
-    if (!r) return;
-    setLast(r);
+  async function nextLesson() {
+    setBusy(true);
+    const r = await completeLesson(a!.id);
+    setBusy(false);
+    if (!r.ok) toast.error(r.error);
+  }
+
+  async function submit() {
+    setBusy(true);
+    const r = await submitQuiz(a!.id, answers);
+    setBusy(false);
+    if (!r.ok) { toast.error(r.error); return; }
+    setLast({ result: r.result, certificateId: r.certificateId });
     if (r.result.passed) toast.success(`Passed with ${r.result.score}%. Certificate ${r.certificateId} issued.`);
   }
 
@@ -40,7 +51,7 @@ export default function LessonModal({ st, assignmentId, employees, onClose, onCe
       <Stack gap={14}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13.5, color: T.dim }}>Learning as <b style={{ color: T.text }}>{fullName(person)}</b></span>
-          <SimulationBadge>Simulation</SimulationBadge>
+          <SimulationBadge>{isLive() ? 'Acting for the learner' : 'Simulation'}</SimulationBadge>
           <Badge>{course.mode === 'classroom' ? 'Classroom' : 'Self-paced'} · {minutesText(course.durationMin)}</Badge>
         </div>
         <div>
@@ -63,7 +74,7 @@ export default function LessonModal({ st, assignmentId, employees, onClose, onCe
             <h3 data-testid="lesson-title" style={{ margin: 0, fontSize: 16, fontFamily: T.heading, color: T.text }}>{lesson.title}</h3>
             <p style={{ margin: 0, fontSize: 14, color: T.dim, lineHeight: 1.6 }}>{lesson.body}</p>
             <Muted>Sample lesson text. {course.mode === 'classroom' ? 'In the live product the trainer marks who attended; here you can step through it.' : 'In the live product this is a short video or reading.'}</Muted>
-            <div><Button variant="primary" onClick={() => completeLesson(a.id)}>{a.stepsDone + 1 < total ? 'Mark lesson done, next' : 'Mark lesson done, go to the quiz'}</Button></div>
+            <div><Button variant="primary" disabled={busy} onClick={nextLesson}>{a.stepsDone + 1 < total ? 'Mark lesson done, next' : 'Mark lesson done, go to the quiz'}</Button></div>
           </Stack>
         )}
 
@@ -88,7 +99,7 @@ export default function LessonModal({ st, assignmentId, employees, onClose, onCe
               </fieldset>
             ))}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <Button variant="primary" disabled={!allAnswered} onClick={submit}>Submit answers</Button>
+              <Button variant="primary" disabled={!allAnswered || busy} onClick={submit}>{busy ? 'Marking…' : 'Submit answers'}</Button>
               {!allAnswered && <Muted>Answer all {course.quiz.length} questions to submit.</Muted>}
               {last && <Button onClick={() => { setLast(null); setAnswers([]); }}>Clear answers</Button>}
             </div>

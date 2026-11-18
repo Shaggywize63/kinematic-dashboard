@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { SlidersHorizontal } from 'lucide-react';
 import { crmCustomFields, crmLookup } from '../../lib/crmApi';
 import type { CustomField } from '../../types/crm';
 import { safeHref } from '../../lib/safeUrl';
@@ -121,7 +122,7 @@ export default function CustomFieldsDetailCard({ entity, customFields, skipKeys 
 
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Custom Fields</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><SlidersHorizontal aria-hidden size={16} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Custom Fields</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13 }}>
         {rows.map((r) => (
           <div key={r.key} style={{ minWidth: 0 }}>

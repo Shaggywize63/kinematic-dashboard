@@ -7,6 +7,9 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, Row, fmtDate } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { waLink } from '../../../../lib/whatsapp';
+import { Ban, CheckCircle2, ClipboardList, Copy, Download, Link2, MessageCircle, QrCode, RefreshCw, Route, Store, Trash2, Unlink, Users } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 /**
  * Consumer Capture — per-outlet QR / link generator.
@@ -195,24 +198,24 @@ export default function ConsumerCapturePage() {
         subtitle="Give each outlet a QR / link. Customers scan and self-register their purchase — each becomes a tertiary sale + a CRM lead automatically."
         right={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Link href="/dashboard/distribution/last-mile" style={btnLink}>Last-mile ↗</Link>
+            <Link href="/dashboard/distribution/last-mile" style={btnLink}><InlineIcon icon={Route} />Last-mile ↗</Link>
             <Btn variant="ghost" onClick={() => window.print()}>Print QR pack</Btn>
-            <Btn disabled={bulkBusy} onClick={mintAll}>{bulkBusy ? 'Generating…' : 'Generate for all outlets'}</Btn>
+            <Btn disabled={bulkBusy} onClick={mintAll} icon={<InlineIcon icon={QrCode} />}>{bulkBusy ? 'Generating…' : 'Generate for all outlets'}</Btn>
           </div>
         }
       />
 
       <Row style={{ marginBottom: 18 }}>
         <StatCard label="Outlets" value={stats.total} />
-        <StatCard label="Active links" value={stats.active} accent="var(--green)" />
-        <StatCard label="No link yet" value={stats.noLink} hint="Generate to activate" />
-        <StatCard label="QR registrations" value={regs.length} hint="most recent shown below" />
+        <StatCard label="Active links" value={stats.active} accent="var(--green)" icon={Link2} />
+        <StatCard label="No link yet" value={stats.noLink} hint="Generate to activate" icon={Unlink} />
+        <StatCard label="QR registrations" value={regs.length} hint="most recent shown below" icon={QrCode} />
       </Row>
 
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 800 }}>Capture form</div>
+            <div style={{ fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={ClipboardList} size={16} style={{ color: 'var(--dim)' }} />Capture form</div>
             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
               Choose which fields the QR page asks for, relabel them, or add your own. Phone is always asked. Applies to every outlet.
             </div>
@@ -257,13 +260,13 @@ export default function ConsumerCapturePage() {
                     <input type="checkbox" checked={f.required} onChange={(e) => updateField(i, { required: e.target.checked })} /> Required
                   </label>
                   {!f.builtin && (
-                    <button onClick={() => removeField(i)} title="Remove field" style={{ ...arrowBtn, color: 'var(--primary)', height: 'auto', padding: '4px 8px' }}>✕</button>
+                    <button onClick={() => removeField(i)} title="Remove field" style={{ ...arrowBtn, color: 'var(--primary)', height: 'auto', padding: '4px 8px', display: 'inline-flex', alignItems: 'center' }}><InlineIcon icon={Trash2} size={13} /></button>
                   )}
                 </div>
               ))}
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <Btn variant="ghost" onClick={addCustomField}>+ Add custom field</Btn>
+              <Btn variant="ghost" onClick={addCustomField}>Add custom field</Btn>
               <Btn disabled={cfgBusy} onClick={saveConfig}>{cfgBusy ? 'Saving…' : 'Save form'}</Btn>
             </div>
           </div>
@@ -284,7 +287,7 @@ export default function ConsumerCapturePage() {
               ) : sorted.length === 0 ? (
                 <tr><Td colSpan={3 as any} style={{ padding: 0, borderBottom: 'none' }}>
                   <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 32, marginBottom: 10 }}>🏪</div>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}><IconTile icon={Store} size={40} iconSize={20} /></div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>No outlets yet</div>
                     <div style={{ fontSize: 12, color: 'var(--text-dim)', maxWidth: 440, margin: '0 auto' }}>
                       Add your retail outlets (Distributors &rarr; Outlets), then generate a QR / link for each so customers can self-register their purchase &mdash; every scan becomes a tertiary sale and a CRM lead.
@@ -303,13 +306,13 @@ export default function ConsumerCapturePage() {
                     <Td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {r.capture_token ? (
                         <>
-                          <MiniBtn onClick={() => setModal(r)} disabled={busyId === r.outlet_id}>QR &amp; link</MiniBtn>
+                          <MiniBtn icon={QrCode} onClick={() => setModal(r)} disabled={busyId === r.outlet_id}>QR &amp; link</MiniBtn>
                           {r.capture_active
-                            ? <MiniBtn onClick={() => disable(r)} disabled={busyId === r.outlet_id}>Disable</MiniBtn>
-                            : <MiniBtn onClick={() => mint(r)} disabled={busyId === r.outlet_id}>Enable</MiniBtn>}
+                            ? <MiniBtn icon={Ban} onClick={() => disable(r)} disabled={busyId === r.outlet_id}>Disable</MiniBtn>
+                            : <MiniBtn icon={CheckCircle2} onClick={() => mint(r)} disabled={busyId === r.outlet_id}>Enable</MiniBtn>}
                         </>
                       ) : (
-                        <MiniBtn primary onClick={() => mint(r)} disabled={busyId === r.outlet_id}>
+                        <MiniBtn primary icon={QrCode} onClick={() => mint(r)} disabled={busyId === r.outlet_id}>
                           {busyId === r.outlet_id ? 'Generating…' : 'Generate link'}
                         </MiniBtn>
                       )}
@@ -323,7 +326,7 @@ export default function ConsumerCapturePage() {
       </Card>
 
       <Card>
-        <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 10 }}>Recent QR registrations</div>
+        <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Users} size={16} style={{ color: 'var(--dim)' }} />Recent QR registrations</div>
         {regs.length === 0 ? (
           <p style={{ color: 'var(--text-dim)', fontSize: 13, margin: 0 }}>
             None yet. Print an outlet&rsquo;s QR (or share its link) and registrations will appear here.
@@ -368,10 +371,10 @@ export default function ConsumerCapturePage() {
               {captureUrl(modal.capture_token)}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-              <MiniBtn onClick={() => copyLink(modal.capture_token)}>Copy link</MiniBtn>
-              <MiniBtn onClick={() => shareWa(modal)}>Share on WhatsApp</MiniBtn>
-              <MiniBtn onClick={downloadPng}>Download PNG</MiniBtn>
-              <MiniBtn onClick={() => mint(modal, true)}>Rotate</MiniBtn>
+              <MiniBtn icon={Copy} onClick={() => copyLink(modal.capture_token)}>Copy link</MiniBtn>
+              <MiniBtn icon={MessageCircle} onClick={() => shareWa(modal)}>Share on WhatsApp</MiniBtn>
+              <MiniBtn icon={Download} onClick={downloadPng}>Download PNG</MiniBtn>
+              <MiniBtn icon={RefreshCw} onClick={() => mint(modal, true)}>Rotate</MiniBtn>
             </div>
             <div style={{ marginTop: 16 }}>
               <button onClick={() => setModal(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 13, cursor: 'pointer' }}>Close</button>
@@ -405,21 +408,23 @@ export default function ConsumerCapturePage() {
   );
 }
 
-function MiniBtn({ children, onClick, disabled, primary }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean; primary?: boolean }) {
+function MiniBtn({ children, onClick, disabled, primary, icon }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean; primary?: boolean; icon?: LucideIcon }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6,
       background: primary ? 'var(--primary)' : 'var(--s3)',
       color: primary ? '#fff' : 'var(--text)',
       border: primary ? 'none' : '1px solid var(--border)',
       padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
       marginLeft: 6, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1,
-    }}>{children}</button>
+    }}>{icon && <InlineIcon icon={icon} size={14} />}{children}</button>
   );
 }
 
 const btnLink: React.CSSProperties = {
   background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)',
   padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none',
+  display: 'inline-flex', alignItems: 'center', gap: 6,
 };
 
 const arrowBtn: React.CSSProperties = {

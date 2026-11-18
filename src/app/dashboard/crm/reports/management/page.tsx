@@ -24,6 +24,8 @@ import {
 import { fmtInr, fmtInt, fmtPct, DASH } from '../../../../../lib/crm/plusFormat';
 import { toCsv, downloadCsv, type CsvColumn } from '../../../../../components/ffm/reports/reportUtils';
 import { PageHeader, Button, EmptyState, T, useIsCompact } from '../../../../../components/ui';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../../lib/labelIcons';
 
 /** First day of the current month → today, ISO YYYY-MM-DD. Matches the backend's
  *  default window (current IST month) closely enough for the picker to open on
@@ -359,7 +361,7 @@ function TopCard({ testid, rowTestid, title, heading, res, rows, href }: {
 function Kpi({ label, value, strong, testid }: { label: string; value: string; strong?: boolean; testid?: string }) {
   return (
     <div data-testid={testid} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
-      <span style={{ fontSize: 11, color: T.dim, textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>{label}</span>
+      <span style={{ fontSize: 11, color: T.dim, textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 6 }}>{(() => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={14} /> : null; })()}{label}</span>
       <span style={{ fontSize: strong ? 24 : 20, fontWeight: 800, color: T.text, fontFamily: T.mono, lineHeight: 1.1 }}>{value}</span>
     </div>
   );

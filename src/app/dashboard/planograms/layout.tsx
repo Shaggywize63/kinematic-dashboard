@@ -2,6 +2,8 @@
 import { usePathname } from 'next/navigation';
 import CityScopePicker from '../../../components/crm/CityScopePicker';
 import { PC, useIsCompact } from './_components/planogramUi';
+import { PageIcon } from '../../../components/ui/PageIcon';
+import type { NavIconName } from '../../../components/ui/icons';
 
 /**
  * Planogram module shell.
@@ -25,6 +27,16 @@ const TITLES: Record<NavKey, string> = {
   library: 'Planograms',
   competitors: 'Competitors',
   insights: 'Insights',
+};
+
+/** The sidebar icon of the section whose title is shown (the editor and /new sit under "Planograms"). */
+const ICONS: Record<NavKey, NavIconName> = {
+  overview: 'dashboard',
+  captures: 'camera',
+  review: 'clipboardCheck',
+  library: 'layers',
+  competitors: 'target',
+  insights: 'lineChart',
 };
 
 /** UUID (or any non-reserved segment) directly under the base is the planogram
@@ -59,6 +71,7 @@ export default function PlanogramModuleLayout({ children }: { children: React.Re
           marginBottom: 18,
         }}
       >
+        <PageIcon name={ICONS[active]} />
         <h1
           style={{
             fontFamily: 'var(--font-manrope)',

@@ -23,6 +23,9 @@ import {
 } from '../../../../lib/crmAnalyticsExtApi';
 import { ChartCard, ChartTooltip, ChartEmpty, GradientDefs, grad, CHART, CHART_PALETTE, CHART_SEMANTIC } from '../../../../lib/chartTheme';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import type { LucideIcon } from 'lucide-react';
+import { Radar, Swords, TrendingDown } from 'lucide-react';
+import { PageIcon, IconTile } from '../../../../components/ui/PageIcon';
 
 const BRAND = CHART_SEMANTIC.lost;
 const WIN = CHART_SEMANTIC.won;
@@ -39,10 +42,11 @@ function Card({ title, subtitle, children }: { title: string; subtitle?: string;
   return <ChartCard title={title} subtitle={subtitle}>{children}</ChartCard>;
 }
 
-function Kpi({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
+function Kpi({ label, value, accent, icon }: { label: string; value: string | number; accent?: boolean; icon?: LucideIcon }) {
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, flex: 1, minWidth: 160 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</div>
+    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, flex: 1, minWidth: 160, position: 'relative' }}>
+      {icon && <IconTile icon={icon} tone={accent ? 'red' : 'brand'} style={{ position: 'absolute', top: 12, right: 12 }} />}
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.4, paddingRight: icon ? 36 : 0 }}>{label}</div>
       <div style={{ fontSize: 26, fontWeight: 800, color: accent ? BRAND : 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>
   );
@@ -115,7 +119,10 @@ export default function MarketIntelligencePage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Market Intelligence</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <PageIcon />
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Market Intelligence</h1>
+        </div>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '6px 0 0', maxWidth: 760 }}>
           Competitive ground-truth mined automatically from your reps&apos; field notes — who&apos;s winning which
           city, the price gaps, stock-outs and buying signals. Respects the global city &amp; date filters.
@@ -126,15 +133,16 @@ export default function MarketIntelligencePage() {
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-dim)' }}>Loading market signals…</div>
       ) : !hasAny ? (
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-dim)', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
-          No market signals yet. As reps log lead updates (by typing or voice), KINI extracts competitor and
-          pricing intelligence here automatically.
+          <IconTile icon={Radar} size={40} iconSize={20} style={{ marginBottom: 10 }} />
+          <div>No market signals yet. As reps log lead updates (by typing or voice), KINI extracts competitor and
+          pricing intelligence here automatically.</div>
         </div>
       ) : (
         <>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <Kpi label="Signals" value={totals.mentions} />
-            <Kpi label="Competitors seen" value={totals.competitors} />
-            <Kpi label="We're losing (mentions)" value={totals.losing} accent />
+            <Kpi label="Signals" value={totals.mentions} icon={Radar} />
+            <Kpi label="Competitors seen" value={totals.competitors} icon={Swords} />
+            <Kpi label="We're losing (mentions)" value={totals.losing} accent icon={TrendingDown} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>

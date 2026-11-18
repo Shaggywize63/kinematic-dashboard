@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { GitMerge, X } from 'lucide-react';
+import { CheckCircle2, EyeOff, GitMerge, RotateCcw, X } from 'lucide-react';
 import { crmAccounts } from '../../../../../lib/crmApi';
 import type {
   AccountMergeMoved, AccountMergeResult, SimilarAccount, SimilarAccountGroup,
@@ -202,11 +202,12 @@ export default function DuplicateAccountsPage() {
             {error.status === 403 ? 'Only admins can merge accounts' : 'Could not load duplicate accounts'}
           </div>
           <div style={{ color: T.dim, fontSize: 13 }}>{error.message}</div>
-          <Button onClick={() => void load(minScore)}>Try again</Button>
+          <Button onClick={() => void load(minScore)} icon={<RotateCcw size={15} strokeWidth={1.8} />}>Try again</Button>
         </Card>
       ) : visible.length === 0 ? (
         <Card>
           <EmptyState
+            icon={<CheckCircle2 size={20} strokeWidth={1.8} />}
             title="No duplicate accounts found"
             description={minScore === '0.75' ? 'Nothing with a similar name was found.' : 'Try a lower Min match to look for weaker matches.'}
           />
@@ -385,7 +386,7 @@ function GroupCard({ group, narrow, onMerged, onHide }: {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Button variant="primary" onClick={() => void run(false)} disabled={!!busy}>{busy === 'merge' ? 'Merging...' : 'Yes, merge'}</Button>
+              <Button variant="primary" onClick={() => void run(false)} disabled={!!busy} icon={<GitMerge size={15} strokeWidth={1.8} />}>{busy === 'merge' ? 'Merging...' : 'Yes, merge'}</Button>
               <Button onClick={() => setConfirming(false)} disabled={!!busy}>Cancel</Button>
             </div>
           </div>
@@ -398,7 +399,7 @@ function GroupCard({ group, narrow, onMerged, onHide }: {
             onClick={() => { setErr(null); setConfirming(true); }}
             disabled={!canAct || confirming}
           >Merge</Button>
-          <Button variant="ghost" onClick={() => onHide(group)} disabled={!!busy}>Not duplicates</Button>
+          <Button variant="ghost" onClick={() => onHide(group)} disabled={!!busy} icon={<EyeOff size={15} strokeWidth={1.8} />}>Not duplicates</Button>
           {mergeIds.length === 0 && <span style={{ fontSize: 12.5, color: T.mute }}>Tick at least one account to merge.</span>}
         </div>
       </div>

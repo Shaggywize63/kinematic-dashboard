@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense, type CSSProperties } from 'react';
 import { parseISO, isValid } from 'date-fns';
-import { CalendarDays, CalendarRange, Check, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, Loader2, Pencil, Plus, RefreshCw, Search, ShieldAlert, Upload, UserX, X } from 'lucide-react';
+import { AlarmClockCheck, AlertTriangle, BarChart3, CalendarDays, CalendarOff, CalendarRange, CalendarX, Car, Check, ChevronLeft, ChevronRight, Clock, Coffee, Contrast, Download, ExternalLink, Eye, Loader2, LogIn, LogOut, MapPin, Pencil, Percent, Plus, RefreshCw, Search, ShieldAlert, Timer, Upload, Users, UserX, X, XCircle, type LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../../components/ui/PageIcon';
 import api, { type AttendanceLate } from '../../../lib/api';
 import MonthlySummary from './MonthlySummary';
 import { RangePresetPicker, presetRange } from '../../../components/attendance/RangePresets';
@@ -833,17 +834,17 @@ function AttendanceContent() {
   // The Late tile / filter exist only for clients whose records carry the API's `late` verdict.
   const lateConfigured = currentRoleRecords.some(r => !!r.late);
   // Each tile is also a filter: `f` is the value it sets on the status filter ('all' for Total).
-  const statTiles: Array<{ l: string; v: number; c: string | undefined; f: string }> = [
-    { l: 'Total',       v: stats.total,   c: undefined, f: 'all' },
-    { l: 'Checked in',  v: stats.in,      c: T.ok,      f: 'checked_in' },
-    ...(stats.onBreak > 0 ? [{ l: 'On break', v: stats.onBreak, c: T.warn, f: 'on_break' }] : []),
-    { l: 'Checked out', v: stats.out,     c: T.info,    f: 'checked_out' },
-    { l: 'On leave',    v: stats.onLeave, c: T.mute,    f: 'on_leave' },
-    ...(stats.notYet > 0 ? [{ l: 'Not in yet', v: stats.notYet, c: T.mute, f: 'not_yet' }] : []),
-    ...(stats.weekOff > 0 ? [{ l: 'Week off', v: stats.weekOff, c: T.mute, f: 'week_off' }] : []),
-    { l: 'Absent',      v: stats.absent,  c: T.red,     f: 'absent' },
-    { l: 'Half day',    v: stats.half,    c: T.warn,    f: 'half_day' },
-    ...(lateConfigured ? [{ l: 'Late', v: stats.late, c: T.warn, f: 'late' }] : []),
+  const statTiles: Array<{ l: string; v: number; c: string | undefined; f: string; icon: LucideIcon }> = [
+    { l: 'Total',       v: stats.total,   c: undefined, f: 'all', icon: Users },
+    { l: 'Checked in',  v: stats.in,      c: T.ok,      f: 'checked_in', icon: LogIn },
+    ...(stats.onBreak > 0 ? [{ l: 'On break', v: stats.onBreak, c: T.warn, f: 'on_break', icon: Coffee }] : []),
+    { l: 'Checked out', v: stats.out,     c: T.info,    f: 'checked_out', icon: LogOut },
+    { l: 'On leave',    v: stats.onLeave, c: T.mute,    f: 'on_leave', icon: CalendarOff },
+    ...(stats.notYet > 0 ? [{ l: 'Not in yet', v: stats.notYet, c: T.mute, f: 'not_yet', icon: Clock }] : []),
+    ...(stats.weekOff > 0 ? [{ l: 'Week off', v: stats.weekOff, c: T.mute, f: 'week_off', icon: CalendarX }] : []),
+    { l: 'Absent',      v: stats.absent,  c: T.red,     f: 'absent', icon: XCircle },
+    { l: 'Half day',    v: stats.half,    c: T.warn,    f: 'half_day', icon: Contrast },
+    ...(lateConfigured ? [{ l: 'Late', v: stats.late, c: T.warn, f: 'late', icon: AlertTriangle }] : []),
   ];
 
   /* 3. final shown list */
@@ -1088,7 +1089,8 @@ function AttendanceContent() {
                 style={{ ...cardStyle, padding: 16, flex: `1 1 ${phone ? 'calc(50% - 6px)' : narrow ? 'calc(33.333% - 8px)' : '0'}`, minWidth: phone ? 0 : 96, cursor: 'pointer', borderColor: on ? accent : T.border, boxShadow: on ? `0 0 0 1px ${accent}` : 'none' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {s.c && <span style={{ width: 6, height: 6, borderRadius: 999, background: s.c, flexShrink: 0 }} />}
+                  {/* the icon carries the status colour the dot used to */}
+                  <InlineIcon icon={s.icon} size={14} style={{ color: s.c ?? T.dim }} />
                   <Eyebrow>{s.l}</Eyebrow>
                 </div>
                 <div style={{ fontFamily: T.heading, fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.1, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
@@ -1122,22 +1124,22 @@ function AttendanceContent() {
           const attendanceRate = total ? Math.round((present / total) * 100) : 0;
           const onTimePct = present ? Math.round((onTime / present) * 100) : 0;
           const fmtH = (h: number) => `${Math.floor(h)}h ${Math.round((h % 1) * 60)}m`;
-          const metrics = [
-            { l: 'Attendance rate',   v: `${attendanceRate}%` },
-            { l: 'Avg hours / day',   v: fmtH(avgHours) },
-            { l: 'On-time check-ins', v: `${onTimePct}%` },
-            { l: 'Total hours',       v: fmtH(totalHours) },
+          const metrics: Array<{ l: string; v: string; icon: LucideIcon }> = [
+            { l: 'Attendance rate',   v: `${attendanceRate}%`, icon: Percent },
+            { l: 'Avg hours / day',   v: fmtH(avgHours), icon: Timer },
+            { l: 'On-time check-ins', v: `${onTimePct}%`, icon: AlarmClockCheck },
+            { l: 'Total hours',       v: fmtH(totalHours), icon: Timer },
           ];
           return (
             <Card padding={16}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
-                <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>Attendance analysis</div>
+                <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={BarChart3} size={16} style={{ color: T.dim }} />Attendance analysis</div>
                 <div style={{ fontSize: 12.5, color: T.dim }}>For the {roleFilter === 'executive' ? 'field executives' : 'supervisors'} on this list, {rangeLabel}; approved leave is excluded from the rate.</div>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                 {metrics.map(m => (
                   <div key={m.l} style={{ background: T.raised, borderRadius: 8, padding: '12px 14px', flex: `1 1 ${narrow ? 'calc(50% - 6px)' : '0'}`, minWidth: 0 }}>
-                    <Eyebrow>{m.l}</Eyebrow>
+                    <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={m.icon} size={13} />{m.l}</Eyebrow>
                     <div style={{ fontFamily: T.heading, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.1, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{m.v}</div>
                   </div>
                 ))}
@@ -1426,18 +1428,18 @@ function AttendanceContent() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {[
-                  { l: 'Check-in',  v: fmt(detail.checkin_at), wide: false },
-                  { l: 'Check-out', v: fmt(detail.checkout_at), wide: false },
-                  { l: 'Hours',     v: fmtHrs(calcHours(detail)), wide: false },
-                  { l: 'Break',     v: detail.break_minutes ? `${detail.break_minutes}m` : '—', wide: false },
+                {([
+                  { l: 'Check-in',  v: fmt(detail.checkin_at), wide: false, icon: LogIn },
+                  { l: 'Check-out', v: fmt(detail.checkout_at), wide: false, icon: LogOut },
+                  { l: 'Hours',     v: fmtHrs(calcHours(detail)), wide: false, icon: Timer },
+                  { l: 'Break',     v: detail.break_minutes ? `${detail.break_minutes}m` : '—', wide: false, icon: Coffee },
                   // Only when the rep was asked (client rule) and answered: nothing is added for everyone else.
                   ...((detail.transport_mode || detail.transport_label)
-                    ? [{ l: 'Mode of transport', v: modeText(detail.transport_mode, detail.transport_label), wide: true }]
+                    ? [{ l: 'Mode of transport', v: modeText(detail.transport_mode, detail.transport_label), wide: true, icon: Car }]
                     : []),
-                ].map(r => (
+                ] as Array<{ l: string; v: string; wide: boolean; icon: LucideIcon }>).map(r => (
                   <div key={r.l} data-testid={r.wide ? 'detail-mode' : undefined} style={{ background: T.raised, borderRadius: 8, padding: '10px 12px', gridColumn: r.wide ? '1 / -1' : undefined }}>
-                    <Eyebrow>{r.l}</Eyebrow>
+                    <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={r.icon} size={13} />{r.l}</Eyebrow>
                     <div style={{ fontFamily: r.wide ? undefined : T.mono, fontSize: 14, color: T.text, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>{r.v}</div>
                   </div>
                 ))}
@@ -1446,7 +1448,7 @@ function AttendanceContent() {
               {/* Coordinates / Locations */}
               {(detail.checkin_lat || detail.checkout_lat) && (
                 <div style={{ padding: 12, background: T.raised, borderRadius: 8 }}>
-                  <Eyebrow style={{ marginBottom: 8 }}>Location</Eyebrow>
+                  <Eyebrow style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={MapPin} size={13} />Location</Eyebrow>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     {detail.checkin_lat ? (
                       <div style={{ minWidth: 0 }}>

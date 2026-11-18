@@ -7,6 +7,9 @@ import type { CustomField } from '../../../../../types/crm';
 import { useActivityTypes } from '../../../../../lib/activityTypes';
 import { resolveStages } from '../../../../../lib/leadStages';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
+import type { LucideIcon } from 'lucide-react';
+import { ArrowUpDown, Database, Download, FileSearch, Filter, ListChecks, Play, Plus, Sparkles, Table2 } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 type Entity = 'leads' | 'contacts' | 'accounts' | 'deals' | 'activities';
 
@@ -392,7 +395,7 @@ export default function ReportBuilderPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 18, color: 'var(--text)' }}>Custom Report Builder</h2>
+          <h2 style={{ margin: 0, fontSize: 18, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Custom Report Builder</h2>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
             Pick an entity, select fields, add filters, group, and download as CSV.
           </div>
@@ -403,7 +406,7 @@ export default function ReportBuilderPage() {
       {/* Builder */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 14 }}>
         {/* Entity */}
-        <Section title="1. Choose entity">
+        <Section title="1. Choose entity" icon={Database}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {(Object.keys(ENTITY_LABELS) as Entity[]).map((e) => (
               <button
@@ -423,7 +426,7 @@ export default function ReportBuilderPage() {
         </Section>
 
         {/* Fields */}
-        <Section title="2. Select fields to display">
+        <Section title="2. Select fields to display" icon={ListChecks}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
             <button onClick={() => setSelectedFields(fields.map((f) => f.key))} style={btnTiny}>Select All</button>
             <button onClick={() => setSelectedFields([])} style={btnTiny}>Clear</button>
@@ -453,7 +456,7 @@ export default function ReportBuilderPage() {
                       tell built-in vs. tenant-defined fields apart in a
                       long list (especially relevant for Tata Tiscon's
                       half-dozen weight-related custom fields). */}
-                  {f.isCustom && <span title="Custom field" style={{ marginLeft: 4, opacity: 0.7, fontSize: 10 }}>✦</span>}
+                  {f.isCustom && <span title="Custom field" style={{ marginLeft: 4, opacity: 0.7, display: 'inline-flex' }}><InlineIcon icon={Sparkles} size={11} /></span>}
                 </label>
               );
             })}
@@ -461,7 +464,7 @@ export default function ReportBuilderPage() {
         </Section>
 
         {/* Filters */}
-        <Section title="3. Filters (all must match)">
+        <Section title="3. Filters (all must match)" icon={Filter}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {filters.map((f, i) => {
               const fdef = fields.find((x) => x.key === f.field);
@@ -504,12 +507,12 @@ export default function ReportBuilderPage() {
                 </div>
               );
             })}
-            <button onClick={addFilter} style={{ ...btnTiny, alignSelf: 'flex-start' }}>+ Add Filter</button>
+            <button onClick={addFilter} style={{ ...btnTiny, alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Plus} size={12} />Add Filter</button>
           </div>
         </Section>
 
         {/* Group + Sort */}
-        <Section title="4. Group & sort (optional)">
+        <Section title="4. Group & sort (optional)" icon={ArrowUpDown}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase' }}>Group by</span>
@@ -536,12 +539,12 @@ export default function ReportBuilderPage() {
         </Section>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
-          <button onClick={runReport} disabled={loading} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
-            {loading ? 'Running…' : '▶ Run Report'}
+          <button onClick={runReport} disabled={loading} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {!loading && <InlineIcon icon={Play} />}{loading ? 'Running…' : 'Run Report'}
           </button>
           {hasRun && rows.length > 0 && (
-            <button onClick={downloadCSV} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '10px 20px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
-              ⬇ Download CSV
+            <button onClick={downloadCSV} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '10px 20px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={Download} />Download CSV
             </button>
           )}
         </div>
@@ -550,12 +553,13 @@ export default function ReportBuilderPage() {
       {/* Results */}
       {hasRun && (
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <InlineIcon icon={Table2} size={16} style={{ color: 'var(--text-dim)' }} />
             Results: {rows.length} row{rows.length === 1 ? '' : 's'}
             {groupBy && grouped && ` · ${Object.keys(grouped).length} groups`}
           </div>
           {rows.length === 0 ? (
-            <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-dim)' }}>No rows match. Adjust filters and try again.</div>
+            <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}><IconTile icon={FileSearch} size={40} iconSize={20} />No rows match. Adjust filters and try again.</div>
           ) : groupBy && grouped ? (
             <div>
               {Object.entries(grouped).map(([groupKey, groupRows]) => (
@@ -609,10 +613,10 @@ function ResultTable({ fields, selectedFields, rows, valueOf }: { fields: FieldD
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, icon }: { title: string; children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>{title}</div>
+      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>{icon && <InlineIcon icon={icon} size={14} />}{title}</div>
       {children}
     </div>
   );

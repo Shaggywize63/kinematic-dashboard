@@ -1,5 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
+import { Globe, MapPinOff, ShieldAlert, Users, Zap } from 'lucide-react';
 import { presetRange } from '../../../../components/attendance/RangePresets';
 import { ffmReports, type GeoPayload, type GeoRow, type GeoSummaryRow } from '../../../../components/ffm/reports/ffmReportsApi';
 import {
@@ -78,11 +79,11 @@ export default function GeoExceptionsReport() {
 
       <StatusBox loading={loading} error={error} onRetry={reload}>
         <StatGrid>
-          <Stat label="Check-ins outside" value={fmtInt(outsideTotal)} />
-          <Stat label="Reps with one" value={fmtInt(repsAffected)} hint={`of ${fmtInt(summary.length)} with check-ins or alerts`} />
-          <Stat label="Mock-location alerts" value={fmtInt(mock)} />
-          <Stat label="VPN alerts" value={fmtInt(vpn)} />
-          <Stat label="GPS jumps flagged" value={fmtInt(jumps)} />
+          <Stat label="Check-ins outside" icon={MapPinOff} value={fmtInt(outsideTotal)} />
+          <Stat label="Reps with one" icon={Users} value={fmtInt(repsAffected)} hint={`of ${fmtInt(summary.length)} with check-ins or alerts`} />
+          <Stat label="Mock-location alerts" icon={ShieldAlert} value={fmtInt(mock)} />
+          <Stat label="VPN alerts" icon={Globe} value={fmtInt(vpn)} />
+          <Stat label="GPS jumps flagged" icon={Zap} value={fmtInt(jumps)} />
         </StatGrid>
 
         <div style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>By rep</div>

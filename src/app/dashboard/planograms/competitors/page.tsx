@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import planogramApi from '../../../../lib/planogramApi';
+import { ImageOff, Layers, Package, Plus, Settings2, Tags, Target, type LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import type { Planogram, PlanogramCompetitor } from '../../../../types/planogram';
 import { PC, SectionCard, StateBlock, useIsCompact } from '../_components/planogramUi';
 
@@ -187,6 +189,7 @@ export default function CompetitorsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <SectionCard
         title="Tracked competitors"
+        icon={Target}
         caption="Competitor SKUs registered with a product photo so shelf recognition matches them reliably and their price / share can trend over time. Aggregated across every planogram; added per-planogram in the editor."
         right={
           <div style={{ position: 'relative' }}>
@@ -209,9 +212,7 @@ export default function CompetitorsPage() {
                 whiteSpace: 'nowrap',
               }}
             >
-              <span aria-hidden style={{ fontSize: 15, lineHeight: 0 }}>
-                +
-              </span>{' '}
+              <InlineIcon icon={Plus} />
               Add competitor
             </button>
             {addOpen && (
@@ -246,6 +247,7 @@ export default function CompetitorsPage() {
                 background: PC.surface2,
               }}
             >
+              <IconTile icon={Target} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />
               <div style={{ fontFamily: 'var(--font-manrope)', fontWeight: 800, fontSize: 15, color: PC.text }}>
                 No competitors tracked yet
               </div>
@@ -276,9 +278,12 @@ export default function CompetitorsPage() {
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
                 }}
               >
-                + Add competitor
+                <InlineIcon icon={Plus} />Add competitor
               </button>
             </div>
           </div>
@@ -286,10 +291,10 @@ export default function CompetitorsPage() {
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 18 }}>
             {/* Catalogue summary */}
             <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-              <Stat label="Competitor SKUs" value={totalEntries} />
-              <Stat label="Brands" value={brandCount} />
-              <Stat label="Planograms tracking" value={trackingPlanograms} />
-              {missingPhotos > 0 && <Stat label="Missing pack-shot" value={missingPhotos} tone="warn" />}
+              <Stat label="Competitor SKUs" icon={Package} value={totalEntries} />
+              <Stat label="Brands" icon={Tags} value={brandCount} />
+              <Stat label="Planograms tracking" icon={Layers} value={trackingPlanograms} />
+              {missingPhotos > 0 && <Stat label="Missing pack-shot" icon={ImageOff} value={missingPhotos} tone="warn" />}
             </div>
 
             {/* Brand groups */}
@@ -546,9 +551,9 @@ function CompetitorCard({ entry }: { entry: CatalogueEntry }) {
         </div>
         <Link
           href={manageHref}
-          style={{ fontSize: 11.5, fontWeight: 700, color: PC.brand, textDecoration: 'none', whiteSpace: 'nowrap' }}
+          style={{ fontSize: 11.5, fontWeight: 700, color: PC.brand, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}
         >
-          Manage →
+          <InlineIcon icon={Settings2} size={13} />Manage →
         </Link>
       </div>
     </div>
@@ -593,14 +598,14 @@ function Packshot({ url, name }: { url: string | null; name: string }) {
 }
 
 /** A small summary stat for the catalogue header. */
-function Stat({ label, value, tone }: { label: string; value: number; tone?: 'warn' }) {
+function Stat({ label, value, tone, icon }: { label: string; value: number; tone?: 'warn'; icon: LucideIcon }) {
   const color = tone === 'warn' ? PC.warn : PC.text;
   return (
     <div>
       <div style={{ fontSize: 22, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
         {value}
       </div>
-      <div style={{ fontSize: 11.5, color: PC.muted, marginTop: 3 }}>{label}</div>
+      <div style={{ fontSize: 11.5, color: PC.muted, marginTop: 3, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={icon} size={13} />{label}</div>
     </div>
   );
 }

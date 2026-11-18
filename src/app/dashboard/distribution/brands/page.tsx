@@ -5,6 +5,8 @@ import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate } from '../../../../compon
 import { INDIA_STATES, parseGstinClient, stateName } from '../../../../lib/india';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { AlertTriangle, CheckCircle2, RotateCcw, XCircle } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 interface BrandForm {
   name: string;
@@ -127,7 +129,7 @@ export default function BrandsPage() {
 
   return (
     <div>
-      <PageHeader title="Brands" subtitle="Brand identities with GSTIN and place-of-supply" right={<Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : '+ Add Brand'}</Btn>} />
+      <PageHeader title="Brands" subtitle="Brand identities with GSTIN and place-of-supply" right={<Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : 'Add Brand'}</Btn>} />
 
       {showForm && (
         <Card style={{ marginBottom: 22 }}>
@@ -157,7 +159,7 @@ export default function BrandsPage() {
                   marginTop: 6, fontSize: 12,
                   color: verifyMsg.kind === 'ok' ? 'var(--green)' : verifyMsg.kind === 'warn' ? '#F59E0B' : 'var(--primary)',
                 }}>
-                  {verifyMsg.kind === 'ok' ? '✓ ' : verifyMsg.kind === 'warn' ? '⚠ ' : '✗ '}{verifyMsg.text}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={verifyMsg.kind === 'ok' ? CheckCircle2 : verifyMsg.kind === 'warn' ? AlertTriangle : XCircle} size={14} />{verifyMsg.text}</span>
                 </div>
               )}
             </div>
@@ -223,7 +225,7 @@ export default function BrandsPage() {
                 <Td style={{ textAlign: 'right' }}>
                   {b.is_active
                     ? <Btn variant="danger" onClick={() => remove(b.id, b.name)}>Delete</Btn>
-                    : <Btn variant="ghost"  onClick={() => reactivate(b.id, b.name)}>Reactivate</Btn>}
+                    : <Btn variant="ghost"  onClick={() => reactivate(b.id, b.name)} icon={<InlineIcon icon={RotateCcw} />}>Reactivate</Btn>}
                 </Td>
               </tr>
             ))}

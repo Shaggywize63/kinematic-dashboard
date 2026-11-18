@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
-import { ClipboardList, Clock, Download, Search, Store, Users, X } from 'lucide-react';
+import { ClipboardList, Clock, Crosshair, Download, LogIn, LogOut, MapPin, Search, Store, Timer, User, Users, X, type LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../../components/ui/PageIcon';
 import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
 import { useAuth } from '../../../hooks/useAuth';
@@ -188,10 +189,10 @@ function FilterChip({ label, onClear }: { label: string; onClear: () => void }) 
   );
 }
 
-function InfoTile({ label, children, testId, mono }: { label: string; children: ReactNode; testId?: string; mono?: boolean }) {
+function InfoTile({ label, children, testId, mono, icon }: { label: string; children: ReactNode; testId?: string; mono?: boolean; icon?: LucideIcon }) {
   return (
     <div style={{ flex: '1 1 210px', minWidth: 0, padding: '12px 14px', background: T.canvas, border: `1px solid ${T.border}`, borderRadius: T.radius.lg }}>
-      <Eyebrow>{label}</Eyebrow>
+      <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{icon && <InlineIcon icon={icon} size={13} />}{label}</Eyebrow>
       <div data-testid={testId} style={{ marginTop: 4, fontSize: 13.5, fontWeight: 600, color: T.text, overflowWrap: 'anywhere', fontFamily: mono ? T.mono : 'inherit' }}>{children}</div>
     </div>
   );
@@ -670,22 +671,22 @@ export default function WorkActivitiesPage() {
 
             <div style={{ padding: compact ? 16 : 24, display: 'flex', flexDirection: 'column', gap: 22 }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <InfoTile label="Executive">{detailedSub.users?.name || 'FE'}</InfoTile>
-                <InfoTile label="Store">{storeName(detailedSub.outlet_name) || 'No store linked'}</InfoTile>
-                <InfoTile label="Address">{detailedSub.address || 'GPS only'}</InfoTile>
+                <InfoTile label="Executive" icon={User}>{detailedSub.users?.name || 'FE'}</InfoTile>
+                <InfoTile label="Store" icon={Store}>{storeName(detailedSub.outlet_name) || 'No store linked'}</InfoTile>
+                <InfoTile label="Address" icon={MapPin}>{detailedSub.address || 'GPS only'}</InfoTile>
                 {!hideVisitTracking && (
                   <>
-                    <InfoTile label="Check-in" testId="wa-modal-in" mono>{fmtStamp(detailedSub.check_in_at)}</InfoTile>
-                    <InfoTile label="Check-out" testId="wa-modal-out" mono>{fmtStamp(detailedSub.check_out_at)}</InfoTile>
-                    <InfoTile label="Time spent" testId="wa-modal-spent" mono>{fmtMinutes(visitMinutes(detailedSub))}</InfoTile>
+                    <InfoTile label="Check-in" icon={LogIn} testId="wa-modal-in" mono>{fmtStamp(detailedSub.check_in_at)}</InfoTile>
+                    <InfoTile label="Check-out" icon={LogOut} testId="wa-modal-out" mono>{fmtStamp(detailedSub.check_out_at)}</InfoTile>
+                    <InfoTile label="Time spent" icon={Timer} testId="wa-modal-spent" mono>{fmtMinutes(visitMinutes(detailedSub))}</InfoTile>
                   </>
                 )}
-                <InfoTile label={hideVisitTracking ? 'GPS' : 'Check-in GPS'} mono>{gpsText(detailedSub.check_in_gps, detailedSub.latitude ?? detailedSub.location_lat, detailedSub.longitude ?? detailedSub.location_lng) || '—'}</InfoTile>
-                {!hideVisitTracking && <InfoTile label="Check-out GPS" mono>{gpsText(detailedSub.check_out_gps) || '—'}</InfoTile>}
+                <InfoTile label={hideVisitTracking ? 'GPS' : 'Check-in GPS'} icon={Crosshair} mono>{gpsText(detailedSub.check_in_gps, detailedSub.latitude ?? detailedSub.location_lat, detailedSub.longitude ?? detailedSub.location_lng) || '—'}</InfoTile>
+                {!hideVisitTracking && <InfoTile label="Check-out GPS" icon={Crosshair} mono>{gpsText(detailedSub.check_out_gps) || '—'}</InfoTile>}
               </div>
 
               <div>
-                <Eyebrow style={{ marginBottom: 10 }}>{detailedSub.builder_forms?.title ? `Form: ${detailedSub.builder_forms.title}` : 'Form responses'}</Eyebrow>
+                <Eyebrow style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ClipboardList} size={13} />{detailedSub.builder_forms?.title ? `Form: ${detailedSub.builder_forms.title}` : 'Form responses'}</Eyebrow>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(detailedSub.answers && detailedSub.answers.length > 0)
                     ? detailedSub.answers
@@ -746,7 +747,7 @@ export default function WorkActivitiesPage() {
             title="Download image"
             aria-label="Download image"
             style={{ position: 'absolute', top: '20px', right: '84px', background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', fontSize: '18px', cursor: 'pointer', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
-          >⬇</button>
+          ><InlineIcon icon={Download} size={18} /></button>
 
           {/* Close */}
           <button

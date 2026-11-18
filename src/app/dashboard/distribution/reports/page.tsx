@@ -1,5 +1,8 @@
 'use client';
 import { Card, PageHeader, Pill } from '../../../../components/distribution/Atoms';
+import { IndianRupee, Package, ShoppingCart, Target } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 /**
  * Distribution & Supply-Chain Reports hub.
@@ -17,12 +20,12 @@ interface Report {
   href?: string;        // present ⇒ live
   planned?: boolean;    // true ⇒ roadmap, rendered disabled
 }
-interface Group { title: string; icon: string; reports: Report[]; }
+interface Group { title: string; icon: LucideIcon; reports: Report[]; }
 
 const GROUPS: Group[] = [
   {
     title: 'Sales & Orders',
-    icon: '🛒',
+    icon: ShoppingCart,
     reports: [
       { label: 'Order Register',          sub: 'Every order — outlet, salesman, value, status, date range', href: '/dashboard/distribution/orders' },
       { label: 'Invoice / GST Sales Register', sub: 'Issued invoices with taxable value, CGST/SGST/IGST, grand total', href: '/dashboard/distribution/invoices' },
@@ -35,7 +38,7 @@ const GROUPS: Group[] = [
   },
   {
     title: 'Collections & Receivables',
-    icon: '💰',
+    icon: IndianRupee,
     reports: [
       { label: 'Collection Register',      sub: 'Payments received — mode, outlet, salesman, status', href: '/dashboard/distribution/payments' },
       { label: 'Outstanding & Ageing',     sub: 'Distributor dues in 0–30 / 31–60 / 61–90 / 90+ buckets, over-limit', href: '/dashboard/distribution/receivables' },
@@ -47,7 +50,7 @@ const GROUPS: Group[] = [
   },
   {
     title: 'Stock & Inventory',
-    icon: '📦',
+    icon: Package,
     reports: [
       { label: 'Distributor Stock on Hand', sub: 'Current qty, reserved and available per SKU', href: '/dashboard/distribution/stock' },
       { label: 'Godown Movement',          sub: 'Received, issued, adjustment and balance per product', href: '/dashboard/distribution/reports/godown' },
@@ -60,7 +63,7 @@ const GROUPS: Group[] = [
   },
   {
     title: 'Targets & Performance',
-    icon: '🎯',
+    icon: Target,
     reports: [
       { label: 'Quarterly Sales Targets',  sub: 'Shop × SKU target vs invoiced quantity, % achievement', href: '/dashboard/distribution/reports/targets' },
       { label: 'Target vs Achievement (₹)', sub: 'Value targets vs actuals by salesman and period', planned: true },
@@ -80,7 +83,7 @@ export default function DistributionReports() {
         {GROUPS.map((g) => (
           <div key={g.title}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
-              <span style={{ fontSize: 20 }}>{g.icon}</span>
+              <InlineIcon icon={g.icon} size={16} style={{ color: 'var(--dim)' }} />
               <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)', margin: 0 }}>{g.title}</h3>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>

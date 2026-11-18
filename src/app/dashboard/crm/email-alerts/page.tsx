@@ -7,6 +7,8 @@ import { crmEmailTemplates } from '../../../../lib/crmApi';
 import type { EmailTemplate } from '../../../../types/crm';
 import HtmlEmailEditor from '../../../../components/crm/email/HtmlEmailEditor';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { BellRing, CalendarClock, Check, Mail, MailPlus, Plus, Send } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 /**
  * Email alerts inbox — list every planned/sent email, with a composer
@@ -68,13 +70,16 @@ export default function EmailAlertsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Email alerts</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <PageIcon />
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Email alerts</h1>
+          </div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
             Compose a one-off or scheduled email using a template + verified sender. <Link href="/dashboard/crm/email-senders" style={{ color: 'var(--primary)' }}>Manage senders</Link> · <Link href="/dashboard/crm/email-templates" style={{ color: 'var(--primary)' }}>Manage templates</Link>
           </div>
         </div>
-        <button onClick={() => setComposing(true)} style={{ padding: '10px 16px', borderRadius: 8, background: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-          New alert
+        <button onClick={() => setComposing(true)} style={{ padding: '10px 16px', borderRadius: 8, background: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <InlineIcon icon={Plus} />New alert
         </button>
       </div>
 
@@ -82,7 +87,8 @@ export default function EmailAlertsPage() {
         <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>Loading…</div>
       ) : rows.length === 0 ? (
         <div style={{ padding: 30, textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 10, color: 'var(--text-dim)', fontSize: 13 }}>
-          No alerts yet. Click <b>New alert</b> to send one.
+          <IconTile icon={BellRing} size={40} iconSize={20} style={{ marginBottom: 10 }} />
+          <div>No alerts yet. Click <b>New alert</b> to send one.</div>
         </div>
       ) : (
         <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
@@ -109,14 +115,14 @@ export default function EmailAlertsPage() {
                   </Td>
                   <Td><StatusPill status={r.status} /></Td>
                   <Td style={{ color: 'var(--text-dim)', fontSize: 12 }}>
-                    {r.scheduled_at && r.status === 'scheduled' && `📅 ${new Date(r.scheduled_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`}
-                    {r.sent_at && r.status !== 'scheduled' && `✉️ ${new Date(r.sent_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`}
+                    {r.scheduled_at && r.status === 'scheduled' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={CalendarClock} size={13} />{new Date(r.scheduled_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>}
+                    {r.sent_at && r.status !== 'scheduled' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={Mail} size={13} />{new Date(r.sent_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>}
                     {!r.scheduled_at && !r.sent_at && '—'}
                   </Td>
                   <Td style={{ textAlign: 'right' }}>
                     {r.status === 'scheduled' && (
                       <>
-                        <button onClick={() => sendNow(r.id)} style={btnGhost}>Send now</button>
+                        <button onClick={() => sendNow(r.id)} style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}><InlineIcon icon={Send} size={12} />Send now</button>
                         <button onClick={() => cancel(r.id)} style={{ ...btnGhost, color: 'var(--primary)', marginLeft: 4 }}>Cancel</button>
                       </>
                     )}
@@ -244,7 +250,7 @@ function ComposeModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 920, maxHeight: 'calc(100vh - 60px)', background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <div style={{ fontWeight: 800, fontSize: 16 }}>New email alert</div>
+          <div style={{ fontWeight: 800, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={MailPlus} size={18} style={{ color: 'var(--text-dim)' }} />New email alert</div>
           <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 22, padding: 4 }}>×</button>
         </div>
 
@@ -289,8 +295,8 @@ function ComposeModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1 }}>
                     Saved recipients · {savedRecipients.length}
                   </div>
-                  <button type="button" onClick={() => addToRecipients(savedRecipients.map((r) => r.email))} style={{ ...btnGhost, color: 'var(--primary)', borderColor: 'var(--primary)' }}>
-                    + Add all
+                  <button type="button" onClick={() => addToRecipients(savedRecipients.map((r) => r.email))} style={{ ...btnGhost, color: 'var(--primary)', borderColor: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <InlineIcon icon={Plus} size={12} />Add all
                   </button>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 128, overflowY: 'auto' }}>
@@ -309,9 +315,10 @@ function ComposeModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
                           background: added ? 'var(--s3)' : 'transparent',
                           color: added ? 'var(--text-dim)' : 'var(--text)',
                           opacity: added ? 0.55 : 1, cursor: added ? 'default' : 'pointer',
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
                         }}
                       >
-                        {added ? '✓ ' : '+ '}{r.email}
+                        <InlineIcon icon={added ? Check : Plus} size={12} />{r.email}
                       </button>
                     );
                   })}
@@ -357,8 +364,8 @@ function ComposeModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
 
         <div style={{ padding: '14px 18px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, background: 'var(--s2)' }}>
           <button onClick={onClose} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={submit} disabled={busy || senders.length === 0} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'var(--primary)', border: 'none', color: '#fff', cursor: busy || senders.length === 0 ? 'not-allowed' : 'pointer', opacity: busy || senders.length === 0 ? 0.5 : 1 }}>
-            {busy ? 'Saving…' : schedule === 'later' ? 'Schedule' : 'Send now'}
+          <button onClick={submit} disabled={busy || senders.length === 0} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'var(--primary)', border: 'none', color: '#fff', cursor: busy || senders.length === 0 ? 'not-allowed' : 'pointer', opacity: busy || senders.length === 0 ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {!busy && <InlineIcon icon={schedule === 'later' ? CalendarClock : Send} />}{busy ? 'Saving…' : schedule === 'later' ? 'Schedule' : 'Send now'}
           </button>
         </div>
       </div>

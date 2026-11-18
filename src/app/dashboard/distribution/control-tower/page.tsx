@@ -9,6 +9,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import api from '../../../../lib/api';
 import { palette as C, Card, Row, StatCard, PageHeader, Pill, Btn, inr } from '../../../../components/distribution/Atoms';
+import { AlertTriangle, LineChart, Moon, Network, Radar, Route, Send, Sparkles } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon, type IconTone } from '../../../../components/ui/PageIcon';
+import { stageIcon } from '../../../../components/distribution/stageIcons';
 
 interface Stage { key: string; label: string; entity?: string | null; icon?: string | null; optional?: boolean; }
 interface Signal { type: string; severity: 'critical' | 'warning' | 'ai'; title: string; detail: string; action?: string }
@@ -34,7 +38,7 @@ const DEFAULT_STAGES: Stage[] = [
 ];
 
 const sevPill = (s: Signal['severity']) => (s === 'critical' ? 'red' : s === 'warning' ? 'amber' : 'blue') as 'red' | 'amber' | 'blue';
-const sevIcon = (s: Signal['severity']) => (s === 'critical' ? '⚠️' : s === 'warning' ? '💤' : '✨');
+const sevIcon = (s: Signal['severity']): { icon: LucideIcon; tone: IconTone } => (s === 'critical' ? { icon: AlertTriangle, tone: 'red' } : s === 'warning' ? { icon: Moon, tone: 'warn' } : { icon: Sparkles, tone: 'info' });
 
 export default function ControlTowerPage() {
   const [tower, setTower] = useState<Tower | null>(null);
@@ -95,8 +99,8 @@ export default function ControlTowerPage() {
         title="Control Tower"
         subtitle="How your product reaches the end customer — brand to consumer, with AI watching the whole route."
         right={<Row style={{ gap: 8 }}>
-          <Link href="/dashboard/distribution/setup"><Btn variant="ghost">Network Setup</Btn></Link>
-          <Btn variant="ghost" onClick={load}>↻ Refresh</Btn>
+          <Link href="/dashboard/distribution/setup"><Btn variant="ghost" icon={<InlineIcon icon={Network} />}>Network Setup</Btn></Link>
+          <Btn variant="ghost" onClick={load}>Refresh</Btn>
         </Row>}
       />
 
@@ -116,11 +120,11 @@ export default function ControlTowerPage() {
       {/* Ask KINI — conversational control tower */}
       <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: 'var(--s1)', padding: 12, marginBottom: 18 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <span style={{ fontSize: 15 }}>✨</span>
+          <InlineIcon icon={Sparkles} size={16} style={{ color: 'var(--primary)' }} />
           <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') ask(); }}
             placeholder="Ask KINI about your network — e.g. which distributors will stock out this week?"
             style={{ flex: 1, background: 'transparent', border: 'none', color: C.text, fontSize: 14, outline: 'none' }} />
-          <Btn onClick={() => ask()} disabled={asking || !q.trim()}>{asking ? 'Thinking…' : 'Ask'}</Btn>
+          <Btn onClick={() => ask()} disabled={asking || !q.trim()} icon={<InlineIcon icon={Send} />}>{asking ? 'Thinking…' : 'Ask'}</Btn>
         </div>
         {answer && <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, fontSize: 13.5, color: C.text, lineHeight: 1.55 }}>{answer}</div>}
       </div>
@@ -136,13 +140,13 @@ export default function ControlTowerPage() {
 
       {/* Route-to-market spine */}
       <Card style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.dim, fontWeight: 700, marginBottom: 14 }}>Route to market</div>
+        <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.dim, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Route} size={14} />Route to market</div>
         <div style={{ display: 'flex', gap: 0, flexWrap: 'wrap', alignItems: 'stretch' }}>
           {nodes.map((n, i) => (
             <div key={n.stage.key} style={{ display: 'flex', alignItems: 'stretch', flex: '1 1 200px', minWidth: 190 }}>
               <div style={{ flex: 1, background: C.s2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 15, position: 'relative' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 9, display: 'grid', placeItems: 'center', fontSize: 16, background: 'rgba(139,123,240,0.14)', border: `1px solid ${C.border}` }}>{n.stage.icon || '•'}</div>
+                  <IconTile icon={stageIcon(n.stage)} tone="brand" size={32} iconSize={16} />
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{n.stage.label}
                     <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', marginLeft: 7, verticalAlign: 'middle', background: n.health === 'green' ? 'var(--green)' : n.health === 'amber' ? '#F59E0B' : 'var(--text-dim)' }} />
                   </div>
@@ -162,6 +166,7 @@ export default function ControlTowerPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,360px)', gap: 16 }}>
         <Card>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <InlineIcon icon={Radar} size={16} style={{ color: C.dim }} />
             <div style={{ fontSize: 15, fontWeight: 800 }}>AI signals</div>
             <Pill color="blue">act in one tap</Pill>
           </div>
@@ -169,7 +174,7 @@ export default function ControlTowerPage() {
             <div style={{ color: C.dim, fontSize: 13, padding: '16px 0' }}>{loading ? 'Scanning…' : 'No signals right now — your network is running clean.'}</div>
           ) : tower.signals.map((s, i) => (
             <div key={i} style={{ display: 'flex', gap: 12, padding: '14px 0', borderTop: i === 0 ? 'none' : `1px solid ${C.border}` }}>
-              <div style={{ width: 30, height: 30, borderRadius: 8, flex: 'none', display: 'grid', placeItems: 'center', fontSize: 15, background: 'var(--s3)' }}>{sevIcon(s.severity)}</div>
+              <IconTile icon={sevIcon(s.severity).icon} tone={sevIcon(s.severity).tone} size={30} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 13.5, fontWeight: 700 }}>{s.title}</span>
@@ -184,6 +189,7 @@ export default function ControlTowerPage() {
 
         <Card>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <InlineIcon icon={LineChart} size={16} style={{ color: C.dim }} />
             <div style={{ fontSize: 15, fontWeight: 800 }}>Demand forecast</div>
             <Pill color="blue">AI</Pill>
           </div>

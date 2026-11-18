@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, StatCard, Row, Th, Td, Btn } from '../../../../../components/distribution/Atoms';
+import { ArrowDownToLine, ArrowUpFromLine, PackageCheck } from 'lucide-react';
 
 const dateOnly = (s?: string | null) => {
   if (!s) return '—';
@@ -56,9 +57,9 @@ export default function GodownReport() {
       />
 
       <Row style={{ marginBottom: 20 }}>
-        <StatCard label="Total Stock Received" value={(summary.total_received || 0).toLocaleString('en-IN')} />
-        <StatCard label="Total Stock Issued" value={(summary.total_issued || 0).toLocaleString('en-IN')} />
-        <StatCard label="Current Available" value={(summary.current_available || 0).toLocaleString('en-IN')} accent="var(--green)" />
+        <StatCard label="Total Stock Received" icon={ArrowDownToLine} value={(summary.total_received || 0).toLocaleString('en-IN')} />
+        <StatCard label="Total Stock Issued" icon={ArrowUpFromLine} value={(summary.total_issued || 0).toLocaleString('en-IN')} />
+        <StatCard label="Current Available" icon={PackageCheck} value={(summary.current_available || 0).toLocaleString('en-IN')} accent="var(--green)" />
         <StatCard label="Products Tracked" value={summary.sku_count || 0} />
       </Row>
 

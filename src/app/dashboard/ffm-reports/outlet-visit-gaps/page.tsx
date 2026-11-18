@@ -1,5 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
+import { CalendarClock, MapPin, MapPinOff } from 'lucide-react';
 import { istToday } from '../../../../components/attendance/RangePresets';
 import { ffmReports, type OutletGapRow, type OutletGapsPayload } from '../../../../components/ffm/reports/ffmReportsApi';
 import {
@@ -69,9 +70,9 @@ export default function OutletVisitGapsReport() {
       <StatusBox loading={loading} error={error} onRetry={reload}>
         <StatGrid>
           <Stat label="Outlets" value={fmtInt(s?.outlets ?? 0)} />
-          <Stat label="Visited in window" value={fmtInt(s?.visited ?? 0)} />
-          <Stat label="Not visited in window" value={fmtInt(s?.never_visited ?? 0)} />
-          <Stat label="Avg days since visit" value={fmtNum(s?.avg_days_since_last_visit)} hint="outlets visited in the window" />
+          <Stat label="Visited in window" icon={MapPin} value={fmtInt(s?.visited ?? 0)} />
+          <Stat label="Not visited in window" icon={MapPinOff} value={fmtInt(s?.never_visited ?? 0)} />
+          <Stat label="Avg days since visit" icon={CalendarClock} value={fmtNum(s?.avg_days_since_last_visit)} hint="outlets visited in the window" />
         </StatGrid>
         <DataTable
           testId="outlet-gaps-table" cols={cols} rows={rows} rowKey={(r) => r.store_id} minWidth={1050}

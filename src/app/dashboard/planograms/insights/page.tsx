@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import planogramApi from '../../../../lib/planogramApi';
+import { AlertTriangle, Camera, IndianRupee, Map as MapIcon, Percent, PieChart, Repeat, Store, Tag, TrendingUp, PackageCheck, type LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 import {
   PC,
   SectionCard,
@@ -140,21 +142,24 @@ export default function PlanogramInsightsPage() {
         <div className="pg-fade" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Headline stat tiles */}
           <div style={{ display: 'grid', gridTemplateColumns: isCompact ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 9 }}>
-            <Stat label="Captures analysed" value={String(data.captures_count)} sub={`across ${data.stores_count} store${data.stores_count === 1 ? '' : 's'}`} />
+            <Stat label="Captures analysed" icon={Camera} value={String(data.captures_count)} sub={`across ${data.stores_count} store${data.stores_count === 1 ? '' : 's'}`} />
             <Stat
               label="Avg compliance"
+              icon={Percent}
               value={avgScoreText(data.compliance_trend)}
               valueColor={toneColor(scoreTone(avgScore(data.compliance_trend)))}
               sub="mean shelf score"
             />
             <Stat
               label="Own shelf share"
+              icon={PieChart}
               value={pctText(avgOwnShare(data.store_compliance))}
               valueColor={OWN}
               sub="own vs competitor"
             />
             <Stat
               label="Promo presence"
+              icon={Tag}
               value={pctText(promo?.pct ?? 0)}
               valueColor={PC.info}
               sub={`${promo?.captures_with_promo ?? 0} of ${promo?.captures_total ?? 0} shelves`}
@@ -162,7 +167,7 @@ export default function PlanogramInsightsPage() {
           </div>
 
           {/* Compliance trend (full width) */}
-          <SectionCard title="Compliance trend" caption="Org-wide average shelf-compliance score over time">
+          <SectionCard title="Compliance trend" icon={TrendingUp} caption="Org-wide average shelf-compliance score over time">
             <LineChart
               xLabels={data.compliance_trend.map((p) => fmtDate(p.date))}
               series={[{ label: 'Avg compliance', color: PC.info, points: data.compliance_trend.map((p) => p.avg_score), area: true }]}
@@ -174,7 +179,7 @@ export default function PlanogramInsightsPage() {
 
           {/* Category share + Price movement */}
           <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 16 }}>
-            <SectionCard title="Category shelf-share" caption="Own vs competitor facings share, per category">
+            <SectionCard title="Category shelf-share" icon={PieChart} caption="Own vs competitor facings share, per category">
               {hasCategory ? (
                 <CategoryShare rows={data.category_share} />
               ) : (
@@ -182,7 +187,7 @@ export default function PlanogramInsightsPage() {
               )}
             </SectionCard>
 
-            <SectionCard title="Price movement" caption="Average shelf price — MoiSoi vs competitor">
+            <SectionCard title="Price movement" icon={IndianRupee} caption="Average shelf price — MoiSoi vs competitor">
               {hasPrice ? (
                 <>
                   <Legend items={[{ label: 'MoiSoi', color: OWN }, { label: 'Competitor', color: COMP }]} />
@@ -204,7 +209,7 @@ export default function PlanogramInsightsPage() {
           </div>
 
           {/* Store compliance (ranked) */}
-          <SectionCard title="Compliance by store" caption="Average score, own shelf-share & competitor share per store — best first">
+          <SectionCard title="Compliance by store" icon={Store} caption="Average score, own shelf-share & competitor share per store — best first">
             {data.store_compliance.length === 0 ? (
               <StateBlock>No per-store data in this window.</StateBlock>
             ) : (
@@ -213,7 +218,7 @@ export default function PlanogramInsightsPage() {
           </SectionCard>
 
           {/* On-shelf availability by channel (store_type) */}
-          <SectionCard title="On-shelf availability by channel" caption="Average availability and out-of-stock counts per channel (store type) — lowest availability first">
+          <SectionCard title="On-shelf availability by channel" icon={PackageCheck} caption="Average availability and out-of-stock counts per channel (store type) — lowest availability first">
             {osa.length === 0 ? (
               <StateBlock>No availability data in this window.</StateBlock>
             ) : (
@@ -223,7 +228,7 @@ export default function PlanogramInsightsPage() {
 
           {/* Region compliance + Promo presence */}
           <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 16 }}>
-            <SectionCard title="Compliance by region" caption={regionsConfigured ? 'Average score per region (store city)' : 'Set store cities to break compliance down by region'}>
+            <SectionCard title="Compliance by region" icon={MapIcon} caption={regionsConfigured ? 'Average score per region (store city)' : 'Set store cities to break compliance down by region'}>
               {data.region_compliance.length === 0 ? (
                 <StateBlock>No regional data in this window.</StateBlock>
               ) : (
@@ -231,7 +236,7 @@ export default function PlanogramInsightsPage() {
               )}
             </SectionCard>
 
-            <SectionCard title="Promotions on shelf" caption="How often shelves carry a live offer, and the offers seen">
+            <SectionCard title="Promotions on shelf" icon={Tag} caption="How often shelves carry a live offer, and the offers seen">
               <PromoCard promo={promo} />
             </SectionCard>
           </div>
@@ -239,7 +244,7 @@ export default function PlanogramInsightsPage() {
           {/* Predictive watch-list (reuses the existing org-wide signals) */}
           {(risk.length > 0 || chronic.length > 0) && (
             <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 16 }}>
-              <SectionCard title="Stores at risk" caption="Compliance trending down — likely to slip next visit">
+              <SectionCard title="Stores at risk" icon={AlertTriangle} caption="Compliance trending down — likely to slip next visit">
                 {risk.length === 0 ? (
                   <StateBlock>No at-risk stores.</StateBlock>
                 ) : (
@@ -253,7 +258,7 @@ export default function PlanogramInsightsPage() {
                   ))
                 )}
               </SectionCard>
-              <SectionCard title="Chronic gaps" caption="Repeatedly below target over the last few captures">
+              <SectionCard title="Chronic gaps" icon={Repeat} caption="Repeatedly below target over the last few captures">
                 {chronic.length === 0 ? (
                   <StateBlock>No chronic gaps detected.</StateBlock>
                 ) : (
@@ -294,10 +299,11 @@ function avgOwnShare(rows: InsightsStoreRow[]): number | null {
 }
 
 // ── Stat tile ────────────────────────────────────────────────────────────────
-function Stat({ label, value, sub, valueColor }: { label: string; value: string; sub?: string; valueColor?: string }) {
+function Stat({ label, value, sub, valueColor, icon }: { label: string; value: string; sub?: string; valueColor?: string; icon: LucideIcon }) {
   return (
     <div style={{ background: PC.surface, border: `1px solid ${PC.border}`, borderRadius: 12, padding: '12px 14px' }}>
-      <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', color: PC.muted, fontWeight: 700 }}>
+      <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', color: PC.muted, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <InlineIcon icon={icon} size={13} />
         {label}
       </div>
       <div style={{ fontSize: 24, fontWeight: 800, color: valueColor || PC.text, marginTop: 5, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
