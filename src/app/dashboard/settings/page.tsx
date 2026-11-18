@@ -284,6 +284,34 @@ export default function SettingsPage() {
       alert('Name and either a mobile number or an email are required');
       return;
     }
+    // A new "Client" admin is created through the client's own endpoint, which puts it in the client's org (and
+    // project). POST /users stamps the caller's org, which left such an admin unable to see the client's data.
+    if (!editMode && form.role === 'client') {
+      if (!form.client_id) { alert('Pick the client this admin belongs to.'); return; }
+      if (!form.email.trim()) { alert('Enter an email. Client admins sign in to the dashboard with it.'); return; }
+      setSaving(true);
+      try {
+        await api.addClientAdmin(form.client_id, {
+          name: form.name.trim(),
+          email: form.email.trim(),
+          ...(form.mobile.trim() ? { mobile: form.mobile.trim() } : {}),
+          password: form.password,
+        });
+        setShowAdd(false);
+        setForm({
+          name: '', email: '', role: 'sub_admin', password: '',
+          mobile: '', employee_id: '', zone_id: '', city: '',
+          client_id: '',
+          permissions: ROLE_DEFAULTS['sub_admin'], assigned_cities: []
+        });
+        fetchData();
+      } catch (err: any) {
+        alert(err.message || 'Failed to add the client admin');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     setSaving(true);
     try {
       const { mobile: _m, email: _e, ...rest } = form;

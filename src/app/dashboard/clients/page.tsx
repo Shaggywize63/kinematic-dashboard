@@ -8,6 +8,7 @@ import { type AppCustomization } from '../../../lib/appCustomization';
 import AppCustomizationPanel from '../../../components/clients/AppCustomizationPanel';
 import ClientNotificationsPanel from '../../../components/clients/ClientNotificationsPanel';
 import ClientAccountPanel from '../../../components/clients/ClientAccountPanel';
+import ClientAdminsPanel from '../../../components/clients/ClientAdminsPanel';
 import AppLayoutEditor from '../../../components/clients/AppLayoutEditor';
 import api, { setActingAs } from '../../../lib/api';
 import { getStoredProjectKey, DEFAULT_PROJECT, setStoredProjectKey } from '../../../lib/projects';
@@ -570,6 +571,12 @@ export default function ClientManagement() {
                     Envs {expanded ? '▴' : '▾'}
                   </button>
                 )}
+                <button onClick={() => openEdit(c, 'client-section-admins')} title="Admins" aria-label={`Admins of ${c.name}`} data-testid={`client-admins-btn-${c.id}`} style={{ height: 32, padding: '0 10px', border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: C.gray, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
+                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+                  Admins
+                </button>
                 <button onClick={() => openEdit(c)} title="Edit client" style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
@@ -669,6 +676,11 @@ export default function ClientManagement() {
               <div><Label t="Email Address" /><input style={inp} placeholder="client@example.com" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div>
               <div><Label t="Login Password" req={!editing} /><input type="password" style={inp} placeholder={editing ? "(Unchanged)" : "Create password"} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} /></div>
             </div>
+            {!editing && (
+              <div style={{ fontSize: 11, color: C.grayd, marginTop: -16, marginBottom: 24 }}>
+                The email and password create this client&apos;s first admin login. Add more admins under Admins once the client exists.
+              </div>
+            )}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 8 }}>
               <div><Label t="Data Project (optional)" /><input style={inp} placeholder="e.g. default (Tata) — blank = this project" value={form.data_project_key} onChange={e => setForm(p => ({ ...p, data_project_key: e.target.value.trim() }))} /></div>
@@ -788,6 +800,17 @@ export default function ClientManagement() {
                 : (
                   <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}`, fontSize: 12, color: C.grayd }}>
                     Seat usage (allocated vs active), the next payment date and the welcome / payment-reminder emails appear here once the client exists. Create the client, then reopen it.
+                  </div>
+                )}
+            </div>
+
+            <div id="client-section-admins" style={{ marginBottom: 28, scrollMarginTop: 12 }}>
+              <Label t="Admins" />
+              {editing && !provisionMode
+                ? <ClientAdminsPanel key={editing.id} clientId={editing.id} clientName={editing.name} />
+                : (
+                  <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}`, fontSize: 12, color: C.grayd }}>
+                    The Email Address and Login Password above become this client&apos;s first admin. Create the client, then reopen it to add more admins.
                   </div>
                 )}
             </div>
