@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import api from '../../../lib/api';
 import { getStoredUser } from '../../../lib/auth';
 import { useClient } from '../../../context/ClientContext';
+import { Eye, MapPin, MessageSquareText, Reply, User } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../components/ui/PageIcon';
 
 const C = {
   bg: 'var(--bg)', 
@@ -72,9 +74,12 @@ export default function VisitLogsPage() {
   return (
     <div style={{ color: C.white }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 28, fontWeight: 800, margin: 0 }}>Visit Logs</h1>
-          <p style={{ color: C.gray, fontSize: 14, marginTop: 4 }}>Monitor field visits and FE feedback loop</p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <PageIcon style={{ marginTop: 2 }} />
+          <div>
+            <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 28, fontWeight: 800, margin: 0 }}>Visit Logs</h1>
+            <p style={{ color: C.gray, fontSize: 14, marginTop: 4 }}>Monitor field visits and FE feedback loop</p>
+          </div>
         </div>
         <input 
           type="date" 
@@ -99,7 +104,7 @@ export default function VisitLogsPage() {
         </div>
       ) : visits.length === 0 ? (
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 60, textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 16 }}>👁️</div>
+          <IconTile icon={Eye} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 16px' }} />
           <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>No visits recorded for this day</h3>
           <p style={{ color: C.gray, fontSize: 14, marginTop: 8 }}>Field visits logged by supervisors will appear here.</p>
         </div>
@@ -118,8 +123,8 @@ export default function VisitLogsPage() {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: C.red + '15', border: `1px solid ${C.red}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
-                    👤
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: C.red + '15', border: `1px solid ${C.red}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: C.red }}>
+                    <InlineIcon icon={User} size={20} />
                   </div>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 700 }}>{v.executive?.name || v.users?.name || 'Unknown FE'}</div>
@@ -168,13 +173,13 @@ export default function VisitLogsPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, background: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 12 }}>
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: C.gray, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8 }}>Manager Remarks</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: C.gray, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={MessageSquareText} size={13} />Manager Remarks</div>
                   <div style={{ fontSize: 13, color: C.white, lineHeight: 1.5, fontStyle: 'italic' }}>
                     &quot;{v.remarks || 'No remarks provided'}&quot;
                   </div>
                 </div>
                 <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 20 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: C.gray, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8 }}>FE Response / Feedback</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: C.gray, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Reply} size={13} />FE Response / Feedback</div>
                   {v.visit_response ? (
                     <div style={{ color: C.green }}>
                         <div style={{ fontSize: 13, fontWeight: 500 }}>&quot;{v.visit_response}&quot;</div>
@@ -190,7 +195,7 @@ export default function VisitLogsPage() {
 
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 12, color: C.gray }}>
                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span>📍</span> {v.stores?.name || 'Market Visit'}
+                    <InlineIcon icon={MapPin} size={14} /> {v.stores?.name || 'Market Visit'}
                  </div>
                  <div style={{ width: 4, height: 4, borderRadius: '2px', background: C.border }} />
                  <div>ID: {v.id.slice(0, 8)}</div>

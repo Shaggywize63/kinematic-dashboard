@@ -1,5 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
+import { Briefcase, MapPin, Timer } from 'lucide-react';
 import { presetRange } from '../../../../components/attendance/RangePresets';
 import { ffmReports, type TimeTravelPayload, type TimeTravelRow } from '../../../../components/ffm/reports/ffmReportsApi';
 import {
@@ -59,9 +60,9 @@ export default function TimeAndTravelReport() {
         <StatGrid>
           <Stat label="Reps in view" value={rows.length} />
           <Stat label="Distance" value={fmtNum(t?.km_total ?? 0, ' km')} />
-          <Stat label="Visited calls" value={fmtInt(t?.visited_stops ?? 0)} />
-          <Stat label="On site" value={fmtNum(t?.onsite_hours ?? 0, ' h')} hint="timed visits only" />
-          <Stat label="Worked" value={fmtNum(t?.worked_hours ?? 0, ' h')} hint="attendance hours" />
+          <Stat label="Visited calls" icon={MapPin} value={fmtInt(t?.visited_stops ?? 0)} />
+          <Stat label="On site" icon={Timer} value={fmtNum(t?.onsite_hours ?? 0, ' h')} hint="timed visits only" />
+          <Stat label="Worked" icon={Briefcase} value={fmtNum(t?.worked_hours ?? 0, ' h')} hint="attendance hours" />
         </StatGrid>
         <DataTable
           testId="time-travel-table" cols={cols} rows={rows} rowKey={(r) => r.fe_id} minWidth={1400}

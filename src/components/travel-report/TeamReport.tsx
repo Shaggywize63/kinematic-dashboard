@@ -5,7 +5,8 @@
  * Sortable, exportable as CSV, and a row opens that person's day.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, MapPinOff, RefreshCw } from 'lucide-react';
+import { CalendarDays, Download, MapPinOff, RefreshCw } from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 import api, { type DailyReportTeamRow } from '../../lib/api';
 import { downloadCsv } from '../../lib/exportCsv';
 import { SortLabel, useTableSort, type SortState } from '../../lib/tableSort';
@@ -100,7 +101,7 @@ export default function TeamReport({ date, onDateChange, onOpen, clientId }: {
 
       <Card padding={0} style={{ overflow: 'hidden' }}>
         <div style={{ padding: '14px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <Eyebrow>{fmtDay(date)}</Eyebrow>
+          <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={CalendarDays} size={13} />{fmtDay(date)}</Eyebrow>
           <div style={{ fontSize: 12.5, color: T.dim }}>
             Everyone who checked in on this day. Pick a person to see their route, customer visits, halts and timeline.
           </div>

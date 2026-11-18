@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
 import { Badge, Button, Card, EmptyState, T, eyebrowStyle, type ButtonVariant, type ButtonSize } from '../../../../components/ui';
+import type { LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 /**
  * Shared visual language for the planogram module (Overview / Captures /
@@ -137,6 +139,7 @@ export function CaptureFlags({
  *  right, then the body (`bodyPad={false}` for tables / lists). */
 export function SectionCard({
   title,
+  icon,
   caption,
   right,
   children,
@@ -144,6 +147,8 @@ export function SectionCard({
   style,
 }: {
   title?: ReactNode;
+  /** Optional 16px dim icon before the title. */
+  icon?: LucideIcon;
   caption?: ReactNode;
   right?: ReactNode;
   children: ReactNode;
@@ -167,7 +172,10 @@ export function SectionCard({
         >
           <div style={{ minWidth: 0 }}>
             {title && (
-              <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>{title}</div>
+              <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {icon && <InlineIcon icon={icon} size={16} style={{ color: T.dim }} />}
+                {title}
+              </div>
             )}
             {caption && <div style={{ fontSize: 12.5, color: T.dim, marginTop: 2 }}>{caption}</div>}
           </div>

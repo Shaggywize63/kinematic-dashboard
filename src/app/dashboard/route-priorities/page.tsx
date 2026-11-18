@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { api } from '../../../lib/api';
+import { Store as StoreIcon } from 'lucide-react';
+import { PageIcon, IconTile } from '../../../components/ui/PageIcon';
 
 /**
  * Outlet Priorities — set each outlet's visit cadence + priority. This is what
@@ -82,7 +84,10 @@ export default function OutletPrioritiesPage() {
 
   return (
     <div style={{ padding: '24px 20px', maxWidth: 900, margin: '0 auto' }}>
-      <h1 style={{ fontFamily: 'var(--heading, inherit)', fontSize: 24, fontWeight: 700, color: C.text, margin: 0 }}>Outlet Priorities</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <PageIcon />
+        <h1 style={{ fontFamily: 'var(--heading, inherit)', fontSize: 24, fontWeight: 700, color: C.text, margin: 0 }}>Outlet Priorities</h1>
+      </div>
       <p style={{ fontSize: 13, color: C.sec, margin: '4px 0 16px' }}>
         Set how often each outlet should be visited and its priority. The route optimizer visits <strong>overdue</strong> and <strong>high-priority</strong> outlets first.
       </p>
@@ -95,7 +100,7 @@ export default function OutletPrioritiesPage() {
 
       {!loading && (
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', background: C.s2 }}>
-          {filtered.length === 0 && <div style={{ padding: '24px 14px', color: C.tert, textAlign: 'center', fontSize: 13 }}>No outlets found.</div>}
+          {filtered.length === 0 && <div style={{ padding: '24px 14px', color: C.tert, textAlign: 'center', fontSize: 13 }}><IconTile icon={StoreIcon} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />No outlets found.</div>}
           {filtered.map((s) => {
             const f = freq[s.id] || {};
             return (

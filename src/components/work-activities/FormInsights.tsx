@@ -25,6 +25,8 @@ import api from '../../lib/api';
 import {
   CHART, CHART_PALETTE, GLASS_TOOLTIP, GradientDefs, grad, ChartTooltip, ChartCard,
 } from '../../lib/chartTheme';
+import { BarChart3, FileText, Percent, Star, Target, Users, type LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon } from '../ui/PageIcon';
 
 // ── data shapes ──────────────────────────────────────────────────────────
 interface NameValue { name: string; value: number }
@@ -65,7 +67,7 @@ function label(d: InsightsData, key: string, fallback: string): string {
 }
 
 // ── KPI tile ─────────────────────────────────────────────────────────────
-function Kpi({ label, value, accent, sub }: { label: string; value: string; accent?: string; sub?: string }) {
+function Kpi({ label, value, accent, sub, icon }: { label: string; value: string; accent?: string; sub?: string; icon: LucideIcon }) {
   return (
     <div style={{
       background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 16,
@@ -73,7 +75,7 @@ function Kpi({ label, value, accent, sub }: { label: string; value: string; acce
       position: 'relative', overflow: 'hidden',
     }}>
       <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', background: accent || 'var(--primary)' }} />
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={icon} size={14} />{label}</div>
       <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)', lineHeight: 1.1 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{sub}</div>}
     </div>
@@ -99,7 +101,7 @@ export default function FormInsights() {
   if (error || !data?.kpis) {
     return (
       <div style={{ padding: '80px', textAlign: 'center', background: 'var(--s1)', border: '1px dashed var(--border)', borderRadius: 24, color: 'var(--text-dim)' }}>
-        <div style={{ fontSize: 44, marginBottom: 12 }}>📊</div>
+        <IconTile icon={BarChart3} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 12px' }} />
         <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>No insights yet</div>
         <div style={{ marginTop: 6 }}>Insights appear once field form-responses have been collected.</div>
       </div>
@@ -124,11 +126,11 @@ export default function FormInsights() {
 
       {/* KPI row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
-        <Kpi label={label(d, 'kpi_responses', 'Form responses')} value={nfmt(k.total_responses)} accent={CHART_PALETTE[0]} sub="submitted in period" />
-        <Kpi label={label(d, 'kpi_people', 'HCPs covered')} value={nfmt(k.unique_hcps)} accent={CHART_PALETTE[4]} sub="unique respondents" />
-        <Kpi label={label(d, 'kpi_intent', 'Avg intent')} value={`${k.avg_trial_intent ?? '—'}/10`} accent={CHART_PALETTE[1]} sub="mean across responses" />
-        <Kpi label={label(d, 'kpi_signoff', 'Sign-off rate')} value={`${k.sample_signoff_rate ?? '—'}%`} accent="#10B981" sub="proof captured" />
-        <Kpi label={label(d, 'kpi_top', 'Top item')} value={k.top_molecule || '—'} accent="#F43F5E" sub="most preferred" />
+        <Kpi label={label(d, 'kpi_responses', 'Form responses')} icon={FileText} value={nfmt(k.total_responses)} accent={CHART_PALETTE[0]} sub="submitted in period" />
+        <Kpi label={label(d, 'kpi_people', 'HCPs covered')} icon={Users} value={nfmt(k.unique_hcps)} accent={CHART_PALETTE[4]} sub="unique respondents" />
+        <Kpi label={label(d, 'kpi_intent', 'Avg intent')} icon={Target} value={`${k.avg_trial_intent ?? '—'}/10`} accent={CHART_PALETTE[1]} sub="mean across responses" />
+        <Kpi label={label(d, 'kpi_signoff', 'Sign-off rate')} icon={Percent} value={`${k.sample_signoff_rate ?? '—'}%`} accent="#10B981" sub="proof captured" />
+        <Kpi label={label(d, 'kpi_top', 'Top item')} icon={Star} value={k.top_molecule || '—'} accent="#F43F5E" sub="most preferred" />
       </div>
 
       {/* charts */}

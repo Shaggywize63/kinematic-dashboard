@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../../lib/api';
 import { getStoredIndustryScope } from '../../../context/IndustryScopeContext';
 import CitySelect from '../../../components/CitySelect';
+import { AlertTriangle, CalendarDays, Check, CheckCircle2, FileText, FolderOpen, Landmark, LocateFixed, Map as MapIcon, MapPin, Phone, Plus, Power, RefreshCw, Upload, UserX, Users, X, type LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon, type IconTone } from '../../../components/ui/PageIcon';
 
 // Demo insurance vertical relabels the field-force "TFF" metric to "Meetings".
 const tffLabel = () => (getStoredIndustryScope() === 'insurance' ? 'Meetings Today' : 'TFF Today');
@@ -315,13 +317,13 @@ export default function FieldExecutivesPage() {
 
       <div style={{display:'flex',flexDirection:'column',gap:20,animation:'fadeIn 0.3s ease'}}>
 
-        {error && <div style={{background:C.redD,border:`1px solid ${C.redB}`,borderRadius:12,padding:'12px 16px',fontSize:13,color:C.red}}>⚠ {error}</div>}
+        {error && <div style={{background:C.redD,border:`1px solid ${C.redB}`,borderRadius:12,padding:'12px 16px',fontSize:13,color:C.red,display:'flex',alignItems:'center',gap:8}}><InlineIcon icon={AlertTriangle} size={14} />{error}</div>}
 
         {/* Stats */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14}}>
-          {[{l:'Total FEs',v:stats.total,c:C.blue,i:'👥'},{l:'Active',v:stats.active,c:C.green,i:'✓'},{l:'In Field',v:stats.checkedIn,c:C.purple,i:'📍'},{l:'Inactive',v:stats.inactive,c:C.gray,i:'○'}].map((s,i)=>(
+          {([{l:'Total FEs',v:stats.total,c:C.blue,i:Users,t:'info'},{l:'Active',v:stats.active,c:C.green,i:CheckCircle2,t:'ok'},{l:'In Field',v:stats.checkedIn,c:C.purple,i:MapPin,t:'brand'},{l:'Inactive',v:stats.inactive,c:C.gray,i:UserX,t:'neutral'}] as {l:string;v:number;c:string;i:LucideIcon;t:IconTone}[]).map((s,i)=>(
             <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
-              <div style={{position:'absolute',top:12,right:14,fontSize:20,opacity:0.15}}>{s.i}</div>
+              <IconTile icon={s.i} tone={s.t} style={{position:'absolute',top:12,right:14}} />
               <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c,lineHeight:1}}>{s.v}</div>
               <div style={{fontSize:11,color:C.gray,marginTop:6,fontWeight:600}}>{s.l}</div>
             </div>
@@ -361,7 +363,7 @@ export default function FieldExecutivesPage() {
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add Executive
               </button>
-              <button onClick={fetchData} style={{padding:'9px 12px',background:C.s2,border:`1px solid ${C.border}`,color:C.gray,borderRadius:10,fontSize:13,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>↻</button>
+              <button onClick={fetchData} aria-label="Refresh" style={{padding:'9px 12px',background:C.s2,border:`1px solid ${C.border}`,color:C.gray,borderRadius:10,fontSize:13,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",display:'inline-flex',alignItems:'center'}}><InlineIcon icon={RefreshCw} /></button>
             </div>
           </div>
 
@@ -387,7 +389,7 @@ export default function FieldExecutivesPage() {
               {cms.map(cm=><option key={cm.id} value={cm.id}>{cm.name}</option>)}
             </select>
             {(fCity||fSup||fCM) && (
-              <button onClick={()=>{setFCity('');setFSup('');setFCM('');}} style={{fontSize:12,color:C.red,background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",fontWeight:600,padding:'4px 8px'}}>✕ Clear</button>
+              <button onClick={()=>{setFCity('');setFSup('');setFCM('');}} style={{fontSize:12,color:C.red,background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",fontWeight:600,padding:'4px 8px',display:'inline-flex',alignItems:'center',gap:4}}><InlineIcon icon={X} size={14} />Clear</button>
             )}
             <span style={{marginLeft:'auto',fontSize:12,color:C.grayd,fontWeight:600}}>{shown.length} of {fes.length} executives</span>
           </div>
@@ -398,6 +400,7 @@ export default function FieldExecutivesPage() {
           <div style={{padding:60,textAlign:'center',color:C.grayd,fontSize:14}}>Loading field executives...</div>
         ) : shown.length===0 ? (
           <div style={{padding:60,textAlign:'center',color:C.grayd,fontSize:14}}>
+            <IconTile icon={Users} size={40} iconSize={20} style={{display:'flex',margin:'0 auto 10px'}} />
             {fes.length===0?'No field executives yet. Add one to get started.':'No results match your filters.'}
           </div>
         ) : (
@@ -483,7 +486,7 @@ export default function FieldExecutivesPage() {
             <div style={{display:'flex',gap:10,marginTop:8}}>
               <button onClick={()=>setShowAdd(false)} style={{flex:1,padding:'11px',background:C.s3,border:`1px solid ${C.border}`,color:C.gray,borderRadius:11,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
               <button onClick={handleAdd} disabled={saving} style={{flex:2,padding:'11px',background:C.red,border:'none',color:'#fff',borderRadius:11,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:"'DM Sans',sans-serif",display:'flex',alignItems:'center',justifyContent:'center',gap:8,opacity:saving?0.7:1,boxShadow:`0 4px 16px rgba(224,30,44,0.3)`}}>
-                {saving?<><Spin/>Creating...</>:'Create Executive'}
+                {saving?<><Spin/>Creating...</>:<><InlineIcon icon={Plus} />Create Executive</>}
               </button>
             </div>
           </div>
@@ -504,7 +507,7 @@ export default function FieldExecutivesPage() {
 
             {/* Template banner */}
             <div style={{background:C.blueD,border:`1px solid rgba(62,158,255,0.2)`,borderRadius:14,padding:'14px 18px',marginBottom:20,display:'flex',alignItems:'center',gap:14}}>
-              <div style={{fontSize:24,flexShrink:0}}>📄</div>
+              <IconTile icon={FileText} tone="info" size={40} iconSize={20} />
               <div style={{flex:1}}>
                 <div style={{fontSize:13,fontWeight:700,marginBottom:3}}>Download CSV Template</div>
                 <div style={{fontSize:12,color:C.gray}}>Columns: <span style={{color:C.white,fontWeight:600}}>name*, employee_id*</span>, mobile, password, role, zone_name, supervisor_name, city</div>
@@ -523,7 +526,7 @@ export default function FieldExecutivesPage() {
                   style={{border:`2px dashed ${C.border}`,borderRadius:16,padding:'48px 24px',textAlign:'center',cursor:'pointer',transition:'all 0.2s',marginBottom:16}}
                   onMouseEnter={e=>{e.currentTarget.style.borderColor=C.blue;e.currentTarget.style.background='rgba(62,158,255,0.04)';}}
                   onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background='transparent';}}>
-                  <div style={{fontSize:34,marginBottom:12}}>📂</div>
+                  <IconTile icon={FolderOpen} size={40} iconSize={20} style={{display:'flex',margin:'0 auto 12px'}} />
                   <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Click to select CSV file</div>
                   <div style={{fontSize:12,color:C.gray}}>Accepts .csv files · Max 1,000 rows per upload</div>
                   <input ref={fileRef} type="file" accept=".csv,.txt" style={{display:'none'}} onChange={onFile}/>
@@ -541,7 +544,7 @@ export default function FieldExecutivesPage() {
                     <span style={{color:C.red}}>{bulkRows.filter(r=>r._status==='error').length} errors</span> &nbsp;·&nbsp;
                     <span style={{color:C.yellow}}>{pendingBulk} pending</span>
                   </div>
-                  {!bulkDone && <button onClick={()=>{setBulk([]);setBulkErr('');}} style={{fontSize:12,color:C.gray,background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>✕ Clear</button>}
+                  {!bulkDone && <button onClick={()=>{setBulk([]);setBulkErr('');}} style={{fontSize:12,color:C.gray,background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",display:'inline-flex',alignItems:'center',gap:4}}><InlineIcon icon={X} size={14} />Clear</button>}
                 </div>
 
                 <div style={{background:C.s3,borderRadius:12,overflow:'hidden',border:`1px solid ${C.border}`,marginBottom:16,maxHeight:300,overflowY:'auto'}}>
@@ -557,8 +560,8 @@ export default function FieldExecutivesPage() {
                       <div style={{color:C.gray}}>{r.mobile||'—'}</div>
                       <div style={{color:C.gray,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' as const}}>{r.role||'executive'}{r.city?` · ${r.city}`:''}</div>
                       <div>
-                        {r._status==='success' && <span style={{fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:20,background:C.greenD,color:C.green}}>✓ Done</span>}
-                        {r._status==='error'   && <span style={{fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:20,background:C.redD,color:C.red}} title={r._error}>✗ Error</span>}
+                        {r._status==='success' && <span style={{fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:20,background:C.greenD,color:C.green,display:'inline-flex',alignItems:'center',gap:3}}><InlineIcon icon={Check} size={11} />Done</span>}
+                        {r._status==='error'   && <span style={{fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:20,background:C.redD,color:C.red,display:'inline-flex',alignItems:'center',gap:3}} title={r._error}><InlineIcon icon={X} size={11} />Error</span>}
                         {r._status==='pending' && <span style={{fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:20,background:'rgba(255,184,0,0.1)',color:C.yellow}}>Pending</span>}
                       </div>
                     </div>
@@ -580,7 +583,7 @@ export default function FieldExecutivesPage() {
                   {!bulkDone && pendingBulk>0 && (
                     <button onClick={runBulk} disabled={bulkBusy}
                       style={{flex:2,padding:'11px',background:C.red,border:'none',color:'#fff',borderRadius:11,fontSize:13,fontWeight:700,cursor:bulkBusy?'not-allowed':'pointer',fontFamily:"'DM Sans',sans-serif",display:'flex',alignItems:'center',justifyContent:'center',gap:8,opacity:bulkBusy?0.7:1,boxShadow:`0 4px 16px rgba(224,30,44,0.3)`}}>
-                      {bulkBusy?<><Spin/>Uploading...</>:`Upload ${pendingBulk} executives`}
+                      {bulkBusy?<><Spin/>Uploading...</>:<><InlineIcon icon={Upload} />{`Upload ${pendingBulk} executives`}</>}
                     </button>
                   )}
                 </div>
@@ -649,7 +652,7 @@ export default function FieldExecutivesPage() {
                 to the zone's meeting location (record-only). */}
             <div style={{background:C.s3,border:`1px solid ${C.border}`,borderRadius:11,padding:'14px',marginBottom:20}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-                <div style={{fontSize:13,fontWeight:600}}>Attendance Geofence</div>
+                <div style={{fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:8}}><InlineIcon icon={MapPin} size={16} style={{color:C.gray}} />Attendance Geofence</div>
                 <button type="button" onClick={()=>{
                   if(!navigator.geolocation){setFErr('Geolocation not available in this browser');return;}
                   navigator.geolocation.getCurrentPosition(
@@ -657,7 +660,7 @@ export default function FieldExecutivesPage() {
                     ()=>setFErr('Could not read current location'),
                     {enableHighAccuracy:true,timeout:10000}
                   );
-                }} style={{fontSize:11,fontWeight:700,color:C.blue,background:C.blueD,border:`1px solid rgba(62,158,255,0.2)`,borderRadius:8,padding:'5px 10px',cursor:'pointer'}}>📍 Use my location</button>
+                }} style={{fontSize:11,fontWeight:700,color:C.blue,background:C.blueD,border:`1px solid rgba(62,158,255,0.2)`,borderRadius:8,padding:'5px 10px',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:5}}><InlineIcon icon={LocateFixed} size={13} />Use my location</button>
               </div>
               <div style={{fontSize:11,color:C.gray,marginBottom:12}}>Set the FE&apos;s home base so geofenced attendance check-in works. Leave blank to disable enforcement.</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
@@ -669,7 +672,7 @@ export default function FieldExecutivesPage() {
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setShowEdit(false)} style={{flex:1,padding:'11px',background:C.s3,border:`1px solid ${C.border}`,color:C.gray,borderRadius:11,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
               <button onClick={handleEdit} disabled={saving} style={{flex:2,padding:'11px',background:C.blue,border:'none',color:'#fff',borderRadius:11,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontFamily:"'DM Sans',sans-serif",display:'flex',alignItems:'center',justifyContent:'center',gap:8,opacity:saving?0.7:1,boxShadow:`0 4px 16px rgba(62,158,255,0.25)`}}>
-                {saving?<><Spin/>Saving...</>:'Save Changes'}
+                {saving?<><Spin/>Saving...</>:<><InlineIcon icon={Check} />Save Changes</>}
               </button>
             </div>
           </div>
@@ -690,9 +693,9 @@ export default function FieldExecutivesPage() {
               </div>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:9,marginBottom:18}}>
-              {[{l:'Mobile',v:selected.mobile||'—'},{l:'Zone',v:selected.zones?.name||'—'},{l:'City',v:selected.zones?.city||selected.city||'—'},{l:'Joined',v:selected.created_at?new Date(selected.created_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—'}].map(r=>(
+              {[{l:'Mobile',v:selected.mobile||'—',i:Phone},{l:'Zone',v:selected.zones?.name||'—',i:MapIcon},{l:'City',v:selected.zones?.city||selected.city||'—',i:Landmark},{l:'Joined',v:selected.created_at?new Date(selected.created_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—',i:CalendarDays}].map(r=>(
                 <div key={r.l} style={{background:C.s3,borderRadius:11,padding:'11px 13px'}}>
-                  <div style={{fontSize:10,color:C.grayd,marginBottom:4,textTransform:'uppercase' as const,letterSpacing:'0.6px'}}>{r.l}</div>
+                  <div style={{fontSize:10,color:C.grayd,marginBottom:4,textTransform:'uppercase' as const,letterSpacing:'0.6px',display:'flex',alignItems:'center',gap:5}}><InlineIcon icon={r.i} size={12} />{r.l}</div>
                   <div style={{fontSize:13,fontWeight:600}}>{r.v}</div>
                 </div>
               ))}
@@ -710,7 +713,8 @@ export default function FieldExecutivesPage() {
                 <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 Edit
               </button>
-              <button onClick={()=>{toggleActive(selected);setSelected(null);}} style={{flex:1,padding:'11px',background:selected.is_active?'rgba(0,217,126,0.08)':'rgba(224,30,44,0.08)',border:`1px solid ${selected.is_active?'rgba(0,217,126,0.2)':'rgba(224,30,44,0.2)'}`,color:selected.is_active?C.green:C.red,borderRadius:11,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+              <button onClick={()=>{toggleActive(selected);setSelected(null);}} style={{flex:1,padding:'11px',background:selected.is_active?'rgba(0,217,126,0.08)':'rgba(224,30,44,0.08)',border:`1px solid ${selected.is_active?'rgba(0,217,126,0.2)':'rgba(224,30,44,0.2)'}`,color:selected.is_active?C.green:C.red,borderRadius:11,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
+                <InlineIcon icon={Power} />
                 {selected.is_active?'Deactivate':'Activate'}
               </button>
             </div>

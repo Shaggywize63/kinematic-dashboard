@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../lib/api';
 import { getStoredUser, canAccess } from '../../../lib/auth';
+import { CheckCircle2, Check, Clock, Eye, Inbox, Lock, RefreshCw, Settings2, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon, type IconTone } from '../../../components/ui/PageIcon';
 
 const C = {
   red: '#E01E2C', 
@@ -107,11 +109,15 @@ export default function GrievancesPage() {
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800 }}>Grievance Cell</div>
-          <div style={{ fontSize:13, color:C.gray, marginTop:3 }}>Confidential complaints management</div>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <PageIcon />
+          <div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800 }}>Grievance Cell</div>
+            <div style={{ fontSize:13, color:C.gray, marginTop:3 }}>Confidential complaints management</div>
+          </div>
         </div>
-        <button onClick={fetchData} style={{ padding:'9px 16px', background:C.red, color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+        <button onClick={fetchData} style={{ padding:'9px 16px', background:C.red, color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'inline-flex', alignItems:'center', gap:6 }}>
+          <InlineIcon icon={RefreshCw} />
           Refresh
         </button>
       </div>
@@ -124,13 +130,14 @@ export default function GrievancesPage() {
 
       {/* Stats */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
-        {[
-          { l:'Total', v:grievances.length, c:C.blue },
-          { l:'Pending', v:grievances.filter(g=>g.status==='pending').length, c:C.yellow },
-          { l:'Under Review', v:grievances.filter(g=>g.status==='under_review').length, c:C.blue },
-          { l:'Resolved', v:grievances.filter(g=>g.status==='resolved').length, c:C.green },
-        ].map((s, i) => (
-          <div key={i} style={{ background:'var(--s1)', border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        {([
+          { l:'Total', v:grievances.length, c:C.blue, icon:Inbox, tone:'brand' },
+          { l:'Pending', v:grievances.filter(g=>g.status==='pending').length, c:C.yellow, icon:Clock, tone:'warn' },
+          { l:'Under Review', v:grievances.filter(g=>g.status==='under_review').length, c:C.blue, icon:Eye, tone:'info' },
+          { l:'Resolved', v:grievances.filter(g=>g.status==='resolved').length, c:C.green, icon:CheckCircle2, tone:'ok' },
+        ] as { l:string; v:number; c:string; icon:LucideIcon; tone:IconTone }[]).map((s, i) => (
+          <div key={i} style={{ background:'var(--s1)', border:`1px solid ${C.border}`, borderRadius:16, padding:20, position:'relative' }}>
+            <IconTile icon={s.icon} tone={s.tone} style={{ position:'absolute', top:16, right:16 }} />
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color:s.c }}>{s.v}</div>
             <div style={{ fontSize:12, color:C.gray, marginTop:6 }}>{s.l}</div>
           </div>
@@ -153,7 +160,7 @@ export default function GrievancesPage() {
         {loading ? (
           <div style={{ padding:48, textAlign:'center', color:C.grayd, fontSize:14 }}>Loading grievances...</div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding:48, textAlign:'center', color:C.grayd, fontSize:14 }}>No grievances found</div>
+          <div style={{ padding:48, textAlign:'center', color:C.grayd, fontSize:14 }}><IconTile icon={Inbox} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 10px' }} />No grievances found</div>
         ) : (
           <div>
             {filtered.map((g, i) => {
@@ -164,8 +171,8 @@ export default function GrievancesPage() {
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                   <div style={{ flex:1 }}>
                     <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:5 }}>
-                      <span style={{ fontSize:14, fontWeight:700 }}>
-                        {g.is_anonymous ? '🔒 Anonymous' : (g.users?.name || 'Unknown FE')}
+                      <span style={{ fontSize:14, fontWeight:700, display:'inline-flex', alignItems:'center', gap:6 }}>
+                        {g.is_anonymous ? <><InlineIcon icon={Lock} size={14} />Anonymous</> : (g.users?.name || 'Unknown FE')}
                       </span>
                       <span style={{ fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:20, background:sc.bg, color:sc.color }}>
                         {g.status.replace('_', ' ').toUpperCase()}
@@ -179,7 +186,8 @@ export default function GrievancesPage() {
                     </div>
                   </div>
                   <button onClick={() => { setSelected(g); setNewStatus(g.status); setRemarks(g.admin_remarks || ''); }}
-                    style={{ padding:'7px 14px', background:C.s2, border:`1px solid ${C.border}`, borderRadius:9, fontSize:12, fontWeight:600, color:C.gray, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", whiteSpace:'nowrap' }}>
+                    style={{ padding:'7px 14px', background:C.s2, border:`1px solid ${C.border}`, borderRadius:9, fontSize:12, fontWeight:600, color:C.gray, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:6 }}>
+                    <InlineIcon icon={Settings2} size={14} />
                     Manage
                   </button>
                 </div>
@@ -200,7 +208,7 @@ export default function GrievancesPage() {
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, marginBottom:20 }}>Manage Grievance</div>
 
             <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:12, padding:16, marginBottom:18, display:'flex', flexDirection:'column', gap:8, fontSize:13 }}>
-              <div style={{ display:'flex', gap:8 }}><span style={{ color:C.gray, width:90, flexShrink:0 }}>From:</span><span style={{ fontWeight:600 }}>{selected.is_anonymous ? '🔒 Anonymous' : selected.users?.name}</span></div>
+              <div style={{ display:'flex', gap:8 }}><span style={{ color:C.gray, width:90, flexShrink:0 }}>From:</span><span style={{ fontWeight:600, display:'inline-flex', alignItems:'center', gap:6 }}>{selected.is_anonymous ? <><InlineIcon icon={Lock} size={14} />Anonymous</> : selected.users?.name}</span></div>
               <div style={{ display:'flex', gap:8 }}><span style={{ color:C.gray, width:90, flexShrink:0 }}>Category:</span><span style={{ fontWeight:600 }}>{selected.category}</span></div>
               {selected.against_role && <div style={{ display:'flex', gap:8 }}><span style={{ color:C.gray, width:90, flexShrink:0 }}>Regarding:</span><span style={{ fontWeight:600 }}>{selected.against_role}</span></div>}
               <div style={{ display:'flex', gap:8 }}><span style={{ color:C.gray, width:90, flexShrink:0 }}>Details:</span><span style={{ color:'#c8d4e8', lineHeight:1.5 }}>{selected.description}</span></div>
@@ -227,7 +235,8 @@ export default function GrievancesPage() {
             <div style={{ display:'flex', gap:10 }}>
               <button onClick={() => setSelected(null)} style={{ flex:1, padding:12, background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, fontSize:13, fontWeight:600, color:C.gray, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
               <button onClick={updateStatus} disabled={updating}
-                style={{ flex:1, padding:12, background:C.red, border:'none', borderRadius:10, fontSize:13, fontWeight:600, color:'#fff', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", opacity:updating?0.6:1 }}>
+                style={{ flex:1, padding:12, background:C.red, border:'none', borderRadius:10, fontSize:13, fontWeight:600, color:'#fff', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", opacity:updating?0.6:1, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                <InlineIcon icon={Check} />
                 {updating ? 'Updating...' : 'Update Status'}
               </button>
             </div>

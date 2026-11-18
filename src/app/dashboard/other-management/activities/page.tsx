@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../../lib/api';
+import { Activity as ActivityIcon, CheckCircle2, Tags, type LucideIcon } from 'lucide-react';
+import { IconTile, type IconTone } from '../../../../components/ui/PageIcon';
 import ClientSelect from '../../../../components/ClientSelect';
 import ConfirmModal from '../../../../components/ConfirmModal';
 import { useAuth } from '../../../../hooks/useAuth';
@@ -183,8 +185,9 @@ export default function ActivityManagement() {
 
       {/* Stats */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:24}}>
-        {[{l:'Total Activities',v:acts.length,c:C.orange},{l:'Active',v:active,c:C.green},{l:'Types',v:new Set(acts.map(a=>a.type).filter(Boolean)).size,c:C.blue}].map((s,i)=>(
-          <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px'}}>
+        {([{l:'Total Activities',v:acts.length,c:C.orange,icon:ActivityIcon,tone:'brand'},{l:'Active',v:active,c:C.green,icon:CheckCircle2,tone:'ok'},{l:'Types',v:new Set(acts.map(a=>a.type).filter(Boolean)).size,c:C.blue,icon:Tags,tone:'info'}] as {l:string;v:number;c:string;icon:LucideIcon;tone:IconTone}[]).map((s,i)=>(
+          <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative'}}>
+            <IconTile icon={s.icon} tone={s.tone} style={{position:'absolute',top:14,right:14}} />
             <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:10}}>{s.l}</div>
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c}}>{s.v}</div>
           </div>
@@ -208,6 +211,7 @@ export default function ActivityManagement() {
       : err ? <div style={{padding:40,textAlign:'center',color:C.red,fontSize:13}}>{err}</div>
       : filtered.length===0 ? (
         <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:48,textAlign:'center',color:C.grayd,fontSize:13}}>
+          <IconTile icon={ActivityIcon} size={40} iconSize={20} style={{display:'flex',margin:'0 auto 10px'}} />
           {search?'No activities match.':'No activities yet. Create your first activity type.'}
         </div>
       ) : (

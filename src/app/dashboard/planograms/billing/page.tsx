@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import planogramApi from '../../../../lib/planogramApi';
+import { Activity, Banknote, BarChart3, Building2, Camera, type LucideIcon } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../components/ui/PageIcon';
 import {
   PC,
   SectionCard,
@@ -58,9 +60,12 @@ export default function PlanogramBillingPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: PC.text, margin: 0 }}>API Billing</h1>
-          <div style={{ fontSize: 13, color: PC.muted, marginTop: 2 }}>Planogram vision API cost per client</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <PageIcon />
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: PC.text, margin: 0 }}>API Billing</h1>
+            <div style={{ fontSize: 13, color: PC.muted, marginTop: 2 }}>Planogram vision API cost per client</div>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <select
@@ -93,16 +98,16 @@ export default function PlanogramBillingPage() {
         <>
           {/* Totals */}
           <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
-            <Stat label="Total cost" value={money(data.total_cost_usd)} accent />
-            <Stat label="Captures analysed" value={num(data.total_captures)} />
-            <Stat label="API calls" value={num(data.total_calls)} />
+            <Stat label="Total cost" icon={Banknote} value={money(data.total_cost_usd)} accent />
+            <Stat label="Captures analysed" icon={Camera} value={num(data.total_captures)} />
+            <Stat label="API calls" icon={Activity} value={num(data.total_calls)} />
           </div>
           {currency === 'OMR' && (
             <div style={{ fontSize: 11, color: PC.muted }}>Converted at 1 USD = {data.usd_to_omr} OMR.</div>
           )}
 
           {/* Per-client */}
-          <SectionCard title="Cost by client" caption="Planogram vision API spend per client over the period — highest first">
+          <SectionCard title="Cost by client" icon={Building2} caption="Planogram vision API spend per client over the period — highest first">
             {data.clients.length === 0 ? (
               <StateBlock>No API usage in this period.</StateBlock>
             ) : (
@@ -125,7 +130,7 @@ export default function PlanogramBillingPage() {
 
           {/* Daily total */}
           {data.daily.length > 0 && (
-            <SectionCard title="Daily cost" caption="Total vision API spend per day">
+            <SectionCard title="Daily cost" icon={BarChart3} caption="Total vision API spend per day">
               <DailyBars daily={data.daily} money={money} />
             </SectionCard>
           )}
@@ -144,10 +149,10 @@ const selectStyle: CSSProperties = {
   fontSize: 13,
 };
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function Stat({ label, value, accent, icon }: { label: string; value: string; accent?: boolean; icon: LucideIcon }) {
   return (
     <div style={{ border: `1px solid ${PC.border}`, borderRadius: 12, padding: 16, background: PC.surface }}>
-      <div style={{ fontSize: 12, color: PC.muted }}>{label}</div>
+      <div style={{ fontSize: 12, color: PC.muted, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={icon} size={14} />{label}</div>
       <div style={{ fontSize: 24, fontWeight: 800, marginTop: 4, color: accent ? PC.good : PC.text, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
     </div>
   );

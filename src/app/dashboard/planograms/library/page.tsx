@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import planogramApi from '../../../../lib/planogramApi';
+import { CheckCircle2, Layers, Package, Target, TrendingUp, Trophy, type LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import type { Planogram, TrendPoint, StoreRanking } from '../../../../types/planogram';
 import {
   PC,
@@ -135,16 +137,18 @@ export default function PlanogramLibraryPage() {
           gap: 12,
         }}
       >
-        <Stat dot={PC.info} label="Planograms" value={loading ? '·' : String(stats.total)} />
-        <Stat dot={PC.good} label="Active" value={loading ? '·' : String(stats.active)} />
+        <Stat dot={PC.info} icon={Layers} label="Planograms" value={loading ? '·' : String(stats.total)} />
+        <Stat dot={PC.good} icon={CheckCircle2} label="Active" value={loading ? '·' : String(stats.active)} />
         <Stat
           dot={PC.brand}
+          icon={Package}
           label="Expected SKUs"
           value={loading ? '·' : String(stats.skus)}
           soft={enriching}
         />
         <Stat
           dot={PC.warn}
+          icon={Target}
           label="Tracked competitors"
           value={loading ? '·' : String(stats.competitors)}
           soft={enriching}
@@ -154,6 +158,7 @@ export default function PlanogramLibraryPage() {
       {/* Planograms directory — the primary content */}
       <SectionCard
         title="Planograms"
+        icon={Layers}
         caption="Expected shelf layouts per store format — recognition scores captures against these."
         bodyPad={false}
       >
@@ -170,6 +175,7 @@ export default function PlanogramLibraryPage() {
                 background: PC.surface2,
               }}
             >
+              <IconTile icon={Layers} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />
               <div style={{ fontFamily: 'var(--font-manrope)', fontWeight: 800, fontSize: 15, color: PC.text }}>
                 No planograms yet
               </div>
@@ -254,7 +260,7 @@ export default function PlanogramLibraryPage() {
           gap: 16,
         }}
       >
-        <SectionCard title="Compliance trend" caption={loading ? 'Loading…' : trendCaption}>
+        <SectionCard title="Compliance trend" icon={TrendingUp} caption={loading ? 'Loading…' : trendCaption}>
           {loading ? (
             <StateBlock>Loading…</StateBlock>
           ) : trend.length === 0 ? (
@@ -264,7 +270,7 @@ export default function PlanogramLibraryPage() {
           )}
         </SectionCard>
 
-        <SectionCard title="Top stores" caption="Highest compliance over the last 7 days" bodyPad={false}>
+        <SectionCard title="Top stores" icon={Trophy} caption="Highest compliance over the last 7 days" bodyPad={false}>
           {loading ? (
             <StateBlock>Loading…</StateBlock>
           ) : ranking.length === 0 ? (
@@ -346,7 +352,7 @@ export default function PlanogramLibraryPage() {
 
 // ── Pieces ──────────────────────────────────────────────────────────────────
 
-function Stat({ dot, label, value, soft }: { dot: string; label: string; value: string; soft?: boolean }) {
+function Stat({ dot, icon, label, value, soft }: { dot: string; icon: LucideIcon; label: string; value: string; soft?: boolean }) {
   return (
     <div
       style={{
@@ -358,7 +364,7 @@ function Stat({ dot, label, value, soft }: { dot: string; label: string; value: 
       }}
     >
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11.5, color: PC.muted, fontWeight: 600 }}>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot, display: 'inline-block' }} />
+        <InlineIcon icon={icon} size={14} style={{ color: dot }} />
         {label}
       </div>
       <div

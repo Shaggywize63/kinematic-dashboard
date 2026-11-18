@@ -159,7 +159,7 @@ export default function MonthlySummary({ clientId, onOpenPerson }: { clientId: s
 
       <Card padding={0} style={{ overflow: 'hidden' }}>
         <div style={{ padding: '14px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <Eyebrow>{label}</Eyebrow>
+          <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><CalendarDays aria-hidden size={13} strokeWidth={2} style={{ flexShrink: 0 }} />{label}</Eyebrow>
           <div style={{ fontSize: 12.5, color: T.dim }}>
             {workingDays != null ? <><span style={{ fontFamily: T.mono }}>{workingDays}</span> working days{inProgress ? ' so far' : ''} · </> : null}
             Late arrivals are counted within Present. Absent = a working day with no check-in and no approved leave.{onOpenPerson ? ' Click a name to see their days.' : ''}

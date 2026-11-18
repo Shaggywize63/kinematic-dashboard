@@ -9,7 +9,8 @@
  * FfmAnalyticsSection.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { X, BarChart3, LineChart as LineIcon, PieChart, Activity, Table as TableIcon } from 'lucide-react';
+import { X, BarChart3, LineChart as LineIcon, PieChart, Activity, Table as TableIcon, Check, Plus } from 'lucide-react';
+import { InlineIcon } from '../../ui/PageIcon';
 import {
   FFM_CUSTOM_DATASETS, ffmDatasetById,
 } from '../../../lib/ffmAnalyticsConfig';
@@ -172,8 +173,9 @@ export default function FfmCustomChartBuilder({ onSave, onClose, initial }: Prop
           <button
             onClick={save}
             disabled={!canSave}
-            style={{ ...primaryBtn, opacity: canSave ? 1 : 0.5, cursor: canSave ? 'pointer' : 'not-allowed' }}
+            style={{ ...primaryBtn, opacity: canSave ? 1 : 0.5, cursor: canSave ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
+            <InlineIcon icon={initial ? Check : Plus} />
             {initial ? 'Save changes' : 'Add chart'}
           </button>
         </footer>

@@ -1,5 +1,7 @@
 'use client';
 import React from 'react';
+import { BatteryLow, BatteryWarning } from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 
 /**
  * Low-battery surfacing for the Live Tracking page.
@@ -100,7 +102,7 @@ export function LowBatteryAlert({
       fontSize: 12, color: COLORS.red, display: 'flex',
       alignItems: 'center', gap: 8, flexShrink: 0,
     }}>
-      <span aria-hidden="true">🔋</span>
+      <InlineIcon icon={BatteryWarning} size={14} />
       <strong>Critical battery:</strong>
       <span style={{ color: COLORS.text }}>
         {names}{more} under {CRITICAL_PCT}% — call before they drop offline.
@@ -139,7 +141,7 @@ export function LowBatteryFilter({
         display: 'flex', alignItems: 'center', gap: 5, transition: 'all .15s',
       }}
       aria-pressed={active}>
-      <span aria-hidden="true">🔋</span>
+      <InlineIcon icon={BatteryLow} size={14} />
       <span>Low battery only{count > 0 ? ` (${count})` : ''}</span>
     </button>
   );

@@ -15,7 +15,7 @@ import {
 import { CHART_PALETTE, GLASS_TOOLTIP } from '../../../lib/chartTheme';
 import {
   Plus, Edit3, Save, X, BarChart3, LineChart as LineIcon, Activity, Layers,
-  AlertTriangle, MoreVertical, Inbox, Users, Truck, Award, Wand2,
+  AlertTriangle, MoreVertical, Inbox, Users, Truck, Award, Wand2, Trash2,
 } from 'lucide-react';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -262,9 +262,11 @@ export default function FfmAnalyticsSection() {
                       height: 20, padding: '0 8px', borderRadius: 4,
                       background: '#ef4444', color: '#fff', border: 'none',
                       fontSize: 10, fontWeight: 700, letterSpacing: 0.4, cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
                     }}
                   >
-                    ✕ REMOVE
+                    <Trash2 aria-hidden size={11} strokeWidth={2.4} style={{ flexShrink: 0 }} />
+                    REMOVE
                   </button>
                 </>
               )}

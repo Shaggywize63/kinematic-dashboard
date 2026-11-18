@@ -1,5 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
+import { MapPin, Percent, UserCog } from 'lucide-react';
 import { presetRange } from '../../../../components/attendance/RangePresets';
 import { ffmReports, type SupervisorPayload, type SupervisorRow } from '../../../../components/ffm/reports/ffmReportsApi';
 import {
@@ -53,10 +54,10 @@ export default function SupervisorTeamsReport() {
 
       <StatusBox loading={loading} error={error} onRetry={reload}>
         <StatGrid>
-          <Stat label="Teams" value={rows.length} />
+          <Stat label="Teams" icon={UserCog} value={rows.length} />
           <Stat label="Reps in view" value={fmtInt(data?.reps_in_view ?? 0)} />
-          <Stat label="Median adherence" value={fmtPct(med?.adherence_pct)} hint="across teams shown" />
-          <Stat label="Median calls / rep-day" value={fmtNum(med?.calls_per_rep_day)} hint="across teams shown" />
+          <Stat label="Median adherence" icon={Percent} value={fmtPct(med?.adherence_pct)} hint="across teams shown" />
+          <Stat label="Median calls / rep-day" icon={MapPin} value={fmtNum(med?.calls_per_rep_day)} hint="across teams shown" />
         </StatGrid>
         <DataTable
           testId="supervisor-table" cols={cols} rows={rows} rowKey={(r) => r.supervisor_id ?? 'none'} minWidth={1100}

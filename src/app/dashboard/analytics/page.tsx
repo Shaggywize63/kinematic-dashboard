@@ -4,6 +4,8 @@ import dynamic from 'next/dynamic';
 import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
 import FfmAnalyticsSection from '../../../components/ffm/analytics/FfmAnalyticsSection';
+import { AlertTriangle, BarChart3, CalendarDays, CalendarOff, CheckCircle2, ClipboardCheck, Clock, LayoutGrid, Map as MapIcon, RefreshCw, Sparkles, Target, Telescope, TrendingDown, TrendingUp, Trophy, UserCheck, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../components/ui/PageIcon';
 
 // Recharts is ~80 KB gz; load it only when this page actually renders.
 const TffAreaChart = dynamic(() => import('../../../components/charts/TffAreaChart'), {
@@ -101,7 +103,8 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
       {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
         <div>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700, marginBottom:4 }}>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700, marginBottom:4, display:'flex', alignItems:'center', gap:8 }}>
+            <InlineIcon icon={LayoutGrid} size={16} style={{ color:C.gray }} />
             TFF Activity Heatmap
           </div>
           <div style={{ fontSize:12, color:C.gray }}>Density by day &amp; hour — last 7 days</div>
@@ -124,7 +127,7 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
         </div>
       ) : isEmpty ? (
         <div style={{ height:180, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10 }}>
-          <div style={{ fontSize:28 }}>📊</div>
+          <IconTile icon={BarChart3} size={40} iconSize={20} />
           <div style={{ fontSize:13, color:C.gray, fontWeight:600 }}>No TFF activity yet</div>
           <div style={{ fontSize:12, color:C.grayd, textAlign:'center', maxWidth:280 }}>
             Data will appear here once field executives start submitting forms
@@ -262,20 +265,24 @@ export default function AnalyticsPage() {
   const totalHours  = summary?.kpis?.total_hours_worked ?? summary?.total_hours_worked;
   const totalVisits = summary?.kpis?.total_visits   ?? summary?.total_visits;
 
-  const kpis = [
-    { l:'Total Forms Filled', v: totalTff    != null ? Number(totalTff).toLocaleString() : '—',   c:C.green  },
-    { l:'Avg Attendance',    v: avgAtt      != null ? `${Math.round(Number(avgAtt))}%` : '—',      c:C.yellow },
-    { l:'Days Worked',       v: daysWorked  != null ? String(daysWorked) : '—',                   c:C.blue   },
-    { l:'Total Leaves',      v: totalLeaves != null ? String(totalLeaves) : '—',                  c:C.red    },
-    { l:'Total Hours',       v: totalHours  != null ? `${Math.floor(Number(totalHours))}h ${Math.round((Number(totalHours) % 1) * 60)}m` : '—', c:C.purple },
+  // Same glyphs as the KPI tiles on the dashboard home, which show these same figures.
+  const kpis: { l:string; v:string; c:string; icon:LucideIcon }[] = [
+    { l:'Total Forms Filled', v: totalTff    != null ? Number(totalTff).toLocaleString() : '—',   c:C.green,  icon:ClipboardCheck },
+    { l:'Avg Attendance',    v: avgAtt      != null ? `${Math.round(Number(avgAtt))}%` : '—',      c:C.yellow, icon:UserCheck },
+    { l:'Days Worked',       v: daysWorked  != null ? String(daysWorked) : '—',                   c:C.blue,   icon:CalendarDays },
+    { l:'Total Leaves',      v: totalLeaves != null ? String(totalLeaves) : '—',                  c:C.red,    icon:CalendarOff },
+    { l:'Total Hours',       v: totalHours  != null ? `${Math.floor(Number(totalHours))}h ${Math.round((Number(totalHours) % 1) * 60)}m` : '—', c:C.purple, icon:Clock },
   ];
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:10 }}>
-        <div>
-          <div style={{ fontSize:15, fontWeight:800, fontFamily:"'Syne',sans-serif" }}>Analytics</div>
-          <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>Performance trends, field-force metrics &amp; customisable widgets</div>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <PageIcon />
+          <div>
+            <div style={{ fontSize:15, fontWeight:800, fontFamily:"'Syne',sans-serif" }}>Analytics</div>
+            <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>Performance trends, field-force metrics &amp; customisable widgets</div>
+          </div>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
           {[
@@ -302,8 +309,9 @@ export default function AnalyticsPage() {
             style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:8, color:'var(--text)', fontSize:11, padding:'5px 8px' }} />
           
           <button onClick={fetchData} className="kbtn" 
-            style={{ padding:'6px 12px', borderRadius:8, background:C.s2, border:`1px solid ${C.border}`, color:C.gray, fontSize:11, fontWeight:600 }}>
-            ↺ Sync
+            style={{ padding:'6px 12px', borderRadius:8, background:C.s2, border:`1px solid ${C.border}`, color:C.gray, fontSize:11, fontWeight:600, display:'inline-flex', alignItems:'center', gap:6 }}>
+            <InlineIcon icon={RefreshCw} size={14} />
+            Sync
           </button>
         </div>
       </div>
@@ -318,7 +326,7 @@ export default function AnalyticsPage() {
       <div style={{ display:'grid', gridTemplateColumns:`repeat(${kpis.length},1fr)`, gap:14 }}>
         {kpis.map(s => (
           <div key={s.l} style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-            <div style={{ fontSize:12, color:C.gray, marginBottom:10 }}>{s.l}</div>
+            <div style={{ fontSize:12, color:C.gray, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={s.icon} size={14} />{s.l}</div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:28, fontWeight:800, color:s.c }}>
               {loading ? '—' : s.v}
             </div>
@@ -330,7 +338,7 @@ export default function AnalyticsPage() {
       <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
           <div>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700 }}>TFF Trend</div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700, display:'flex', alignItems:'center', gap:8 }}><InlineIcon icon={TrendingUp} size={16} style={{ color:C.gray }} />TFF Trend</div>
             <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>Forms filled per day</div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:C.gray }}>
@@ -341,7 +349,7 @@ export default function AnalyticsPage() {
         {loading ? (
           <div style={{ height:240, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>Loading chart...</div>
         ) : !trends.length ? (
-          <div style={{ height:240, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>No trend data for this period</div>
+          <div style={{ height:240, display:'flex', flexDirection:'column', gap:10, alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}><IconTile icon={TrendingUp} size={40} iconSize={20} />No trend data for this period</div>
         ) : (
           <TffAreaChart trends={trends as unknown as { label: string; tff: number }[]} />
         )}
@@ -350,11 +358,11 @@ export default function AnalyticsPage() {
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
         {/* Top performers */}
         <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, marginBottom:16 }}>Top Performers</div>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, marginBottom:16, display:'flex', alignItems:'center', gap:8 }}><InlineIcon icon={Trophy} size={16} style={{ color:C.gray }} />Top Performers</div>
           {loading ? (
             <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>Loading...</div>
           ) : topPerformers.length === 0 ? (
-            <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>No data available</div>
+            <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}><IconTile icon={Trophy} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 10px' }} />No data available</div>
           ) : topPerformers.map((fe: any, i: number) => {
             const tffVal = fe.tff ?? fe.tff_count ?? fe.total_tff ?? '—';
             const attVal = fe.attendance ?? fe.attendance_pct ?? fe.attendance_percentage;
@@ -378,11 +386,11 @@ export default function AnalyticsPage() {
 
         {/* Zone breakdown */}
         <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, marginBottom:16 }}>Zone Breakdown</div>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, marginBottom:16, display:'flex', alignItems:'center', gap:8 }}><InlineIcon icon={MapIcon} size={16} style={{ color:C.gray }} />Zone Breakdown</div>
           {loading ? (
             <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>Loading...</div>
           ) : zones.length === 0 ? (
-            <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>No data available</div>
+            <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}><IconTile icon={MapIcon} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 10px' }} />No data available</div>
           ) : zones.map((z: any, i: number) => {
             const colors = [C.blue, C.green, C.yellow, C.purple];
             const col    = colors[i % colors.length];
@@ -447,7 +455,7 @@ export default function AnalyticsPage() {
         const confPct = Math.round(r2 * 100);
 
         const insightCard = (
-          icon: string,
+          icon: LucideIcon,
           title: string,
           value: string,
           sub: string,
@@ -461,7 +469,7 @@ export default function AnalyticsPage() {
           }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
               <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-                <div style={{ fontSize:22 }}>{icon}</div>
+                <InlineIcon icon={icon} size={22} style={{ color:accent }} />
                 {methodology && (
                   <span className="kini-info" style={{ position:'relative', cursor:'help', color:C.gray, display:'inline-flex', opacity:0.8 }}>
                     <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -501,7 +509,8 @@ export default function AnalyticsPage() {
         return (
           <div>
             <div style={{ marginBottom:14 }}>
-              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:'var(--text)' }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:'var(--text)', display:'flex', alignItems:'center', gap:8 }}>
+                <InlineIcon icon={Sparkles} size={16} style={{ color:C.gray }} />
                 Predictive Insights
               </div>
               <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>
@@ -510,7 +519,7 @@ export default function AnalyticsPage() {
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
               {insightCard(
-                '📈',
+                momentumUp ? TrendingUp : TrendingDown,
                 'TFF Momentum',
                 `${momentumUp ? '+' : ''}${momentumPct}%`,
                 momentumUp
@@ -521,7 +530,7 @@ export default function AnalyticsPage() {
                 'Average TFF across the first half of the selected window versus the second half. A positive value means daily output is accelerating.'
               )}
               {insightCard(
-                '🔮',
+                Telescope,
                 'TFF Forecast (Tomorrow)',
                 String(forecastVal),
                 slope >= 0
@@ -532,7 +541,7 @@ export default function AnalyticsPage() {
                 'Least-squares linear regression fitted to the daily TFF series, projected one day ahead.'
               )}
               {insightCard(
-                '📅',
+                CalendarDays,
                 'Activity Consistency',
                 `${consistencyPct}%`,
                 `${activeDays} of ${trends.length} days had TFF activity — ${
@@ -546,7 +555,7 @@ export default function AnalyticsPage() {
               )}
               {atRiskZones.length > 0
                 ? insightCard(
-                    '⚠️',
+                    AlertTriangle,
                     'Zones Below 50% Target',
                     String(atRiskZones.length),
                     `${atRiskZones.map((z: any) => z.zone).join(', ')} — immediate intervention recommended`,
@@ -555,7 +564,7 @@ export default function AnalyticsPage() {
                     'Zones whose TFF for this period is below 50% of their assigned target.'
                   )
                 : insightCard(
-                    '✅',
+                    CheckCircle2,
                     'All Zones on Track',
                     '0 at risk',
                     'Every zone is above 50% of its TFF target for this period',
@@ -565,7 +574,7 @@ export default function AnalyticsPage() {
                   )
               }
               {insightCard(
-                '📊',
+                BarChart3,
                 'Weekly Run-Rate',
                 String(weeklyRunRate),
                 `At the current pace of ~${Math.round(dailyAvg)} TFF/day, the team is on track for ${weeklyRunRate} TFF over a 7-day week`,
@@ -574,7 +583,7 @@ export default function AnalyticsPage() {
                 'Average daily TFF across the window projected across a full 7-day week (daily average × 7).'
               )}
               {insightCard(
-                '🎯',
+                Target,
                 'Forecast Confidence',
                 `${confPct}%`,
                 confPct >= 70

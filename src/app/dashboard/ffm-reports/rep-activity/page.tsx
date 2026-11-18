@@ -1,5 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
+import { MapPin, Percent, TrendingUp } from 'lucide-react';
 import { presetRange } from '../../../../components/attendance/RangePresets';
 import { ffmReports, type RepActivityRow, type RepActivityPayload } from '../../../../components/ffm/reports/ffmReportsApi';
 import {
@@ -79,9 +80,9 @@ export default function RepActivityReport() {
       <StatusBox loading={loading} error={error} onRetry={reload}>
         <StatGrid>
           <Stat label="Reps in view" value={data?.reps_in_view ?? 0} />
-          <Stat label="Visited calls" value={fmtInt(t?.visited_stops ?? 0)} hint={`of ${fmtInt(t?.planned_stops ?? 0)} planned`} />
-          <Stat label="Adherence" value={fmtPct(t?.adherence_pct ?? 0)} />
-          <Stat label="Productive" value={fmtPct(t?.productive_pct ?? 0)} hint="visits with a same-day order" />
+          <Stat label="Visited calls" icon={MapPin} value={fmtInt(t?.visited_stops ?? 0)} hint={`of ${fmtInt(t?.planned_stops ?? 0)} planned`} />
+          <Stat label="Adherence" icon={Percent} value={fmtPct(t?.adherence_pct ?? 0)} />
+          <Stat label="Productive" icon={TrendingUp} value={fmtPct(t?.productive_pct ?? 0)} hint="visits with a same-day order" />
           <Stat label="Orders" value={fmtInt(t?.orders ?? 0)} />
           <Stat label="Revenue" value={fmtInr(t?.revenue_inr ?? 0)} hint={`AOV ${fmtInr(t?.aov_inr ?? 0)}`} />
           <Stat label="Distance" value={fmtNum(t?.km_total ?? 0, ' km')} hint={`${fmtNum(t?.km_per_visit ?? 0)} km / visit`} />

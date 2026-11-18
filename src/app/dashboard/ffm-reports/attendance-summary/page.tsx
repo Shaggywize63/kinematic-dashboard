@@ -5,6 +5,9 @@ import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { RangePresetPicker, presetRange, istToday } from '../../../../components/attendance/RangePresets';
 import { ffmReports, type AttendanceExtraRow } from '../../../../components/ffm/reports/ffmReportsApi';
 import { csvLine } from '../../../../components/ffm/reports/reportUtils';
+import { Download, Inbox, LogOut, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../lib/labelIcons';
 
 /**
  * Attendance Summary — attendance roll-up per rep over a chosen date range.
@@ -153,19 +156,23 @@ export default function AttendanceSummaryReport() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <PageIcon />
+          <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>Attendance Summary</h1>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-dim)' }}>
             Per-rep roll-up over the selected range. Attendance % = present ÷ working days.
             {workingDays != null ? ` ${workingDays} working days${inProgress ? ' so far' : ''}.` : ''}
           </p>
+          </div>
         </div>
         <button
           onClick={exportCsv}
           disabled={loading || rows.length === 0}
-          style={{ background: 'var(--primary)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: loading || rows.length === 0 ? 'not-allowed' : 'pointer', fontSize: 13, opacity: loading || rows.length === 0 ? 0.6 : 1 }}
+          style={{ background: 'var(--primary)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: loading || rows.length === 0 ? 'not-allowed' : 'pointer', fontSize: 13, opacity: loading || rows.length === 0 ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
-          ⬇ Export CSV
+          <InlineIcon icon={Download} />
+          Export CSV
         </button>
       </header>
 
@@ -184,7 +191,7 @@ export default function AttendanceSummaryReport() {
             <Stat label="Absent days" value={absent} accent={absent > 0 ? '#ef4444' : undefined} />
             <Stat label="Attendance %" value={`${attendancePct}%`} />
             <Stat label="Avg hours / day" value={teamAvgHours != null ? `${teamAvgHours} h` : '—'} />
-            <Stat label="Days, no check-out" value={extrasOk ? missedCheckouts : '—'} accent={missedCheckouts > 0 ? '#f59e0b' : undefined} />
+            <Stat label="Days, no check-out" icon={LogOut} value={extrasOk ? missedCheckouts : '—'} accent={missedCheckouts > 0 ? '#f59e0b' : undefined} />
           </div>
 
           <div style={{ overflowX: 'auto', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
@@ -211,7 +218,7 @@ export default function AttendanceSummaryReport() {
                 {loading ? (
                   <tr><td colSpan={14} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>Loading attendance…</td></tr>
                 ) : sorted.length === 0 ? (
-                  <tr><td colSpan={14} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>No attendance data for the selected range.</td></tr>
+                  <tr><td colSpan={14} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}><IconTile icon={Inbox} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />No attendance data for the selected range.</td></tr>
                 ) : sorted.map((r) => (
                   <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
                     <Td>{r.name}</Td>
@@ -244,10 +251,11 @@ export default function AttendanceSummaryReport() {
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: number | string; accent?: string }) {
+function Stat({ label, value, accent, icon }: { label: string; value: number | string; accent?: string; icon?: LucideIcon }) {
+  const Icon = icon ?? metricIconFor(label);
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>{Icon && <InlineIcon icon={Icon} size={14} />}{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color: accent ?? 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>
   );

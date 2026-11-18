@@ -11,6 +11,8 @@ import type {
   PosmType,
 } from '../../../../types/planogram';
 import StoreSelect from '../../../../components/StoreSelect';
+import { AlertTriangle, ArrowLeft, Check, FileText, Megaphone, Package, Plus, Store, Tag, Target, Trash2, UserPlus, X } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import { PC, SectionCard, StateBlock, useIsCompact, TableScroll, th, thR } from '../_components/planogramUi';
 
 const BASE = '/dashboard/planograms';
@@ -220,9 +222,12 @@ export default function PlanogramDetailPage() {
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
             }}
           >
-            ← Planograms
+            <InlineIcon icon={ArrowLeft} size={12} />Planograms
           </Link>
           <div
             style={{
@@ -242,12 +247,13 @@ export default function PlanogramDetailPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={() => setShowAssign(true)} style={btnSecondary}>
-            Assign to store
+            <InlineIcon icon={UserPlus} size={14} />Assign to store
           </button>
           <button onClick={() => setShowDelete(true)} style={btnDanger}>
-            Delete
+            <InlineIcon icon={Trash2} size={14} />Delete
           </button>
           <button onClick={save} disabled={!dirty || saving} style={btnPrimary(!dirty || saving)}>
+            <InlineIcon icon={Check} size={14} />
             {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
           </button>
         </div>
@@ -256,7 +262,7 @@ export default function PlanogramDetailPage() {
       {error && <StateBlock tone="error">{error}</StateBlock>}
 
       {/* Meta */}
-      <SectionCard title="Planogram details">
+      <SectionCard title="Planogram details" icon={FileText}>
         <div
           style={{
             display: 'grid',
@@ -306,6 +312,7 @@ export default function PlanogramDetailPage() {
       {/* SKU editor */}
       <SectionCard
         title={`Expected SKUs (${skus.length})`}
+        icon={Package}
         caption={
           missingSkuShots > 0
             ? undefined
@@ -313,7 +320,7 @@ export default function PlanogramDetailPage() {
         }
         right={
           <button onClick={addSku} style={btnSecondary}>
-            + Add SKU
+            <InlineIcon icon={Plus} size={14} />Add SKU
           </button>
         }
         bodyPad={false}
@@ -357,8 +364,12 @@ export default function PlanogramDetailPage() {
                 fontSize: 14.5,
                 fontWeight: 800,
                 color: PC.text,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
               }}
             >
+              <InlineIcon icon={Target} size={16} style={{ color: PC.muted }} />
               Tracked competitors ({competitors.length})
             </div>
             <div style={{ fontSize: 12, color: PC.muted, marginTop: 3, maxWidth: 520, lineHeight: 1.5 }}>
@@ -368,7 +379,7 @@ export default function PlanogramDetailPage() {
             {missingCompShots > 0 && <PackshotHint missing={missingCompShots} />}
           </div>
           <button onClick={addCompetitor} style={btnAdd}>
-            + Add competitor
+            <InlineIcon icon={Plus} size={14} />Add competitor
           </button>
         </div>
         <CompetitorTable
@@ -382,10 +393,11 @@ export default function PlanogramDetailPage() {
       {/* Expected POSM */}
       <SectionCard
         title={`Expected POSM (${expectedPosm.length})`}
+        icon={Megaphone}
         caption="Point-of-sale materials this planogram requires — posters, danglers, coolers and more. Scored against what's found on shelf."
         right={
           <button onClick={addPosm} style={btnSecondary}>
-            + Add POSM
+            <InlineIcon icon={Plus} size={14} />Add POSM
           </button>
         }
         bodyPad={false}
@@ -394,7 +406,7 @@ export default function PlanogramDetailPage() {
       </SectionCard>
 
       {/* Assignments */}
-      <SectionCard title="Store assignments" caption="Stores currently scored against this planogram" bodyPad={false}>
+      <SectionCard title="Store assignments" icon={Store} caption="Stores currently scored against this planogram" bodyPad={false}>
         {assignments.length === 0 ? (
           <StateBlock>Not assigned to any store yet.</StateBlock>
         ) : (
@@ -436,7 +448,7 @@ export default function PlanogramDetailPage() {
                   }}
                   style={btnGhostDanger}
                 >
-                  Remove
+                  <InlineIcon icon={Trash2} size={13} />Remove
                 </button>
               </div>
             ))}
@@ -542,6 +554,7 @@ function AssignModal({
           Cancel
         </button>
         <button onClick={submit} disabled={busy || !storeId} style={btnPrimary(busy || !storeId)}>
+          <InlineIcon icon={UserPlus} size={14} />
           {busy ? 'Assigning…' : 'Assign'}
         </button>
       </div>
@@ -799,9 +812,7 @@ function CompetitorTable({
   if (competitors.length === 0)
     return (
       <div style={{ padding: '36px 24px', textAlign: 'center' }}>
-        <div style={{ fontSize: 28, marginBottom: 10 }} aria-hidden>
-          🏷️
-        </div>
+        <IconTile icon={Tag} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />
         <div style={{ fontSize: 14, fontWeight: 800, color: PC.text, fontFamily: 'var(--font-manrope)' }}>
           No competitors tracked yet
         </div>
@@ -810,7 +821,7 @@ function CompetitorTable({
           category, expected price, and a product photo so recognition can identify it reliably.
         </div>
         <button onClick={onAdd} style={btnAdd}>
-          + Add your first competitor
+          <InlineIcon icon={Plus} size={14} />Add your first competitor
         </button>
       </div>
     );
@@ -923,9 +934,7 @@ function PosmTable({
   if (items.length === 0)
     return (
       <div style={{ padding: '36px 24px', textAlign: 'center' }}>
-        <div style={{ fontSize: 28, marginBottom: 10 }} aria-hidden>
-          🪧
-        </div>
+        <IconTile icon={Megaphone} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />
         <div style={{ fontSize: 14, fontWeight: 800, color: PC.text, fontFamily: 'var(--font-manrope)' }}>
           No expected POSM yet
         </div>
@@ -934,7 +943,7 @@ function PosmTable({
           more. Each capture is then scored on what&apos;s present and intact.
         </div>
         <button onClick={onAdd} style={btnAdd}>
-          + Add your first POSM
+          <InlineIcon icon={Plus} size={14} />Add your first POSM
         </button>
       </div>
     );
@@ -1081,7 +1090,7 @@ function RefImageCell({ value, onChange }: { value?: string | null; onChange: (u
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (
-          <span aria-hidden>{broken ? '⚠' : '+'}</span>
+          <InlineIcon icon={broken ? AlertTriangle : Plus} size={16} />
         )}
       </button>
       <input
@@ -1112,9 +1121,12 @@ function RemoveButton({ onClick }: { onClick: () => void }) {
         width: 28,
         height: 28,
         lineHeight: 0,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
     >
-      ✕
+      <InlineIcon icon={X} size={14} />
     </button>
   );
 }
@@ -1144,7 +1156,7 @@ function PackshotHint({ missing }: { missing: number }) {
         fontWeight: 600,
       }}
     >
-      <span aria-hidden>⚠</span>
+      <InlineIcon icon={AlertTriangle} size={13} />
       {missing} without a pack-shot — add photos to improve recognition.
     </div>
   );
@@ -1179,6 +1191,10 @@ const cellTd: React.CSSProperties = {
 const cellTdR: React.CSSProperties = { ...cellTd, textAlign: 'right' };
 
 const btnSecondary: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
   padding: '8px 14px',
   background: PC.surface2,
   border: `1px solid ${PC.border}`,
@@ -1190,6 +1206,10 @@ const btnSecondary: React.CSSProperties = {
 };
 
 const btnDanger: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
   padding: '8px 14px',
   background: PC.badWash,
   border: `1px solid ${PC.bad}55`,
@@ -1201,6 +1221,10 @@ const btnDanger: React.CSSProperties = {
 };
 
 const btnAdd: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
   padding: '9px 15px',
   background: PC.brandWash,
   border: `1px solid ${PC.brand}55`,
@@ -1213,6 +1237,10 @@ const btnAdd: React.CSSProperties = {
 };
 
 const btnGhostDanger: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
   background: 'transparent',
   border: 'none',
   color: PC.bad,
@@ -1223,6 +1251,10 @@ const btnGhostDanger: React.CSSProperties = {
 
 function btnPrimary(disabled = false): React.CSSProperties {
   return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     padding: '10px 18px',
     background: PC.brand,
     color: '#fff',
