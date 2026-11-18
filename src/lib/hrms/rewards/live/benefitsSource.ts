@@ -1,7 +1,7 @@
 'use client';
 // Live data source for the BENEFITS slice of the Rewards area (phase 7). Sample mode never touches this file: the rewards
 // store only calls in when the core HRMS source is 'live' (the same `kinematic_hrms_source` switch the rest of the module
-// uses, read through live/store.ts). It extends the phase-6 assets source; compensation (the third Rewards slice) stays local.
+// uses, read through live/store.ts). It extends the phase-6 assets source; compensation (phase 8) has its own source.
 //
 // In live mode the benefits data is loaded from GET /benefits/bootstrap and held in memory only — it is never written to
 // browser storage. The actions become server calls:

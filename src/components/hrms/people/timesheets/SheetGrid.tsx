@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Button, T } from '../../ui';
 import { Select } from '../../../ui';
 import { addDays, fmtDate } from '../../../../lib/hrms/format';
-import { PREVIEW_TODAY } from '../../../../lib/hrms/seed';
+import { tsToday } from '../../../../lib/hrms/people/timesheetClock';
 import { DAY_LABELS, dayTotals, lineTotal, sheetTotal, weekDates } from '../../../../lib/hrms/people/timesheetEngine';
 import type { Project, Sheet, TimesheetPolicy } from '../../../../lib/hrms/people/types';
 import { Muted, ROW_TH } from '../shared';
@@ -30,7 +30,9 @@ export default function SheetGrid({ sheet, weekStart, projects, policy, editable
   const days = dayTotals(sheet);
   const total = sheetTotal(sheet);
   const byId = new Map(projects.map((p) => [p.id, p]));
-  const free = projects.filter((p) => !sheet.lines.some((l) => l.projectId === p.id));
+  const today = tsToday();
+  // an archived project stays on the weeks that used it, but is not offered for a new row
+  const free = projects.filter((p) => !p.archived && !sheet.lines.some((l) => l.projectId === p.id));
   const th = { padding: '8px 4px', fontSize: 11.5, fontWeight: 600, color: T.dim, textAlign: 'center' as const, borderBottom: `1px solid ${T.border}`, background: T.panel, whiteSpace: 'nowrap' as const };
 
   return (
@@ -59,10 +61,13 @@ export default function SheetGrid({ sheet, weekStart, projects, policy, editable
                   </th>
                   {l.hours.map((h, d) => {
                     const key = `${l.projectId}|${d}`;
-                    const future = dates[d]! > PREVIEW_TODAY;
+                    const future = dates[d]! > today;
                     const disabled = !editable || future;
                     const bad = !Number.isFinite(h) || h < 0 || days[d]! > policy.maxPerDay;
-                    const shown = drafts[key] ?? (h > 0 ? String(h) : '');
+                    // the typed text ("2.", "2.50") while it still means the stored number; once the week changes
+                    // under it (a refused save put it back), the stored value shows
+                    const draft = drafts[key];
+                    const shown = draft !== undefined && (Number(draft || 0) === h) ? draft : (h > 0 ? String(h) : '');
                     return (
                       <td key={d} style={{ borderTop: `1px solid ${T.border}`, padding: 3, textAlign: 'center' }}>
                         <input type="number" inputMode="decimal" step={0.25} min={0} max={24} data-testid={`h-${l.projectId}-${d}`}
@@ -112,7 +117,7 @@ export default function SheetGrid({ sheet, weekStart, projects, policy, editable
         </div>
       )}
       {rowError && <div role="alert" data-testid="row-error" style={{ fontSize: 13, color: T.red }}>{rowError}</div>}
-      {editable && <Muted>Days after {fmtDate(PREVIEW_TODAY)} cannot be filled yet. Steps of 0.25 hour. Next week starts {fmtDate(addDays(weekStart, 7))}.</Muted>}
+      {editable && <Muted>Days after {fmtDate(today)} cannot be filled yet. Steps of 0.25 hour. Next week starts {fmtDate(addDays(weekStart, 7))}.</Muted>}
     </div>
   );
 }

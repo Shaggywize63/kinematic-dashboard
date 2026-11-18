@@ -443,37 +443,37 @@ test.describe('timesheet engine', () => {
     for (const r of rows) { expect(r).toHaveLength(EXPORT_HEADER.length); expect(r[0]).not.toBe('2026-11-02'); expect(r[r.length - 2]).not.toBe(''); }
   });
 
-  test('actions: a locked week cannot be edited, a return needs a comment, approving locks, limits are validated', () => {
+  test('actions: a locked week cannot be edited, a return needs a comment, approving locks, limits are validated', async () => {
     peopleStore.reset();
     const get = (id: string, week: string) => peopleStore.get().timesheets.sheets.find((s) => s.id === sheetId(id, week))!;
     // approved week: edit refused and unchanged
     const approved = get('emp_5', '2026-10-12');
     const before = JSON.stringify(approved.lines);
-    expect(setHours('emp_5', '2026-10-12', 'p_helio', 0, 7)).toMatchObject({ ok: false });
+    expect(await setHours('emp_5', '2026-10-12', 'p_helio', 0, 7)).toMatchObject({ ok: false });
     expect(JSON.stringify(get('emp_5', '2026-10-12').lines)).toBe(before);
     // submitted week: also locked
-    expect(setHours('emp_10', '2026-10-26', 'p_northwind', 0, 3)).toMatchObject({ ok: false });
+    expect(await setHours('emp_10', '2026-10-26', 'p_northwind', 0, 3)).toMatchObject({ ok: false });
     // draft week: edit works, and submit locks it
-    expect(setHours('emp_5', '2026-11-02', 'p_helio', 5, 2)).toEqual({ ok: true });
+    expect(await setHours('emp_5', '2026-11-02', 'p_helio', 5, 2)).toEqual({ ok: true });
     expect(get('emp_5', '2026-11-02').lines.find((l) => l.projectId === 'p_helio')!.hours[5]).toBe(2);
-    expect(submitSheet('emp_5', '2026-11-02')).toEqual({ ok: true });
+    expect(await submitSheet('emp_5', '2026-11-02')).toEqual({ ok: true });
     expect(get('emp_5', '2026-11-02').status).toBe('submitted');
-    expect(setHours('emp_5', '2026-11-02', 'p_helio', 0, 9)).toMatchObject({ ok: false });
+    expect(await setHours('emp_5', '2026-11-02', 'p_helio', 0, 9)).toMatchObject({ ok: false });
     // decisions
     const id = sheetId('emp_5', '2026-11-02');
-    expect(decideSheet(id, 'returned', '')).toMatchObject({ ok: false });
-    expect(decideSheet(id, 'approved', '')).toEqual({ ok: true });
+    expect(await decideSheet(id, 'returned', '')).toMatchObject({ ok: false });
+    expect(await decideSheet(id, 'approved', '')).toEqual({ ok: true });
     expect(get('emp_5', '2026-11-02')).toMatchObject({ status: 'approved' });
-    expect(decideSheet(id, 'approved', '')).toMatchObject({ ok: false });   // already decided
+    expect(await decideSheet(id, 'approved', '')).toMatchObject({ ok: false });   // already decided
     // a returned week is editable again and can be resubmitted
-    expect(setHours('emp_21', '2026-10-26', 'p_admin', 3, 1)).toEqual({ ok: true });
-    expect(submitSheet('emp_21', '2026-10-26')).toEqual({ ok: true });
+    expect(await setHours('emp_21', '2026-10-26', 'p_admin', 3, 1)).toEqual({ ok: true });
+    expect(await submitSheet('emp_21', '2026-10-26')).toEqual({ ok: true });
     expect(get('emp_21', '2026-10-26').comment).toBeUndefined();
     // an over-cap week can be submitted (it is flagged, not blocked) but a 17 hour day cannot
-    expect(setHours('emp_13', '2026-11-02', 'p_northwind', 0, 17)).toEqual({ ok: true });
-    expect(submitSheet('emp_13', '2026-11-02')).toMatchObject({ ok: false });
-    expect(setPolicy({ maxPerDay: 4 })).toMatchObject({ ok: false });
-    expect(setPolicy({ weeklyCap: 40 })).toEqual({ ok: true });
+    expect(await setHours('emp_13', '2026-11-02', 'p_northwind', 0, 17)).toEqual({ ok: true });
+    expect(await submitSheet('emp_13', '2026-11-02')).toMatchObject({ ok: false });
+    expect(await setPolicy({ maxPerDay: 4 })).toMatchObject({ ok: false });
+    expect(await setPolicy({ weeklyCap: 40 })).toEqual({ ok: true });
     expect(peopleStore.get().timesheets.policy.weeklyCap).toBe(40);
     peopleStore.reset();
   });

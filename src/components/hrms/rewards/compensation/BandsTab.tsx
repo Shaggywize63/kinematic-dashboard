@@ -28,14 +28,22 @@ function BandEditor({ band, onClose }: { band: Band; onClose: () => void }) {
   const [v, setV] = useState({ min: String(band.min), mid: String(band.mid), max: String(band.max), market: String(band.market) });
   const num = { min: Number(v.min), mid: Number(v.mid), max: Number(v.max), market: Number(v.market) };
   const err = validateBand(num);
+  const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof v) => (e: React.ChangeEvent<HTMLInputElement>) => setV((x) => ({ ...x, [k]: e.target.value.replace(/\D/g, '') }));
+  async function save() {
+    if (busy || err) return;
+    setBusy(true);
+    const r = await saveBand(band.grade, num);
+    setBusy(false);
+    if (report(r, `Band ${band.grade} saved.`)) onClose();
+  }
   return (
     <Modal title={`Edit band ${band.grade}`} onClose={onClose} width={520}
       footer={(
         <>
           {err && <span style={{ flex: 1, minWidth: 160, alignSelf: 'center', fontSize: 12.5, color: T.red }}>{err}</span>}
           <Button style={{ height: 40 }} onClick={onClose}>Cancel</Button>
-          <Button variant="primary" style={{ height: 40 }} disabled={!!err} onClick={() => { if (report(saveBand(band.grade, num), `Band ${band.grade} saved.`)) onClose(); }}>Save band</Button>
+          <Button variant="primary" style={{ height: 40 }} disabled={!!err || busy} onClick={save}>{busy ? 'Saving…' : 'Save band'}</Button>
         </>
       )}>
       <FormGrid narrow={narrow}>

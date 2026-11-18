@@ -5,7 +5,7 @@
 //
 // Phase 7: the Benefits slice of the Rewards store moves to the server — the plan catalogue, per-employee enrolments,
 // insurance claims and their status trail, the enrolment window (+ extensions), reminders and the "sent to payroll" map.
-// Compensation (the third Rewards slice) stays local, so only these shapes are mapped here.
+// Compensation (the third Rewards slice) is mapped in compensationWire.ts, so only these shapes are mapped here.
 
 import { arr, isObj, num, str, UUID_RE, type Row } from '../../live/wire';
 import type { Id, ISODate, Month } from '../../types';

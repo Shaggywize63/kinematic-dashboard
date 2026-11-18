@@ -229,6 +229,12 @@ export interface Account {
   // Admin-defined custom fields (crm_custom_fields defs) stored on the
   // row's custom_fields jsonb. Backend PATCH merges partial objects.
   custom_fields?: Record<string, unknown> | null;
+  // Stamped by the accounts LIST (GET /crm/accounts), not columns: the account's open / won deals and its contacts.
+  open_deals_count?: number;
+  open_deals_value?: number;
+  won_deals_count?: number;
+  won_deals_value?: number;
+  contacts_count?: number;
   created_at: string;
   updated_at: string;
 }

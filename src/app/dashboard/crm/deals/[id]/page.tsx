@@ -24,6 +24,8 @@ import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import EntityExpensesCard from '../../../../../components/crm/EntityExpensesCard';
 import { DealSectionsView, useDealSections } from '../../../../../components/crm/spark/DealSections';
 import { DealLinesCard, OrderValueStep } from '../../../../../components/crm/spark/DealLinesCard';
+import { useFieldHelpers } from '../../../../../lib/crm/useFieldHelpers';
+import { Badge } from '../../../../../components/ui';
 
 const LOST_REASONS = [
   'Price too high',
@@ -139,6 +141,9 @@ export default function DealDetailPage() {
   // Spark & Ray: Quotation / Pricing / Product trial / Approvals sections, as configured under Settings -> Deal sections.
   const spark = isB2bClientActive();
   const dealSections = useDealSections(spark);
+  // Built-in field overrides (hide / relabel) for the summary below, for every tenant: a field the admin hid on the deal
+  // forms is not shown here either. The gated rows wait for the settings so a hidden field never flashes in.
+  const { fields: dealFields, loaded: dealFieldsLoaded } = useFieldHelpers('deal');
   const [deal, setDeal] = useState<Deal | null>(null);
   // INR ↔ Weight toggle for the Amount field. Reads / writes the same
   // localStorage key the dashboard analytics page uses so flipping the
@@ -607,14 +612,16 @@ export default function DealDetailPage() {
                   }
                 }
               }
+              const showAmount = dealFieldsLoaded && !dealFields.isHidden('amount');
+              if (!showAmount && kg <= 0) return null;
               return (
                 <div style={{
                   display: 'flex', alignItems: 'baseline', gap: 24, flexWrap: 'wrap',
                   background: 'linear-gradient(135deg, rgba(99,102,241,0.10), rgba(99,102,241,0.02))',
                   border: '1px solid var(--border)', borderRadius: 14, padding: '18px 22px', marginBottom: 14,
                 }}>
-                  <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>Amount</div>
+                  {showAmount && <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>{dealFields.labelFor('amount', 'Amount')}</div>
                     <div style={{ fontSize: 30, color: 'var(--text)', fontWeight: 800, lineHeight: 1.1, marginTop: 4 }}>
                       {formatINR(Number(deal.amount) || 0)}
                     </div>
@@ -635,10 +642,10 @@ export default function DealDetailPage() {
                         </Link>
                       </div>
                     )}
-                  </div>
+                  </div>}
                   {kg > 0 && (
                     <>
-                      <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
+                      {showAmount && <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />}
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>Weight</div>
                         <div style={{ fontSize: 30, color: 'var(--text)', fontWeight: 800, lineHeight: 1.1, marginTop: 4 }}>
@@ -650,22 +657,22 @@ export default function DealDetailPage() {
                 </div>
               );
             })()}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
+            {dealFieldsLoaded && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }} data-testid="deal-key-facts">
               {/* Dealer is stamped server-side on the deal row — surfaced here
                   so reps see it in the summary, not only in the custom-fields
                   card further down. Hidden when the tenant doesn't stamp it. */}
               {deal.dealer_name && <Field label="Dealer" value={deal.dealer_name} />}
-              <Field label="Stage" value={deal.stage_name} />
+              {!dealFields.isHidden('stage_id') && <Field label={dealFields.labelFor('stage_id', 'Stage')} value={deal.stage_name} />}
               {/* Spark & Ray: only their deal rows carry a quotation number. */}
               {deal.quotation_no && !spark && <Field label="Quotation no." value={deal.quotation_no} />}
-              <Field label="Status" value={deal.status} />
+              <Field label="Status" valueNode={<Badge tone={deal.status === 'won' ? 'ok' : deal.status === 'lost' ? 'red' : 'info'} dot style={{ textTransform: 'capitalize' }}>{deal.status}</Badge>} />
               {/* Win probability is hidden for BMW — their steel-dealer flow
                   tracks booked volume, not a forecast likelihood. */}
-              {!isBmw && (
+              {!isBmw && !dealFields.isHidden('probability') && (
               <Field
-                label="Probability"
-                value={`${Math.round((Number(deal.probability) || 0) * 100)}`}
-                editValue={`${Math.round((Number(deal.probability) || 0) * 100)}`}
+                label={dealFields.labelFor('probability', 'Probability')}
+                value={`${probabilityPct(deal.probability)}`}
+                editValue={`${probabilityPct(deal.probability)}`}
                 displaySuffix="%"
                 type="number"
                 onSave={async (next) => {
@@ -681,9 +688,10 @@ export default function DealDetailPage() {
                 }}
               />
               )}
-              <Field
-                label="Close Date"
+              {!dealFields.isHidden('expected_close_date') && <Field
+                label={dealFields.labelFor('expected_close_date', 'Close Date')}
                 value={fmtIst(deal.expected_close_date).date}
+                trailing={deal.status === 'open' && deal.expected_close_date ? <CloseDueBadge date={deal.expected_close_date} /> : undefined}
                 editValue={deal.expected_close_date ? new Date(deal.expected_close_date).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) : ''}
                 type="date"
                 onSave={async (next) => {
@@ -696,10 +704,10 @@ export default function DealDetailPage() {
                     throw e; // keep the inline editor open so the rep can retry
                   }
                 }}
-              />
-              <Field label="Owner" value={deal.owner_name} />
+              />}
+              {!dealFields.isHidden('owner_id') && <Field label={dealFields.labelFor('owner_id', 'Owner')} value={deal.owner_name} />}
               {deal.lead_phone && <Field label="Lead Phone" value={deal.lead_phone} />}
-            </div>
+            </div>}
           </div>
 
           <SafeRender label="contacts">
@@ -1547,9 +1555,29 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function Field({ label, value, trailing, onSave, type, editValue, displaySuffix }: {
+/** Stored probability as a whole percent: the forms save a 0–1 fraction (0.6), and a legacy whole number (60) is read as a
+ * percent too, so it never shows as 6000%. */
+function probabilityPct(v: unknown): number {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n > 1 ? n : n * 100);
+}
+
+/** Overdue / due-soon flag under an open deal's close date (nothing when it is more than a week away). */
+function CloseDueBadge({ date }: { date: string }) {
+  const d = new Date(date);
+  const now = new Date();
+  const days = Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86_400_000);
+  if (days < 0) return <div style={{ marginTop: 4 }}><Badge tone="red" style={{ height: 18, fontSize: 11 }}>{-days} {-days === 1 ? 'day' : 'days'} overdue</Badge></div>;
+  if (days <= 7) return <div style={{ marginTop: 4 }}><Badge tone="warn" style={{ height: 18, fontSize: 11 }}>{days === 0 ? 'Due today' : `Due in ${days} ${days === 1 ? 'day' : 'days'}`}</Badge></div>;
+  return null;
+}
+
+function Field({ label, value, valueNode, trailing, onSave, type, editValue, displaySuffix }: {
   label: string;
   value?: string | null;
+  /** A rendered value (a badge) in place of the plain text. */
+  valueNode?: React.ReactNode;
   trailing?: React.ReactNode;
   /** When set, the value renders as a click-to-edit field (PATCH one column). */
   onSave?: (next: string) => Promise<void>;
@@ -1573,7 +1601,7 @@ function Field({ label, value, trailing, onSave, type, editValue, displaySuffix 
           />
         </div>
       ) : (
-        <div style={{ color: 'var(--text)', marginTop: 2, wordBreak: 'break-word' }}>{value || '—'}</div>
+        <div style={{ color: 'var(--text)', marginTop: valueNode ? 4 : 2, wordBreak: 'break-word' }}>{valueNode ?? (value || '—')}</div>
       )}
       {trailing}
     </div>

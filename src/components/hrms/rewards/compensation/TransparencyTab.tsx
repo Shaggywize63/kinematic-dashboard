@@ -3,6 +3,7 @@
 // employee view. The employee view never shows other people, midpoints, market figures or headcounts.
 
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { Badge, Card, CardTitle, EmptyState, Note, T } from '../../ui';
 import { Field, Segmented, Select } from '../../../ui';
 import { fullName, inr } from '../../../../lib/hrms/format';
@@ -22,6 +23,14 @@ export default function TransparencyTab({ db, st }: { db: HrmsDb; st: RewardsSta
   const me = people.find((p) => p.employee.id === (asId || people[0]?.employee.id));
   const desig = (grade: string) => db.designations.filter((d) => d.grade === grade).map((d) => d.name).join(', ');
   const published = st.comp.bands.filter((b) => b.published);
+  // The box shows the choice at once while the server saves it (live mode); a refusal puts it back and says why.
+  const [pending, setPending] = useState<Record<string, boolean>>({});
+  async function publish(grade: string, v: boolean) {
+    setPending((p) => ({ ...p, [grade]: v }));
+    const r = await setPublished(grade, v);
+    setPending((p) => { const n = { ...p }; delete n[grade]; return n; });
+    if (!r.ok) toast.error(r.error);
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -39,7 +48,7 @@ export default function TransparencyTab({ db, st }: { db: HrmsDb; st: RewardsSta
             {st.comp.bands.map((b, i) => (
               <div key={b.grade} style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', padding: '4px 0', borderTop: i ? `1px solid ${T.border}` : 0 }}>
                 <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-                  <CheckRow checked={b.published} onChange={(v) => setPublished(b.grade, v)} testId={`publish-${b.grade}`}>
+                  <CheckRow checked={pending[b.grade] ?? b.published} disabled={b.grade in pending} onChange={(v) => { void publish(b.grade, v); }} testId={`publish-${b.grade}`}>
                     <b>{b.grade}</b> <span style={{ color: T.dim }}>{desig(b.grade)}</span>
                   </CheckRow>
                 </div>
@@ -53,7 +62,7 @@ export default function TransparencyTab({ db, st }: { db: HrmsDb; st: RewardsSta
 
       {view === 'employee' && (
         <Card>
-          <CardTitle right={<Badge tone="info">Preview of the employee view</Badge>}>Pay bands at Meridian</CardTitle>
+          <CardTitle right={<Badge tone="info">Preview of the employee view</Badge>}>Pay bands at {db.company.name || 'the company'}</CardTitle>
           <Field label="Preview as" htmlFor="tr-as" hint="HR picks whose own band to highlight. The view below shows nothing about anyone else.">
             <Select id="tr-as" value={me?.employee.id ?? ''} style={{ maxWidth: 320 }} onChange={(e) => setAsId(e.target.value)}>
               {people.map((p) => <option key={p.employee.id} value={p.employee.id}>{fullName(p.employee)}</option>)}

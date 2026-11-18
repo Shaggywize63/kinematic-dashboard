@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmAccounts, crmSettings, crmSites, type AccountTimeline, type AccountSite } from '../../../../../lib/crmApi';
+import { crmAccounts, crmSites, type AccountTimeline, type AccountSite } from '../../../../../lib/crmApi';
 import type { Account, Contact, Deal, Activity, Note, Lead } from '../../../../../types/crm';
 import AccountSummaryCard from '../../../../../components/crm/AccountSummaryCard';
 import { AccountStructureGaps } from '../../../../../components/crm/spark/StructureGaps';
@@ -19,8 +19,8 @@ import { safeHref } from '../../../../../lib/safeUrl';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import AccountUpdatesCard from '../../../../../components/crm/spark/AccountUpdatesCard';
 import AccountAddresses from '../../../../../components/crm/spark/AccountAddresses';
-import { Button } from '../../../../../components/ui';
-import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
+import { Button, useIsCompact } from '../../../../../components/ui';
+import { useFieldHelpers } from '../../../../../lib/crm/useFieldHelpers';
 import { accountLocationLines } from '../../../../../lib/accountLocation';
 import { dealRollup } from '../../../../../lib/sparkAccounts';
 import { BrandChips } from '../../../../../components/crm/spark/BrandChips';
@@ -52,14 +52,10 @@ export default function AccountDetailPage() {
   const [deactivating, setDeactivating] = useState(false);
   // Spark & Ray (connected-B2B) only: Recent updates, task / deal shortcuts and the journey page.
   const spark = isB2bClientActive();
-  // Built-in field overrides (hide / relabel): a location field the admin hid is not shown here either.
-  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
-  const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'account'), [fieldOverrides]);
-  useEffect(() => {
-    crmSettings.get()
-      .then((r) => setFieldOverrides(extractFieldOverrides(r.data)))
-      .catch(() => { /* keep defaults — every field shows */ });
-  }, []);
+  // Built-in field overrides (hide / relabel): a field the admin hid on the account forms is not shown here either. The
+  // gated rows wait for the settings (fieldsLoaded) so a hidden field never flashes in.
+  const { fields, loaded: fieldsLoaded } = useFieldHelpers('account');
+  const narrow = useIsCompact(900);
 
   const reload = async () => {
     if (!id) return;
@@ -212,13 +208,13 @@ export default function AccountDetailPage() {
         { label: 'Accounts', href: '/dashboard/crm/accounts' },
         { label: a.name || 'Account' },
       ]} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'minmax(0, 1fr)' : 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-            <div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{a.name}</div>
-              {a.website && <a href={safeHref(a.website)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--accent, var(--primary))' }}>{a.website}</a>}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', overflowWrap: 'anywhere' }}>{a.name}</div>
+              {fieldsLoaded && !fields.isHidden('website') && a.website && <a href={safeHref(a.website)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--accent, var(--primary))', overflowWrap: 'anywhere' }}>{a.website}</a>}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {spark && (
@@ -234,11 +230,17 @@ export default function AccountDetailPage() {
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13 }}>
-            <Field label="Industry" value={a.industry} />
-            <PhoneField phone={a.phone} accountId={a.id} accountName={a.name} />
-          </div>
-          {hasLocation && (
+          {fieldsLoaded && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: 14, fontSize: 13 }} data-testid="account-key-facts">
+              {!fields.isHidden('industry') && <Field label={fields.labelFor('industry', 'Industry')} value={a.industry} />}
+              {!fields.isHidden('phone') && <PhoneField label={fields.labelFor('phone', 'Phone')} phone={a.phone} accountId={a.id} accountName={a.name} />}
+              {!fields.isHidden('email') && a.email && <Field label={fields.labelFor('email', 'Email')} value={a.email} />}
+              {!fields.isHidden('owner_id') && <Field label={fields.labelFor('owner_id', 'Owner')} value={a.owner_name || 'Unassigned'} />}
+              {!fields.isHidden('annual_revenue') && a.annual_revenue != null && <Field label={fields.labelFor('annual_revenue', 'Annual revenue')} value={Number(a.annual_revenue).toLocaleString('en-IN')} />}
+              {!fields.isHidden('employees') && a.employees != null && <Field label={fields.labelFor('employees', 'Employees')} value={Number(a.employees).toLocaleString('en-IN')} />}
+            </div>
+          )}
+          {fieldsLoaded && hasLocation && (
             <div data-testid="account-location" style={{ marginTop: 14, fontSize: 13 }}>
               <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('address_line1', 'Address')}</div>
               {loc.street && <div data-testid="account-location-street" style={{ color: 'var(--text)', marginTop: 2, overflowWrap: 'anywhere' }}>{loc.street}</div>}
@@ -566,10 +568,10 @@ function Field({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function PhoneField({ phone, accountId, accountName }: { phone?: string | null; accountId: string; accountName?: string | null }) {
+function PhoneField({ label = 'Phone', phone, accountId, accountName }: { label?: string; phone?: string | null; accountId: string; accountName?: string | null }) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Phone</div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
       <div style={{ color: 'var(--text)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span>{phone || '—'}</span>
         <CallButton phone={phone} prefillSubject={`Call with ${accountName || 'account'}`} accountId={accountId} size="sm" />

@@ -14,10 +14,10 @@ export default function PolicyModal({ policy, onClose }: { policy: TimesheetPoli
   const [std, setStd] = useState(String(policy.standardWeek));
   return (
     <FormModal title="Timesheet limits" confirmLabel="Save limits" width={460} onClose={onClose}
-      onConfirm={() => {
-        const r = setPolicy({ maxPerDay: Number(day), weeklyCap: Number(week), standardWeek: Number(std) });
+      onConfirm={async () => {
+        const r = await setPolicy({ maxPerDay: Number(day), weeklyCap: Number(week), standardWeek: Number(std) });
         if (!r.ok) return r.error;
-        toast.success('Limits saved and logged.');
+        toast.success('Limits saved.');
         return null;
       }}>
       <Stack gap={12}>

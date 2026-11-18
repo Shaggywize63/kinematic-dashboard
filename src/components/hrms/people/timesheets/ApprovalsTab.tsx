@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Badge, Button, Card, CardTitle, DataTable, EmployeeCell, Modal, Note, Stat, StatGrid, T, type Col } from '../../ui';
 import { Field, Textarea } from '../../../ui';
 import { fmtDate, fullName } from '../../../../lib/hrms/format';
-import { PREVIEW_TODAY } from '../../../../lib/hrms/seed';
+import { tsToday } from '../../../../lib/hrms/people/timesheetClock';
 import { decideSheet } from '../../../../lib/hrms/people/timesheetActions';
 import { billableHours, overCap, sheetTotal, validateSheet, weekLabel } from '../../../../lib/hrms/people/timesheetEngine';
 import type { Sheet, TimesheetState } from '../../../../lib/hrms/people/types';
@@ -18,10 +18,14 @@ import { STATUS_TEXT, STATUS_TONE } from './WeekTab';
 function ReviewModal({ db, ts, sheet, onClose }: { db: HrmsDb; ts: TimesheetState; sheet: Sheet; onClose: () => void }) {
   const [comment, setComment] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const person = db.employees.find((e) => e.id === sheet.employeeId)!;
-  const issues = validateSheet(sheet, ts.policy, PREVIEW_TODAY);
-  const decide = (d: 'approved' | 'returned') => {
-    const r = decideSheet(sheet.id, d, comment);
+  const issues = validateSheet(sheet, ts.policy, tsToday());
+  const decide = async (d: 'approved' | 'returned') => {
+    if (busy) return;
+    setBusy(true);
+    const r = await decideSheet(sheet.id, d, comment);
+    setBusy(false);
     if (!r.ok) { setError(r.error); return; }
     toast.success(d === 'approved' ? 'Approved. The week is locked.' : 'Returned with your comment.');
     onClose();
@@ -31,8 +35,8 @@ function ReviewModal({ db, ts, sheet, onClose }: { db: HrmsDb; ts: TimesheetStat
       footer={(
         <>
           <Button onClick={onClose}>Close</Button>
-          <Button variant="danger" onClick={() => decide('returned')}>Return with comment</Button>
-          <Button variant="primary" onClick={() => decide('approved')}>Approve and lock</Button>
+          <Button variant="danger" disabled={busy} onClick={() => { void decide('returned'); }}>Return with comment</Button>
+          <Button variant="primary" disabled={busy} onClick={() => { void decide('approved'); }}>Approve and lock</Button>
         </>
       )}>
       <Stack gap={12}>

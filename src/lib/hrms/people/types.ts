@@ -156,6 +156,8 @@ export interface Project {
   priorHours: number;
   /** Sample billing rate in rupees per hour. Not a real rate card. */
   sampleRate: number;
+  /** An archived project stays on the weeks that used it but cannot be added to a new week. */
+  archived?: boolean;
 }
 export interface SheetLine { projectId: Id; hours: number[] }
 export type SheetStatus = 'draft' | 'submitted' | 'approved' | 'returned';

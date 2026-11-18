@@ -2,7 +2,7 @@
 // Benefits: plans, enrolment, health claims and cost. Sample mode runs on data kept in this browser. In live mode (phase 7)
 // the plan catalogue, enrolments, claims, the enrolment window and the sent-to-payroll map are read from, and saved to, the
 // server (GET /benefits/bootstrap + the plan / enrolment / window / reminder / claim / send-to-payroll endpoints).
-// Compensation stays local. The page degrades on its own when the benefits tables are not set up yet (503).
+// The page degrades on its own when the benefits tables are not set up yet (503).
 
 import { useEffect, useMemo, useState } from 'react';
 import { useHrmsDb } from '../../../../lib/hrms/db';
