@@ -1,6 +1,10 @@
 'use client';
 import { forwardRef, useEffect, useState, type CSSProperties, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import Link from 'next/link';
+import { Inbox } from 'lucide-react';
+import { PageIcon } from './PageIcon';
+import type { NavIconName } from './icons';
+import { actionIconFor, ICON_SIZE, ICON_STROKE } from '../../lib/labelIcons';
 
 /**
  * Shared UI primitives for the redesigned dashboard. Inline-style objects
@@ -101,14 +105,31 @@ export function buttonStyle(variant: ButtonVariant = 'secondary', size: ButtonSi
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /** The leading icon. Leave it out to get the shared one for the label ("Add …" → plus, "Export" → download; see
+   *  lib/labelIcons.ts); pass `null` for no icon. */
   icon?: ReactNode;
   href?: string;
 }
 
+/** The plain text of a button's children, when it is just text (a string, a number, or a list of them). */
+function textOf(children: ReactNode): string | null {
+  if (typeof children === 'string' || typeof children === 'number') return String(children);
+  if (Array.isArray(children) && children.every((c) => typeof c === 'string' || typeof c === 'number' || c == null || c === false)) {
+    return children.filter((c) => typeof c === 'string' || typeof c === 'number').join('');
+  }
+  return null;
+}
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'secondary', size = 'md', icon, href, style, children, disabled, type = 'button', ...rest }, ref,
+  { variant = 'secondary', size = 'md', icon: iconProp, href, style, children, disabled, type = 'button', ...rest }, ref,
 ) {
   const s = { ...buttonStyle(variant, size, !!disabled), ...style };
+  let icon: ReactNode = iconProp;
+  if (iconProp === undefined) {
+    const label = textOf(children);
+    const Auto = label ? actionIconFor(label) : null;
+    icon = Auto ? <Auto aria-hidden size={size === 'sm' ? ICON_SIZE.inline : ICON_SIZE.button} strokeWidth={ICON_STROKE} style={{ flexShrink: 0 }} /> : null;
+  }
   if (href && !disabled) {
     return (
       <Link href={href} className="km-btn" data-variant={variant} style={s}>
@@ -237,15 +258,22 @@ export function FormGrid({ children, narrow, columns = 2, style }: { children: R
 }
 
 // ── Page header ───────────────────────────────────────────────────────────
-export function PageHeader({ title, description, actions, eyebrow, style, compact }: {
-  title: ReactNode; description?: ReactNode; actions?: ReactNode; eyebrow?: ReactNode; style?: CSSProperties; compact?: boolean;
+/**
+ * A page's title row. The icon tile is the page's sidebar icon (lib/routeIcons.ts) unless `icon` names another one;
+ * `icon={null}` leaves it out.
+ */
+export function PageHeader({ title, description, actions, eyebrow, style, compact, icon }: {
+  title: ReactNode; description?: ReactNode; actions?: ReactNode; eyebrow?: ReactNode; style?: CSSProperties; compact?: boolean; icon?: NavIconName | null;
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: compact ? 'wrap' : 'nowrap', ...style }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-        {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
-        <h1 className="km-page-title" style={{ margin: 0, fontFamily: T.heading, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2, color: T.text }}>{title}</h1>
-        {description && <div style={{ fontSize: 13.5, color: T.dim }}>{description}</div>}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
+        <PageIcon name={icon} style={{ marginTop: eyebrow ? 2 : -3 }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+          {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
+          <h1 className="km-page-title" style={{ margin: 0, fontFamily: T.heading, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2, color: T.text }}>{title}</h1>
+          {description && <div style={{ fontSize: 13.5, color: T.dim }}>{description}</div>}
+        </div>
       </div>
       {actions && <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>{actions}</div>}
     </div>
@@ -319,7 +347,9 @@ export function Segmented<V extends string>({ value, onChange, options, style }:
 }
 
 /** Empty state block for lists. */
-export function EmptyState({ icon, title, description, action, style }: { icon?: ReactNode; title: ReactNode; description?: ReactNode; action?: ReactNode; style?: CSSProperties }) {
+/** An empty list / area. Shows an inbox icon unless given another, or `icon={null}` for none. */
+export function EmptyState({ icon: iconProp, title, description, action, style }: { icon?: ReactNode; title: ReactNode; description?: ReactNode; action?: ReactNode; style?: CSSProperties }) {
+  const icon = iconProp === undefined ? <Inbox size={20} strokeWidth={1.8} /> : iconProp;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '48px 24px', textAlign: 'center', color: T.dim, ...style }}>
       {icon && <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--s3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.mute, marginBottom: 4 }}>{icon}</div>}
