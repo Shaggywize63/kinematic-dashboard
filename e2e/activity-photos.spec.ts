@@ -91,6 +91,17 @@ test.describe('activity photo: list + edit modal', () => {
     await expect(page.getByAltText('Activity photo')).toHaveAttribute('src', PHOTO);
   });
 
+  test('a photo whose object is gone shows "Photo unavailable", not a broken image', async ({ page }) => {
+    await setup(page, fresh());
+    // The stored object 404s (e.g. an upload that resolved to the wrong storage and never
+    // landed) — SignedImage must fall back to a quiet placeholder, never a broken image.
+    await page.route(PHOTO, (r) => r.fulfill({ status: 404, contentType: 'application/json', body: '{"code":"NoSuchBucket"}' }));
+    await page.goto('/dashboard/crm/activities');
+    await expect(page.getByText('Plant visit')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByLabel('Photo unavailable')).toBeVisible();
+    await expect(page.getByAltText('Activity photo')).toHaveCount(0);
+  });
+
   const editCard = (page: Page, subject: string) =>
     page.locator('div', { hasText: subject }).filter({ has: page.getByRole('button', { name: /Edit/ }) }).last().getByRole('button', { name: /Edit/ });
   // The edit modal is a fixed overlay (inline `position: fixed`).
