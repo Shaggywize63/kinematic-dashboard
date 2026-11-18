@@ -40,6 +40,11 @@ export interface LeadHeroProps {
   canEdit: boolean;
   /** Assign menu: not own-scope, and the client's admin-only rule allows this viewer. */
   canAssign: boolean;
+  /**
+   * Is the viewer an admin for owner assignment? Lets them keep an owner control even when the
+   * field overrides hide `lead.owner_id` — see the owner block below.
+   */
+  ownerAdmin?: boolean;
   users: UserOption[];
   usersLoading: boolean;
   onLoadUsers: () => void;
@@ -143,13 +148,32 @@ export default function LeadHero(p: LeadHeroProps) {
               {!fields.isHidden('status') && (
                 <StatusControl status={lead.status} custom={p.leadStatuses} onChange={p.onStatusChange} />
               )}
-              {!fields.isHidden('owner_id') && (
+              {/* Owner. Two cases:
+                   - The field is visible: the usual row, with Assign for anyone allowed to assign.
+                   - The field is HIDDEN by the admin's field overrides: the row goes for the team,
+                     exactly as the overrides contract requires — but an admin still has to be able
+                     to hand a lead to a teammate, so they keep a "Change owner" control. Hiding the
+                     field takes the owner off the FORM; it is not meant to strip an admin of the
+                     assign action, and without this exception a client that hides the field has no
+                     way to reassign at all. Gated on the confirmed admin profile, so it can never
+                     flash up for a rep. */}
+              {!fields.isHidden('owner_id') ? (
                 <span data-field="owner_id" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                   <Avatar name={lead.owner_name || '?'} size={20} />
                   <span style={{ color: T.text }}>{`${fields.labelFor('owner_id', 'Owner')}: ${ownerName}`}</span>
                   {p.canAssign && <AssignMenu users={p.users} loading={p.usersLoading} onOpen={p.onLoadUsers} onPick={p.onAssign} />}
                 </span>
-              )}
+              ) : p.ownerAdmin && p.canAssign ? (
+                <span
+                  data-testid="owner-admin-assign"
+                  title="The Owner field is hidden for your team, but you can reassign this lead as an admin."
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0 }}
+                >
+                  <Avatar name={lead.owner_name || '?'} size={20} />
+                  <span style={{ color: T.text }}>{`Owner: ${ownerName}`}</span>
+                  <AssignMenu users={p.users} loading={p.usersLoading} onOpen={p.onLoadUsers} onPick={p.onAssign} label="Change owner" />
+                </span>
+              ) : null}
               {value && (
                 <span data-testid="lead-value-chip" style={chip} title="Total of the requirement's product lines">{value}</span>
               )}
@@ -219,7 +243,7 @@ export default function LeadHero(p: LeadHeroProps) {
 }
 
 /** Owner picker. The trigger reads "Assign" (the admin-only-owner rule hides this whole control from reps). */
-function AssignMenu({ users, loading, onOpen, onPick }: { users: UserOption[]; loading: boolean; onOpen: () => void; onPick: (id: string, name: string) => void }) {
+function AssignMenu({ users, loading, onOpen, onPick, label = 'Assign' }: { users: UserOption[]; loading: boolean; onOpen: () => void; onPick: (id: string, name: string) => void; label?: string }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const ref = useRef<HTMLDivElement>(null);
@@ -244,7 +268,7 @@ function AssignMenu({ users, loading, onOpen, onPick }: { users: UserOption[]; l
         data-variant="ghost"
         style={{ ...buttonStyle('ghost', 'sm'), height: 24, padding: '0 6px', gap: 3, color: T.red }}
       >
-        <UserPlus size={13} strokeWidth={1.8} aria-hidden />Assign<ChevronDown size={12} strokeWidth={2} aria-hidden />
+        <UserPlus size={13} strokeWidth={1.8} aria-hidden />{label}<ChevronDown size={12} strokeWidth={2} aria-hidden />
       </button>
       {open && (
         <div role="menu" style={{ ...menuPanelStyle, left: 0, minWidth: 232, maxHeight: 320, overflowY: 'auto' }}>

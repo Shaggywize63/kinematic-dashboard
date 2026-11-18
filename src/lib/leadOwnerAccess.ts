@@ -87,6 +87,16 @@ export interface LeadOwnerAccess {
    */
   adminOnly: boolean;
   /**
+   * Is this viewer an admin for owner assignment, REGARDLESS of whether the client turned the
+   * restriction on? `canAssign` cannot answer that: with no restriction it is true for everyone.
+   *
+   * Used for the one control an admin keeps even when `lead.owner_id` is hidden by the field
+   * overrides — hiding the field takes the owner off the FORM for the team, but an admin still has
+   * to be able to hand a lead to a teammate. Gated on the FRESH profile (never the stored one, which
+   * can predate org_role_data_scope), so an admin-only control cannot flash up for a rep.
+   */
+  isAdmin: boolean;
+  /**
    * May this viewer choose / change a lead's owner? Always true once ready when the client has no
    * restriction; with it, true only for an admin. False until `ready`.
    */
@@ -136,5 +146,7 @@ export function useLeadOwnerAccess(): LeadOwnerAccess {
   // data scope, and a restricted control must never flash up for someone who is not allowed it.
   const ready = settingsReady && (!adminOnly || userFresh);
   const canAssign = ready && (!adminOnly || isOwnerAdmin(user));
-  return { ready, adminOnly, canAssign };
+  // Always from the confirmed profile, whatever the client's setting — see the field note above.
+  const isAdmin = userFresh && isOwnerAdmin(user);
+  return { ready, adminOnly, canAssign, isAdmin };
 }

@@ -206,6 +206,45 @@ test.describe('Lead detail — field overrides and access', () => {
     await expect(page.getByText('Lead score', { exact: true })).toHaveCount(0);
   });
 
+  /**
+   * Hiding `lead.owner_id` takes the owner off the FORM for the team — but it must not leave the
+   * client with no way to reassign at all, so an admin keeps a "Change owner" control. The rep case
+   * is the one that matters: the exception must never widen to them.
+   */
+  test('hiding Owner still lets an ADMIN change it, and the pick is sent', async ({ page }) => {
+    const seen = await setup(page, { overrides: { 'lead.owner_id': { hidden: true } } });
+    await open(page);
+    const control = page.getByTestId('owner-admin-assign');
+    await expect(control).toBeVisible();
+    // The ordinary owner row is still gone — this is an admin exception, not an un-hide.
+    await expect(page.locator('[data-field="owner_id"]')).toHaveCount(0);
+    await control.getByRole('button', { name: /Change owner/ }).click();
+    await page.getByRole('menuitem', { name: 'Asha Menon' }).click();
+    await expect.poll(() => writes(seen, 'PATCH', '/api/v1/crm/leads/lead-1').filter((w) => w.body?.owner_id === 'u-asha').length).toBe(1);
+  });
+
+  test('hiding Owner leaves a NON-admin with no owner control at all', async ({ page }) => {
+    await setup(page, {
+      user: { ...SEED_USER, role: 'executive' },
+      overrides: { 'lead.owner_id': { hidden: true } },
+    });
+    // NOT the shared open(): it waits for "Owner: …", which is exactly what must be absent here.
+    await page.goto('/dashboard/crm/leads/lead-1');
+    await expect(page.getByText('Added', { exact: false }).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('owner-admin-assign')).toHaveCount(0);
+    await expect(page.locator('[data-field="owner_id"]')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Change owner/ })).toHaveCount(0);
+    await expect(page.getByText(/Owner:/)).toHaveCount(0);
+  });
+
+  test('with Owner visible nothing changes: the usual row and Assign, no admin override', async ({ page }) => {
+    await setup(page);
+    await open(page);
+    await expect(page.locator('[data-field="owner_id"]')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Assign/ })).toBeVisible();
+    await expect(page.getByTestId('owner-admin-assign')).toHaveCount(0);
+  });
+
   test('hiding company and title empties the subtitle; relabelling Owner changes the label', async ({ page }) => {
     await setup(page, { overrides: { 'lead.company': { hidden: true }, 'lead.title': { hidden: true }, 'lead.owner_id': { label: 'Account manager' } } });
     await page.goto('/dashboard/crm/leads/lead-1');
