@@ -227,6 +227,10 @@ const EXPENSES = {
   currency: 'INR',
   totals: { claim_count: 3, spent_amount: 3000, pending_amount: 500, draft_amount: 0, rejected_amount: 0 },
   visit_count: 3, opportunity_value: 10000, spent_pct_of_value: 30,
+  by_category: [
+    { category: 'travel', amount: 2000, count: 3 },
+    { category: 'food', amount: 1000, count: 2 },
+  ],
   claims: [
     { id: 'cl-1', claim_no: 'EXP-0101', title: 'Site visit', status: 'approved', total_amount: 3000, currency: 'INR', created_at: '2026-10-05T09:00:00Z', user_id: 'u-asha', user_name: 'Asha Rao', lead_id: 'lead-1', deal_id: 'deal-1', deal_name: 'Plugs for Q3' },
     { id: 'cl-2', claim_no: 'EXP-0102', title: 'Demo trip', status: 'submitted', total_amount: 500, currency: 'INR', created_at: '2026-10-06T09:00:00Z', user_id: 'u-ravi', user_name: 'Ravi Kumar', lead_id: 'lead-1', deal_id: null, deal_name: null },
@@ -259,6 +263,12 @@ for (const kind of ['lead', 'deal'] as const) {
       await expect(page.getByText('3 claims · 3 visits')).toBeVisible();
       await expect(page.getByText('Pending ₹500', { exact: true })).toBeVisible();
       await expect(page.getByText(/Draft ₹0|Rejected ₹0/)).toHaveCount(0);
+      // Breakdown by type (the "By type" split) and by trip (the claims list).
+      const byType = page.getByTestId('expense-by-type');
+      await expect(byType.getByText('Travel', { exact: true })).toBeVisible();
+      await expect(byType.getByText('₹2,000', { exact: true })).toBeVisible();
+      await expect(byType.getByText('Food', { exact: true })).toBeVisible();
+      await expect(page.getByText('By trip', { exact: true })).toBeVisible();
       await expect(page.getByRole('link', { name: 'EXP-0101' })).toHaveAttribute('href', '/dashboard/expenses/cl-1');
       await expect(page.getByRole('link', { name: 'EXP-0102' })).toHaveAttribute('href', '/dashboard/expenses/cl-2');
       await expect(page.getByText('Ravi Kumar', { exact: false }).first()).toBeVisible();

@@ -972,6 +972,13 @@ export interface EntityExpenseClaim {
   deal_name: string | null;
 }
 
+/** Spend split by expense type (travel / food / lodging …) across the record's claims, worst first. */
+export interface EntityExpenseCategory {
+  category: string;
+  amount: number;
+  count: number;
+}
+
 export interface EntityExpenses {
   currency: string;
   totals: { claim_count: number; spent_amount: number; pending_amount: number; draft_amount: number; rejected_amount: number };
@@ -979,4 +986,6 @@ export interface EntityExpenses {
   opportunity_value: number | null;
   spent_pct_of_value: number | null;
   claims: EntityExpenseClaim[];
+  /** Aggregate split by type — present on current servers; older ones omit it, so the card guards for undefined. */
+  by_category?: EntityExpenseCategory[];
 }
