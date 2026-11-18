@@ -27,13 +27,14 @@ type View = {
   recipients: Recipient[];
   kinds: string[];
   daily_summary: boolean;
+  voice_leads: boolean;
   project_disabled: boolean;
   connection: { configured: boolean; active: boolean; from_phone: string | null; display_name: string | null };
   templates: Template[];
   catalog: Entry[];
   suggested_template: { name: string; category: string; language: string; body: string };
 };
-type Form = { enabled: boolean; template_id: string; recipients: Recipient[]; kinds: string[]; daily_summary: boolean };
+type Form = { enabled: boolean; template_id: string; recipients: Recipient[]; kinds: string[]; daily_summary: boolean; voice_leads: boolean };
 
 const MAX_PEOPLE = 10;
 const GROUPS: { id: string; label: string }[] = [
@@ -53,13 +54,14 @@ const toForm = (v: View): Form => ({
   recipients: v.recipients.map(r => ({ ...r })),
   kinds: [...v.kinds],
   daily_summary: !!v.daily_summary,
+  voice_leads: !!v.voice_leads,
 });
 const sig = (f: Form) => JSON.stringify({ ...f, kinds: [...f.kinds].sort() });
 const errText = (e: any, fallback: string) => e?.response?.data?.error?.message || e?.response?.data?.error || e?.message || fallback;
 
 const ClientWhatsappAlertsPanel = forwardRef<WhatsappAlertsHandle, { clientId: string }>(function ClientWhatsappAlertsPanel({ clientId }, ref) {
   const [view, setView] = useState<View | null>(null);
-  const [form, setForm] = useState<Form>({ enabled: false, template_id: '', recipients: [], kinds: [], daily_summary: false });
+  const [form, setForm] = useState<Form>({ enabled: false, template_id: '', recipients: [], kinds: [], daily_summary: false, voice_leads: false });
   const [saved, setSaved] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -124,6 +126,7 @@ const ClientWhatsappAlertsPanel = forwardRef<WhatsappAlertsHandle, { clientId: s
         recipients: f.recipients,
         kinds: f.kinds,
         daily_summary: f.daily_summary,
+        voice_leads: f.voice_leads,
       });
       const v = unwrap<View>(r);
       if (!v || !Array.isArray(v.catalog)) throw new Error('Unexpected response while saving WhatsApp alert settings.');
@@ -261,6 +264,21 @@ const ClientWhatsappAlertsPanel = forwardRef<WhatsappAlertsHandle, { clientId: s
             <span style={{ fontSize: 10.5, color: 'var(--textTert)', lineHeight: 1.5 }}>
               Attendance, visits done against the plan, orders and their value, new leads, the top 3 reps, reps with no visits yet,
               and check-ins worth a look (mock GPS, failed face match, off-route). One message a day to the people above.
+            </span>
+          </span>
+        </label>
+      </div>
+
+      {/* Voice note → lead */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={sectionLabel}>Leads by voice note</div>
+        <label htmlFor={`${idBase}-voice`} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', background: form.voice_leads ? 'rgba(37,211,102,0.1)' : 'transparent', border: `1px solid ${form.voice_leads ? '#25D366' : 'transparent'}` }}>
+          <input id={`${idBase}-voice`} type="checkbox" checked={form.voice_leads} onChange={e => setForm(f => ({ ...f, voice_leads: e.target.checked }))} style={{ marginTop: 2 }} />
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: form.voice_leads ? 600 : 500, color: form.voice_leads ? 'var(--text)' : 'var(--textSec)' }}>Let this client&apos;s team add leads by WhatsApp voice note</span>
+            <span style={{ fontSize: 10.5, color: 'var(--textTert)', lineHeight: 1.5 }}>
+              A rep sends a voice note (any Indian language) or a message starting with &ldquo;lead&rdquo; to the client&apos;s WhatsApp number.
+              KINI creates the lead, owned by that rep, and replies with what it saved. Only works from numbers saved on the client&apos;s active users.
             </span>
           </span>
         </label>
