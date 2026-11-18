@@ -68,7 +68,7 @@ test.describe('Account page activity edit', () => {
     await page.goto('/dashboard/crm/accounts/acc-1');
     await expect(page.getByText('Activities (2)')).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Edit activity: Intro call' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Edit activity' }).getByRole('button', { name: 'Delete', exact: true }).click();
     await expect.poll(() => calls.deleted.length).toBe(1);
     await expect(page.getByRole('button', { name: /^Edit activity:/ })).toHaveCount(1);
   });
