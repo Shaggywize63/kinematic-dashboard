@@ -19,13 +19,14 @@ type View = {
   template_id: string | null;
   recipients: Recipient[];
   kinds: string[];
+  daily_summary: boolean;
   project_disabled: boolean;
   connection: { configured: boolean; active: boolean; from_phone: string | null; display_name: string | null };
   templates: Template[];
   catalog: Entry[];
   suggested_template: { name: string; category: string; language: string; body: string };
 };
-type Form = { enabled: boolean; template_id: string; recipients: Recipient[]; kinds: string[] };
+type Form = { enabled: boolean; template_id: string; recipients: Recipient[]; kinds: string[]; daily_summary: boolean };
 
 const MAX_PEOPLE = 10;
 const GROUPS: { id: string; label: string }[] = [
@@ -44,13 +45,14 @@ const toForm = (v: View): Form => ({
   template_id: v.template_id ?? '',
   recipients: v.recipients.map(r => ({ ...r })),
   kinds: [...v.kinds],
+  daily_summary: !!v.daily_summary,
 });
 const sig = (f: Form) => JSON.stringify({ ...f, kinds: [...f.kinds].sort() });
 const errText = (e: any, fallback: string) => e?.response?.data?.error?.message || e?.response?.data?.error || e?.message || fallback;
 
 export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: string }) {
   const [view, setView] = useState<View | null>(null);
-  const [form, setForm] = useState<Form>({ enabled: false, template_id: '', recipients: [], kinds: [] });
+  const [form, setForm] = useState<Form>({ enabled: false, template_id: '', recipients: [], kinds: [], daily_summary: false });
   const [saved, setSaved] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -109,27 +111,29 @@ export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: stri
         template_id: form.template_id || null,
         recipients: form.recipients,
         kinds: form.kinds,
+        daily_summary: form.daily_summary,
       });
       const v = unwrap<View>(r);
       if (!v || !Array.isArray(v.catalog)) throw new Error('Unexpected response while saving WhatsApp alert settings.');
       apply(v);
-      setNote(v.enabled ? 'Saved. Alerts start within a minute.' : 'Saved. WhatsApp alerts are off for this client.');
+      setNote(!v.enabled ? 'Saved. WhatsApp alerts are off for this client.'
+        : v.daily_summary ? 'Saved. Alerts start within a minute; the summary goes out at 7 pm.' : 'Saved. Alerts start within a minute.');
     } catch (e: any) {
       setErr(errText(e, 'Could not save WhatsApp alert settings'));
     } finally { setSaving(false); }
   };
 
-  const sendTest = async () => {
+  const sendTest = async (type?: 'daily_summary') => {
     setTesting(true); setErr(''); setNote('');
     try {
       const r = unwrap<{ sent: number; failed: number; results: Array<{ name: string; phone: string; status: string; error: string | null }> }>(
-        await api.post(`/api/v1/clients/${clientId}/whatsapp-alerts/test`, {}),
+        await api.post(`/api/v1/clients/${clientId}/whatsapp-alerts/test`, type ? { type } : {}),
       );
       if (r.failed) {
         const first = r.results.find(x => x.status === 'failed');
         setErr(`Test sent to ${r.sent} of ${r.sent + r.failed}. ${first ? `${first.name || first.phone}: ${first.error}` : ''}`);
       } else {
-        setNote(`Test sent to ${r.sent} ${r.sent === 1 ? 'person' : 'people'}.`);
+        setNote(`${type ? "Today's summary" : 'Test'} sent to ${r.sent} ${r.sent === 1 ? 'person' : 'people'}.`);
       }
     } catch (e: any) {
       setErr(errText(e, 'Could not send the test alert'));
@@ -228,6 +232,21 @@ export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: stri
         <div style={{ fontSize: 10.5, color: 'var(--textTert)' }}>10-digit Indian numbers get +91 added. Use the full number with country code for other countries.</div>
       </div>
 
+      {/* Daily summary */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={sectionLabel}>Daily summary</div>
+        <label htmlFor={`${idBase}-summary`} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', background: form.daily_summary ? 'rgba(37,211,102,0.1)' : 'transparent', border: `1px solid ${form.daily_summary ? '#25D366' : 'transparent'}` }}>
+          <input id={`${idBase}-summary`} type="checkbox" checked={form.daily_summary} onChange={e => setForm(f => ({ ...f, daily_summary: e.target.checked }))} style={{ marginTop: 2 }} />
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: form.daily_summary ? 600 : 500, color: form.daily_summary ? 'var(--text)' : 'var(--textSec)' }}>Send a summary of the day at 7 pm</span>
+            <span style={{ fontSize: 10.5, color: 'var(--textTert)', lineHeight: 1.5 }}>
+              Attendance, visits done against the plan, orders and their value, new leads, the top 3 reps, reps with no visits yet,
+              and check-ins worth a look (mock GPS, failed face match, off-route). One message a day to the people above.
+            </span>
+          </span>
+        </label>
+      </div>
+
       {/* Updates */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -274,12 +293,21 @@ export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: stri
           {saving ? 'Saving…' : 'Save WhatsApp alerts'}
         </button>
         <button
-          type="button" onClick={sendTest} disabled={dirty || testing || !view.template_id || !view.recipients.length}
+          type="button" onClick={() => sendTest()} disabled={dirty || testing || !view.template_id || !view.recipients.length}
           title={dirty ? 'Save first, then send a test' : undefined}
           style={{ padding: '9px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: !dirty && !testing && view.template_id && view.recipients.length ? 'pointer' : 'default', opacity: dirty || !view.template_id || !view.recipients.length ? 0.5 : 1 }}
         >
           {testing ? 'Sending…' : 'Send a test'}
         </button>
+        {view.daily_summary && (
+          <button
+            type="button" onClick={() => sendTest('daily_summary')} disabled={dirty || testing || !view.template_id || !view.recipients.length}
+            title={dirty ? 'Save first' : "Sends today's figures so far. The 7 pm summary still goes out."}
+            style={{ padding: '9px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: !dirty && !testing && view.template_id && view.recipients.length ? 'pointer' : 'default', opacity: dirty || !view.template_id || !view.recipients.length ? 0.5 : 1 }}
+          >
+            Send today&apos;s summary now
+          </button>
+        )}
         {dirty && !saving && <span style={{ fontSize: 11.5, color: 'var(--textTert)' }}>Unsaved changes</span>}
         {note && <span role="status" style={{ fontSize: 11.5, color: '#00A862', fontWeight: 600 }}>{note}</span>}
         {err && <span role="alert" style={{ fontSize: 11.5, color: '#E01E2C', fontWeight: 600 }}>{err}</span>}
