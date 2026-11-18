@@ -7,6 +7,7 @@ import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } fro
 import { type AppCustomization } from '../../../lib/appCustomization';
 import AppCustomizationPanel from '../../../components/clients/AppCustomizationPanel';
 import ClientNotificationsPanel from '../../../components/clients/ClientNotificationsPanel';
+import ClientWhatsappAlertsPanel from '../../../components/clients/ClientWhatsappAlertsPanel';
 import ClientAccountPanel from '../../../components/clients/ClientAccountPanel';
 import ClientAdminsPanel from '../../../components/clients/ClientAdminsPanel';
 import AppLayoutEditor from '../../../components/clients/AppLayoutEditor';
@@ -849,6 +850,17 @@ export default function ClientManagement() {
                 : (
                   <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}`, fontSize: 12, color: C.grayd }}>
                     A new client starts with <b>no notifications</b>. Create the client, then reopen it to choose which notifications it receives.
+                  </div>
+                )}
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
+              <Label t="WhatsApp alerts" />
+              {editing && !provisionMode
+                ? <ClientWhatsappAlertsPanel key={editing.id} clientId={editing.id} />
+                : (
+                  <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}`, fontSize: 12, color: C.grayd }}>
+                    WhatsApp alerts start <b>off</b>. Create the client, then reopen it to choose who gets alerts on WhatsApp and for which updates.
                   </div>
                 )}
             </div>
