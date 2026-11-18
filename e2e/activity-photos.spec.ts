@@ -20,6 +20,12 @@ type Seen = { uploads: { contentType: string; body: string }[]; writes: { method
 
 async function setup(page: Page, seen: Seen, list: unknown[] = [ROW, ROW_NO_PHOTO]) {
   await seedSession(page, SEED_USER);
+  // Serve the stored photo objects as a real image by default, so SignedImage's load succeeds and the
+  // thumbnail renders (a test that wants a MISSING object routes PHOTO to a 404 after setup, which
+  // wins as the later-registered handler). Without this the <img> would error into the "Photo
+  // unavailable" placeholder and the happy-path thumbnail assertions would see no <img>.
+  await page.route(PHOTO, (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
+  await page.route(PHOTO_2, (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
   await mockApi(page, {
     onRequest: async (route, url, method) => {
       const p = apiPath(url);
@@ -89,6 +95,17 @@ test.describe('activity photo: list + edit modal', () => {
     await expect(page.getByText('Plant visit')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByAltText('Activity photo')).toHaveCount(1);
     await expect(page.getByAltText('Activity photo')).toHaveAttribute('src', PHOTO);
+  });
+
+  test('a photo whose object is gone shows "Photo unavailable", not a broken image', async ({ page }) => {
+    await setup(page, fresh());
+    // The stored object 404s (e.g. an upload that resolved to the wrong storage and never
+    // landed) — SignedImage must fall back to a quiet placeholder, never a broken image.
+    await page.route(PHOTO, (r) => r.fulfill({ status: 404, contentType: 'application/json', body: '{"code":"NoSuchBucket"}' }));
+    await page.goto('/dashboard/crm/activities');
+    await expect(page.getByText('Plant visit')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByLabel('Photo unavailable')).toBeVisible();
+    await expect(page.getByAltText('Activity photo')).toHaveCount(0);
   });
 
   const editCard = (page: Page, subject: string) =>

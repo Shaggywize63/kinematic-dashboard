@@ -31,6 +31,7 @@ import { useFieldHelpers } from '../../../../../lib/crm/useFieldHelpers';
 import { accountLocationLines } from '../../../../../lib/accountLocation';
 import { apiErrorText, dealRollup } from '../../../../../lib/sparkAccounts';
 import { BrandChips } from '../../../../../components/crm/spark/BrandChips';
+import CoOwnersCard from '../../../../../components/crm/CoOwnersCard';
 
 export default function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -320,6 +321,9 @@ export default function AccountDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Primary owner + co-owners (peers who also see this account). */}
+        <CoOwnersCard entity="accounts" id={a.id} primaryOwnerId={a.owner_id} primaryOwnerName={a.owner_name} />
 
         {spark && (
           <Card title="Recent updates" icon={MessageSquareText}>

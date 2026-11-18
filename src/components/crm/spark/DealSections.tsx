@@ -164,6 +164,21 @@ export default function DealSections({
                     </select>
                   </Box>
                 )}
+                {!hidden('trial_awb') && (
+                  <Box label={L('trial_awb', 'Airway bill / docket no.')}>
+                    <input aria-label="Airway bill number" value={values.trial_awb} onChange={(e) => onChange({ trial_awb: e.target.value })} placeholder="e.g. 1234567890" maxLength={120} style={inp} />
+                  </Box>
+                )}
+                {!hidden('trial_value') && (
+                  <Box label={L('trial_value', 'Sample value (INR)')}>
+                    <input aria-label="Sample value" type="number" step="any" min={0} value={values.trial_value} onChange={(e) => onChange({ trial_value: e.target.value })} style={inp} />
+                  </Box>
+                )}
+                {!hidden('trial_shipment') && (
+                  <Box label={L('trial_shipment', 'Shipment details')} wide>
+                    <textarea aria-label="Shipment details" rows={2} value={values.trial_shipment} onChange={(e) => onChange({ trial_shipment: e.target.value })} placeholder="Carrier, what was sent, how it shipped…" maxLength={500} style={{ ...inp, fontFamily: 'inherit', resize: 'vertical' }} />
+                  </Box>
+                )}
                 {!hidden('trial_notes') && (
                   <Box label={L('trial_notes', 'Trial notes')} wide>
                     <textarea aria-label="Trial notes" rows={3} value={values.trial_notes} onChange={(e) => onChange({ trial_notes: e.target.value })} style={{ ...inp, fontFamily: 'inherit', resize: 'vertical' }} />
@@ -248,6 +263,9 @@ export function DealSectionsView({ deal, sections, fields }: {
           ['trial_start', 'Trial start', fmtDay(deal.trial_start)],
           ['trial_end', 'Trial end', fmtDay(deal.trial_end)],
           ['trial_result', 'Trial result', r ? (TRIAL_RESULT_LABEL[r] || r) : dash],
+          ['trial_awb', 'Airway bill / docket no.', txt(deal.trial_awb)],
+          ['trial_value', 'Sample value', money(deal.trial_value)],
+          ['trial_shipment', 'Shipment details', txt(deal.trial_shipment)],
           ['trial_notes', 'Trial notes', txt(deal.trial_notes)],
         ];
       }

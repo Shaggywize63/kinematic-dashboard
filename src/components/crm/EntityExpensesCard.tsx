@@ -21,6 +21,11 @@ const usable = (d: unknown): d is EntityExpenses => {
   return !!x && typeof x === 'object' && !!x.totals && typeof x.totals === 'object' && Array.isArray(x.claims);
 };
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+// Friendly labels for the expense types (expense_claim_items.category); an unknown key shows title-cased.
+const CATEGORY_LABEL: Record<string, string> = {
+  mileage: 'Mileage', travel: 'Travel', food: 'Food', lodging: 'Lodging', fuel: 'Fuel', toll: 'Toll', misc: 'Other',
+};
+const catLabel = (c: string) => CATEGORY_LABEL[c] ?? (c ? c.charAt(0).toUpperCase() + c.slice(1) : 'Other');
 /** 30 -> "30%", 12.5 -> "12.5%", 0.04 -> "0.04%" (never a long tail of decimals). */
 const pct = (v: number) => `${Number(v.toFixed(v < 1 ? 2 : 1)).toLocaleString('en-IN')}%`;
 
@@ -73,6 +78,8 @@ export default function EntityExpensesCard({ kind, id }: { kind: 'lead' | 'deal'
     const share = spent > 0 && value != null && data.spent_pct_of_value != null ? Number(data.spent_pct_of_value) : null;
     const parts = ([['Pending', totals.pending_amount], ['Draft', totals.draft_amount], ['Rejected', totals.rejected_amount]] as Array<[string, number]>)
       .filter(([, v]) => Number(v) > 0);
+    const byCategory = (data.by_category ?? []).filter((b) => Number(b.amount) > 0);
+    const catMax = byCategory.reduce((m, b) => Math.max(m, Number(b.amount) || 0), 0);
     return (
       <>
         <div style={{ fontSize: 18, fontWeight: 700, color: T.text, fontFamily: T.heading, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>
@@ -82,8 +89,25 @@ export default function EntityExpensesCard({ kind, id }: { kind: 'lead' | 'deal'
         {parts.length > 0 && (
           <div style={{ fontSize: 12, color: T.mute, marginTop: 4 }}>{parts.map(([k, v]) => `${k} ${money(v, currency)}`).join(' · ')}</div>
         )}
+        {byCategory.length > 0 && (
+          <div data-testid="expense-by-type" style={{ marginTop: 12 }}>
+            <Eyebrow style={{ marginBottom: 6 }}>By type</Eyebrow>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {byCategory.map((b) => (
+                <div key={b.category} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ fontSize: 12.5, color: T.dim, minWidth: 64, flexShrink: 0 }}>{catLabel(b.category)}</div>
+                  <div style={{ flex: 1, height: 6, background: T.border, borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${catMax > 0 ? Math.max(4, Math.round((Number(b.amount) / catMax) * 100)) : 0}%`, background: 'var(--accent)', borderRadius: 3 }} />
+                  </div>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, fontVariantNumeric: 'tabular-nums', minWidth: 68, textAlign: 'right' }}>{money(b.amount, currency)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {claims.length > 0 && (
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column' }}>
+            <Eyebrow style={{ marginBottom: 2 }}>By trip</Eyebrow>
             {claims.map((c) => (
               <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '9px 0', borderTop: `1px solid ${T.border}` }}>
                 <div style={{ minWidth: 0, flex: '1 1 140px' }}>

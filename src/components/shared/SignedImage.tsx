@@ -62,7 +62,14 @@ export function openSignedUrl(e: React.MouseEvent | undefined, stored?: string |
   if (!SIGNABLE_RE.test(stored)) { window.open(stored, '_blank', 'noopener,noreferrer'); return; }
   const w = window.open('about:blank', '_blank');
   resolveSignedUrl(stored)
-    .then((u) => { if (w) w.location.href = u; })
+    .then((u) => {
+      // Signing failed (the fallback returns the stored URL unchanged) — a signable
+      // object we couldn't sign is almost certainly missing, so opening its raw URL
+      // would just show a storage error. Close the tab instead.
+      if (!w) return;
+      if (u === stored) { w.close(); return; }
+      w.location.href = u;
+    })
     .catch(() => { if (w) w.close(); });
 }
 
@@ -74,9 +81,15 @@ export default function SignedImage({ src, ...rest }: Props) {
   const [resolved, setResolved] = useState<string | undefined>(
     needsSigning ? undefined : src || undefined,
   );
+  // An image can fail to load even after signing — e.g. the stored object is
+  // gone (an upload that resolved to the wrong storage and never landed), so the
+  // fetch 404s / "bucket not found". Show a quiet placeholder instead of a broken
+  // image icon or a raw storage error.
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
+    setFailed(false);
     if (!src) { setResolved(undefined); return; }
     if (!SIGNABLE_RE.test(src)) { setResolved(src); return; }
     setResolved(undefined);
@@ -84,7 +97,25 @@ export default function SignedImage({ src, ...rest }: Props) {
     return () => { alive = false; };
   }, [src]);
 
+  if (failed) {
+    return (
+      <span
+        role="img"
+        aria-label="Photo unavailable"
+        title="This photo could not be loaded."
+        style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          width: (rest.style?.maxWidth as number) ?? 160, height: (rest.style?.maxHeight as number) ?? 120,
+          borderRadius: 8, border: '1px dashed var(--border)', background: 'var(--s2)',
+          color: 'var(--text-dim)', fontSize: 11.5, fontWeight: 600, textAlign: 'center', padding: 8,
+          ...rest.style,
+        }}
+      >
+        Photo unavailable
+      </span>
+    );
+  }
   if (!resolved) return null; // brief blank while signing, then the image appears
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={resolved} {...rest} />;
+  return <img src={resolved} {...rest} onError={() => setFailed(true)} />;
 }

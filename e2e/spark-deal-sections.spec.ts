@@ -83,6 +83,9 @@ test.describe('deal sections: deals/new', () => {
     await page.getByLabel('Trial start').fill('2026-11-10');
     await page.getByLabel('Trial end').fill('2026-11-20');
     await page.getByLabel('Trial result').selectOption('pending');
+    await page.getByLabel('Airway bill number').fill('AWB-998877');
+    await page.getByLabel('Sample value').fill('4500');
+    await page.getByLabel('Shipment details').fill('Blue Dart, 2 valve samples');
     await page.getByLabel('Trial notes').fill('Run on line 2');
 
     // People: dropdowns of the org's users.
@@ -98,6 +101,7 @@ test.describe('deal sections: deals/new', () => {
       quotation_no: 'QT-2026-014',
       pricing_quoted: 10000, pricing_discount_pct: 12.5, pricing_final: 8750, pricing_valid_till: '2026-12-31',
       trial_required: true, trial_start: '2026-11-10', trial_end: '2026-11-20', trial_result: 'pending', trial_notes: 'Run on line 2',
+      trial_awb: 'AWB-998877', trial_value: 4500, trial_shipment: 'Blue Dart, 2 valve samples',
       technical_approval_by: 'u-asha', prepared_by: 'u-ravi', checked_by: 'u-meera', supervisor_id: 'u-asha',
     });
   });
@@ -387,6 +391,13 @@ test.describe('deal sections: helpers', () => {
     expect(buildDealSectionPayload(v, resolveDealSections({ quotation: { enabled: false }, pricing: { enabled: false }, product_trial: { enabled: false }, approvals: { enabled: false } }), 'patch')).toEqual({});
     // "No trial needed" never sends the other trial fields on create.
     expect(Object.keys(buildDealSectionPayload({ ...v, trial_start: '2026-01-01' }, on, 'create'))).not.toContain('trial_start');
+    // Dispatch logistics ride along only when a trial is needed, value coerced to a number.
+    const withTrial = buildDealSectionPayload(
+      { ...emptyDealSectionValues(), trial_required: true, trial_awb: 'AWB-1', trial_shipment: 'Blue Dart', trial_value: '4500' }, on, 'create');
+    expect(withTrial).toMatchObject({ trial_required: true, trial_awb: 'AWB-1', trial_shipment: 'Blue Dart', trial_value: 4500 });
+    // Turning the trial off on a patch clears the dispatch fields too.
+    expect(buildDealSectionPayload({ ...emptyDealSectionValues(), trial_required: false }, on, 'patch'))
+      .toMatchObject({ trial_awb: null, trial_shipment: null, trial_value: null });
   });
   test('seedDealSectionValues copes with a bare / odd row', () => {
     expect(seedDealSectionValues(null)).toEqual(emptyDealSectionValues());

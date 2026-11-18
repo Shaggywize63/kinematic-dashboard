@@ -90,6 +90,17 @@ export interface LeadContactLink {
   name: string; title?: string | null; phone?: string | null; email?: string | null;
 }
 
+// A co-owner (additional owner) of a lead / account / contact / deal. The record keeps its single
+// primary owner; co-owners are peers who also see it in their lists and reports.
+export interface CoOwner { user_id: string; name: string | null; }
+export type CoOwnerEntity = 'leads' | 'accounts' | 'contacts' | 'deals';
+export const crmCoOwners = {
+  list: (entity: CoOwnerEntity, id: string) => api.get<Wrapped<CoOwner[]>>(`${BASE}/${entity}/${id}/co-owners`),
+  // Replace the whole co-owner set; the server validates org membership and drops the primary owner.
+  set: (entity: CoOwnerEntity, id: string, userIds: string[]) =>
+    api.put<Wrapped<CoOwner[]>>(`${BASE}/${entity}/${id}/co-owners`, { user_ids: userIds }),
+};
+
 export const crmLeads = {
   ...crud<Lead>(`${BASE}/leads`),
   // The make/product/qty lines captured under this lead's requirement (Spark & Ray).
@@ -98,6 +109,11 @@ export const crmLeads = {
   /** Spark & Ray: the customer people on this lead (crm_lead_contacts), primary (nodal) first. Not `contacts`,
    *  which is the contacts captured on the lead (crm_contacts.lead_id) — a different endpoint and shape. */
   people: (id: string) => api.get<Wrapped<LeadContactLink[]>>(`${BASE}/leads/${id}/people`),
+  // Move the nodal (primary) flag to a different person on the lead as the point of contact changes
+  // over the deal. `linkId` is a LeadContactLink.id (from people()), not a contact id. Returns the
+  // refreshed people list, primary first.
+  setPrimaryPerson: (id: string, linkId: string) =>
+    api.post<Wrapped<LeadContactLink[]>>(`${BASE}/leads/${id}/people/${linkId}/primary`, {}),
   // AI Smart Filters — plain-English → validated lead-list filter params. The
   // page applies the returned params to the normal list fetch (all tenant
   // scoping stays server-side). `explanation` is a human-readable summary.

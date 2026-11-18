@@ -21,6 +21,7 @@ import CustomFieldsDetailCard from '../../../../../components/crm/CustomFieldsDe
 import { formatINR } from '../../../../../lib/formatCurrency';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import ContactAccountModal from '../../../../../components/crm/spark/ContactAccountModal';
+import CoOwnersCard from '../../../../../components/crm/CoOwnersCard';
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -147,6 +148,9 @@ export default function ContactDetailPage() {
             </div>
           </Card>
         )}
+
+        {/* Primary owner + co-owners (peers who also see this contact). */}
+        <CoOwnersCard entity="contacts" id={c.id} primaryOwnerId={c.owner_id} primaryOwnerName={c.owner_name} />
 
         {/* Read-only admin-defined custom fields — renders nothing when
             the contact has no stored values. */}

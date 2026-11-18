@@ -34,6 +34,7 @@ import { isStructuredLead, leadPersonName } from '../../../../../lib/leadHeader'
 import { leadIdentitySlots } from '../../../../../lib/leadStructure';
 import { LeadStructureGaps } from '../../../../../components/crm/spark/StructureGaps';
 import EntityExpensesCard from '../../../../../components/crm/EntityExpensesCard';
+import CoOwnersCard from '../../../../../components/crm/CoOwnersCard';
 import SampleInvoicesCard from '../../../../../components/crm/SampleInvoicesCard';
 import InsightsTab from '../../../../../components/crm/lead-detail/InsightsTab';
 import ScoreCard from '../../../../../components/crm/lead-detail/ScoreCard';
@@ -539,6 +540,8 @@ export default function LeadDetailPage() {
         </div>
 
         <aside aria-label="Lead intelligence" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Primary owner + co-owners (peers who also see this lead). */}
+          <CoOwnersCard entity="leads" id={id} primaryOwnerId={lead.owner_id} primaryOwnerName={lead.owner_name} />
           {/* Connected-B2B: what was spent on this lead (claims linked to it) vs. the deal value. Renders nothing for other clients. */}
           <EntityExpensesCard kind="lead" id={id} />
           {/* Connected-B2B (Spark & Ray): sample-invoice numbers stored on the lead's custom_fields.sample_invoices.
