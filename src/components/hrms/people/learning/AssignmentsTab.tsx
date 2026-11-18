@@ -10,7 +10,7 @@ import { diffDays, fmtDate } from '../../../../lib/hrms/format';
 import { sendReminder } from '../../../../lib/hrms/people/learningActions';
 import type { AssignmentStatus, LearningState } from '../../../../lib/hrms/people/types';
 import { Muted, Stack } from '../shared';
-import { STATUS_LABEL, STATUS_TONE_MAP, type AssignmentRow, type LearningView } from './view';
+import { STATUS_LABEL, STATUS_TONE_MAP, reminderLoggedText, type AssignmentRow, type LearningView } from './view';
 import LessonModal from './LessonModal';
 import CertificateModal from './CertificateModal';
 
@@ -54,7 +54,7 @@ export default function AssignmentsTab({ db, st, view }: { db: HrmsDb; st: Learn
       render: (r) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           {r.status === 'overdue' && r.c.mandatory && (
-            <Button size="sm" aria-label={`Send reminder to ${r.e.firstName} ${r.e.lastName} for ${r.c.title}`} onClick={() => { sendReminder(r.a.id); toast.success('Reminder logged. Nothing was sent in this preview.'); }}>Remind</Button>
+            <Button size="sm" aria-label={`Send reminder to ${r.e.firstName} ${r.e.lastName} for ${r.c.title}`} onClick={async () => { const out = await sendReminder(r.a.id); if (out.ok) toast.success(reminderLoggedText()); else toast.error(out.error); }}>Remind</Button>
           )}
           {r.status === 'completed'
             ? <Button size="sm" aria-label={`View certificate for ${r.e.firstName} ${r.e.lastName}, ${r.c.title}`} disabled={!r.a.certificateId} onClick={() => r.a.certificateId && setCert(r.a.certificateId)}>Certificate</Button>

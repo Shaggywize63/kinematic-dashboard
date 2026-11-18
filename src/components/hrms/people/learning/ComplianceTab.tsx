@@ -10,7 +10,7 @@ import { assignRefresher, sendReminder } from '../../../../lib/hrms/people/learn
 import { EXPIRY_WINDOW_DAYS, type ExpiringItem, type OverdueItem } from '../../../../lib/hrms/people/learningEngine';
 import type { LearningState } from '../../../../lib/hrms/people/types';
 import { ActivityList, CoverageBars, Muted, SimulationBadge, Stack } from '../shared';
-import type { LearningView } from './view';
+import { reminderLoggedText, type LearningView } from './view';
 
 export default function ComplianceTab({ db, st, view }: { db: HrmsDb; st: LearningState; view: LearningView }) {
   const lastReminder = new Map<string, string>();
@@ -30,7 +30,7 @@ export default function ComplianceTab({ db, st, view }: { db: HrmsDb; st: Learni
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
             {last && <span style={{ fontSize: 12, color: T.mute }}>Reminded {fmtDate(last)}</span>}
             <Button size="sm" aria-label={`Send reminder to ${r.employee.firstName} ${r.employee.lastName} for ${r.course.title}`}
-              onClick={() => { sendReminder(r.assignment.id); toast.success('Reminder logged. Nothing was sent in this preview.'); }}>{last ? 'Remind again' : 'Send reminder'}</Button>
+              onClick={async () => { const out = await sendReminder(r.assignment.id); if (out.ok) toast.success(reminderLoggedText()); else toast.error(out.error); }}>{last ? 'Remind again' : 'Send reminder'}</Button>
           </div>
         );
       },
@@ -47,7 +47,7 @@ export default function ComplianceTab({ db, st, view }: { db: HrmsDb; st: Learni
       key: 'act', label: '', align: 'right', nowrap: true,
       render: (r) => r.refresherAssigned
         ? <Badge tone="info">Refresher assigned</Badge>
-        : <Button size="sm" aria-label={`Assign refresher to ${r.employee.firstName} ${r.employee.lastName} for ${r.course.title}`} onClick={() => { assignRefresher(r.cert.id); toast.success('Refresher assigned.'); }}>Assign refresher</Button>,
+        : <Button size="sm" aria-label={`Assign refresher to ${r.employee.firstName} ${r.employee.lastName} for ${r.course.title}`} onClick={async () => { const out = await assignRefresher(r.cert.id); if (out.ok) toast.success('Refresher assigned.'); else toast.error(out.error); }}>Assign refresher</Button>,
     },
   ];
   const expRows = view.expiring.map((x) => ({ ...x, id: x.cert.id }));

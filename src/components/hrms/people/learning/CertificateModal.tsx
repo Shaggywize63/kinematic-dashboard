@@ -7,6 +7,7 @@ import { fmtDate, fullName } from '../../../../lib/hrms/format';
 import type { Employee } from '../../../../lib/hrms/types';
 import type { Certificate, Course } from '../../../../lib/hrms/people/types';
 import { Stack } from '../shared';
+import { isLive } from '../../../../lib/hrms/live/store';
 
 const PRINT_CSS = `
 @page { size: A4 landscape; margin: 12mm; }
@@ -37,7 +38,7 @@ export function CertificateCard({ cert, course, person, company }: { cert: Certi
         <span>{cert.expiresOn ? `Valid until ${fmtDate(cert.expiresOn)}` : 'No expiry'}</span>
       </div>
       <div data-testid="certificate-id" style={{ marginTop: 16, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13, letterSpacing: '0.05em' }}>{cert.id}</div>
-      <div style={{ marginTop: 10, fontSize: 11, color: faint }}>Mock certificate for the HRMS preview. Not issued by any outside body.</div>
+      <div style={{ marginTop: 10, fontSize: 11, color: faint }}>{isLive() ? `Issued by ${company} on passing the course. Not issued by any outside body.` : 'Mock certificate for the HRMS preview. Not issued by any outside body.'}</div>
     </div>
   );
 }
@@ -53,7 +54,7 @@ export default function CertificateModal({ cert, course, person, company, onClos
       )}>
       <style>{PRINT_CSS}</style>
       <Stack gap={12}>
-        <Note>This is a mock certificate with a generated number. Print it to check how it looks on paper.</Note>
+        <Note>{isLive() ? 'The number is this company\'s own running number, issued when the quiz was passed. Print it to hand over or to file.' : 'This is a mock certificate with a generated number. Print it to check how it looks on paper.'}</Note>
         <CertificateCard cert={cert} course={course} person={person} company={company} />
       </Stack>
     </Modal>
