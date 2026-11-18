@@ -422,6 +422,7 @@ export default function LeadDetailPage() {
         narrow={narrow}
         canEdit={canEditLead}
         canAssign={canReassign && ownerAccess.canAssign}
+        ownerAdmin={ownerAccess.isAdmin}
         users={users}
         usersLoading={usersLoading}
         onLoadUsers={loadUsers}
