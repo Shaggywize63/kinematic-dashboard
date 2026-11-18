@@ -7,7 +7,7 @@ import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } fro
 import { type AppCustomization } from '../../../lib/appCustomization';
 import AppCustomizationPanel from '../../../components/clients/AppCustomizationPanel';
 import ClientNotificationsPanel from '../../../components/clients/ClientNotificationsPanel';
-import ClientWhatsappAlertsPanel from '../../../components/clients/ClientWhatsappAlertsPanel';
+import ClientWhatsappAlertsPanel, { type WhatsappAlertsHandle } from '../../../components/clients/ClientWhatsappAlertsPanel';
 import ClientAccountPanel from '../../../components/clients/ClientAccountPanel';
 import ClientAdminsPanel from '../../../components/clients/ClientAdminsPanel';
 import AppLayoutEditor from '../../../components/clients/AppLayoutEditor';
@@ -153,6 +153,8 @@ export default function ClientManagement() {
   const [showModal, setShowModal] = useState(false);
   // Section the Edit modal should scroll to once it is open (the App Layout button on a client card sets it).
   const jumpRef = useRef<string | null>(null);
+  // The WhatsApp alerts panel saves through its own button; Update Client saves its unsaved changes too.
+  const waAlertsRef = useRef<WhatsappAlertsHandle>(null);
   // The KINI limits the open client had when its form opened (see save()).
   const kiniInitRef = useRef<{ user: number | ''; org: number | '' }>({ user: '', org: '' });
   const [editing, setEditing] = useState<Client | null>(null);
@@ -303,7 +305,14 @@ export default function ClientManagement() {
       if (v !== '' && !(Number.isInteger(v) && v >= 1)) { setFErr('KINI limits must be a whole number of at least 1, or left blank to use the default.'); return; }
     }
     setSaving(true); setFErr('');
-    
+
+    // Unsaved WhatsApp alert changes go first, so a failure (e.g. no template chosen) keeps the form open to fix it.
+    if (editing && waAlertsRef.current && !(await waAlertsRef.current.saveIfDirty())) {
+      setSaving(false);
+      setFErr('WhatsApp alerts were not saved. See the message in the WhatsApp alerts section, fix it, then save again.');
+      return;
+    }
+
     // Final verification: ensure we only send recognized module IDs to the API
     const finalForm = {
       ...form,
@@ -857,7 +866,7 @@ export default function ClientManagement() {
             <div style={{ marginBottom: 28 }}>
               <Label t="WhatsApp alerts" />
               {editing && !provisionMode
-                ? <ClientWhatsappAlertsPanel key={editing.id} clientId={editing.id} />
+                ? <ClientWhatsappAlertsPanel ref={waAlertsRef} key={editing.id} clientId={editing.id} />
                 : (
                   <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}`, fontSize: 12, color: C.grayd }}>
                     WhatsApp alerts start <b>off</b>. Create the client, then reopen it to choose who gets alerts on WhatsApp and for which updates.
