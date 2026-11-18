@@ -2,10 +2,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Copy, Pencil, Plus, ScrollText, Trash2 } from 'lucide-react';
+import { AlertTriangle, Ban, ClipboardList, Copy, Pencil, Plus, Power, PowerOff, Receipt, ScrollText, Trash2, UserCheck, Users, Zap } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, IconButton, T } from '../../../../components/ui';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../components/finance/ui';
-import { ExpensesShell, errText, money } from '../../../../components/expenses/kit';
+import { ExpensesShell, categoryIcon, errText, money } from '../../../../components/expenses/kit';
 import ForensicsSettings from '../../../../components/expenses/ForensicsSettings';
 import api from '../../../../lib/api';
 import {
@@ -28,6 +29,9 @@ function formNotes(r: PolicyRules): string[] {
   if (odometerCameraOnly(r)) out.push('camera-only odometer');
   return out;
 }
+
+/** One fact in a policy card's summary line: icon, then the words. */
+const fact: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6 };
 
 function audience(p: ExpensePolicy): string {
   const a = p.applies_to;
@@ -100,18 +104,18 @@ export default function PoliciesPage() {
                       <button type="button" onClick={() => router.push(`/dashboard/expenses/policies/${p.id}`)}
                         style={{ border: 0, background: 'transparent', padding: 0, fontFamily: T.heading, fontSize: 16, fontWeight: 700, color: T.text, cursor: 'pointer', textAlign: 'left' }}>{p.name}</button>
                       {p.is_active ? <Badge tone="ok" dot>Active</Badge> : <Badge>Inactive</Badge>}
-                      {p.rules.enforcement === 'block' && <Badge tone="warn">Blocks breaches</Badge>}
+                      {p.rules.enforcement === 'block' && <Badge tone="warn"><InlineIcon icon={Ban} size={12} />Blocks breaches</Badge>}
                     </div>
                     {p.description && <div style={{ fontSize: 13.5, color: T.dim, marginTop: 4 }}>{p.description}</div>}
                     <div style={{ fontSize: 13, color: T.mute, marginTop: 8, display: 'flex', gap: '4px 18px', flexWrap: 'wrap' }}>
-                      <span>For <strong style={{ color: T.text, fontWeight: 600 }}>{audience(p)}</strong>{p.covers != null && p.is_active ? ` · governs ${p.covers} ${p.covers === 1 ? 'person' : 'people'} now` : ''}</span>
-                      <span>Mileage {money(p.rules.mileage_rate, p.currency)}/km</span>
-                      <span>Receipt over {money(p.rules.receipt_required_over, p.currency)}</span>
-                      {p.rules.auto_approve_under > 0 && <span>Auto-approve to {money(p.rules.auto_approve_under, p.currency)}</span>}
-                      {p.rules.escalate_over != null && <span>Second approver over {money(p.rules.escalate_over, p.currency)}</span>}
-                      {formNotes(p.rules).length > 0 && <span>Claim form: {formNotes(p.rules).join(' · ')}</span>}
+                      <span style={fact}><InlineIcon icon={Users} size={14} /><span>For <strong style={{ color: T.text, fontWeight: 600 }}>{audience(p)}</strong>{p.covers != null && p.is_active ? ` · governs ${p.covers} ${p.covers === 1 ? 'person' : 'people'} now` : ''}</span></span>
+                      <span style={fact}><InlineIcon icon={categoryIcon('mileage')} size={14} />Mileage {money(p.rules.mileage_rate, p.currency)}/km</span>
+                      <span style={fact}><InlineIcon icon={Receipt} size={14} />Receipt over {money(p.rules.receipt_required_over, p.currency)}</span>
+                      {p.rules.auto_approve_under > 0 && <span style={fact}><InlineIcon icon={Zap} size={14} />Auto-approve to {money(p.rules.auto_approve_under, p.currency)}</span>}
+                      {p.rules.escalate_over != null && <span style={fact}><InlineIcon icon={UserCheck} size={14} />Second approver over {money(p.rules.escalate_over, p.currency)}</span>}
+                      {formNotes(p.rules).length > 0 && <span style={fact}><InlineIcon icon={ClipboardList} size={14} />Claim form: {formNotes(p.rules).join(' · ')}</span>}
                     </div>
-                    {p.is_active && p.covers === 0 && <div style={{ fontSize: 12.5, color: T.warn, marginTop: 6 }}>Nobody follows this policy right now — a more specific one applies to everyone it covers.</div>}
+                    {p.is_active && p.covers === 0 && <div style={{ fontSize: 12.5, color: T.warn, marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={AlertTriangle} size={14} />Nobody follows this policy right now — a more specific one applies to everyone it covers.</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                     <IconButton label="Edit" onClick={() => router.push(`/dashboard/expenses/policies/${p.id}`)}><Pencil size={16} strokeWidth={1.6} /></IconButton>
@@ -121,7 +125,7 @@ export default function PoliciesPage() {
                 </div>
                 <div style={{ padding: '10px 18px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', fontSize: 12.5, color: T.mute }}>
                   <span>Priority {p.priority}{p.effective_from || p.effective_to ? ` · ${p.effective_from ?? 'always'} → ${p.effective_to ?? 'no end'}` : ''}</span>
-                  <Button size="sm" variant="ghost" disabled={busy === p.id}
+                  <Button size="sm" variant="ghost" disabled={busy === p.id} icon={p.is_active ? <PowerOff size={14} strokeWidth={2} /> : <Power size={14} strokeWidth={2} />}
                     onClick={() => run(p.id!, () => expensesApi.updatePolicy(p.id!, { is_active: !p.is_active }), p.is_active ? 'Policy turned off' : 'Policy turned on', 'Could not update the policy')}>
                     {p.is_active ? 'Turn off' : 'Turn on'}
                   </Button>

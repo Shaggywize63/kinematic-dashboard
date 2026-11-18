@@ -111,6 +111,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   href?: string;
 }
 
+const VISUALLY_HIDDEN: CSSProperties = {
+  position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'pre', border: 0,
+};
+
 /** The plain text of a button's children, when it is just text (a string, a number, or a list of them). */
 function textOf(children: ReactNode): string | null {
   if (typeof children === 'string' || typeof children === 'number') return String(children);
@@ -129,6 +133,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     const label = textOf(children);
     const Auto = label ? actionIconFor(label) : null;
     icon = Auto ? <Auto aria-hidden size={size === 'sm' ? ICON_SIZE.inline : ICON_SIZE.button} strokeWidth={ICON_STROKE} style={{ flexShrink: 0 }} /> : null;
+    // "+ Add lead" would show the plus twice once the icon draws it: hide the typed "+" from sight but keep it in the
+    // button's name, so screen readers and existing selectors still read "+ Add lead".
+    const text = typeof children === 'string' ? children : null;
+    const plus = Auto && text ? /^\s*[+＋]\s*/.exec(text) : null;
+    if (text && plus) children = <><span style={VISUALLY_HIDDEN}>{plus[0]}</span>{text.slice(plus[0].length)}</>;
   }
   if (href && !disabled) {
     return (
