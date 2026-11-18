@@ -107,6 +107,23 @@ export default function LeadPreviewPanel({
   const [nba, setNba] = useState<NextBestAction | null>(null);
   const [nbaLoading, setNbaLoading] = useState(false);
   const [people, setPeople] = useState<LeadContactLink[]>([]);
+  const [primaryBusy, setPrimaryBusy] = useState<string | null>(null);
+
+  // Promote a secondary person to the nodal (primary) contact — the deal's point person changes as
+  // it progresses. The server returns the refreshed list (primary first), so we render from truth.
+  const makePrimary = async (linkId: string) => {
+    if (primaryBusy) return;
+    setPrimaryBusy(linkId);
+    try {
+      const r = await crmLeads.setPrimaryPerson(lead.id, linkId);
+      setPeople(r.data || []);
+      toast.success('Primary contact updated');
+    } catch (e: unknown) {
+      toast.error((e as { message?: string })?.message || 'Could not change the primary contact');
+    } finally {
+      setPrimaryBusy(null);
+    }
+  };
 
   // Fresh data per lead: the timeline is fetched on open, the AI suggestion is reset.
   useEffect(() => {
@@ -292,7 +309,23 @@ export default function LeadPreviewPanel({
                 <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                 {p.title && <span style={{ color: T.dim, fontSize: 12 }}>· {p.title}</span>}
                 {p.role && <span style={{ color: T.dim, fontSize: 12 }}>· {p.role}</span>}
-                {p.is_primary && <Badge tone="red" style={{ marginLeft: 'auto', fontSize: 10, height: 18 }}>Primary</Badge>}
+                {p.is_primary
+                  ? <Badge tone="red" style={{ marginLeft: 'auto', fontSize: 10, height: 18 }}>Primary</Badge>
+                  : people.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => makePrimary(p.id)}
+                      disabled={!!primaryBusy}
+                      title="Make this the lead's primary (nodal) contact"
+                      style={{
+                        marginLeft: 'auto', background: 'transparent', border: `1px solid ${T.border}`, color: T.red,
+                        fontSize: 10.5, fontWeight: 700, borderRadius: 6, padding: '2px 8px', height: 18, cursor: primaryBusy ? 'default' : 'pointer',
+                        opacity: primaryBusy && primaryBusy !== p.id ? 0.5 : 1, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {primaryBusy === p.id ? 'Setting…' : 'Make primary'}
+                    </button>
+                  )}
               </div>
             ))}
           </div>

@@ -98,6 +98,11 @@ export const crmLeads = {
   /** Spark & Ray: the customer people on this lead (crm_lead_contacts), primary (nodal) first. Not `contacts`,
    *  which is the contacts captured on the lead (crm_contacts.lead_id) — a different endpoint and shape. */
   people: (id: string) => api.get<Wrapped<LeadContactLink[]>>(`${BASE}/leads/${id}/people`),
+  // Move the nodal (primary) flag to a different person on the lead as the point of contact changes
+  // over the deal. `linkId` is a LeadContactLink.id (from people()), not a contact id. Returns the
+  // refreshed people list, primary first.
+  setPrimaryPerson: (id: string, linkId: string) =>
+    api.post<Wrapped<LeadContactLink[]>>(`${BASE}/leads/${id}/people/${linkId}/primary`, {}),
   // AI Smart Filters — plain-English → validated lead-list filter params. The
   // page applies the returned params to the normal list fetch (all tenant
   // scoping stays server-side). `explanation` is a human-readable summary.
