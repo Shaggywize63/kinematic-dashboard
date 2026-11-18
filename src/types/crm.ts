@@ -229,6 +229,12 @@ export interface Account {
   // Admin-defined custom fields (crm_custom_fields defs) stored on the
   // row's custom_fields jsonb. Backend PATCH merges partial objects.
   custom_fields?: Record<string, unknown> | null;
+  // Stamped by the accounts LIST (GET /crm/accounts), not columns: the account's open / won deals and its contacts.
+  open_deals_count?: number;
+  open_deals_value?: number;
+  won_deals_count?: number;
+  won_deals_value?: number;
+  contacts_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -920,6 +926,30 @@ export interface RupeeLeaderboard {
   };
   entries: Array<{ user_id: string; name: string; role: string | null; target: number | null; achieved: number; pct: number | null }>;
   role_id: string | null;
+}
+
+/** How a sales target's achievement is measured. `won_deals` is opt-in per client (e.g. Aadinath); everyone else stays `manual`. */
+export type AchievementBasis = 'manual' | 'won_deals';
+/**
+ * GET /targets/salesperson/:userId?month=YYYY-MM — one rep's SALES-target drill-down for an IST month
+ * (manager-gated). `target` / `achieved` / `pending` are rupees; `pct` is an integer percent or null.
+ * `daily` / `weekly` are this month's progress buckets; `historical` is target-vs-achieved for the last
+ * 6 months; `customers` is the top 25 contributing accounts this month, by value.
+ */
+export interface SalespersonDetail {
+  user_id: string;
+  name: string | null;
+  basis: AchievementBasis;
+  period_start: string;
+  period_end: string;
+  target: number | null;
+  achieved: number;
+  pending: number | null;
+  pct: number | null;
+  daily: Array<{ date: string; value: number; count: number }>;
+  weekly: Array<{ week_start: string; value: number; count: number }>;
+  historical: Array<{ month: string; target: number | null; achieved: number; pct: number | null }>;
+  customers: Array<{ name: string; value: number; count: number }>;
 }
 
 /**

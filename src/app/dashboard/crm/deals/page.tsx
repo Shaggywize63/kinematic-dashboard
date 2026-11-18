@@ -3,7 +3,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Download, KanbanSquare, Trash2 } from 'lucide-react';
+import { Download, KanbanSquare, Search, Trash2, X } from 'lucide-react';
 import { crmDeals, crmPipelines, type Pagination } from '../../../../lib/crmApi';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Deal, Pipeline } from '../../../../types/crm';
@@ -15,11 +15,17 @@ import { getStoredUser, canAccess, userHasModule } from '../../../../lib/auth';
 import { isKinematicTenant, isTataTiscanActive } from '../../../../lib/clientFeatures';
 import api, { EXPORT_TIMEOUT_MS } from '../../../../lib/api';
 import { downloadBlob } from '../../../../lib/financeFormat';
-import { Button, Card, EmptyState, Eyebrow, IconButton, Input, PageHeader, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
+import { Button, Card, EmptyState, Input, PageHeader, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
+import { formatINR, formatINRCompact } from '../../../../lib/formatCurrency';
+import { useFieldHelpers } from '../../../../lib/crm/useFieldHelpers';
+import MetricTiles, { type MetricTile } from '../../../../components/crm/shared/MetricTiles';
+import ServerPaginationBar from '../../../../components/crm/shared/ServerPaginationBar';
 
-const DEAL_PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 const DEAL_DEFAULT_PAGE_SIZE = 50;
+
+type Bucket = { count: number; value: number };
+type StatusFilter = '' | 'open' | 'won' | 'lost';
 
 // Lazy-load the kanban: dnd-kit + canvas-confetti are heavy and unused in
 // the default list view.
@@ -60,7 +66,12 @@ function DealsListPage() {
   // current page), mirroring the leads list. The live `q` still narrows the
   // current page instantly for feedback while the debounce settles.
   const [debouncedQ, setDebouncedQ] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState<StatusFilter>('');
+  // Count + value per status across every page of the current pipeline / search / date range (the summary tiles).
+  const [summary, setSummary] = useState<{ open: Bucket; won: Bucket; lost: Bucket } | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryTick, setSummaryTick] = useState(0);
+  const { fields, loaded: fieldsLoaded } = useFieldHelpers('deal');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Inline edit — the deal currently open in the edit modal, launched from
   // the row's Edit button so a rep can edit one deal without leaving the list.
@@ -195,6 +206,26 @@ function DealsListPage() {
     page, pageSize, status, debouncedQ, sort.key, sort.order,
   ]);
 
+  // The status tiles: one count-only request per status (limit 1), with exactly the list's other filters, so each
+  // tile's count and value cover every page. Re-run after a delete / edit / reassign (summaryTick).
+  useEffect(() => {
+    let alive = true;
+    const base: Record<string, string | number | undefined> = { ...range, limit: 1 };
+    if (pipelineId) base.pipeline_id = pipelineId;
+    if (view === 'list' && debouncedQ) base.q = debouncedQ;
+    setSummaryLoading(true);
+    const one = (st: 'open' | 'won' | 'lost'): Promise<Bucket> => crmDeals.list({ ...base, status: st }).then((r) => ({
+      count: r.pagination?.total ?? (r.data || []).length,
+      value: Number((r as unknown as { totals?: { value?: number } }).totals?.value ?? 0),
+    }));
+    Promise.all([one('open'), one('won'), one('lost')])
+      .then(([open, won, lost]) => { if (alive) setSummary({ open, won, lost }); })
+      .catch(() => { if (alive) setSummary(null); })
+      .finally(() => { if (alive) setSummaryLoading(false); });
+    return () => { alive = false; };
+    /* eslint-disable-next-line */
+  }, [range.from, range.to, pipelineId, debouncedQ, view, summaryTick]);
+
   // Reset to page 1 whenever the server-side filter set changes,
   // otherwise a stricter filter while on page 5 lands on an empty page.
   useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
@@ -238,6 +269,7 @@ function DealsListPage() {
     if (failed === 0) toast.success(`Deleted ${ok} deal${ok > 1 ? 's' : ''}`);
     else toast.error(`Deleted ${ok}, ${failed} failed`);
     reload();
+    setSummaryTick((n) => n + 1);
   };
 
   const switchView = (v: ViewMode) => {
@@ -250,7 +282,47 @@ function DealsListPage() {
     syncUrl(v, nextPid);
   };
 
-  const statusLabel = status ? status[0]!.toUpperCase() + status.slice(1) : '';
+  const filtersActive = !!q || !!status || (view === 'list' && !!pipelineId);
+  const clearFilters = () => {
+    setQ(''); setDebouncedQ(''); setStatus('');
+    if (view === 'list' && pipelineId) { setPipelineId(''); syncUrl(view, ''); }
+  };
+  const steel = isTataTiscanActive(getStoredUser());
+  const compact = (v: number) => formatINRCompact(v);
+  const deals_ = (n: number) => `${n.toLocaleString('en-IN')} ${n === 1 ? 'deal' : 'deals'}`;
+  // An admin who hid the deal amount sees counts on the tiles instead of money.
+  const amountHidden = fields.isHidden('amount');
+  const money = (b: Bucket): Pick<MetricTile, 'value' | 'title' | 'sub'> => (amountHidden
+    ? { value: b.count.toLocaleString('en-IN'), sub: b.count === 1 ? 'deal' : 'deals' }
+    : { value: compact(b.value), title: formatINR(b.value), sub: deals_(b.count) });
+  const tiles: MetricTile[] = (() => {
+    const s = summary;
+    const all: Bucket = s ? { count: s.open.count + s.won.count + s.lost.count, value: s.open.value + s.won.value + s.lost.value } : { count: 0, value: 0 };
+    const closed = s ? s.won.count + s.lost.count : 0;
+    // In Kanban the board is always the open deals of one pipeline, so the tiles summarise but do not filter.
+    const pick = (st: StatusFilter) => (view === 'list' ? () => setStatus((cur) => (cur === st ? '' : st)) : undefined);
+    const bucket = (key: 'open' | 'won' | 'lost', label: string, tone: MetricTile['tone']): MetricTile => ({
+      key, label, tone, testId: `deal-tile-${key}`,
+      ...(s ? money(s[key]) : { value: '—', sub: ' ' }), active: view === 'list' ? status === key : key === 'open', onSelect: pick(key),
+    });
+    const out: MetricTile[] = [
+      { key: 'all', label: 'All deals', tone: 'neutral', testId: 'deal-tile-all', ...(s ? money(all) : { value: '—', sub: ' ' }), active: view === 'list' && status === '', onSelect: view === 'list' ? () => setStatus('') : undefined },
+      bucket('open', 'Open pipeline', 'info'),
+      bucket('won', 'Won', 'ok'),
+      bucket('lost', 'Lost', 'red'),
+      { key: 'rate', label: 'Win rate', tone: 'warn', testId: 'deal-tile-rate', value: s && closed ? `${Math.round((s.won.count / closed) * 100)}%` : '—', sub: s ? (closed ? `${s.won.count} won of ${closed} closed` : 'No closed deals yet') : ' ' },
+    ];
+    // Volume (kg / MT) is a steel-dealer concept (weight-priced deals — Tata / SRS, BMW, PASA). It's meaningless for
+    // other tenants like Kinematic, so the tile is gated on steel-dealer status, like the volume_kg column.
+    if (steel && totals && totals.volume_kg > 0) {
+      out.push({
+        key: 'volume', label: 'Volume', tone: 'neutral', testId: 'deal-tile-volume',
+        value: totals.volume_kg >= 1000 ? `${(totals.volume_kg / 1000).toLocaleString('en-IN', { maximumFractionDigits: 1 })} MT` : `${Math.round(totals.volume_kg).toLocaleString('en-IN')} kg`,
+        sub: 'Summed from the deals listed',
+      });
+    }
+    return out;
+  })();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -294,32 +366,8 @@ function DealsListPage() {
         }
       />
 
-      {/* Total value + volume across the current filter (all pages). */}
-      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(auto-fit, minmax(220px, 280px))', gap: 12 }}>
-        <Card padding={16}>
-          <Eyebrow>Total deal value{statusLabel ? ` · ${statusLabel}` : ''}</Eyebrow>
-          <div style={{ fontFamily: T.heading, fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.15, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>
-            {totals ? `₹${Math.round(totals.value).toLocaleString('en-IN')}` : '—'}
-          </div>
-          <div style={{ fontSize: 12.5, color: T.dim, marginTop: 4 }}>{pagination?.total != null && view === 'list' ? `${pagination.total.toLocaleString('en-IN')} deal${pagination.total === 1 ? '' : 's'} in scope` : 'Across every page of the current filter'}</div>
-        </Card>
-        {/* Volume (kg / MT) is a steel-dealer concept (weight-priced deals —
-            Tata / SRS, BMW, PASA). It's meaningless for other tenants like
-            Kinematic, so gate the tile on steel-dealer status — the same way
-            as the volume_kg column above. (The backend also sums volume_kg to
-            0 for non-steel tenants, so this is belt-and-suspenders.) */}
-        {isTataTiscanActive(getStoredUser()) && !!(totals && totals.volume_kg > 0) && (
-          <Card padding={16}>
-            <Eyebrow>Total volume</Eyebrow>
-            <div style={{ fontFamily: T.heading, fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.15, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>
-              {totals.volume_kg >= 1000
-                ? `${(totals.volume_kg / 1000).toLocaleString('en-IN', { maximumFractionDigits: 1 })} MT`
-                : `${Math.round(totals.volume_kg).toLocaleString('en-IN')} kg`}
-            </div>
-            <div style={{ fontSize: 12.5, color: T.dim, marginTop: 4 }}>Summed from each deal&apos;s volume</div>
-          </Card>
-        )}
-      </div>
+      {/* Count + value by status across every page of the current filter; in List each tile is also the status filter. */}
+      <MetricTiles tiles={tiles} loading={summaryLoading} />
 
       {/* Toolbar — view switch, pipeline, search, status, bulk actions. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -350,12 +398,13 @@ function DealsListPage() {
 
         {view === 'list' && (
           <>
-            <Input placeholder="Search deals..." value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search deals" style={{ width: narrow ? '100%' : 260 }} />
-            <div style={{ width: narrow ? '100%' : 140 }}>
-              <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
-                <option value="">All statuses</option><option value="open">Open</option><option value="won">Won</option><option value="lost">Lost</option>
-              </Select>
+            <div style={{ position: 'relative', width: narrow ? '100%' : 280 }}>
+              <Search size={15} strokeWidth={1.8} aria-hidden style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: T.mute, pointerEvents: 'none' }} />
+              <Input placeholder="Search deals..." value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search deals" style={{ paddingLeft: 34 }} />
             </div>
+            {filtersActive && (
+              <Button size="sm" variant="ghost" onClick={clearFilters} icon={<X size={14} strokeWidth={1.8} />}>Clear filters</Button>
+            )}
           </>
         )}
 
@@ -399,7 +448,10 @@ function DealsListPage() {
         <>
           <DealsTable
             deals={filtered}
-            loading={loading}
+            loading={loading || !fieldsLoaded}
+            fields={fields}
+            filtered={filtersActive}
+            onClearFilters={clearFilters}
             hiddenColumns={dealHidden}
             viewMode={dealView.prefs.mode}
             sort={sort}
@@ -408,6 +460,7 @@ function DealsListPage() {
               await crmDeals.update(dealId, { owner_id: userId } as any);
               toast.success(userId ? 'Deal reassigned' : 'Deal unassigned');
               reload();
+              setSummaryTick((n) => n + 1);
             }}
             selected={selected}
             onToggle={toggle}
@@ -420,17 +473,19 @@ function DealsListPage() {
                 toast.success('Deal deleted');
                 setSelected((s) => { const n = new Set(s); n.delete(id); return n; });
                 reload();
+                setSummaryTick((n) => n + 1);
               } catch (e: any) {
                 toast.error(e?.message || 'Delete failed');
               }
             }}
           />
-          <DealsPaginationBar
+          <ServerPaginationBar
             pagination={pagination}
             pageSize={pageSize}
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
             loading={loading}
+            noun="deals"
           />
         </>
       )}
@@ -444,61 +499,9 @@ function DealsListPage() {
           stages={stages}
           open={!!editingDeal}
           onClose={() => setEditingDeal(null)}
-          onSaved={() => { setEditingDeal(null); reload(); }}
+          onSaved={() => { setEditingDeal(null); reload(); setSummaryTick((n) => n + 1); }}
         />
       )}
-    </div>
-  );
-}
-
-function DealsPaginationBar({
-  pagination, pageSize, onPageChange, onPageSizeChange, loading,
-}: {
-  pagination: Pagination | null;
-  pageSize: number;
-  onPageChange: (n: number) => void;
-  onPageSizeChange: (n: number) => void;
-  loading: boolean;
-}) {
-  const p = pagination;
-  const totalPages = p?.totalPages ?? 1;
-  const currentPage = p?.page ?? 1;
-  const total = p?.total ?? 0;
-  const start = total === 0 ? 0 : (currentPage - 1) * (p?.limit ?? pageSize) + 1;
-  const end = Math.min(currentPage * (p?.limit ?? pageSize), total);
-
-  const disabled = loading || !p;
-  const canPrev = !!p?.hasPrev && !disabled;
-  const canNext = !!p?.hasNext && !disabled;
-
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: -8, padding: '0 4px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: T.dim }}>
-        <span>Rows per page</span>
-        <div style={{ width: 84 }}>
-          <Select
-            value={pageSize}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            disabled={disabled}
-            aria-label="Rows per page"
-            style={{ height: 30, fontSize: 12.5, padding: '0 8px', paddingRight: 28 }}
-          >
-            {DEAL_PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-          </Select>
-        </div>
-        <span style={{ fontFamily: T.mono, fontSize: 12, color: T.mute, fontVariantNumeric: 'tabular-nums' }}>
-          {total === 0 ? 'No results' : `${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()}`}
-        </span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <IconButton label="First page" onClick={() => onPageChange(1)} disabled={!canPrev}><ChevronFirst size={16} strokeWidth={1.6} /></IconButton>
-        <IconButton label="Previous page" onClick={() => onPageChange(currentPage - 1)} disabled={!canPrev}><ChevronLeft size={16} strokeWidth={1.6} /></IconButton>
-        <span style={{ fontFamily: T.mono, fontSize: 12, color: T.dim, padding: '0 10px', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-          {currentPage} / {totalPages}
-        </span>
-        <IconButton label="Next page" onClick={() => onPageChange(currentPage + 1)} disabled={!canNext}><ChevronRight size={16} strokeWidth={1.6} /></IconButton>
-        <IconButton label="Last page" onClick={() => onPageChange(totalPages)} disabled={!canNext}><ChevronLast size={16} strokeWidth={1.6} /></IconButton>
-      </div>
     </div>
   );
 }

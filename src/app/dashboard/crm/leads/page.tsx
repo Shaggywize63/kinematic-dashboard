@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronRight, Download, Loader2, Plus, RefreshCw, Search, SlidersHorizontal, Upload } from 'lucide-react';
 import { crmLeads, crmLeadSources, crmSettings, type Pagination } from '../../../../lib/crmApi';
@@ -56,6 +57,23 @@ export default function LeadsListPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [filters, setFilters] = useState<LeadFiltersValue>({});
+  // Deep-link support: a drill-through from the salesperson dashboard
+  // (/dashboard/crm/leads?owner=<id>&status=<s>) lands here pre-filtered. Read
+  // the URL once on mount; absent params leave the default (empty) filters.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const owner = searchParams.get('owner');
+    const status = searchParams.get('status');
+    if (owner || status) {
+      setFilters((f) => ({
+        ...f,
+        ...(owner ? { owner } : {}),
+        ...(status ? { status: [status] } : {}),
+      }));
+    }
+    // Run once on mount — the initial URL is the only deep-link signal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Per-client custom lead-status set for the status filter. Null = built-ins.
   const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
   // Manager approval quick-filter: '' = all, 'pending' = awaiting sign-off,

@@ -26,17 +26,33 @@ export const nameOf = (m: Map<string, Employee>, id: string | undefined): string
 
 /** A dialog with a form body, an inline error line and a confirm button that only closes when the action succeeds. */
 export function FormModal({ title, children, confirmLabel, onConfirm, onClose, width = 520, disabled, danger }: {
-  title: string; children: ReactNode; confirmLabel: string; onConfirm: () => string | null; onClose: () => void; width?: number; disabled?: boolean; danger?: boolean;
+  title: string; children: ReactNode; confirmLabel: string;
+  /** Returns the error to show, or null to close. May be async (a server call); the button is disabled while it runs. */
+  onConfirm: () => string | null | Promise<string | null>;
+  onClose: () => void; width?: number; disabled?: boolean; danger?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const errId = useId();
+  const confirm = async () => {
+    if (busy) return;
+    const out = onConfirm();
+    if (out && typeof (out as Promise<string | null>).then === 'function') {
+      setBusy(true);
+      const e = await out;
+      setBusy(false);
+      if (e) setError(e); else onClose();
+      return;
+    }
+    if (out) setError(out as string); else onClose();
+  };
   return (
     <Modal title={title} onClose={onClose} width={width}
       footer={(
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant={danger ? 'danger' : 'primary'} disabled={disabled} aria-describedby={error ? errId : undefined}
-            onClick={() => { const e = onConfirm(); if (e) setError(e); else onClose(); }}>{confirmLabel}</Button>
+          <Button variant={danger ? 'danger' : 'primary'} disabled={disabled || busy} aria-describedby={error ? errId : undefined}
+            onClick={() => { void confirm(); }}>{busy ? 'Saving…' : confirmLabel}</Button>
         </>
       )}>
       {children}

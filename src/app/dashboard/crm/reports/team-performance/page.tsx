@@ -284,7 +284,11 @@ function Row({ r, sticky }: { r: PerfRow; sticky?: boolean }) {
   const weight = sticky ? 800 : 600;
   return (
     <tr style={{ background: bg, fontWeight: weight }}>
-      <Td sticky bold>{r.name}</Td>
+      <Td sticky bold>
+        {!sticky && r.user_id
+          ? <Link href={`/dashboard/crm/reports/salesperson/${r.user_id}`} style={{ color: 'var(--text)', textDecoration: 'none' }}>{r.name}</Link>
+          : r.name}
+      </Td>
       <Td align="right">{r.total_leads_owned}</Td>
       <Td align="right">{r.new_leads_today}</Td>
       <Td align="right">{r.new_leads_week}</Td>

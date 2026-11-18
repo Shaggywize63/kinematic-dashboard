@@ -1,6 +1,7 @@
 'use client';
 // Merit cycle: budget, guidelines, proposals by the manager, HR approval, the finance view, and issuing approved increments.
 // Guidance is advisory. A person decides every number, can see the evidence, and the employee can reply to their rating.
+// In live mode every change here is a server call (phase 8); the field shows the server's answer, and a refusal its reason.
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -8,6 +9,7 @@ import { toast } from 'sonner';
 import { Badge, Button, Card, CardTitle, ConfidenceBadge, DataTable, EmployeeCell, Modal, Note, ProgressBar, T, useIsCompact, type Col } from '../../ui';
 import { Field, Input, Select, Textarea } from '../../../ui';
 import { PREVIEW_TODAY } from '../../../../lib/hrms/seed';
+import { useLiveStatus } from '../../../../lib/hrms/live/store';
 import { PF, rowOn } from '../../../../lib/hrms/rules';
 import { fmtDate, fullName, inr } from '../../../../lib/hrms/format';
 import type { HrmsDb } from '../../../../lib/hrms/types';
@@ -15,7 +17,7 @@ import {
   PERF_LABEL, PERF_ORDER, ZONES, ZONE_LABEL, baseCtcFor, checkProposal, compaRatio, cycleMembership, financeSummary, meritTotals, pfImpact, validatePct, zoneOf, type PfImpact,
 } from '../../../../lib/hrms/rewards/engines';
 import {
-  cycleBlockers, decideCycle, reopenCycle, setBudgetPct, setEffectiveOn, setGuideline, setPerf, setPerfReply, setProposal, submitCycle,
+  cycleBlockers, decideCycle, reopenCycle, setBudgetPct, setEffectiveOn, setGuideline, setPerf, setPerfReply, setProposal, submitCycle, type Result,
 } from '../../../../lib/hrms/rewards/store';
 import type { PerfBand, RewardsState } from '../../../../lib/hrms/rewards/types';
 import { ActivityLog, AdvisorNote, CommitNumber, CommitText, ConfirmModal, Muted, report } from '../common';
@@ -24,15 +26,26 @@ import { applyIncrement, previewIncrement, type IncrementPreview } from './apply
 const STATUS_LABEL = { draft: 'Draft, with managers', submitted: 'With HR for approval', approved: 'Approved', returned: 'Returned to managers' } as const;
 const STATUS_TONE = { draft: 'neutral', submitted: 'info', approved: 'ok', returned: 'warn' } as const;
 
-function PerfModal({ db, st, employeeId, locked, onClose }: { db: HrmsDb; st: RewardsState; employeeId: string; locked: boolean; onClose: () => void }) {
+/** Fire-and-tell for inline edits: the field shows the saved value when it arrives; a refusal shows its plain reason. */
+const tell = (p: Promise<Result>): void => { void p.then((r) => { if (!r.ok) toast.error(r.error); }); };
+
+function PerfModal({ db, st, employeeId, locked, live, onClose }: { db: HrmsDb; st: RewardsState; employeeId: string; locked: boolean; live: boolean; onClose: () => void }) {
   const e = db.employees.find((x) => x.id === employeeId);
   const note = st.comp.perfNotes[employeeId];
   const [reply, setReply] = useState(note?.reply ?? '');
+  const [busy, setBusy] = useState(false);
   if (!e) return null;
+  async function save() {
+    if (busy) return;
+    setBusy(true);
+    const r = await setPerfReply(employeeId, reply);
+    setBusy(false);
+    if (report(r, 'Reply recorded.')) onClose();
+  }
   return (
     <Modal title={`Rating details: ${fullName(e)}`} onClose={onClose} width={560}
-      footer={<><Button style={{ height: 40 }} onClick={onClose}>Close</Button><Button variant="primary" style={{ height: 40 }} disabled={reply.trim() === (note?.reply ?? '')} onClick={() => { setPerfReply(employeeId, reply); toast.success('Reply recorded.'); onClose(); }}>Save reply</Button></>}>
-      <div style={{ fontSize: 14 }}>Performance band: <b>{PERF_LABEL[st.comp.perf[employeeId] ?? 'unrated']}</b> <Badge tone="info">Sample, entered here</Badge></div>
+      footer={<><Button style={{ height: 40 }} onClick={onClose}>Close</Button><Button variant="primary" style={{ height: 40 }} disabled={busy || reply.trim() === (note?.reply ?? '')} onClick={save}>{busy ? 'Saving…' : 'Save reply'}</Button></>}>
+      <div style={{ fontSize: 14 }}>Performance band: <b>{PERF_LABEL[st.comp.perf[employeeId] ?? 'unrated']}</b> <Badge tone="info">{live ? 'Entered here' : 'Sample, entered here'}</Badge></div>
       <div>
         <div style={{ fontSize: 12.5, fontWeight: 500, color: T.dim, marginBottom: 4 }}>Evidence on record</div>
         <div style={{ fontSize: 14, lineHeight: 1.5 }}>{note?.evidence ?? 'No evidence recorded. A rating without evidence should not drive pay.'}</div>
@@ -40,7 +53,9 @@ function PerfModal({ db, st, employeeId, locked, onClose }: { db: HrmsDb; st: Re
       <Field label="Employee's reply" htmlFor="perf-reply" hint={locked ? 'The cycle is locked, but a reply can still be recorded.' : 'The employee can reply to their rating before pay is final.'}>
         <Textarea id="perf-reply" rows={3} value={reply} onChange={(ev) => setReply(ev.target.value)} />
       </Field>
-      <Muted>The performance module is not connected in this preview. The band is a sample kept in this area. Guidance from it is advice; a manager and HR decide each increment.</Muted>
+      <Muted>{live
+        ? 'The performance module is not connected yet. The band is entered here and saved on the server. Guidance from it is advice; a manager and HR decide each increment.'
+        : 'The performance module is not connected in this preview. The band is a sample kept in this area. Guidance from it is advice; a manager and HR decide each increment.'}</Muted>
     </Modal>
   );
 }
@@ -48,16 +63,20 @@ function PerfModal({ db, st, employeeId, locked, onClose }: { db: HrmsDb; st: Re
 function DecideModal({ kind, over, onClose }: { kind: 'approve' | 'return'; over: boolean; onClose: () => void }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
   const needs = kind === 'return' || over;
-  function go() {
-    const r = decideCycle(kind, text, over);
+  async function go() {
+    if (busy) return;
+    setBusy(true);
+    const r = await decideCycle(kind, text, over);
+    setBusy(false);
     if (!r.ok) { setErr(r.error); return; }
     report(r, kind === 'approve' ? 'Merit cycle approved.' : 'Merit cycle returned to managers.');
     onClose();
   }
   return (
     <Modal title={kind === 'approve' ? 'Approve the merit cycle' : 'Return to managers'} onClose={onClose} width={500}
-      footer={<><Button style={{ height: 40 }} onClick={onClose}>Cancel</Button><Button variant="primary" style={{ height: 40 }} onClick={go}>{kind === 'approve' ? 'Approve' : 'Return'}</Button></>}>
+      footer={<><Button style={{ height: 40 }} onClick={onClose}>Cancel</Button><Button variant="primary" style={{ height: 40 }} disabled={busy} onClick={go}>{busy ? 'Saving…' : kind === 'approve' ? 'Approve' : 'Return'}</Button></>}>
       {kind === 'approve' && over && <Note tone="warn">The proposed total is over the budget. Say why you are approving it anyway.</Note>}
       <Field label={kind === 'approve' ? (over ? 'Reason for approving over budget' : 'Note (optional)') : 'What should managers change'} required={needs} htmlFor="decide-note" error={err}>
         <Textarea id="decide-note" rows={3} value={text} onChange={(e) => { setText(e.target.value); setErr(''); }} />
@@ -75,6 +94,9 @@ export default function MeritTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
   const [issuing, setIssuing] = useState<IncrementPreview | null>(null);
   const [decide, setDecide] = useState<'approve' | 'return' | null>(null);
   const [lastIssued, setLastIssued] = useState<{ id: string; name: string; before: number; after: number } | null>(null);
+  const [issueBusy, setIssueBusy] = useState(false);
+  const [acting, setActing] = useState(false);
+  const live = useLiveStatus().source === 'live';
 
   const members = useMemo(() => cycleMembership(db, cycle), [db, cycle]);
   const rows = useMemo(() => members.filter((m) => m.included).flatMap((m) => {
@@ -105,7 +127,7 @@ export default function MeritTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
       key: 'perf', label: 'Performance band', sortValue: (r) => r.perf ?? 'unrated',
       render: (r) => (
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <Select aria-label={`Performance band for ${fullName(r.e)}`} value={r.perf ?? 'unrated'} disabled={!open} style={{ width: 120 }} onChange={(ev) => setPerf(r.id, ev.target.value as PerfBand)}>
+          <Select aria-label={`Performance band for ${fullName(r.e)}`} value={r.perf ?? 'unrated'} disabled={!open} style={{ width: 120 }} onChange={(ev) => tell(setPerf(r.id, ev.target.value as PerfBand))}>
             {PERF_ORDER.map((p) => <option key={p} value={p}>{PERF_LABEL[p]}</option>)}
           </Select>
           <button type="button" aria-label={`Rating details for ${fullName(r.e)}`} onClick={() => setPerfFor(r.id)} style={{ border: 0, background: 'transparent', color: T.info, cursor: 'pointer', fontSize: 12.5, fontFamily: 'inherit', padding: 4 }}>Details</button>
@@ -119,11 +141,10 @@ export default function MeritTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
           <CommitNumber label={`Proposed increment for ${fullName(r.e)}`} testId={`pct-${r.id}`} value={r.p?.pct ?? null} suffix="%" width={72} disabled={!open || !!r.applied}
             invalid={!!r.p && r.chk.needsReason}
             onCommit={(_v, raw) => {
-              if (raw === '') { setProposal(r.id, null); return; }
+              if (raw === '') { tell(setProposal(r.id, null)); return; }
               const ok = validatePct(raw);
               if (!ok.ok) { toast.error(ok.error); return; }
-              const res = setProposal(r.id, ok.value, r.p?.reason);
-              if (!res.ok) toast.error(res.error);
+              tell(setProposal(r.id, ok.value, r.p?.reason));
             }} />
           <span style={{ fontSize: 12, color: T.mute, whiteSpace: 'nowrap' }}>Suggested <span data-testid={`guide-${r.id}`}>{r.chk.guide.min === r.chk.guide.max ? `${r.chk.guide.min}%` : `${r.chk.guide.min} to ${r.chk.guide.max}%`}</span></span>
         </div>
@@ -139,7 +160,7 @@ export default function MeritTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
             {r.chk.outside ? <Badge tone="warn" dot>Outside guidance</Badge> : <Badge tone="ok" dot>Within guidance</Badge>}
             {r.chk.outside && (
               <CommitText label={`Reason for ${fullName(r.e)}`} testId={`reason-${r.id}`} placeholder="Reason (required)" value={r.p.reason ?? ''} invalid={r.chk.needsReason} disabled={!open || !!r.applied}
-                onCommit={(v) => { const res = setProposal(r.id, r.p!.pct, v); if (!res.ok) toast.error(res.error); }} />
+                onCommit={(v) => tell(setProposal(r.id, r.p!.pct, v))} />
             )}
             {r.chk.needsReason && <span style={{ fontSize: 12, color: T.red }}>A reason is needed.</span>}
             {r.chk.aboveMax && <span style={{ fontSize: 12, color: T.dim }}>Takes pay above the band maximum ({inr(r.band.max)}).</span>}
@@ -158,13 +179,23 @@ export default function MeritTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
     },
   ];
 
-  function doIssue() {
-    if (!issuing) return;
-    const r = applyIncrement(issuing.employeeId);
+  async function doIssue() {
+    if (!issuing || issueBusy) return;
+    const target = issuing;
+    setIssueBusy(true);
+    const r = await applyIncrement(target.employeeId);
+    setIssueBusy(false);
     if (!r.ok) { toast.error(r.error); return; }
-    setLastIssued({ id: issuing.employeeId, name: issuing.name, before: r.before, after: r.after });
-    toast.success(`Increment issued to ${issuing.name}. The letter is in the register.`);
+    setLastIssued({ id: target.employeeId, name: target.name, before: r.before, after: r.after });
+    toast.success(`Increment issued to ${target.name}. The letter is in the register.`);
     setIssuing(null);
+  }
+  async function act(run: () => Promise<Result>, ok: string) {
+    if (acting) return;
+    setActing(true);
+    const r = await run();
+    setActing(false);
+    report(r, ok);
   }
 
   return (
@@ -183,10 +214,10 @@ export default function MeritTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <Field label="Budget, percent of payroll" htmlFor="budget-pct" style={{ width: 170 }}>
               <CommitNumber label="Budget as percent of payroll" testId="budget-pct" value={cycle.budgetPct} suffix="%" width={90} disabled={!open}
-                onCommit={(v) => { if (v == null) { toast.error('Enter a budget percent.'); return; } const r = setBudgetPct(v); if (!r.ok) toast.error(r.error); }} />
+                onCommit={(v) => { if (v == null) { toast.error('Enter a budget percent.'); return; } tell(setBudgetPct(v)); }} />
             </Field>
             <Field label="Effective date" htmlFor="eff-date" style={{ width: 170 }}>
-              <Input id="eff-date" type="date" value={cycle.effectiveOn} min={PREVIEW_TODAY} disabled={!open} onChange={(e) => { if (e.target.value) { const r = setEffectiveOn(e.target.value); if (!r.ok) toast.error(r.error); } }} />
+              <Input id="eff-date" type="date" value={cycle.effectiveOn} min={PREVIEW_TODAY} disabled={!open} onChange={(e) => { if (e.target.value) tell(setEffectiveOn(e.target.value)); }} />
             </Field>
           </div>
           <div data-testid="merit-totals" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -213,7 +244,7 @@ export default function MeritTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
 
       <Card>
         <CardTitle right={<ConfidenceBadge level="indicative" />}>Guidelines: performance band by compa-ratio zone</CardTitle>
-        <Muted style={{ marginBottom: 10 }}>Suggested increment range, in percent. These are sample ranges. Edit them until they match your policy. They guide the manager; they do not decide.</Muted>
+        <Muted style={{ marginBottom: 10 }}>Suggested increment range, in percent. {live ? 'They start as sample ranges.' : 'These are sample ranges.'} Edit them until they match your policy. They guide the manager; they do not decide.</Muted>
         <div style={{ overflowX: 'auto' }}>
           <table data-testid="guideline-matrix" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640, fontSize: 13.5 }}>
             <thead>
@@ -228,7 +259,7 @@ export default function MeritTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
                   <td style={{ padding: '8px 10px', borderTop: `1px solid ${T.border}`, fontWeight: 600 }}>{PERF_LABEL[p]}</td>
                   {ZONES.map((z) => {
                     const g = cycle.guidelines[p][z];
-                    const save = (min: number | null, max: number | null) => { const r = setGuideline(p, z, min ?? g.min, max ?? g.max); if (!r.ok) toast.error(r.error); };
+                    const save = (min: number | null, max: number | null) => tell(setGuideline(p, z, min ?? g.min, max ?? g.max));
                     return (
                       <td key={z} style={{ padding: '6px 10px', borderTop: `1px solid ${T.border}` }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -249,7 +280,7 @@ export default function MeritTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <h2 style={{ margin: 0, fontFamily: T.heading, fontSize: 15 }}>Proposals by managers</h2>
-        <Note tone="info">Enter the percent for each person. A proposal outside the suggested range needs a written reason. Ratings are sample bands kept here, with the evidence and the employee&apos;s reply under <b>Details</b>. Managers propose; HR and the manager decide.</Note>
+        <Note tone="info">Enter the percent for each person. A proposal outside the suggested range needs a written reason. Ratings are {live ? 'bands entered here' : 'sample bands kept here'}, with the evidence and the employee&apos;s reply under <b>Details</b>. Managers propose; HR and the manager decide.</Note>
         <div data-testid="merit-table"><DataTable columns={cols} rows={rows} minWidth={980} empty="Nobody is in this cycle." /></div>
         {notIn.length > 0 && (
           <details data-testid="not-in-cycle" style={{ fontSize: 13.5 }}>
@@ -269,7 +300,7 @@ export default function MeritTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
           </ol>
           {open && (
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-              <Button variant="primary" style={{ height: 40 }} disabled={blockers.length > 0} onClick={() => report(submitCycle(), 'Submitted to HR for approval.')}>Submit to HR for approval</Button>
+              <Button variant="primary" style={{ height: 40 }} disabled={acting || blockers.length > 0} onClick={() => act(submitCycle, 'Submitted to HR for approval.')}>{acting ? 'Submitting…' : 'Submit to HR for approval'}</Button>
               {blockers.length > 0 && <span data-testid="submit-blockers" style={{ fontSize: 13, color: T.dim }}>{blockers.join(' ')}{missing > 0 ? ' Fill them in the Check column.' : ''}</span>}
             </div>
           )}
@@ -283,7 +314,7 @@ export default function MeritTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
           {cycle.status === 'approved' && (
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ fontSize: 13.5 }}>Approved. Use <b>Issue increment</b> on each row. Each person can be issued once in this cycle.</span>
-              <Button style={{ height: 40 }} disabled={Object.keys(cycle.applied).length > 0} title={Object.keys(cycle.applied).length ? 'Some increments are issued already' : undefined} onClick={() => report(reopenCycle(), 'Cycle reopened for changes.')}>Reopen for changes</Button>
+              <Button style={{ height: 40 }} disabled={acting || Object.keys(cycle.applied).length > 0} title={Object.keys(cycle.applied).length ? 'Some increments are issued already' : undefined} onClick={() => act(reopenCycle, 'Cycle reopened for changes.')}>Reopen for changes</Button>
             </div>
           )}
         </div>
@@ -332,14 +363,17 @@ export default function MeritTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
         {fin.noStructure > 0 && <Muted style={{ marginTop: 8 }}>{fin.noStructure} proposals are for people with no salary structure, so their PF effect is not included.</Muted>}
       </Card>
 
-      <ActivityLog log={st.log} area="compensation" />
-      <AdvisorNote label="Check the rules before paying.">Pay bands, benchmarks and guideline ranges on this page are samples. PF rates and the ceiling come from the payroll rules in the system with their own confidence tag.</AdvisorNote>
+      {/* The activity log is the local store's: it records sample-mode changes made in this browser, so live mode hides it. */}
+      {!live && <ActivityLog log={st.log} area="compensation" />}
+      <AdvisorNote label="Check the rules before paying.">{live
+        ? 'Market figures and the starting guideline ranges on this page are samples until you replace them. PF rates and the ceiling come from the payroll rules in the system with their own confidence tag.'
+        : 'Pay bands, benchmarks and guideline ranges on this page are samples. PF rates and the ceiling come from the payroll rules in the system with their own confidence tag.'}</AdvisorNote>
 
-      {perfFor && <PerfModal db={db} st={st} employeeId={perfFor} locked={!open} onClose={() => setPerfFor(null)} />}
+      {perfFor && <PerfModal db={db} st={st} employeeId={perfFor} locked={!open} live={live} onClose={() => setPerfFor(null)} />}
       {decide && <DecideModal kind={decide} over={totals.over} onClose={() => setDecide(null)} />}
       {issuing && (
-        <ConfirmModal title={`Issue increment to ${issuing.name}`} confirmLabel="Issue increment" width={600} onClose={() => setIssuing(null)} onConfirm={doIssue}
-          disabled={issuing.blockers.length > 0} disabledReason={issuing.blockers[0]}>
+        <ConfirmModal title={`Issue increment to ${issuing.name}`} confirmLabel={issueBusy ? 'Issuing…' : 'Issue increment'} width={600} onClose={() => { if (!issueBusy) setIssuing(null); }} onConfirm={() => { void doIssue(); }}
+          disabled={issueBusy || issuing.blockers.length > 0} disabledReason={issuing.blockers[0]}>
           <div data-testid="issue-preview" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
             <div><div style={{ fontSize: 12, color: T.mute }}>CTC before</div><div style={{ fontSize: 17, fontWeight: 700 }}>{inr(issuing.before)}</div></div>
             <div><div style={{ fontSize: 12, color: T.mute }}>CTC after ({issuing.pct}%)</div><div style={{ fontSize: 17, fontWeight: 700 }}>{inr(issuing.after)}</div></div>

@@ -1,6 +1,6 @@
 'use client';
 // The Rewards area store (Assets, Benefits, Compensation) and every action that changes it. Screens read `rewardsStore.use()`
-// and change data only through the functions below, so the later swap to API calls touches this file.
+// and change data only through the functions below; in live mode those functions are server calls (live/*Source.ts).
 // Core people and payroll data stay in the core database: the only writes there are the two clearly labelled ones,
 // "Send to payroll" (adjustments tagged `[benefits <month>]`) and "Issue increment" (updateEmployee + issueLetter).
 
@@ -23,6 +23,10 @@ import {
   liveSubmitEnrolment, useLiveBenefitsSnapshot,
 } from './live/benefitsSource';
 import {
+  getLiveCompensation, liveAddStandardBands, liveDecideCycle, liveRecordIncrementApplied, liveReopenCycle, liveSaveBand, liveSetBudgetPct,
+  liveSetEffectiveOn, liveSetGuideline, liveSetPerf, liveSetPerfReply, liveSetProposal, liveSetPublished, liveSubmitCycle, useLiveCompensationSnapshot,
+} from './live/compensationSource';
+import {
   CLAIM_NEXT, benefitsTag, deductionPreview, enrolmentEligibility, planOf, tierOf, validateBand, validateDependants, validateFlex, validateGuideline,
   windowStatus, nextTag, checkProposal, cycleMembership, baseCtcFor, submitBlockers, addMonthsISO,
 } from './engines';
@@ -33,20 +37,20 @@ import type {
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
-// The Rewards area store. Compensation always lives in this browser-local store (the "saved in this browser only" note stays
-// on its page). The ASSETS slice (phase 6) and the BENEFITS slice (phase 7) each have a Sample | Live concept: in live mode
-// they come from, and are saved to, the server (live/assetsSource.ts, live/benefitsSource.ts), while this local store still
-// holds compensation and the activity log.
+// The Rewards area store. Each slice has a Sample | Live concept: in sample mode all three live in this browser-local store;
+// in live mode the ASSETS slice (phase 6), the BENEFITS slice (phase 7) and the COMPENSATION slice (phase 8) come from, and
+// are saved to, the server (live/assetsSource.ts, live/benefitsSource.ts, live/compensationSource.ts). This local store then
+// holds only the sample data and its activity log, which the live pages do not show.
 const baseRewardsStore = createAreaStore<RewardsState>('rewards', 1, makeRewardsSeed);
 
-/** The whole Rewards state for the active source: in live mode the assets and benefits slices are the server's, the rest is this local store. */
-const mergeLive = (base: RewardsState, assets: RewardsState['assets'], benefits: RewardsState['benefits']): RewardsState => ({ ...base, assets, benefits });
+/** The whole Rewards state for the active source: in live mode the three slices are the server's; only the log is this local store's. */
+const mergeLive = (base: RewardsState, assets: RewardsState['assets'], benefits: RewardsState['benefits'], comp: RewardsState['comp']): RewardsState => ({ ...base, assets, benefits, comp });
 
 export const rewardsStore: AreaStore<RewardsState> = {
   name: 'rewards',
-  get: () => (isLive() ? mergeLive(baseRewardsStore.get(), getLiveAssets(), getLiveBenefits()) : baseRewardsStore.get()),
-  // Compensation and the log always change locally. Asset and benefits actions never call mutate in live mode (they are
-  // server commands), so the local assets/benefits slices are ignored there and the live data is never written to browser storage.
+  get: () => (isLive() ? mergeLive(baseRewardsStore.get(), getLiveAssets(), getLiveBenefits(), getLiveCompensation()) : baseRewardsStore.get()),
+  // Only sample-mode actions call mutate. Every live action is a server command, so the local slices are ignored there and
+  // the live data is never written to browser storage.
   mutate: (fn) => baseRewardsStore.mutate(fn),
   reset: () => baseRewardsStore.reset(),
   use() {
@@ -54,7 +58,8 @@ export const rewardsStore: AreaStore<RewardsState> = {
     const source = useLiveSource();
     const assets = useLiveAssetsSnapshot();
     const benefits = useLiveBenefitsSnapshot();
-    return useMemo(() => (base && source === 'live' ? mergeLive(base, assets, benefits) : base), [base, source, assets, benefits]);
+    const comp = useLiveCompensationSnapshot();
+    return useMemo(() => (base && source === 'live' ? mergeLive(base, assets, benefits, comp) : base), [base, source, assets, benefits, comp]);
   },
 };
 
@@ -371,9 +376,20 @@ function sendToPayrollSample(month: Month): Result<{ removed: number; added: num
 }
 
 // ═══════════════════════════════════ compensation ═══════════════════════════════════
+// Each compensation action is a server call in live mode and the local sample flow otherwise. They return a promise so the call
+// sites can await the server (sample mode resolves at once). The sample flows below are unchanged; in live mode the server
+// applies the same rules with the same words.
 const cycleOpen = (s: RewardsState) => s.comp.cycle.status === 'draft' || s.comp.cycle.status === 'returned';
 
-export function saveBand(grade: string, patch: Pick<Band, 'min' | 'mid' | 'max' | 'market'>): Result {
+/** Live empty-state seed: the standard pay bands, created on the server. Sample mode ships with its bands already. */
+export function addStandardBands(): Promise<Result<{ created: number }>> {
+  return isLive() ? liveAddStandardBands() : Promise.resolve(fail('The standard pay bands are part of the sample data.'));
+}
+
+export function saveBand(grade: string, patch: Pick<Band, 'min' | 'mid' | 'max' | 'market'>): Promise<Result> {
+  return isLive() ? liveSaveBand(grade, patch) : Promise.resolve(saveBandSample(grade, patch));
+}
+function saveBandSample(grade: string, patch: Pick<Band, 'min' | 'mid' | 'max' | 'market'>): Result {
   const err = validateBand(patch);
   if (err) return fail(err);
   rewardsStore.mutate((d) => {
@@ -384,47 +400,77 @@ export function saveBand(grade: string, patch: Pick<Band, 'min' | 'mid' | 'max' 
   });
   return { ok: true };
 }
-export function setPublished(grade: string, published: boolean): void {
+
+export function setPublished(grade: string, published: boolean): Promise<Result> {
+  return isLive() ? liveSetPublished(grade, published) : Promise.resolve(setPublishedSample(grade, published));
+}
+function setPublishedSample(grade: string, published: boolean): Result {
   rewardsStore.mutate((d) => {
     const b = d.comp.bands.find((x) => x.grade === grade);
     if (!b) return;
     b.published = published;
     logTo(d, 'compensation', `${published ? 'Published' : 'Unpublished'} the ${grade} band for employees`);
   });
+  return { ok: true };
 }
-export function setPerf(employeeId: Id, band: PerfBand): void {
+
+export function setPerf(employeeId: Id, band: PerfBand): Promise<Result> {
+  return isLive() ? liveSetPerf(employeeId, band) : Promise.resolve(setPerfSample(employeeId, band));
+}
+function setPerfSample(employeeId: Id, band: PerfBand): Result {
   rewardsStore.mutate((d) => { d.comp.perf[employeeId] = band; logTo(d, 'compensation', `Set the performance band for ${person(employeeId)} to ${band}`); });
+  return { ok: true };
 }
-export function setPerfReply(employeeId: Id, reply: string): void {
+
+export function setPerfReply(employeeId: Id, reply: string): Promise<Result> {
+  return isLive() ? liveSetPerfReply(employeeId, reply) : Promise.resolve(setPerfReplySample(employeeId, reply));
+}
+function setPerfReplySample(employeeId: Id, reply: string): Result {
   rewardsStore.mutate((d) => {
     const n = d.comp.perfNotes[employeeId] ?? { evidence: 'No evidence recorded.' };
     n.reply = reply.trim() || undefined;
     d.comp.perfNotes[employeeId] = n;
     logTo(d, 'compensation', `Recorded ${person(employeeId)}'s reply to the rating`);
   });
+  return { ok: true };
 }
 
-export function setBudgetPct(pct: number): Result {
+export function setBudgetPct(pct: number): Promise<Result> {
+  return isLive() ? liveSetBudgetPct(pct) : Promise.resolve(setBudgetPctSample(pct));
+}
+function setBudgetPctSample(pct: number): Result {
   if (!cycleOpen(rewardsStore.get())) return fail('The cycle is locked. Return it to managers or reopen it first.');
   if (!Number.isFinite(pct) || pct < 0 || pct > 30) return fail('Use a budget from 0 to 30 percent.');
   rewardsStore.mutate((d) => { d.comp.cycle.budgetPct = Math.round(pct * 100) / 100; logTo(d, 'compensation', `Set the merit budget to ${d.comp.cycle.budgetPct}% of payroll`); });
   return { ok: true };
 }
-export function setEffectiveOn(date: ISODate): Result {
+
+export function setEffectiveOn(date: ISODate): Promise<Result> {
+  return isLive() ? liveSetEffectiveOn(date) : Promise.resolve(setEffectiveOnSample(date));
+}
+function setEffectiveOnSample(date: ISODate): Result {
   if (!cycleOpen(rewardsStore.get())) return fail('The cycle is locked.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < PREVIEW_TODAY) return fail('Choose a date that is today or later.');
   rewardsStore.mutate((d) => { d.comp.cycle.effectiveOn = date; logTo(d, 'compensation', `Set the increment effective date to ${date}`); });
   return { ok: true };
 }
-export function setGuideline(perf: PerfBand, zone: CompaZone, min: number, max: number): Result {
+
+export function setGuideline(perf: PerfBand, zone: CompaZone, min: number, max: number): Promise<Result> {
+  return isLive() ? liveSetGuideline(perf, zone, min, max) : Promise.resolve(setGuidelineSample(perf, zone, min, max));
+}
+function setGuidelineSample(perf: PerfBand, zone: CompaZone, min: number, max: number): Result {
   if (!cycleOpen(rewardsStore.get())) return fail('The cycle is locked.');
   const err = validateGuideline(min, max);
   if (err) return fail(err);
   rewardsStore.mutate((d) => { d.comp.cycle.guidelines[perf][zone] = { min, max }; logTo(d, 'compensation', `Changed the guideline for ${perf} / ${zone}`); });
   return { ok: true };
 }
+
 /** Enter, change or clear (pct = null) one proposal. A reason is kept as typed; whether one is required is decided by the guidance. */
-export function setProposal(employeeId: Id, pct: number | null, reason?: string): Result {
+export function setProposal(employeeId: Id, pct: number | null, reason?: string): Promise<Result> {
+  return isLive() ? liveSetProposal(employeeId, pct, reason) : Promise.resolve(setProposalSample(employeeId, pct, reason));
+}
+function setProposalSample(employeeId: Id, pct: number | null, reason?: string): Result {
   if (!cycleOpen(rewardsStore.get())) return fail('Proposals are locked while the cycle is with HR or approved.');
   if (pct != null && (!Number.isFinite(pct) || pct < 0 || pct > 50)) return fail('Use 0 to 50 percent.');
   rewardsStore.mutate((d) => {
@@ -434,7 +480,7 @@ export function setProposal(employeeId: Id, pct: number | null, reason?: string)
   return { ok: true };
 }
 
-/** What stops the cycle going to HR, worked out from the live data. */
+/** What stops the cycle going to HR, worked out from the data on screen (the server re-checks the same rules in live mode). */
 export function cycleBlockers(s: RewardsState): string[] {
   const db = getDb();
   const members = cycleMembership(db, s.comp.cycle).filter((m) => m.included);
@@ -451,7 +497,10 @@ export function cycleBlockers(s: RewardsState): string[] {
   return submitBlockers({ withProposal, missingReasons: missing });
 }
 
-export function submitCycle(): Result {
+export function submitCycle(): Promise<Result> {
+  return isLive() ? liveSubmitCycle() : Promise.resolve(submitCycleSample());
+}
+function submitCycleSample(): Result {
   const s = rewardsStore.get();
   if (!cycleOpen(s)) return fail('The cycle is already with HR or approved.');
   const b = cycleBlockers(s);
@@ -459,7 +508,11 @@ export function submitCycle(): Result {
   rewardsStore.mutate((d) => { d.comp.cycle.status = 'submitted'; d.comp.cycle.decision = undefined; logTo(d, 'compensation', 'Submitted the merit cycle to HR for approval'); });
   return { ok: true };
 }
-export function decideCycle(decision: 'approve' | 'return', text: string, overBudget: boolean): Result {
+
+export function decideCycle(decision: 'approve' | 'return', text: string, overBudget: boolean): Promise<Result> {
+  return isLive() ? liveDecideCycle(decision, text, overBudget) : Promise.resolve(decideCycleSample(decision, text, overBudget));
+}
+function decideCycleSample(decision: 'approve' | 'return', text: string, overBudget: boolean): Result {
   const s = rewardsStore.get();
   if (s.comp.cycle.status !== 'submitted') return fail('Only a submitted cycle can be decided.');
   if (decision === 'return' && !text.trim()) return fail('Tell the managers what to change.');
@@ -472,7 +525,11 @@ export function decideCycle(decision: 'approve' | 'return', text: string, overBu
   });
   return { ok: true };
 }
-export function reopenCycle(): Result {
+
+export function reopenCycle(): Promise<Result> {
+  return isLive() ? liveReopenCycle() : Promise.resolve(reopenCycleSample());
+}
+function reopenCycleSample(): Result {
   const s = rewardsStore.get();
   if (s.comp.cycle.status !== 'approved') return fail('Only an approved cycle can be reopened.');
   if (Object.keys(s.comp.cycle.applied).length) return fail('Some increments are already issued, so the cycle cannot be reopened.');
@@ -480,8 +537,12 @@ export function reopenCycle(): Result {
   return { ok: true };
 }
 
-/** Called by the apply flow after the core employee and the letter were written. One record per person per cycle. */
-export function recordIncrementApplied(employeeId: Id, info: { from: number; to: number; letterId: Id }): Result {
+/** Called by the apply flow after the core employee and the letter were written. One record per person per cycle; in live
+ * mode the server records it atomically and refuses a second one. */
+export function recordIncrementApplied(employeeId: Id, info: { from: number; to: number; letterId: Id }): Promise<Result> {
+  return isLive() ? liveRecordIncrementApplied(employeeId, info) : Promise.resolve(recordIncrementAppliedSample(employeeId, info));
+}
+function recordIncrementAppliedSample(employeeId: Id, info: { from: number; to: number; letterId: Id }): Result {
   const s = rewardsStore.get();
   if (s.comp.cycle.applied[employeeId]) return fail('An increment was already issued to this person in this cycle.');
   rewardsStore.mutate((d) => {
@@ -490,4 +551,3 @@ export function recordIncrementApplied(employeeId: Id, info: { from: number; to:
   });
   return { ok: true };
 }
-
