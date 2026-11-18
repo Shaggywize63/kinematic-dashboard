@@ -15,7 +15,15 @@ import GoogleAddressAutocomplete, { type PlaceResult } from '../GoogleAddressAut
  * GET /accounts/:id/sites, POST /sites, PATCH /sites/:id, DELETE /sites/:id. The address search is the shared Google
  * picker (it falls back to the backend places proxy when the browser has no Maps key).
  */
-export default function AccountAddresses({ accountId }: { accountId: string }) {
+export default function AccountAddresses({ accountId, openNewSignal = 0 }: {
+  accountId: string;
+  /**
+   * Bumped by the parent to open the "add" editor from somewhere else on the page — the
+   * "what's missing" panel's "Add a plant" lands here. A counter rather than a boolean so a
+   * second click re-opens it after the rep closes the dialog.
+   */
+  openNewSignal?: number;
+}) {
   const [sites, setSites] = useState<AccountSite[]>([]);
   const [loading, setLoading] = useState(true);
   // null = closed; 'new' = adding; a site = editing it.
@@ -33,6 +41,8 @@ export default function AccountAddresses({ accountId }: { accountId: string }) {
     } finally { setLoading(false); }
   }, [accountId]);
   useEffect(() => { void load(); }, [load]);
+  // Ignore the initial render (signal 0) so the dialog only opens on a real request.
+  useEffect(() => { if (openNewSignal > 0) setEditing('new'); }, [openNewSignal]);
 
   const remove = async (s: AccountSite) => {
     if (!window.confirm(`Delete the address "${s.name}"?`)) return;
@@ -47,9 +57,9 @@ export default function AccountAddresses({ accountId }: { accountId: string }) {
   };
 
   return (
-    <div data-testid="account-addresses" style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
+    <div id="plants" data-section="plants" data-testid="account-addresses" style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, scrollMarginTop: 84 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{`Addresses (${sites.length})`}</div>
+        <h2 id="plants-heading" style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{`Plants / Addresses (${sites.length})`}</h2>
         <button type="button" onClick={() => setEditing('new')} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Add address</button>
       </div>
       {loading ? (

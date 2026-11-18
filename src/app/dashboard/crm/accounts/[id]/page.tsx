@@ -7,7 +7,7 @@ import { crmAccounts, crmSites, type AccountTimeline, type AccountSite } from '.
 import type { Account, Contact, Deal, Activity, Note, Lead } from '../../../../../types/crm';
 import AccountSummaryCard from '../../../../../components/crm/AccountSummaryCard';
 import { AccountStructureGaps } from '../../../../../components/crm/spark/StructureGaps';
-import { accountStructureGaps } from '../../../../../lib/leadStructure';
+import { accountStructureGaps, type AccountGap } from '../../../../../lib/leadStructure';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import EditActivityModal from '../../../../../components/crm/EditActivityModal';
 import AccountEditModal from '../../../../../components/crm/AccountEditModal';
@@ -22,7 +22,7 @@ import AccountAddresses from '../../../../../components/crm/spark/AccountAddress
 import { Button, useIsCompact } from '../../../../../components/ui';
 import { useFieldHelpers } from '../../../../../lib/crm/useFieldHelpers';
 import { accountLocationLines } from '../../../../../lib/accountLocation';
-import { dealRollup } from '../../../../../lib/sparkAccounts';
+import { apiErrorText, dealRollup } from '../../../../../lib/sparkAccounts';
 import { BrandChips } from '../../../../../components/crm/spark/BrandChips';
 
 export default function AccountDetailPage() {
@@ -46,6 +46,9 @@ export default function AccountDetailPage() {
   const [timeline, setTimeline] = useState<AccountTimeline | null>(null);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  // Bumped to ask the Plants / Addresses section to open its "add" editor.
+  const [addPlantSignal, setAddPlantSignal] = useState(0);
+  const [promoting, setPromoting] = useState(false);
   // The activity being edited from the Activities card (shared with the Activities page).
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -159,6 +162,41 @@ export default function AccountDetailPage() {
   // What stops this account's slice of the tree from being complete. Counted from the data
   // already on screen, so the panel can never disagree with the tree beside it. `plantCount`
   // is the account's own recorded SITES; `childCount` is the accounts parented under it.
+  /**
+   * Take the rep to where a gap is actually fixed. A gap that only describes the problem leaves
+   * them hunting for the right screen, so every row is a control: scroll to the section on this
+   * page and open its editor, open the account dialog, or follow a link elsewhere.
+   */
+  const goFixGap = (gap: AccountGap) => {
+    const { anchor: section, intent, href } = gap.fix;
+    if (href) { router.push(href); return; }
+    if (intent === 'edit-account') { setEditOpen(true); return; }
+    if (section) {
+      document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    // Opening the editor is what makes the jump actionable rather than merely informative.
+    if (intent === 'add-plant') setAddPlantSignal((n) => n + 1);
+    if (intent === 'add-contact') {
+      router.push(`/dashboard/crm/contacts/new?account_id=${a?.id}&account_name=${encodeURIComponent(a?.name || '')}`);
+    }
+  };
+
+  /**
+   * Promote an individual account to a parent/group — "this company heads a group" — so its plants
+   * can be parented under it. Only offered on an account that is not already a group.
+   */
+  const promoteToGroup = async () => {
+    if (!a) return;
+    setPromoting(true);
+    try {
+      await crmAccounts.update(a.id, { is_group: true });
+      setA((prev) => (prev ? { ...prev, is_group: true } : prev));
+      toast.success(`${a.name} is now a parent account — link its companies by setting this as their parent.`);
+    } catch (e) {
+      toast.error(apiErrorText(e, 'Could not make this a parent account'));
+    } finally { setPromoting(false); }
+  };
+
   // NOT a useMemo: this sits below the loading / not-found early returns, so a hook here
   // would change the hook count between renders ("Rendered more hooks than during the
   // previous render"). The inputs are a handful of rows, so a plain call is cheaper anyway.
@@ -224,6 +262,22 @@ export default function AccountDetailPage() {
                   <Button href={`/dashboard/crm/deals/new?account_id=${a.id}`}>New deal</Button>
                 </>
               )}
+              {/* An individual account that actually heads a group (NTPC Limited over its plants)
+                  can be promoted in place, so the rep never has to create a duplicate "group"
+                  account and re-point everything at it. Hidden once it already is one. */}
+              {spark && !a.is_group && (
+                <button
+                  type="button"
+                  data-testid="promote-to-parent"
+                  onClick={promoteToGroup}
+                  disabled={promoting}
+                  title="Mark this account as a parent company, so other accounts can sit under it as its plants."
+                  style={{ background: 'transparent', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: promoting ? 'wait' : 'pointer', opacity: promoting ? 0.6 : 1 }}
+                >{promoting ? 'Making parent…' : 'Make this a parent account'}</button>
+              )}
+              {spark && a.is_group && (
+                <span data-testid="is-parent-badge" title="Other accounts can be parented under this one." style={{ display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, color: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)' }}>Parent account</span>
+              )}
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
               <button onClick={handleDeactivate} disabled={deactivating} style={{ background: 'transparent', border: '1px solid var(--text-dim)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: 8, cursor: deactivating ? 'not-allowed' : 'pointer', opacity: deactivating ? 0.6 : 1 }}>{deactivating ? 'Deactivating...' : 'Deactivate'}</button>
               <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}>{deleting ? 'Deleting...' : 'Delete'}</button>
@@ -263,7 +317,7 @@ export default function AccountDetailPage() {
           </Card>
         )}
 
-        {spark && <AccountAddresses accountId={a.id} />}
+        {spark && <AccountAddresses accountId={a.id} openNewSignal={addPlantSignal} />}
 
         <TimelineCard data={timeline} />
 
@@ -274,6 +328,7 @@ export default function AccountDetailPage() {
         <CustomFieldsDetailCard entity="account" customFields={a.custom_fields} />
 
         <Card
+          anchor="contacts"
           title={`Contacts (${contacts.length})`}
           action={spark ? (
             <Link
@@ -302,9 +357,9 @@ export default function AccountDetailPage() {
           )}
         </Card>
 
-        {spark && <AccountStructureGaps gaps={structureGaps} />}
+        {spark && <AccountStructureGaps gaps={structureGaps} onFix={goFixGap} />}
 
-        <Card title={`Leads (${totalLeadCount})`}>
+        <Card anchor="leads" title={`Leads (${totalLeadCount})`}>
           {leadsError ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Could not load leads.</div>
           ) : totalLeadCount === 0 ? (
@@ -378,7 +433,7 @@ export default function AccountDetailPage() {
           )}
         </Card>
 
-        <Card title={`Deals (${deals.length})`}>
+        <Card anchor="deals" title={`Deals (${deals.length})`}>
           {deals.length === 0 ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No deals.</div>
           ) : (
@@ -543,16 +598,29 @@ function TimelineCard({ data }: { data: AccountTimeline | null }) {
   );
 }
 
-function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+/**
+ * A section of the account page. `anchor` gives it a stable id so the "what's missing" panel can
+ * jump straight to the place the data is entered, and `scroll-margin-top` keeps the heading clear
+ * of the sticky header when it does. The title is a real <h2> rather than a styled div, so the page
+ * has an outline.
+ */
+function Card({ title, action, children, anchor }: { title: string; action?: React.ReactNode; children: React.ReactNode; anchor?: string }) {
+  const heading = (
+    <h2 id={anchor ? `${anchor}-heading` : undefined} style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{title}</h2>
+  );
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
+    <div
+      id={anchor}
+      data-section={anchor}
+      style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, scrollMarginTop: 84 }}
+    >
       {action ? (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{title}</div>
+          {heading}
           {action}
         </div>
       ) : (
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{title}</div>
+        <div style={{ marginBottom: 12 }}>{heading}</div>
       )}
       {children}
     </div>

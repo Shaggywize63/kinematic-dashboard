@@ -136,14 +136,23 @@ const GROUP = { id: 'acc-jsw', org_id: 'e2e-org-1', name: 'JSW Group', is_group:
 const CHILD_A = { id: 'acc-jsw-1', name: 'JSW JFE Steel Limited - Sambalpur, Odisha', parent_account_id: 'acc-jsw' };
 const CHILD_B = { id: 'acc-jsw-2', name: 'JSW Cement Limited - Jajpur, Odisha', parent_account_id: 'acc-jsw' };
 
-async function accountSetup(page: Page, opts: { children: unknown[]; childLeads: Record<string, unknown[]>; leads?: unknown[] }) {
+async function accountSetup(page: Page, opts: {
+  children: unknown[]; childLeads: Record<string, unknown[]>; leads?: unknown[];
+  account?: Record<string, unknown>; sites?: unknown[]; patches?: Record<string, unknown>[];
+}) {
   await scopeToSpark(page);
   await seedSession(page, SEED_USER);
   await mockApi(page, {
     onRequest: async (route, url, method) => {
       const p = apiPath(url);
+      if (method === 'PATCH' && p === '/api/v1/crm/accounts/acc-jsw') {
+        const body = route.request().postDataJSON() as Record<string, unknown>;
+        opts.patches?.push(body);
+        return ok(route, { ...GROUP, ...(opts.account || {}), ...body });
+      }
       if (method !== 'GET') return false;
-      if (p === '/api/v1/crm/accounts/acc-jsw') return ok(route, GROUP);
+      if (p === '/api/v1/crm/accounts/acc-jsw') return ok(route, { ...GROUP, ...(opts.account || {}) });
+      if (p === '/api/v1/crm/accounts/acc-jsw/sites') return ok(route, opts.sites ?? []);
       // The children query — same path as the accounts list, told apart by the filter.
       if (p === '/api/v1/crm/accounts' && url.includes('parent_account_id=')) return ok(route, opts.children);
       for (const [id, leads] of Object.entries(opts.childLeads)) {
@@ -177,5 +186,61 @@ test.describe('Account page — what is missing to complete the tree', () => {
     const gaps = page.getByTestId('account-structure-gaps');
     await expect(gaps).toBeVisible({ timeout: 30_000 });
     await expect(gaps).not.toContainText('No leads anywhere under this group');
+  });
+});
+
+
+test.describe('Account page — a gap is a control, not a nag', () => {
+  test('each gap offers a labelled way to fix it', async ({ page }) => {
+    await accountSetup(page, { children: [CHILD_A, CHILD_B], childLeads: { 'acc-jsw-1': [], 'acc-jsw-2': [] } });
+    await page.goto('/dashboard/crm/accounts/acc-jsw');
+    const gaps = page.getByTestId('account-structure-gaps');
+    await expect(gaps).toBeVisible({ timeout: 30_000 });
+    // Not just prose: the row is a button carrying the action it performs.
+    await expect(gaps.getByRole('button', { name: /Open the companies/ })).toBeVisible();
+  });
+
+  test('the sections a gap points at exist on the page, with headings', async ({ page }) => {
+    await accountSetup(page, { children: [], childLeads: {}, account: { is_group: false }, leads: [] });
+    await page.goto('/dashboard/crm/accounts/acc-jsw');
+    await expect(page.getByTestId('account-structure-gaps')).toBeVisible({ timeout: 30_000 });
+    // Every anchor a gap can name is rendered, so a "jump to the fix" can never aim at nothing.
+    for (const id of ['plants', 'leads', 'contacts', 'deals']) {
+      await expect(page.locator(`#${id}`)).toHaveCount(1);
+      await expect(page.locator(`#${id}`).getByRole('heading')).toBeVisible();
+    }
+  });
+
+  test('"Set a parent company" opens the account dialog', async ({ page }) => {
+    await accountSetup(page, { children: [], childLeads: {}, account: { is_group: false, parent_account_id: null }, leads: [] });
+    await page.goto('/dashboard/crm/accounts/acc-jsw');
+    const gaps = page.getByTestId('account-structure-gaps');
+    await expect(gaps).toBeVisible({ timeout: 30_000 });
+    await gaps.getByRole('button', { name: /Set a parent company/ }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+  });
+});
+
+test.describe('Account page — promote an individual account to a parent', () => {
+  test('an individual account offers "Make this a parent account" and PATCHes is_group', async ({ page }) => {
+    const patches: Record<string, unknown>[] = [];
+    await accountSetup(page, { children: [], childLeads: {}, account: { is_group: false }, leads: [], patches });
+    await page.goto('/dashboard/crm/accounts/acc-jsw');
+    const promote = page.getByTestId('promote-to-parent');
+    await expect(promote).toBeVisible({ timeout: 30_000 });
+    await promote.click();
+    // The write that actually makes it a parent — the flag the tree reads.
+    await expect.poll(() => patches.length, { timeout: 15_000 }).toBeGreaterThan(0);
+    expect(patches[0]).toEqual({ is_group: true });
+    // Once promoted it says so, and does not offer to promote again.
+    await expect(page.getByTestId('is-parent-badge')).toBeVisible();
+    await expect(promote).toHaveCount(0);
+  });
+
+  test('an account that is already a parent is never offered the promotion', async ({ page }) => {
+    await accountSetup(page, { children: [CHILD_A], childLeads: { 'acc-jsw-1': [] }, account: { is_group: true } });
+    await page.goto('/dashboard/crm/accounts/acc-jsw');
+    await expect(page.getByTestId('is-parent-badge')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('promote-to-parent')).toHaveCount(0);
   });
 });

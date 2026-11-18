@@ -6,6 +6,7 @@ import {
   missingSlots,
   structureCompleteness,
   structureSummary,
+  SECTION_IDS,
   type AccountStructureSource,
 } from '../src/lib/leadStructure';
 
@@ -61,11 +62,14 @@ test.describe('leadIdentitySlots — the identity chain', () => {
     expect(structureSummary(slots)).toBe('Missing plant, department');
   });
 
-  test('every slot carries a fix and a why, so the panel is never a generic nag', () => {
+  test('every slot carries a fix, a why and a short CTA, so the panel is never a generic nag', () => {
     for (const s of leadIdentitySlots({})) {
       expect(s.fix.length).toBeGreaterThan(0);
       expect(s.why.length).toBeGreaterThan(0);
       expect(s.label.length).toBeGreaterThan(0);
+      // The CTA is a button label, so it has to stay short — `fix` is the sentence.
+      expect(s.cta.length).toBeGreaterThan(0);
+      expect(s.cta.length).toBeLessThanOrEqual(20);
     }
   });
 
@@ -143,6 +147,36 @@ test.describe('accountStructureGaps — what breaks the tree', () => {
   test('no people on file only matters once there are leads to follow up', () => {
     expect(accountStructureGaps({ ...HEALTHY, contactCount: 0 }).map((g) => g.key)).toContain('no-contacts');
     expect(accountStructureGaps({ ...HEALTHY, contactCount: 0, leadCount: 0, childLeadCount: 0, plantCount: 1 }).map((g) => g.key)).not.toContain('no-contacts');
+  });
+
+  test('every gap points somewhere the rep can actually fix it', () => {
+    // A gap that only describes the problem leaves the rep hunting for the right screen, so each
+    // one must name a destination: a section on the page, an action, or a link elsewhere.
+    const sources: AccountStructureSource[] = [
+      { ...HEALTHY, isGroup: true, hasParent: false, childCount: 0, childLeadCount: 0, leadCount: 0, contactCount: 0 },
+      { ...HEALTHY, isGroup: true, hasParent: false, childCount: 2, childLeadCount: 0, leadCount: 0, plantCount: 0, contactCount: 0 },
+      { ...HEALTHY, hasParent: false, plantCount: 0, contactCount: 0, leadsMissingPlant: 2, leadsMissingDepartment: 1, leadsMissingRequirement: 1, leadsMissingContact: 1 },
+    ];
+    const seen = new Set<string>();
+    for (const src of sources) {
+      for (const g of accountStructureGaps(src)) {
+        seen.add(g.key);
+        expect(g.fix.label.length).toBeGreaterThan(0);
+        expect(Boolean(g.fix.anchor || g.fix.intent || g.fix.href)).toBe(true);
+        if (g.fix.anchor) expect(SECTION_IDS).toContain(g.fix.anchor);
+      }
+    }
+    // The destinations are the ones the account page actually renders.
+    expect(seen.has('no-plants')).toBe(true);
+    expect(seen.has('no-parent')).toBe(true);
+    expect(seen.has('group-no-leads')).toBe(true);
+  });
+
+  test('a missing parent opens the account dialog; a missing plant lands on the plants section', () => {
+    const noParent = accountStructureGaps({ ...HEALTHY, hasParent: false }).find((g) => g.key === 'no-parent');
+    expect(noParent?.fix.intent).toBe('edit-account');
+    const noPlants = accountStructureGaps({ ...HEALTHY, plantCount: 0, leadCount: 1 }).find((g) => g.key === 'no-plants');
+    expect(noPlants?.fix).toMatchObject({ anchor: 'plants', intent: 'add-plant' });
   });
 
   test('every gap has a key, a label and a counted detail', () => {
