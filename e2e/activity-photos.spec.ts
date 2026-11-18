@@ -20,6 +20,12 @@ type Seen = { uploads: { contentType: string; body: string }[]; writes: { method
 
 async function setup(page: Page, seen: Seen, list: unknown[] = [ROW, ROW_NO_PHOTO]) {
   await seedSession(page, SEED_USER);
+  // Serve the stored photo objects as a real image by default, so SignedImage's load succeeds and the
+  // thumbnail renders (a test that wants a MISSING object routes PHOTO to a 404 after setup, which
+  // wins as the later-registered handler). Without this the <img> would error into the "Photo
+  // unavailable" placeholder and the happy-path thumbnail assertions would see no <img>.
+  await page.route(PHOTO, (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
+  await page.route(PHOTO_2, (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
   await mockApi(page, {
     onRequest: async (route, url, method) => {
       const p = apiPath(url);
