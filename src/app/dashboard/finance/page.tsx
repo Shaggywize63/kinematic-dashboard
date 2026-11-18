@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Button, Card, Select, T, useIsCompact } from '../../../components/ui';
 import { FinancePage, Stat, errMsg } from '../../../components/finance/ui';
 import ReceivablesBar from '../../../components/finance/ReceivablesBar';
+import UpcomingInvoices from '../../../components/finance/UpcomingInvoices';
 import { financeApi, type DashboardData, type FinanceSettings } from '../../../lib/financeApi';
 import { fmtDate, inr, num } from '../../../lib/financeFormat';
 
@@ -172,10 +173,13 @@ export default function FinanceOverviewPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: narrow ? 'row' : 'column', gap: narrow ? 24 : 22, flex: '0 0 auto', minWidth: narrow ? 0 : 200, flexWrap: 'wrap', paddingTop: narrow ? 0 : 6 }}>
                 <Stat label="Total Sales" value={inr(dash.totals.sales)} tone="info" hint="Sent, part-paid and paid invoices" />
+                <Stat label="GST Collected" value={inr(num(dash.totals.tax))} hint="Output GST within those sales" />
                 <Stat label="Total Receipts" value={inr(dash.totals.receipts)} tone="ok" hint="Payments received" />
               </div>
             </div>
           </Card>
+
+          <UpcomingInvoices compact={narrow} />
 
           <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 14 }}>
             <KpiCard href="/dashboard/finance/invoices" label="Draft invoices" value={num(dash.draft_invoices)} hint="Not yet sent to customers" />

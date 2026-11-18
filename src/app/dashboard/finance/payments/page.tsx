@@ -34,6 +34,7 @@ export default function PaymentsPage() {
     { key: 'mode', label: 'Mode', render: (r) => paymentModeLabel(r.mode) },
     { key: 'reference', label: 'Reference', render: (r) => r.reference || '—' },
     { key: 'amount', label: 'Amount', align: 'right', render: (r) => inr(r.amount) },
+    { key: 'gst', label: 'GST in receipt', align: 'right', render: (r) => (r.gst && r.gst > 0 ? <span style={{ color: T.mute, fontVariantNumeric: 'tabular-nums' }}>{inr(r.gst)}</span> : <span style={{ color: T.mute }}>—</span>) },
     { key: 'unused', label: 'Unused', align: 'right', render: (r) => (r.unused_amount > 0 ? <span style={{ color: T.warn, fontWeight: 600 }}>{inr(r.unused_amount)}</span> : '') },
   ];
 
@@ -67,6 +68,11 @@ export default function PaymentsPage() {
             </span>
             <span style={{ fontSize: 16, fontWeight: 700, color: T.ok, fontVariantNumeric: 'tabular-nums' }}>
               {inr(data.totals.amount)}
+              {data.totals.gst > 0 && (
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: T.mute, marginLeft: 10 }}>
+                  incl. {inr(data.totals.gst)} GST
+                </span>
+              )}
               <span style={{ fontSize: 12, fontWeight: 500, color: T.mute, marginLeft: 8 }}>
                 across {data.totals.count} {data.totals.count === 1 ? 'payment' : 'payments'}
               </span>

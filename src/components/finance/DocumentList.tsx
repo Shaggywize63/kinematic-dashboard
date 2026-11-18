@@ -85,6 +85,7 @@ export default function DocumentList({ type }: { type: 'invoice' | 'quote' }) {
     ];
     if (isInvoice) cols.push({ key: 'due_date', label: 'Due date', sortable: true, render: (r) => fmtDate(r.due_date) });
     else cols.push({ key: 'expiry_date', label: 'Expiry date', render: (r) => fmtDate(r.expiry_date) });
+    cols.push({ key: 'tax_total', label: 'GST', align: 'right', render: (r) => (r.status === 'void' ? '—' : <span style={{ color: T.mute, fontVariantNumeric: 'tabular-nums' }}>{inr(r.tax_total ?? 0)}</span>) });
     cols.push({ key: 'total', label: 'Amount', align: 'right', sortable: true, render: (r) => inr(r.total) });
     if (isInvoice) {
       cols.push({
@@ -142,6 +143,7 @@ export default function DocumentList({ type }: { type: 'invoice' | 'quote' }) {
             </span>
             <span style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
               <span style={{ fontSize: 13, color: T.mute }}>{noun}s: <strong style={{ color: T.text }}>{totals.count}</strong></span>
+              <span style={{ fontSize: 13, color: T.mute }}>GST: <strong style={{ fontSize: 15, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{inr(totals.tax ?? 0)}</strong></span>
               <span style={{ fontSize: 13, color: T.mute }}>Amount: <strong style={{ fontSize: 15, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{inr(totals.amount)}</strong></span>
               {isInvoice && (
                 <span style={{ fontSize: 13, color: T.mute }}>Outstanding: <strong style={{ fontSize: 15, color: totals.balance > 0 ? T.red : T.ok, fontVariantNumeric: 'tabular-nums' }}>{inr(totals.balance)}</strong></span>
