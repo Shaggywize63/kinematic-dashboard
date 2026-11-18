@@ -264,6 +264,34 @@ export function extractApiError(data: any): string {
  *  `body` is the parsed JSON error payload when the server sent one (e.g. a 409 { code, existing } for a duplicate),
  *  so a caller can branch on a machine-readable `code` instead of string-matching the message. */
 export type ApiError = Error & { status?: number; body?: unknown };
+
+/** `{ success, data }` → data; anything else as it is. */
+const unwrapData = <T,>(r: unknown): T => {
+  const o = r as { data?: T } | null;
+  return (o && typeof o === 'object' && 'data' in o ? o.data : r) as T;
+};
+
+/** One of a client's admins (Client Management → Admins). */
+export interface ClientAdmin {
+  id: string;
+  name: string | null;
+  email: string | null;
+  mobile: string | null;
+  role: string | null;
+  is_active: boolean;
+  created_at: string | null;
+  /** The client's own contact login, created with the client. */
+  is_primary: boolean;
+  /** False when the admin is bound to the client but stored in another org, so it cannot see the client's data. */
+  in_client_org: boolean;
+}
+
+export interface ClientAdminsResponse {
+  admins: ClientAdmin[];
+  /** The project that holds the client's users. */
+  project: string;
+  seats: { allocated: number | null; active: number };
+}
 const httpError = (message: string, status: number, body?: unknown): ApiError => Object.assign(new Error(message), { status, body });
 
 /** A unique Idempotency-Key for a POST that must be a safe no-op on retry
@@ -629,6 +657,33 @@ class ApiClient {
   }, idempotencyKey?: string): Promise<any> {
     return this.post(`/api/v1/clients/provision`, payload,
       idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined);
+  }
+
+  /** Client Management → Admins: the client's admins (they live in the client's own org / project) and its seats. */
+  async listClientAdmins(clientId: string): Promise<ClientAdminsResponse> {
+    const r = unwrapData<Partial<ClientAdminsResponse> | null>(await this.get(`/api/v1/clients/${clientId}/admins`, { noCache: true } as RequestInit));
+    // Normalised so an unexpected body (an older server, a proxy page) renders as "no admins" instead of crashing the client form.
+    const seats = r && typeof r === 'object' && r.seats && typeof r.seats === 'object' ? r.seats : null;
+    return {
+      admins: r && Array.isArray(r.admins) ? r.admins : [],
+      project: r && typeof r.project === 'string' ? r.project : '',
+      seats: { allocated: typeof seats?.allocated === 'number' ? seats.allocated : null, active: typeof seats?.active === 'number' ? seats.active : 0 },
+    };
+  }
+
+  /** Add an admin to a client. Created in the client's own org (never the caller's), with the client's modules. */
+  async addClientAdmin(clientId: string, payload: { name: string; email: string; mobile?: string; password: string }): Promise<ClientAdmin & { project: string }> {
+    return unwrapData<ClientAdmin & { project: string }>(await this.post(`/api/v1/clients/${clientId}/admins`, payload));
+  }
+
+  /** Move an admin stored in another org (made from Settings → Users) into the client's org, so it can see its data. */
+  async moveClientAdminIntoClient(clientId: string, userId: string): Promise<ClientAdmin> {
+    return unwrapData<ClientAdmin>(await this.patch(`/api/v1/clients/${clientId}/admins/${userId}`, { move_to_client_org: true }));
+  }
+
+  /** Switch one of a client's admins on or off. */
+  async setClientAdminActive(clientId: string, userId: string, isActive: boolean): Promise<ClientAdmin> {
+    return unwrapData<ClientAdmin>(await this.patch(`/api/v1/clients/${clientId}/admins/${userId}`, { is_active: isActive }));
   }
 
   private getUserEmail(): string | null {

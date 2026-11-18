@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import {
   Activity, BarChart3, BellRing, CalendarDays, CalendarRange, ChevronRight, ClipboardList, Clock, Filter, FlaskConical, Footprints, Gauge, Hammer,
-  Hourglass, LayoutDashboard, Layers, LineChart, Mail, MapPin, Phone, PieChart, Route, Scale, Share2, Timer, TrendingUp, Trophy, Users, Zap,
+  Hourglass, LayoutDashboard, Layers, LineChart, Mail, MapPin, Phone, PieChart, Route, Scale, Share2, Timer, TrendingUp, Trophy, UserCheck, Users, Zap,
 } from 'lucide-react';
 import { useAuth } from '../../../../hooks/useAuth';
 import { isConsumerChampion, canDownloadSrsReport, canViewFieldVisits, canViewTelecallerReport, leadReportLabel, isManagerOrAdmin } from '../../../../lib/clientFeatures';
@@ -52,6 +52,7 @@ const REPORTS: ReportEntry[] = [
   { href: '/dashboard/crm/reports/campaign-insights', title: 'Campaign Insights', desc: 'Per-campaign roll-up: DigiGold / gold-scheme enrolment, app ratings, after-sales satisfaction, complaints, next-purchase & referral.', icon: <TrendingUp {...I} />, telecallerOnly: true },
   { href: '/dashboard/crm/reports/lead-tracker', title: 'Lead Tracker', desc: 'Monthly new-lead bar chart plus today / week / month summaries for your team.', icon: <BarChart3 {...I} />, championHidden: true },
   { href: '/dashboard/crm/reports/team-daily', title: 'Team Daily Activity', desc: 'Per-rep attendance, visits achieved vs scheduled, and leads added — for any chosen day.', icon: <CalendarDays {...I} />, championHidden: true },
+  { href: '/dashboard/crm/reports/salesperson', title: 'Salesperson Sales', desc: 'Pick a salesperson: target vs achieved, contributing customers, daily/weekly progress, 6-month history and their leads. Works even before the leaderboard has data.', icon: <UserCheck {...I} />, championHidden: true },
   { href: '/dashboard/crm/reports/rep-leaderboard', title: 'Rep Leaderboard', desc: 'Revenue, deals won, win rate and average cycle by sales rep.', icon: <Trophy {...I} />, championHidden: true },
   { href: '/dashboard/crm/reports/forecast', title: 'Forecast', desc: 'Pipeline vs committed vs closed by period.', icon: <TrendingUp {...I} />, championHidden: true },
   { href: '/dashboard/crm/reports/stage-funnel', title: 'Stage Funnel', desc: 'Deal count and drop-off rate at each pipeline stage.', icon: <Filter {...I} />, championHidden: true },
