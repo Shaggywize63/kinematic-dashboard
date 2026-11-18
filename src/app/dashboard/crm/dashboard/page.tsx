@@ -97,9 +97,10 @@ function StatTile({ label, value, hint, valueTitle, loading, tone, hintWrap, ico
   const Icon = icon ?? metricIconFor(label);
   return (
     <Card padding={16} style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
-        <Eyebrow style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</Eyebrow>
-        {Icon && <IconTile icon={Icon} tone={tone ?? 'brand'} />}
+      {/* The label wraps rather than being cut off: seven tiles share a row and the icon takes some of each. */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, minWidth: 0, minHeight: 33 }}>
+        <Eyebrow style={{ minWidth: 0, lineHeight: 1.35, overflowWrap: 'anywhere', paddingTop: 4 }}>{label}</Eyebrow>
+        {Icon && <IconTile icon={Icon} tone={tone ?? 'brand'} size={24} iconSize={13} />}
       </div>
       <div title={valueTitle} style={{
         fontFamily: T.heading, fontSize: 'clamp(20px, 2.2vw, 26px)', fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1,

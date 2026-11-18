@@ -520,6 +520,7 @@ export default function DashboardPage() {
 
       <div style={{ display:'flex', flexDirection:'column', gap:20, animation:'km-fadein .3s ease' }}>
         <PageHeader
+          icon={null /* the KINI mascot beside the greeting already marks this page */}
           eyebrow="Operational overview"
           title={
             <span style={{ display:'inline-flex', alignItems:'center', gap:12 }}>
