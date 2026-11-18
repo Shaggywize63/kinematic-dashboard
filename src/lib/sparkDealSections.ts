@@ -17,7 +17,7 @@ export const DEAL_SECTION_DEFAULT_LABEL: Record<DealSectionKey, string> = {
 export const DEAL_SECTION_HINT: Record<DealSectionKey, string> = {
   quotation: 'Quotation number and the quoted product lines.',
   pricing: 'Quoted price, discount %, the final price and its validity.',
-  product_trial: 'Whether a trial is needed, its dates, result and notes.',
+  product_trial: 'Whether a trial is needed, its dates, result, notes and sample-dispatch details (airway bill, shipment, value).',
   approvals: 'Technical approval, prepared by, checked by and supervisor.',
 };
 
@@ -96,6 +96,9 @@ export interface DealSectionValues {
   trial_end: string;
   trial_result: TrialResult;
   trial_notes: string;
+  trial_awb: string;
+  trial_shipment: string;
+  trial_value: string;
   technical_approval_by: string;
   prepared_by: string;
   checked_by: string;
@@ -105,6 +108,7 @@ export interface DealSectionValues {
 export const emptyDealSectionValues = (): DealSectionValues => ({
   quotation_no: '', pricing_quoted: '', pricing_discount_pct: '', pricing_valid_till: '',
   trial_required: false, trial_start: '', trial_end: '', trial_result: '', trial_notes: '',
+  trial_awb: '', trial_shipment: '', trial_value: '',
   technical_approval_by: '', prepared_by: '', checked_by: '', supervisor_id: '',
 });
 
@@ -125,6 +129,9 @@ export function seedDealSectionValues(deal: unknown): DealSectionValues {
     trial_end: day(d.trial_end),
     trial_result: result === 'pending' || result === 'successful' || result === 'failed' ? result : '',
     trial_notes: str(d.trial_notes),
+    trial_awb: str(d.trial_awb),
+    trial_shipment: str(d.trial_shipment),
+    trial_value: str(d.trial_value),
     technical_approval_by: str(d.technical_approval_by),
     prepared_by: str(d.prepared_by),
     checked_by: str(d.checked_by),
@@ -190,9 +197,13 @@ export function buildDealSectionPayload(v: DealSectionValues, sections: Resolved
       put('trial_end', v.trial_end);
       put('trial_result', v.trial_result);
       put('trial_notes', v.trial_notes.trim());
+      put('trial_awb', v.trial_awb.trim());
+      put('trial_shipment', v.trial_shipment.trim());
+      put('trial_value', toNum(v.trial_value));
     } else if (mode === 'patch') {
       // "No trial needed" clears the rest.
       out.trial_start = null; out.trial_end = null; out.trial_result = null; out.trial_notes = null;
+      out.trial_awb = null; out.trial_shipment = null; out.trial_value = null;
     }
   }
   if (isDealSectionOn(sections, 'approvals')) {
