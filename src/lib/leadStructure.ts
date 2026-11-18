@@ -24,6 +24,8 @@ export interface IdentitySlot {
   value: string;
   /** What to do about it, shown when the slot is empty. */
   fix: string;
+  /** Short button label for the fix, e.g. "Add plant" — `fix` is a sentence, too long for a control. */
+  cta: string;
   /** Why the chain needs it — the cost of leaving it blank. */
   why: string;
   /** Slots that are filled by the system rather than the rep. */
@@ -53,37 +55,37 @@ const clean = (s?: string | null): string => (typeof s === 'string' ? s.trim() :
 export function leadIdentitySlots(src: LeadIdentitySource): IdentitySlot[] {
   return [
     {
-      key: 'account', label: 'Account', value: clean(src.account),
+      key: 'account', label: 'Account', cta: 'Link company', value: clean(src.account),
       fix: 'Link the company this requirement belongs to',
       why: 'Without the company the lead cannot roll up to an account or its parent group.',
     },
     {
-      key: 'plant', label: 'Plant', value: clean(src.plant),
+      key: 'plant', label: 'Plant', cta: 'Add plant', value: clean(src.plant),
       fix: 'Pick which of the company’s plants this is for',
       why: 'A company has many plants — without one, two leads at different sites look identical.',
     },
     {
-      key: 'department', label: 'Department', value: clean(src.department),
+      key: 'department', label: 'Department', cta: 'Add department', value: clean(src.department),
       fix: 'Add the department (Procurement, Maintenance, Utility…)',
       why: 'The same plant runs several departments buying different things.',
     },
     {
-      key: 'contact', label: 'Contact', value: clean(src.contact),
+      key: 'contact', label: 'Contact', cta: 'Link contact', value: clean(src.contact),
       fix: 'Link the nodal person at this plant',
       why: 'No contact means no one to follow up with, and the lead cannot be handed over.',
     },
     {
-      key: 'requirement', label: 'Requirement', value: clean(src.requirement),
+      key: 'requirement', label: 'Requirement', cta: 'Add requirement', value: clean(src.requirement),
       fix: 'State what they actually need',
       why: 'The requirement is what makes the lead’s name readable and the pipeline reportable.',
     },
     {
-      key: 'serial', label: 'Serial', value: clean(src.serial), system: true,
+      key: 'serial', label: 'Serial', cta: 'Save the lead', value: clean(src.serial), system: true,
       fix: 'Allocated automatically when the lead is saved',
       why: 'The serial is the stable reference quoted on calls and documents.',
     },
     {
-      key: 'owner', label: 'Owner', value: clean(src.owner), system: true,
+      key: 'owner', label: 'Owner', cta: 'Assign owner', value: clean(src.owner), system: true,
       fix: 'Assign the lead to a rep',
       why: 'An unowned lead is nobody’s to chase.',
     },
@@ -116,6 +118,29 @@ export function structureSummary(slots: readonly IdentitySlot[]): string {
 // Accounts
 // ---------------------------------------------------------------------------
 
+/**
+ * Where a gap gets fixed. The library names the destination; the page decides how to get there,
+ * so this module stays pure and the two can't disagree about which section is which.
+ */
+export interface GapFix {
+  /** Button label, e.g. "Add a plant". */
+  label: string;
+  /** Section id on the account page to scroll to and highlight (see SECTION_IDS). */
+  anchor?: SectionId;
+  /** A named action the page performs — opening a modal, promoting the account. */
+  intent?: 'edit-account' | 'add-plant' | 'add-contact';
+  /** A link elsewhere, when the fix is not on this page. */
+  href?: string;
+}
+
+/**
+ * Anchors for the account page's sections. Every gap that points at a section uses one of these,
+ * and the page renders the matching id — so a "jump to the fix" link can never aim at a section
+ * that isn't there.
+ */
+export const SECTION_IDS = ['plants', 'leads', 'contacts', 'deals'] as const;
+export type SectionId = (typeof SECTION_IDS)[number];
+
 /** A structural problem on an account, worst first. */
 export interface AccountGap {
   key: string;
@@ -125,6 +150,8 @@ export interface AccountGap {
   detail: string;
   /** 'break' = the tree is actually broken here; 'gap' = incomplete but working. */
   severity: 'break' | 'gap';
+  /** Where to go to fix it. Every gap has one — a gap you cannot act on is just a nag. */
+  fix: GapFix;
 }
 
 export interface AccountStructureSource {
@@ -165,12 +192,14 @@ export function accountStructureGaps(src: AccountStructureSource): AccountGap[] 
     if (src.childCount === 0) {
       gaps.push({
         key: 'group-no-children', severity: 'break',
+        fix: { label: 'Find companies to link', href: '/dashboard/crm/accounts' },
         label: 'Group has no companies under it',
         detail: 'Nothing points at this group yet, so it renders as an empty branch. Set it as the parent on the operating companies that belong to it.',
       });
     } else if (src.childLeadCount === 0 && src.leadCount === 0) {
       gaps.push({
         key: 'group-no-leads', severity: 'break',
+        fix: { label: 'Open the companies', anchor: 'leads' },
         label: 'No leads anywhere under this group',
         detail: `${plural(src.childCount, 'company', 'companies')} sit under this group but not one carries a lead — the group reports as blank. A lead for this group is probably on an account that was never linked to it.`,
       });
@@ -178,6 +207,7 @@ export function accountStructureGaps(src: AccountStructureSource): AccountGap[] 
   } else if (!src.hasParent) {
     gaps.push({
       key: 'no-parent', severity: 'gap',
+      fix: { label: 'Set a parent company', intent: 'edit-account' },
       label: 'Not linked to a parent company',
       detail: 'This account stands on its own. If it is one plant of a larger group, set the group as its parent so the leads roll up.',
     });
@@ -186,6 +216,7 @@ export function accountStructureGaps(src: AccountStructureSource): AccountGap[] 
   if (!src.isGroup && src.plantCount === 0 && src.leadCount > 0) {
     gaps.push({
       key: 'no-plants', severity: 'break',
+      fix: { label: 'Add a plant', anchor: 'plants', intent: 'add-plant' },
       label: 'No plants recorded',
       detail: `${plural(src.leadCount, 'lead')} sit directly on the company with no plant layer beneath it, so the tree cannot separate one site from another.`,
     });
@@ -194,6 +225,7 @@ export function accountStructureGaps(src: AccountStructureSource): AccountGap[] 
   if (src.contactCount === 0 && (src.leadCount > 0 || src.childLeadCount > 0)) {
     gaps.push({
       key: 'no-contacts', severity: 'gap',
+      fix: { label: 'Add a person', anchor: 'contacts', intent: 'add-contact' },
       label: 'No people recorded',
       detail: 'There is no one on file at this account, so its leads have nobody to follow up with.',
     });
@@ -209,6 +241,7 @@ export function accountStructureGaps(src: AccountStructureSource): AccountGap[] 
     if (n > 0) {
       gaps.push({
         key: `leads-${phrase.replace(/\s+/g, '-')}`, severity: 'gap',
+        fix: { label: 'Open the leads', anchor: 'leads' },
         label: `${plural(n, 'lead')} ${phrase}`,
         detail: `Open each and fill it in — ${consequence}.`,
       });

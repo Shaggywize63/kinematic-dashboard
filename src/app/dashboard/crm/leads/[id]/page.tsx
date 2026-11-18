@@ -448,15 +448,20 @@ export default function LeadDetailPage() {
           (Spark & Ray) leads whether or not anything is open: a visible "Structure complete"
           is worth more than a card that silently disappears. */}
       {isStructuredLead(lead) && (
-        <LeadStructureGaps slots={leadIdentitySlots({
-          account: fields.isHidden('company') ? '' : (lead.account_name || lead.company || ''),
-          plant: lead.site_name,
-          department: lead.department,
-          contact: leadPersonName(lead),
-          requirement: lead.requirement,
-          serial: lead.ref_no,
-          owner: lead.owner_name,
-        })} />
+        <LeadStructureGaps
+          // Every open link is fixed in the lead's edit dialog, so each row opens it rather than
+          // describing the problem and leaving the rep to find the right screen.
+          onFix={() => { if (canEditLead) setEditOpen(true); else toast.error('You do not have permission to edit this lead.'); }}
+          slots={leadIdentitySlots({
+            account: fields.isHidden('company') ? '' : (lead.account_name || lead.company || ''),
+            plant: lead.site_name,
+            department: lead.department,
+            contact: leadPersonName(lead),
+            requirement: lead.requirement,
+            serial: lead.ref_no,
+            owner: lead.owner_name,
+          })}
+        />
       )}
 
       {/* Lifecycle status banner — lost_reason + disqualified_at so the rep sees the closed-out context above the fold. */}
