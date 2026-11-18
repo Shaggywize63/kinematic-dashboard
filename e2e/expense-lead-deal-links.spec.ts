@@ -331,3 +331,67 @@ for (const kind of ['lead', 'deal'] as const) {
     });
   });
 }
+
+// ── Link an existing (even approved) expense to this lead / deal ──────────────
+// The current user's own claims that are not already on this record, attached via PATCH /claims/:id/link.
+const MY_CLAIMS = [
+  { id: 'cl-A', claim_no: 'EXP-0200', title: 'Nagpur trip', status: 'approved', currency: 'INR', total_amount: 1200, lead_id: null, deal_id: null, lead_name: null, deal_name: null },
+  { id: 'cl-B', claim_no: 'EXP-0201', title: 'Old demo', status: 'reimbursed', currency: 'INR', total_amount: 800, lead_id: 'lead-7', deal_id: null, lead_name: 'Some Other Lead', deal_name: null },
+  { id: 'cl-C', claim_no: 'EXP-0202', title: 'Already here', status: 'draft', currency: 'INR', total_amount: 500, lead_id: 'lead-1', deal_id: 'deal-1', lead_name: 'Asha Rao', deal_name: 'Plugs for Q3' },
+];
+const EMPTY_EXPENSES = { currency: 'INR', totals: { claim_count: 0, spent_amount: 0, pending_amount: 0, draft_amount: 0, rejected_amount: 0 }, visit_count: 0, opportunity_value: 10000, spent_pct_of_value: 0, claims: [] };
+
+for (const kind of ['lead', 'deal'] as const) {
+  const url = kind === 'lead' ? '/dashboard/crm/leads/lead-1' : '/dashboard/crm/deals/deal-1';
+  const ready = (page: Page) => (kind === 'lead'
+    ? expect(page.getByLabel('Lead intelligence')).toBeVisible({ timeout: 30_000 })
+    : expect(page.getByText('Plugs for Q3').first()).toBeVisible({ timeout: 30_000 }));
+
+  test.describe(`${kind} page: link an existing expense`, () => {
+    async function linkSetup(page: Page) {
+      const linkBodies: Array<{ url: string; body: Record<string, unknown> }> = [];
+      await crmSetup(page, (route) => ok(route, EMPTY_EXPENSES));
+      // Layered after the shared mock, so these run first.
+      await page.route('**/api/v1/expenses/claims', (route) =>
+        route.request().method() === 'GET' ? route.fulfill({ json: { success: true, data: MY_CLAIMS } }) : route.fallback());
+      await page.route('**/api/v1/expenses/claims/*/link', (route) => {
+        linkBodies.push({ url: route.request().url(), body: route.request().postDataJSON() });
+        return route.fulfill({ json: { success: true, data: { ...claim(), [`${kind}_id`]: `${kind}-1` } } });
+      });
+      return linkBodies;
+    }
+
+    test('lists my other claims (not ones already on this record) and links the chosen one', async ({ page }) => {
+      await scopeToSpark(page);
+      const linkBodies = await linkSetup(page);
+      await page.goto(url);
+      await ready(page);
+      await expect(page.getByText('No expenses linked yet')).toBeVisible();
+
+      await page.getByRole('button', { name: 'Link an existing expense' }).click();
+      // Both unlinked / elsewhere-linked claims are offered; the one already on this record is not.
+      await expect(page.getByText('EXP-0200')).toBeVisible();
+      await expect(page.getByText('EXP-0201')).toBeVisible();
+      await expect(page.getByText('EXP-0202')).toHaveCount(0);
+      // A claim sitting on another record says so.
+      await expect(page.getByText(`on Some Other Lead`)).toHaveCount(kind === 'lead' ? 1 : 0);
+
+      await page.getByText('EXP-0200').click();
+      await expect.poll(() => linkBodies.length).toBe(1);
+      expect(linkBodies[0].url).toContain('/claims/cl-A/link');
+      expect(linkBodies[0].body).toEqual({ [`${kind}_id`]: `${kind}-1` });
+    });
+
+    test('shows a calm empty state when I have no other expenses to link', async ({ page }) => {
+      await scopeToSpark(page);
+      await crmSetup(page, (route) => ok(route, EMPTY_EXPENSES));
+      // Only a claim already on this record exists, so nothing is linkable.
+      await page.route('**/api/v1/expenses/claims', (route) =>
+        route.request().method() === 'GET' ? route.fulfill({ json: { success: true, data: [MY_CLAIMS[2]] } }) : route.fallback());
+      await page.goto(url);
+      await ready(page);
+      await page.getByRole('button', { name: 'Link an existing expense' }).click();
+      await expect(page.getByText('You have no other expenses to link.')).toBeVisible();
+    });
+  });
+}

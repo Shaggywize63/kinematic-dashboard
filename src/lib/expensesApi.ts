@@ -439,6 +439,14 @@ export const expensesApi = {
   updateClaim: (id: string, body: ClaimInput) => api.patch<Wrapped<ExpenseClaim>>(`${BASE}/claims/${id}`, body),
   submitClaim: (id: string) => api.post<Wrapped<ExpenseClaim>>(`${BASE}/claims/${id}/submit`, {}),
   cancelClaim: (id: string) => api.patch<Wrapped<{ ok: boolean }>>(`${BASE}/claims/${id}/cancel`, {}),
+  /**
+   * Attach an EXISTING claim to a CRM lead / deal (connected-B2B). Unlike updateClaim this is allowed
+   * after the claim is approved / reimbursed — it touches only the link columns — so an "old" expense can
+   * be filed against a lead after the fact. Pass a null id to clear that link; the server fills the lead
+   * from a deal and the account from a lead. No-op (returns the claim unchanged) for non-B2B clients.
+   */
+  linkClaim: (id: string, link: { lead_id?: string | null; deal_id?: string | null; account_id?: string | null }) =>
+    api.patch<Wrapped<ExpenseClaim>>(`${BASE}/claims/${id}/link`, link),
   /** Dry-run the policy against unsaved lines, so problems show before submitting. */
   checkClaim: (body: { items: ClaimItemInput[]; claim_id?: string }) => api.post<Wrapped<ClaimCheck>>(`${BASE}/claims/check`, body),
   /**

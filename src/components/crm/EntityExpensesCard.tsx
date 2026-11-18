@@ -4,14 +4,14 @@
 // Backend: GET /crm/leads/:id/expenses and /crm/deals/:id/expenses. Renders nothing, and calls nothing, for any
 // other client.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Receipt, RotateCcw } from 'lucide-react';
+import { Link2, Plus, Receipt, RotateCcw, X } from 'lucide-react';
 import { Button, Card, Eyebrow, T } from '../ui';
 import { ClaimStatusBadge, money } from '../expenses/kit';
 import { crmDeals, crmLeads } from '../../lib/crmApi';
 import { isB2bClientActive } from '../../lib/b2bClient';
-import type { ClaimStatus } from '../../lib/expensesApi';
+import expensesApi, { CLAIM_STATUS_LABEL, type ClaimStatus, type ExpenseClaim } from '../../lib/expensesApi';
 import type { EntityExpenses } from '../../types/crm';
 
 // A reply that isn't the documented shape (an older server answering with an empty list, say) is treated as a failed
@@ -33,6 +33,11 @@ export default function EntityExpensesCard({ kind, id }: { kind: 'lead' | 'deal'
   const b2b = isB2bClientActive();
   const [data, setData] = useState<EntityExpenses | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  // "Link an existing expense" picker: the current user's own claims not already on this record.
+  const [picking, setPicking] = useState(false);
+  const [candidates, setCandidates] = useState<ExpenseClaim[] | null>(null);
+  const [pickState, setPickState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [linkingId, setLinkingId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setState('loading');
@@ -40,6 +45,29 @@ export default function EntityExpensesCard({ kind, id }: { kind: 'lead' | 'deal'
       .then((r) => { if (usable(r.data)) { setData(r.data); setState('ready'); } else setState('error'); })
       .catch(() => setState('error'));
   }, [kind, id]);
+
+  const fetchCandidates = useCallback(() => {
+    setPickState('loading');
+    expensesApi.listClaims()
+      .then((r) => { setCandidates(Array.isArray(r.data) ? r.data : []); setPickState('idle'); })
+      .catch(() => setPickState('error'));
+  }, []);
+
+  const openPicker = useCallback(() => { setPicking(true); if (candidates === null) fetchCandidates(); }, [candidates, fetchCandidates]);
+
+  const linkClaim = useCallback((claimId: string) => {
+    setLinkingId(claimId);
+    expensesApi.linkClaim(claimId, kind === 'lead' ? { lead_id: id } : { deal_id: id })
+      .then(() => { setPicking(false); setCandidates(null); return load(); })
+      .catch(() => setPickState('error'))
+      .finally(() => setLinkingId(null));
+  }, [kind, id, load]);
+
+  // The user's own claims that aren't already on this exact record (newest first, as the API returns them).
+  const linkable = useMemo(
+    () => (candidates ?? []).filter((c) => (kind === 'lead' ? c.lead_id !== id : c.deal_id !== id)),
+    [candidates, kind, id],
+  );
 
   useEffect(() => {
     if (!b2b || !id) return;
@@ -129,10 +157,72 @@ export default function EntityExpensesCard({ kind, id }: { kind: 'lead' | 'deal'
     );
   };
 
+  const linkUI = () => {
+    if (!picking) {
+      return (
+        <Button size="sm" variant="ghost" onClick={openPicker} icon={<Plus size={14} strokeWidth={2} />} style={{ marginTop: 14 }}>
+          Link an existing expense
+        </Button>
+      );
+    }
+    return (
+      <div style={{ marginTop: 14, borderTop: `1px solid ${T.border}`, paddingTop: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+          <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Link2 aria-hidden size={13} strokeWidth={2} />Link an existing expense</Eyebrow>
+          <Button size="sm" variant="ghost" onClick={() => setPicking(false)} icon={<X size={14} strokeWidth={1.8} />} aria-label="Close">Close</Button>
+        </div>
+        {pickState === 'loading' && <div style={{ fontSize: 13, color: T.mute }}>Loading your expenses…</div>}
+        {pickState === 'error' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13, color: T.dim }}>
+            <span>Couldn’t load your expenses</span>
+            <Button size="sm" variant="ghost" onClick={fetchCandidates} icon={<RotateCcw size={14} strokeWidth={1.8} />}>Try again</Button>
+          </div>
+        )}
+        {pickState === 'idle' && linkable.length === 0 && (
+          <div style={{ fontSize: 13, color: T.mute }}>
+            You have no other expenses to link. Create one from the Expenses page, choosing this {kind} as what it was spent on.
+          </div>
+        )}
+        {pickState === 'idle' && linkable.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 320, overflowY: 'auto' }}>
+            {linkable.map((c) => {
+              const otherLink = kind === 'lead' ? c.lead_name : c.deal_name; // where it currently sits, if anywhere
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => linkClaim(c.id)}
+                  disabled={linkingId != null}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+                    padding: '9px 0', background: 'none', border: 'none', borderTop: `1px solid ${T.border}`,
+                    textAlign: 'left', cursor: linkingId != null ? 'default' : 'pointer', opacity: linkingId != null && linkingId !== c.id ? 0.5 : 1, width: '100%',
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: '1 1 150px' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflowWrap: 'anywhere' }}>{c.claim_no || c.title || 'Expense claim'}</div>
+                    <div style={{ fontSize: 12, color: T.mute, overflowWrap: 'anywhere' }}>
+                      {[CLAIM_STATUS_LABEL[c.status], otherLink ? `on ${otherLink}` : null].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{money(c.total_amount, c.currency)}</div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {linkingId === c.id ? 'Linking…' : (<><Link2 size={13} strokeWidth={2} />Link</>)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <Card padding={18} style={{ minWidth: 0 }}>
       <Eyebrow style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><Receipt aria-hidden size={13} strokeWidth={2} />Expenses</Eyebrow>
       {body()}
+      {state !== 'loading' && linkUI()}
     </Card>
   );
 }
