@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import api from '../../lib/api';
 
 /**
@@ -8,8 +8,15 @@ import api from '../../lib/api';
  * Who gets this client's important updates on WhatsApp (up to 10 people), which updates, and the approved WhatsApp
  * template they go out with (GET/PUT /api/v1/clients/:id/whatsapp-alerts; POST …/test sends a test). Off by default.
  * Messages go out from the client's own WhatsApp number (CRM Settings → WhatsApp), and an update must also be on under
- * Notifications above to be sent. Own Save button, like the Notifications panel.
+ * Notifications above to be sent. Own Save button, like the Notifications panel; the client form's main Save also calls
+ * saveIfDirty() through a ref, so changes made here are never lost to the wrong button.
  */
+
+/** What the client form can ask of this panel. */
+export type WhatsappAlertsHandle = {
+  /** Save unsaved changes (a typed-but-not-added person included). True when there was nothing to save or it saved. */
+  saveIfDirty: () => Promise<boolean>;
+};
 
 type Recipient = { name: string; phone: string };
 type Template = { id: string; name: string; language: string; category: string; status: string; body: string; placeholders: number };
@@ -50,7 +57,7 @@ const toForm = (v: View): Form => ({
 const sig = (f: Form) => JSON.stringify({ ...f, kinds: [...f.kinds].sort() });
 const errText = (e: any, fallback: string) => e?.response?.data?.error?.message || e?.response?.data?.error || e?.message || fallback;
 
-export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: string }) {
+const ClientWhatsappAlertsPanel = forwardRef<WhatsappAlertsHandle, { clientId: string }>(function ClientWhatsappAlertsPanel({ clientId }, ref) {
   const [view, setView] = useState<View | null>(null);
   const [form, setForm] = useState<Form>({ enabled: false, template_id: '', recipients: [], kinds: [], daily_summary: false });
   const [saved, setSaved] = useState('');
@@ -84,7 +91,11 @@ export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: stri
     return () => { alive = false; };
   }, [clientId, apply]);
 
-  const dirty = useMemo(() => sig(form) !== saved, [form, saved]);
+  // A number typed into the "add person" box counts as a change: people forget to press Add person.
+  const withPending = useCallback((f: Form): Form => (newPhone.trim()
+    ? { ...f, recipients: [...f.recipients, { name: newName.trim(), phone: newPhone.trim() }] }
+    : f), [newName, newPhone]);
+  const dirty = useMemo(() => sig(withPending(form)) !== saved, [form, saved, withPending]);
   const catalog = view?.catalog ?? [];
   const template = view?.templates.find(t => t.id === form.template_id) ?? null;
   const offInApp = catalog.filter(c => form.kinds.includes(c.kind) && !c.in_app_enabled);
@@ -103,25 +114,33 @@ export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: stri
   };
   const removePerson = (i: number) => setForm(f => ({ ...f, recipients: f.recipients.filter((_, j) => j !== i) }));
 
-  const save = async () => {
+  const save = async (): Promise<boolean> => {
+    const f = withPending(form);
     setSaving(true); setErr(''); setNote('');
     try {
       const r = await api.put(`/api/v1/clients/${clientId}/whatsapp-alerts`, {
-        enabled: form.enabled,
-        template_id: form.template_id || null,
-        recipients: form.recipients,
-        kinds: form.kinds,
-        daily_summary: form.daily_summary,
+        enabled: f.enabled,
+        template_id: f.template_id || null,
+        recipients: f.recipients,
+        kinds: f.kinds,
+        daily_summary: f.daily_summary,
       });
       const v = unwrap<View>(r);
       if (!v || !Array.isArray(v.catalog)) throw new Error('Unexpected response while saving WhatsApp alert settings.');
       apply(v);
+      setNewName(''); setNewPhone('');
       setNote(!v.enabled ? 'Saved. WhatsApp alerts are off for this client.'
         : v.daily_summary ? 'Saved. Alerts start within a minute; the summary goes out at 7 pm.' : 'Saved. Alerts start within a minute.');
+      return true;
     } catch (e: any) {
       setErr(errText(e, 'Could not save WhatsApp alert settings'));
+      return false;
     } finally { setSaving(false); }
   };
+
+  useImperativeHandle(ref, () => ({
+    saveIfDirty: async () => (loading || !view || !dirty ? true : save()),
+  }));
 
   const sendTest = async (type?: 'daily_summary') => {
     setTesting(true); setErr(''); setNote('');
@@ -287,7 +306,7 @@ export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: stri
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <button
-          type="button" onClick={save} disabled={!dirty || saving}
+          type="button" onClick={() => { void save(); }} disabled={!dirty || saving}
           style={{ padding: '9px 16px', border: 'none', borderRadius: 10, background: dirty ? '#3E9EFF' : 'var(--s4)', color: dirty ? '#fff' : 'var(--textTert)', fontSize: 12.5, fontWeight: 700, cursor: dirty && !saving ? 'pointer' : 'default', opacity: saving ? 0.7 : 1 }}
         >
           {saving ? 'Saving…' : 'Save WhatsApp alerts'}
@@ -314,4 +333,6 @@ export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: stri
       </div>
     </div>
   );
-}
+});
+
+export default ClientWhatsappAlertsPanel;
