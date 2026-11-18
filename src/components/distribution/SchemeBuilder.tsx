@@ -22,6 +22,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../lib/api';
 import { inr } from './Atoms';
+import { Check, Gift, Plus, Trash2, Users, X } from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 
 export const SCHEME_TYPES = ['QPS', 'SLAB_DISCOUNT', 'BXGY', 'VALUE_DISCOUNT'] as const;
 export type SchemeType = (typeof SCHEME_TYPES)[number];
@@ -240,13 +242,13 @@ function MultiPicker({ options, values, onChange, placeholder }: { options: Arra
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
           {values.map((id) => (
             <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--s3, var(--s2))', border: '1px solid var(--border)', borderRadius: 999, padding: '3px 10px', fontSize: 12, color: 'var(--text)' }}>
-              {labelOf(id)}<span onClick={() => toggle(id)} style={{ cursor: 'pointer', color: 'var(--text-dim)' }}>✕</span>
+              {labelOf(id)}<span onClick={() => toggle(id)} style={{ cursor: 'pointer', color: 'var(--text-dim)', display: 'inline-flex' }}><InlineIcon icon={X} size={12} /></span>
             </span>
           ))}
         </div>
       )}
       <div style={{ position: 'relative' }}>
-        <button type="button" onClick={() => setOpen((o) => !o)} style={{ ...inputStyle, textAlign: 'left', cursor: 'pointer', color: 'var(--text-dim)' }}>{placeholder}</button>
+        <button type="button" onClick={() => setOpen((o) => !o)} style={{ ...inputStyle, textAlign: 'left', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} size={14} />{placeholder}</button>
         {open && (
           <div style={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--s3, var(--s2))', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 260, overflow: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" style={{ ...inputStyle, borderRadius: 0, borderWidth: '0 0 1px 0', position: 'sticky', top: 0 }} />
@@ -280,7 +282,7 @@ function ClassChips({ values, onChange }: { values: string[]; onChange: (v: stri
   );
 }
 
-const rowBtn: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-dim)', cursor: 'pointer', padding: '6px 10px', fontSize: 12 };
+const rowBtn: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-dim)', cursor: 'pointer', padding: '6px 10px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 };
 
 // ── The builder ──────────────────────────────────────────────────────────────
 export default function SchemeBuilder({ initial, onCancel, onSaved }: { initial?: BuilderState; onCancel: () => void; onSaved: () => void }) {
@@ -344,7 +346,7 @@ export default function SchemeBuilder({ initial, onCancel, onSaved }: { initial?
 
       {/* Rules — type specific */}
       <section style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text)' }}>What the offer gives</div>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Gift} size={16} style={{ color: 'var(--dim)' }} />What the offer gives</div>
 
         {s.type === 'QPS' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -357,18 +359,18 @@ export default function SchemeBuilder({ initial, onCancel, onSaved }: { initial?
                     <TextInput value={row.min_qty} onChange={(v) => set('qps_slabs', s.qps_slabs.map((x, j) => j === i ? { ...x, min_qty: v.replace(/[^0-9]/g, '') } : x))} placeholder="Buy qty" />
                     <TextInput value={row.free_qty} onChange={(v) => set('qps_slabs', s.qps_slabs.map((x, j) => j === i ? { ...x, free_qty: v.replace(/[^0-9]/g, '') } : x))} placeholder="Free qty" />
                     <SkuPicker skus={skus} value={row.free_sku_id} onChange={(v) => set('qps_slabs', s.qps_slabs.map((x, j) => j === i ? { ...x, free_sku_id: v } : x))} placeholder="Free SKU (same as bought if blank)" />
-                    <button type="button" style={rowBtn} onClick={() => set('qps_slabs', s.qps_slabs.filter((_, j) => j !== i))}>Remove</button>
+                    <button type="button" style={rowBtn} onClick={() => set('qps_slabs', s.qps_slabs.filter((_, j) => j !== i))}><InlineIcon icon={Trash2} size={14} />Remove</button>
                   </div>
                 ))}
               </div>
-              <button type="button" style={{ ...rowBtn, marginTop: 8 }} onClick={() => set('qps_slabs', [...s.qps_slabs, { min_qty: '', free_qty: '', free_sku_id: '' }])}>+ Add slab</button>
+              <button type="button" style={{ ...rowBtn, marginTop: 8 }} onClick={() => set('qps_slabs', [...s.qps_slabs, { min_qty: '', free_qty: '', free_sku_id: '' }])}><InlineIcon icon={Plus} size={14} />Add slab</button>
             </div>
           </div>
         )}
 
         {s.type === 'SLAB_DISCOUNT' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Labeled label="Applies to (leave empty for every item in the cart)"><MultiPicker options={skuOpts} values={s.slab_skus} onChange={(v) => set('slab_skus', v)} placeholder="+ Pick specific SKUs" /></Labeled>
+            <Labeled label="Applies to (leave empty for every item in the cart)"><MultiPicker options={skuOpts} values={s.slab_skus} onChange={(v) => set('slab_skus', v)} placeholder="Pick specific SKUs" /></Labeled>
             <div>
               <div style={labelStyle}>Slabs — minimum quantity → discount %</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -376,11 +378,11 @@ export default function SchemeBuilder({ initial, onCancel, onSaved }: { initial?
                   <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center' }}>
                     <TextInput value={row.min_qty} onChange={(v) => set('slab_slabs', s.slab_slabs.map((x, j) => j === i ? { ...x, min_qty: v.replace(/[^0-9]/g, '') } : x))} placeholder="Min qty" />
                     <TextInput value={row.percent} onChange={(v) => set('slab_slabs', s.slab_slabs.map((x, j) => j === i ? { ...x, percent: v.replace(/[^0-9.]/g, '') } : x))} placeholder="Discount %" />
-                    <button type="button" style={rowBtn} onClick={() => set('slab_slabs', s.slab_slabs.filter((_, j) => j !== i))}>Remove</button>
+                    <button type="button" style={rowBtn} onClick={() => set('slab_slabs', s.slab_slabs.filter((_, j) => j !== i))}><InlineIcon icon={Trash2} size={14} />Remove</button>
                   </div>
                 ))}
               </div>
-              <button type="button" style={{ ...rowBtn, marginTop: 8 }} onClick={() => set('slab_slabs', [...s.slab_slabs, { min_qty: '', percent: '' }])}>+ Add slab</button>
+              <button type="button" style={{ ...rowBtn, marginTop: 8 }} onClick={() => set('slab_slabs', [...s.slab_slabs, { min_qty: '', percent: '' }])}><InlineIcon icon={Plus} size={14} />Add slab</button>
             </div>
           </div>
         )}
@@ -415,18 +417,18 @@ export default function SchemeBuilder({ initial, onCancel, onSaved }: { initial?
 
       {/* Targeting */}
       <section style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, color: 'var(--text)' }}>Who gets it</div>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Users} size={16} style={{ color: 'var(--dim)' }} />Who gets it</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>Leave both empty to apply to every outlet and customer type.</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Labeled label="Customer types"><ClassChips values={s.customer_classes} onChange={(v) => set('customer_classes', v)} /></Labeled>
-          <Labeled label="Specific outlets (optional)"><MultiPicker options={outletOpts} values={s.outlet_ids} onChange={(v) => set('outlet_ids', v)} placeholder="+ Pick specific outlets" /></Labeled>
+          <Labeled label="Specific outlets (optional)"><MultiPicker options={outletOpts} values={s.outlet_ids} onChange={(v) => set('outlet_ids', v)} placeholder="Pick specific outlets" /></Labeled>
         </div>
       </section>
 
       {err && <div style={{ color: 'var(--primary)', fontSize: 13 }}>{err}</div>}
       <div style={{ display: 'flex', gap: 10, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-        <button type="button" onClick={submit} disabled={busy} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1 }}>
-          {busy ? 'Saving…' : 'Save scheme'}
+        <button type="button" onClick={submit} disabled={busy} style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <InlineIcon icon={Check} />{busy ? 'Saving…' : 'Save scheme'}
         </button>
         <button type="button" onClick={onCancel} style={{ background: 'transparent', color: 'var(--text-dim)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 20px', fontSize: 14, cursor: 'pointer' }}>Cancel</button>
       </div>

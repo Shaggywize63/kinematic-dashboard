@@ -4,6 +4,8 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { CheckCircle2 } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 // Type-aware column sorting for the price-list table (raw values per key).
 const priceListVal = (pl: any, key: string): unknown => {
@@ -46,7 +48,7 @@ export default function PriceListsPage() {
 
   return (
     <div>
-      <PageHeader title="Price Lists" subtitle="Versioned by customer class + region" right={<Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : '+ New Version'}</Btn>} />
+      <PageHeader title="Price Lists" subtitle="Versioned by customer class + region" right={<Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : 'New Version'}</Btn>} />
 
       {showForm && (
         <Card style={{ marginBottom: 22 }}>
@@ -83,7 +85,7 @@ export default function PriceListsPage() {
                   <Td>{fmtDate(pl.valid_from)}</Td>
                   <Td><Pill color={pl.is_active ? 'green' : 'gray'}>{pl.is_active ? 'active' : 'draft'}</Pill></Td>
                   <Td>{pl.item_count ?? '—'}</Td>
-                  <Td>{!pl.is_active && <Btn variant="ghost" onClick={() => activate(pl.id)}>Activate</Btn>}</Td>
+                  <Td>{!pl.is_active && <Btn variant="ghost" onClick={() => activate(pl.id)} icon={<InlineIcon icon={CheckCircle2} />}>Activate</Btn>}</Td>
                 </tr>
               ))}
           </tbody>

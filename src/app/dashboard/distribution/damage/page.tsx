@@ -4,6 +4,8 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, fmtDate, inr } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { CheckCircle2, ClipboardList, Hash, PackageX, Plus, XCircle } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 const REASONS = ['damaged', 'expired', 'near_expiry', 'breakage', 'other'];
 const STATUSES = ['logged', 'confirmed', 'claimed', 'written_off', 'rejected'];
@@ -130,8 +132,8 @@ export default function DamageRegisterPage() {
 
       {/* Totals */}
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
-        <StatCard label="Entries" value={rows.length} />
-        <StatCard label="Total qty" value={totalQty.toLocaleString('en-IN')} />
+        <StatCard label="Entries" icon={ClipboardList} value={rows.length} />
+        <StatCard label="Total qty" icon={Hash} value={totalQty.toLocaleString('en-IN')} />
         <StatCard label="Est. value" value={inr(totalValue)} accent="var(--primary)" />
         <StatCard label="Awaiting confirm" value={openCount} accent={openCount ? 'var(--accent)' : undefined} />
       </div>
@@ -203,7 +205,7 @@ export default function DamageRegisterPage() {
 
       {/* Log form */}
       <Card style={{ marginTop: 22 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Log a damaged / expired entry</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={PackageX} size={16} style={{ color: 'var(--dim)' }} />Log a damaged / expired entry</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, alignItems: 'end' }}>
           <div><div style={labelStyle}>Distributor *</div>
             <select value={form.distributor_id} onChange={(e) => setForm({ ...form, distributor_id: e.target.value })} style={inputStyle}>
@@ -224,8 +226,8 @@ export default function DamageRegisterPage() {
           <div><div style={labelStyle}>Unit value (₹)</div><input value={form.unit_value} placeholder="Optional" onChange={(e) => setForm({ ...form, unit_value: e.target.value })} style={inputStyle} /></div>
           <div style={{ gridColumn: 'span 4' }}><div style={labelStyle}>Note</div><input value={form.note} placeholder="Optional — GRN, batch details, etc." onChange={(e) => setForm({ ...form, note: e.target.value })} style={inputStyle} /></div>
         </div>
-        {msg && <div style={{ marginTop: 10, fontSize: 12, color: msg.kind === 'ok' ? 'var(--green)' : 'var(--primary)' }}>{msg.kind === 'ok' ? '✓ ' : '✗ '}{msg.text}</div>}
-        <div style={{ marginTop: 14 }}><Btn disabled={saving} onClick={submit}>{saving ? 'Logging…' : 'Log entry'}</Btn></div>
+        {msg && <div style={{ marginTop: 10, fontSize: 12, color: msg.kind === 'ok' ? 'var(--green)' : 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={msg.kind === 'ok' ? CheckCircle2 : XCircle} size={14} />{msg.text}</div>}
+        <div style={{ marginTop: 14 }}><Btn disabled={saving} onClick={submit} icon={<InlineIcon icon={Plus} />}>{saving ? 'Logging…' : 'Log entry'}</Btn></div>
       </Card>
     </div>
   );

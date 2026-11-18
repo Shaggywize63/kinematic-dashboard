@@ -4,6 +4,11 @@ import type React from 'react';
 import { toast } from 'sonner';
 import api, { API_BASE_URL } from '../../../../lib/api';
 import { Modal, input, primaryBtn, ghostBtn, miniBtn, codeStyle, th, td } from './ui';
+import {
+  AlertTriangle, Building2, Check, CheckCircle2, Copy, EyeOff, Inbox, KeyRound, ListChecks, Package, Plug, Plus, RefreshCw,
+  Send, Settings2, ShoppingCart, Upload, XCircle,
+} from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 const BASE = '/api/v1/distribution/integrations';
 
@@ -38,7 +43,11 @@ const AUTO_OPTIONS: Array<{ key: AutoKey; label: string; help: string }> = [
   { key: 'auto_create_stock_items', label: 'Create new products in Tally', help: 'A product added in Kinematic becomes a stock item. Existing products are not pushed.' },
 ];
 
-const ICON = { ok: '✅', warn: '⚠️', fail: '❌' } as const;
+const ICON = {
+  ok: { icon: CheckCircle2, color: 'var(--ok)' },
+  warn: { icon: AlertTriangle, color: 'var(--warn)' },
+  fail: { icon: XCircle, color: 'var(--red)' },
+} as const;
 const DOWNLOAD_URL = `${API_BASE_URL}/api/v1/integrations/tally/agent/download`;
 
 // ── Pairing ─────────────────────────────────────────────────────────────────
@@ -78,13 +87,13 @@ export function PairingPanel({ integrationId, autoGenerate }: { integrationId: s
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <input readOnly value={cmd} style={{ ...input, fontFamily: 'monospace', fontSize: 12 }} />
-            <button style={ghostBtn} onClick={() => navigator.clipboard.writeText(cmd).then(() => toast.success('Command copied'), () => toast.error('Copy failed'))}>Copy</button>
+            <button style={{ ...ghostBtn, ...iconBtn }} onClick={() => navigator.clipboard.writeText(cmd).then(() => toast.success('Command copied'), () => toast.error('Copy failed'))}><InlineIcon icon={Copy} size={14} />Copy</button>
           </div>
         </>
       ) : (
-        <div><button onClick={generate} disabled={busy} style={primaryBtn}>{busy ? 'Generating…' : 'Generate pairing code'}</button></div>
+        <div><button onClick={generate} disabled={busy} style={{ ...primaryBtn, ...iconBtn }}><InlineIcon icon={KeyRound} size={14} />{busy ? 'Generating…' : 'Generate pairing code'}</button></div>
       )}
-      {code && <div><button onClick={generate} disabled={busy} style={miniBtn}>New code</button></div>}
+      {code && <div><button onClick={generate} disabled={busy} style={{ ...miniBtn, ...iconBtn, gap: 4 }}><InlineIcon icon={RefreshCw} size={12} />New code</button></div>}
     </div>
   );
 }
@@ -146,24 +155,25 @@ export function SetupModal({ integration, onClose, onChanged }: { integration: T
   const syncing = !!health?.master_sync_pending;
 
   return (
-    <Modal onClose={onClose} title={`Set up & sync — ${integration.label}`} subtitle="This page updates by itself. Fix anything marked ❌, then pull your products and dealers from Tally.">
+    <Modal onClose={onClose} title={`Set up & sync — ${integration.label}`} icon={Settings2}
+      subtitle={<>This page updates by itself. Fix anything marked <InlineIcon icon={XCircle} size={12} style={{ color: 'var(--red)', verticalAlign: '-2px' }} />, then pull your products and dealers from Tally.</>}>
       {!health ? (
         <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-dim)' }}>Checking…</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <section>
-            <div style={sectionTitle}>Readiness {health.ready ? '— all set ✅' : ''}</div>
+            <div style={sectionTitle}><InlineIcon icon={ListChecks} size={13} />Readiness {health.ready ? '— all set' : ''}{health.ready && <InlineIcon icon={CheckCircle2} size={13} style={{ color: 'var(--ok)' }} />}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {health.checks.map(c => (
                 <div key={c.key} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text)' }}>
-                  <span>{ICON[c.status]}</span>
+                  <InlineIcon icon={ICON[c.status].icon} size={15} style={{ color: ICON[c.status].color, marginTop: 1 }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600 }}>{c.label}</div>
                     {c.detail && <div style={{ color: 'var(--text-dim)', marginTop: 2 }}>{c.detail}</div>}
                     {c.fix === 'create_ledgers' && (
-                      <button style={{ ...miniBtn, marginTop: 6 }} disabled={busy === 'ledgers'}
+                      <button style={{ ...miniBtn, ...iconBtn, gap: 4, marginTop: 6 }} disabled={busy === 'ledgers'}
                         onClick={() => act('ledgers', () => api.post(`${BASE}/${integration.id}/create-ledgers`, {}), 'Ledgers queued — they appear in Tally within ~30 seconds')}>
-                        {busy === 'ledgers' ? 'Queuing…' : 'Create missing ledgers in Tally'}
+                        <InlineIcon icon={Plus} size={12} />{busy === 'ledgers' ? 'Queuing…' : 'Create missing ledgers in Tally'}
                       </button>
                     )}
                   </div>
@@ -184,23 +194,23 @@ export function SetupModal({ integration, onClose, onChanged }: { integration: T
 
           {companyCheck && companyCheck.status === 'fail' && (health.profile?.companies?.length ?? 0) > 0 && (
             <section>
-              <div style={sectionTitle}>Which Tally company?</div>
+              <div style={sectionTitle}><InlineIcon icon={Building2} size={13} />Which Tally company?</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <select value={company} onChange={e => setCompany(e.target.value)} style={input}>
                   <option value="">Choose the company open in Tally…</option>
                   {health.profile!.companies.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <button style={primaryBtn} disabled={!company || busy === 'company'} onClick={saveCompany}>Save</button>
+                <button style={{ ...primaryBtn, ...iconBtn }} disabled={!company || busy === 'company'} onClick={saveCompany}><InlineIcon icon={Check} size={14} />Save</button>
               </div>
             </section>
           )}
 
           <section>
-            <div style={sectionTitle}>Products & dealers from Tally</div>
+            <div style={sectionTitle}><InlineIcon icon={Package} size={13} />Products & dealers from Tally</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {([['stock_item', 'Products'], ['party', 'Dealers / parties']] as const).map(([k, label]) => (
                 <div key={k} style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700 }}>{label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={k === 'party' ? Building2 : Package} size={13} />{label}</div>
                   <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{total(k)}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                     {n(k, 'matched')} matched · {n(k, 'imported')} imported · <strong style={{ color: n(k, 'new') ? 'rgb(251, 146, 60)' : 'inherit' }}>{n(k, 'new')} to review</strong>
@@ -209,11 +219,11 @@ export function SetupModal({ integration, onClose, onChanged }: { integration: T
               ))}
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button style={primaryBtn} disabled={!health.ready || syncing || busy === 'pull'}
+              <button style={{ ...primaryBtn, ...iconBtn }} disabled={!health.ready || syncing || busy === 'pull'}
                 onClick={() => act('pull', () => api.post(`${BASE}/${integration.id}/pull-masters`, {}), 'Pull requested — usually done within a minute')}>
-                {syncing ? 'Pulling from Tally…' : 'Pull from Tally'}
+                <InlineIcon icon={RefreshCw} size={14} />{syncing ? 'Pulling from Tally…' : 'Pull from Tally'}
               </button>
-              <button style={ghostBtn} disabled={total('stock_item') + total('party') === 0} onClick={() => setReviewing(true)}>Review & import</button>
+              <button style={{ ...ghostBtn, ...iconBtn }} disabled={total('stock_item') + total('party') === 0} onClick={() => setReviewing(true)}><InlineIcon icon={ListChecks} size={14} />Review & import</button>
               <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                 {health.last_master_sync_at ? `Last pulled ${new Date(health.last_master_sync_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}` : 'Not pulled yet'}
                 {!health.ready && ' · fix the checklist first'}
@@ -225,21 +235,21 @@ export function SetupModal({ integration, onClose, onChanged }: { integration: T
           </section>
 
           <section>
-            <div style={sectionTitle}>Order status from Tally</div>
+            <div style={sectionTitle}><InlineIcon icon={ShoppingCart} size={13} />Order status from Tally</div>
             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
               Fetch the Tally state of the orders &amp; invoices you&apos;ve sent (present or cancelled in Tally) and show it on each order — the fetch-back half of two-way order sync.
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button style={primaryBtn} disabled={!health.last_seen_at || busy === 'vouchers'}
+              <button style={{ ...primaryBtn, ...iconBtn }} disabled={!health.last_seen_at || busy === 'vouchers'}
                 onClick={() => act('vouchers', () => api.post(`${BASE}/${integration.id}/pull-vouchers`, {}), 'Status pull requested — orders update within a minute')}>
-                {busy === 'vouchers' ? 'Pulling status…' : 'Pull order status from Tally'}
+                <InlineIcon icon={RefreshCw} size={14} />{busy === 'vouchers' ? 'Pulling status…' : 'Pull order status from Tally'}
               </button>
               {!health.last_seen_at && <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Connect a Tally PC first</span>}
             </div>
           </section>
 
           <section>
-            <div style={sectionTitle}>Automatic sending (all off by default)</div>
+            <div style={sectionTitle}><InlineIcon icon={Send} size={13} />Automatic sending (all off by default)</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {AUTO_OPTIONS.map(o => (
                 <label key={o.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 12, color: 'var(--text)', cursor: health.ready ? 'pointer' : 'not-allowed', opacity: health.ready ? 1 : 0.6 }}>
@@ -255,7 +265,7 @@ export function SetupModal({ integration, onClose, onChanged }: { integration: T
           </section>
 
           <section>
-            <button style={miniBtn} onClick={() => setShowPair(s => !s)}>{showPair || agentFailing ? 'Hide' : 'Connect / re-connect a Tally PC'}</button>
+            <button style={{ ...miniBtn, ...iconBtn, gap: 4 }} onClick={() => setShowPair(s => !s)}>{!(showPair || agentFailing) && <InlineIcon icon={Plug} size={12} />}{showPair || agentFailing ? 'Hide' : 'Connect / re-connect a Tally PC'}</button>
             {(showPair || agentFailing) && <div style={{ marginTop: 12 }}><PairingPanel integrationId={integration.id} autoGenerate={agentFailing && !health.last_seen_at} /></div>}
           </section>
         </div>
@@ -306,10 +316,10 @@ function MastersModal({ integrationId, onClose }: { integrationId: string; onClo
   const canAct = status === 'new' || status === 'ignored';
 
   return (
-    <Modal onClose={onClose} title="Review Tally data" subtitle="Import creates the product / dealer in Kinematic and links it to its Tally record, so vouchers use the exact Tally name.">
+    <Modal onClose={onClose} title="Review Tally data" subtitle="Import creates the product / dealer in Kinematic and links it to its Tally record, so vouchers use the exact Tally name." icon={ListChecks}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         {([['stock_item', 'Products'], ['party', 'Dealers']] as const).map(([k, l]) => (
-          <button key={k} onClick={() => setKind(k)} style={k === kind ? primaryBtn : ghostBtn}>{l}</button>
+          <button key={k} onClick={() => setKind(k)} style={{ ...(k === kind ? primaryBtn : ghostBtn), ...iconBtn }}><InlineIcon icon={k === 'party' ? Building2 : Package} size={14} />{l}</button>
         ))}
         <select value={status} onChange={e => setStatus(e.target.value as typeof status)} style={{ ...input, width: 'auto' }}>
           <option value="new">To review</option><option value="matched">Matched</option>
@@ -318,7 +328,7 @@ function MastersModal({ integrationId, onClose }: { integrationId: string; onClo
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name…" style={{ ...input, flex: 1, minWidth: 140 }} />
       </div>
       {loading ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-dim)' }}>Loading…</div>
-        : items.length === 0 ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-dim)' }}>Nothing here.</div>
+        : items.length === 0 ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}><IconTile icon={Inbox} size={40} iconSize={20} />Nothing here.</div>
         : (
           <div style={{ maxHeight: '50vh', overflow: 'auto' }}>
             <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
@@ -346,10 +356,10 @@ function MastersModal({ integrationId, onClose }: { integrationId: string; onClo
         )}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14, flexWrap: 'wrap' }}>
         {canAct && <>
-          <button style={ghostBtn} disabled={working || sel.size === 0} onClick={() => run('ignore', { ids: [...sel] })}>Ignore selected</button>
-          <button style={primaryBtn} disabled={working || sel.size === 0} onClick={() => run('import', { ids: [...sel] })}>Import selected ({sel.size})</button>
-          {status === 'new' && <button style={primaryBtn} disabled={working || total === 0}
-            onClick={() => { if (confirm(`Create all ${total} unmatched ${kind === 'party' ? 'dealers' : 'products'} in Kinematic?`)) run('import', { all_new: true }); }}>Import all new ({total})</button>}
+          <button style={{ ...ghostBtn, ...iconBtn }} disabled={working || sel.size === 0} onClick={() => run('ignore', { ids: [...sel] })}><InlineIcon icon={EyeOff} size={14} />Ignore selected</button>
+          <button style={{ ...primaryBtn, ...iconBtn }} disabled={working || sel.size === 0} onClick={() => run('import', { ids: [...sel] })}><InlineIcon icon={Upload} size={14} />Import selected ({sel.size})</button>
+          {status === 'new' && <button style={{ ...primaryBtn, ...iconBtn }} disabled={working || total === 0}
+            onClick={() => { if (confirm(`Create all ${total} unmatched ${kind === 'party' ? 'dealers' : 'products'} in Kinematic?`)) run('import', { all_new: true }); }}><InlineIcon icon={Upload} size={14} />Import all new ({total})</button>}
         </>}
         <button style={ghostBtn} onClick={onClose}>Done</button>
       </div>
@@ -357,5 +367,7 @@ function MastersModal({ integrationId, onClose }: { integrationId: string; onClo
   );
 }
 
-const sectionTitle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 };
+const sectionTitle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 };
+/** Hand-styled buttons that lead with an icon. */
+const iconBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6 };
 const errBox: React.CSSProperties = { marginTop: 8, fontSize: 11, color: 'rgb(239, 68, 68)', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 6, padding: '6px 8px' };

@@ -4,6 +4,8 @@ import api from '../../../../lib/api';
 import { usePagination } from '../../../../components/shared/Pagination';
 import ClientSelect from '../../../../components/ClientSelect';
 import { useAuth } from '../../../../hooks/useAuth';
+import { Activity, Boxes, Check, Hash, Plus, Search, Tags } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 const C = {
   bg: 'var(--bg)', 
@@ -116,9 +118,12 @@ export default function AssetManagement() {
 
       {/* Stats */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}}>
-        {[{l:'Total Asset Types',v:assets.length,c:C.teal},{l:'Active',v:active,c:C.green},{l:'Total Quantity',v:totalQty,c:C.yellow},{l:'Categories',v:cats.length,c:C.purple}].map((s,i)=>(
+        {[{l:'Total Asset Types',v:assets.length,c:C.teal,icon:Boxes},{l:'Active',v:active,c:C.green,icon:Activity},{l:'Total Quantity',v:totalQty,c:C.yellow,icon:Hash},{l:'Categories',v:cats.length,c:C.purple,icon:Tags}].map((s,i)=>(
           <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px'}}>
-            <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:10}}>{s.l}</div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase'}}>{s.l}</div>
+              <IconTile icon={s.icon} tone={s.l==='Active'?'ok':'brand'} size={26} iconSize={14} />
+            </div>
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c}}>{s.v}</div>
           </div>
         ))}
@@ -151,7 +156,7 @@ export default function AssetManagement() {
         </div>
         {loading ? <div style={{padding:40,textAlign:'center'}}><Spinner/></div>
         : err ? <div style={{padding:40,textAlign:'center',color:C.red,fontSize:13}}>{err}</div>
-        : filtered.length===0 ? <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13}}>{search||filterCat?'No assets match.':'No assets yet. Add your first asset.'}</div>
+        : filtered.length===0 ? <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13,display:'flex',flexDirection:'column',alignItems:'center',gap:10}}><IconTile icon={search||filterCat?Search:Boxes} size={40} iconSize={20} />{search||filterCat?'No assets match.':'No assets yet. Add your first asset.'}</div>
         : pagedAssets.map((a,i)=>(
           <div key={a.id} style={{display:'grid',gridTemplateColumns:'100px 1fr 1fr 100px 80px 90px 80px',padding:'14px 20px',borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',gap:12,alignItems:'center'}}
             onMouseEnter={e=>e.currentTarget.style.background=C.s3}
@@ -243,7 +248,7 @@ export default function AssetManagement() {
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setShowModal(false)} style={{flex:1,padding:'11px',border:`1px solid ${C.border}`,borderRadius:11,background:'transparent',color:C.gray,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
               <button onClick={save} disabled={saving} style={{flex:1,padding:'11px',border:'none',borderRadius:11,background:C.red,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontFamily:"'DM Sans',sans-serif",opacity:saving?0.7:1}}>
-                {saving?<><Spinner/>Saving...</>:`${editing?'Update':'Create'} Asset`}
+                {saving?<><Spinner/>Saving...</>:<><InlineIcon icon={editing?Check:Plus} />{`${editing?'Update':'Create'} Asset`}</>}
               </button>
             </div>
           </div>

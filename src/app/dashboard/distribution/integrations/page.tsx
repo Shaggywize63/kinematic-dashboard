@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import api, { API_BASE_URL } from '../../../../lib/api';
 import { Modal, Field, input, primaryBtn, ghostBtn, ghostBtnDanger, miniBtn, codeStyle, th, td } from './ui';
 import { PairingPanel, SetupModal } from './TallySetup';
+import { AlertTriangle, BookOpen, CheckCircle2, Copy, Download, Eye, History, Lightbulb, Link2, Plug, Plus, Settings2, Unplug } from 'lucide-react';
+import { IconTile, InlineIcon, PageIcon } from '../../../../components/ui/PageIcon';
 
 interface Integration {
   id: string;
@@ -45,11 +47,11 @@ interface IntegrationEvent {
 }
 
 const PROVIDERS = [
-  { id: 'tally',      label: 'Tally',      desc: 'Tally Prime / Tally ERP 9 on-premise. Bridge agent runs alongside Tally on the distributor PC.', available: true,  icon: '📒' },
-  { id: 'quickbooks', label: 'QuickBooks', desc: 'Coming soon.', available: false, icon: '📗' },
-  { id: 'zoho_books', label: 'Zoho Books', desc: 'Coming soon.', available: false, icon: '📘' },
-  { id: 'busy',       label: 'Busy ERP',   desc: 'Coming soon.', available: false, icon: '📕' },
-  { id: 'marg',       label: 'Marg ERP',   desc: 'Coming soon.', available: false, icon: '📙' },
+  { id: 'tally',      label: 'Tally',      desc: 'Tally Prime / Tally ERP 9 on-premise. Bridge agent runs alongside Tally on the distributor PC.', available: true,  icon: BookOpen },
+  { id: 'quickbooks', label: 'QuickBooks', desc: 'Coming soon.', available: false, icon: BookOpen },
+  { id: 'zoho_books', label: 'Zoho Books', desc: 'Coming soon.', available: false, icon: BookOpen },
+  { id: 'busy',       label: 'Busy ERP',   desc: 'Coming soon.', available: false, icon: BookOpen },
+  { id: 'marg',       label: 'Marg ERP',   desc: 'Coming soon.', available: false, icon: BookOpen },
 ] as const;
 
 const STATUS_STYLES: Record<Integration['status'], { bg: string; color: string; label: string }> = {
@@ -117,13 +119,16 @@ export default function DistributionIntegrationsPage() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 20, color: 'var(--text)', fontWeight: 800 }}>Accounting Integrations</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <PageIcon />
+            <h1 style={{ margin: 0, fontSize: 20, color: 'var(--text)', fontWeight: 800 }}>Accounting Integrations</h1>
+          </div>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-dim)', maxWidth: 660 }}>
             Push invoices, payments, and returns from Kinematic into the distributor's accounting software in real time.
             Tally connects via a small Windows bridge agent that runs alongside Tally on the distributor's PC.
           </p>
         </div>
-        <button onClick={() => setPickingProvider(true)} style={primaryBtn}>+ Add integration</button>
+        <button onClick={() => setPickingProvider(true)} style={{ ...primaryBtn, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />Add integration</button>
       </div>
 
       {!loaded ? (
@@ -133,12 +138,12 @@ export default function DistributionIntegrationsPage() {
           background: 'var(--s2)', border: '1px dashed var(--border)', borderRadius: 14,
           padding: 48, textAlign: 'center',
         }}>
-          <div style={{ fontSize: 32, marginBottom: 10 }}>📒</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}><IconTile icon={BookOpen} size={40} iconSize={20} /></div>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>No accounting integrations yet</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', maxWidth: 420, margin: '0 auto 18px' }}>
             Connect Tally to skip the daily re-keying of vouchers. Every Kinematic invoice / payment / return flows into Tally within 30 seconds.
           </div>
-          <button onClick={() => setPickingProvider(true)} style={primaryBtn}>Connect Tally</button>
+          <button onClick={() => setPickingProvider(true)} style={{ ...primaryBtn, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plug} />Connect Tally</button>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 }}>
@@ -151,7 +156,7 @@ export default function DistributionIntegrationsPage() {
                 padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
               }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <div style={{ fontSize: 26, lineHeight: 1 }}>{meta?.icon ?? '🔌'}</div>
+                  <IconTile icon={meta?.icon ?? Plug} tone="brand" size={34} iconSize={17} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {i.label}
@@ -179,9 +184,9 @@ export default function DistributionIntegrationsPage() {
                 )}
 
                 <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
-                  {i.provider === 'tally' && <button onClick={() => setSetupFor(i)} style={primaryBtn}>Set up &amp; sync</button>}
-                  <button onClick={() => setEventsFor(i)} style={ghostBtn}>View events</button>
-                  <button onClick={() => disconnect(i)} style={ghostBtnDanger}>Disconnect</button>
+                  {i.provider === 'tally' && <button onClick={() => setSetupFor(i)} style={{ ...primaryBtn, ...iconBtn }}><InlineIcon icon={Settings2} size={14} />Set up &amp; sync</button>}
+                  <button onClick={() => setEventsFor(i)} style={{ ...ghostBtn, ...iconBtn }}><InlineIcon icon={Eye} size={14} />View events</button>
+                  <button onClick={() => disconnect(i)} style={{ ...ghostBtnDanger, ...iconBtn }}><InlineIcon icon={Unplug} size={14} />Disconnect</button>
                 </div>
               </div>
             );
@@ -190,7 +195,7 @@ export default function DistributionIntegrationsPage() {
       )}
 
       {pickingProvider && (
-        <Modal onClose={() => setPickingProvider(false)} title="Connect an accounting system" subtitle="Pick the accounting software the distributor uses.">
+        <Modal onClose={() => setPickingProvider(false)} title="Connect an accounting system" subtitle="Pick the accounting software the distributor uses." icon={Link2}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
             {PROVIDERS.map((p) => (
               <button
@@ -206,7 +211,7 @@ export default function DistributionIntegrationsPage() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 22 }}>{p.icon}</span>
+                  <IconTile icon={p.icon} tone={p.available ? 'brand' : 'neutral'} size={28} iconSize={15} />
                   <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>{p.label}</span>
                   {!p.available && (
                     <span style={{
@@ -293,7 +298,7 @@ function ConnectTallyModal({ onClose, onCreated }: { onClose: () => void; onCrea
   };
 
   return (
-    <Modal onClose={onClose} title="Connect Tally" subtitle="Configure how Kinematic vouchers map to ledgers in this distributor's Tally company.">
+    <Modal onClose={onClose} title="Connect Tally" subtitle="Configure how Kinematic vouchers map to ledgers in this distributor's Tally company." icon={Plug}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <Field label="Connection name" hint="Helps you identify it if a distributor has multiple Tally companies.">
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Mahalakshmi Trading — Mumbai Tally" autoFocus style={input} />
@@ -341,14 +346,15 @@ function ConnectTallyModal({ onClose, onCreated }: { onClose: () => void; onCrea
 
         <div style={{
           background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
-          borderRadius: 8, padding: 10, fontSize: 11, color: 'var(--text)',
+          borderRadius: 8, padding: 10, fontSize: 11, color: 'var(--text)', display: 'flex', alignItems: 'flex-start', gap: 8,
         }}>
-          💡 Next you get a 6-character pairing code. Enter it in the Kinematic connector on the Windows PC where Tally is open — no files to copy. The dashboard then checks your Tally setup and fixes what it can.
+          <InlineIcon icon={Lightbulb} size={14} style={{ color: 'var(--info)' }} />
+          <span>Next you get a 6-character pairing code. Enter it in the Kinematic connector on the Windows PC where Tally is open — no files to copy. The dashboard then checks your Tally setup and fixes what it can.</span>
         </div>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={ghostBtn} disabled={submitting}>Cancel</button>
-          <button onClick={submit} style={primaryBtn} disabled={submitting}>{submitting ? 'Connecting…' : 'Connect'}</button>
+          <button onClick={submit} style={{ ...primaryBtn, ...iconBtn }} disabled={submitting}><InlineIcon icon={Plug} size={14} />{submitting ? 'Connecting…' : 'Connect'}</button>
         </div>
       </div>
     </Modal>
@@ -376,29 +382,30 @@ function SuccessModal({ integration, onClose, onSetup }: { integration: Integrat
   };
 
   return (
-    <Modal onClose={onClose} title="✅ Tally connection created" subtitle="Now connect the PC where Tally runs, using the pairing code below.">
+    <Modal onClose={onClose} title="Tally connection created" subtitle="Now connect the PC where Tally runs, using the pairing code below." icon={CheckCircle2} iconColor="var(--ok)">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <PairingPanel integrationId={integration.id} autoGenerate />
 
         <details>
           <summary style={{ fontSize: 12, color: 'var(--text-dim)', cursor: 'pointer' }}>Advanced: use a manual config file instead</summary>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 10 }}>
-            <button onClick={downloadConfig} style={ghostBtn}>⬇ Download kinematic-tally-config.json</button>
+            <button onClick={downloadConfig} style={{ ...ghostBtn, ...iconBtn }}><InlineIcon icon={Download} size={14} />Download kinematic-tally-config.json</button>
             <Field label="Polling endpoint (contains the agent secret)">
               <div style={{ display: 'flex', gap: 6 }}>
                 <input value={cfg?.polling_endpoint ?? ''} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
-                <button onClick={() => copy(cfg?.polling_endpoint ?? '', 'Polling URL')} style={ghostBtn}>Copy</button>
+                <button onClick={() => copy(cfg?.polling_endpoint ?? '', 'Polling URL')} style={{ ...ghostBtn, ...iconBtn }}><InlineIcon icon={Copy} size={14} />Copy</button>
               </div>
             </Field>
-            <div style={{ fontSize: 11, color: 'var(--text)' }}>
-              ⚠️ Anyone with this URL can submit fake voucher results. Keep it on the Tally PC only. The secret is only shown now.
+            <div style={{ fontSize: 11, color: 'var(--text)', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+              <InlineIcon icon={AlertTriangle} size={14} style={{ color: 'var(--warn)' }} />
+              <span>Anyone with this URL can submit fake voucher results. Keep it on the Tally PC only. The secret is only shown now.</span>
             </div>
           </div>
         </details>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={ghostBtn}>Close</button>
-          <button onClick={onSetup} style={primaryBtn}>Open setup checklist</button>
+          <button onClick={onSetup} style={{ ...primaryBtn, ...iconBtn }}><InlineIcon icon={Eye} size={14} />Open setup checklist</button>
         </div>
       </div>
     </Modal>
@@ -436,11 +443,14 @@ function EventsModal({ integration, onClose }: { integration: Integration; onClo
   };
 
   return (
-    <Modal onClose={onClose} title={`Events — ${integration.label}`} subtitle="Last 100 sync jobs. Use Download XML for manual import into Tally when the bridge agent is offline.">
+    <Modal onClose={onClose} title={`Events — ${integration.label}`} subtitle="Last 100 sync jobs. Use Download XML for manual import into Tally when the bridge agent is offline." icon={History}>
       {loading ? (
         <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-dim)' }}>Loading…</div>
       ) : events.length === 0 ? (
-        <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-dim)' }}>No events yet. The poller will pick up your next invoice / payment / return within 30 seconds.</div>
+        <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <IconTile icon={History} size={40} iconSize={20} />
+          No events yet. The poller will pick up your next invoice / payment / return within 30 seconds.
+        </div>
       ) : (
         <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
           <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
@@ -468,7 +478,7 @@ function EventsModal({ integration, onClose }: { integration: Integration; onClo
                     <td style={td}>{e.attempts}</td>
                     <td style={td}>{e.tally_voucher_id ?? '—'}</td>
                     <td style={td}>
-                      <button onClick={() => downloadXml(e.id)} style={miniBtn}>XML</button>
+                      <button onClick={() => downloadXml(e.id)} style={{ ...miniBtn, ...iconBtn, gap: 4 }}><InlineIcon icon={Download} size={12} />XML</button>
                     </td>
                   </tr>
                 );
@@ -484,3 +494,6 @@ function EventsModal({ integration, onClose }: { integration: Integration; onClo
     </Modal>
   );
 }
+
+/** Hand-styled buttons that lead with an icon. */
+const iconBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6 };

@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate, inr } from '../../../../../components/distribution/Atoms';
+import { CheckCircle2, Package, Upload, XCircle } from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 
 interface ItemRow { sku_id: string; base_price: number; min_qty?: number; max_qty?: number | null }
 
@@ -72,13 +74,13 @@ export default function PriceListDetail() {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <a href="/dashboard/distribution/price-lists" style={{ color: 'var(--text-dim)', fontSize: 13 }}>← All price lists</a>
             <Pill color={pl.is_active ? 'green' : 'gray'}>{pl.is_active ? 'active' : 'draft'}</Pill>
-            {!pl.is_active && <Btn onClick={activate}>Activate</Btn>}
+            {!pl.is_active && <Btn onClick={activate} icon={<InlineIcon icon={CheckCircle2} />}>Activate</Btn>}
           </div>
         }
       />
 
       <Card style={{ marginBottom: 22 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Bulk add items</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Upload} size={16} style={{ color: 'var(--dim)' }} />Bulk add items</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
           Paste CSV: <code style={{ background: 'var(--s2)', padding: '1px 5px', borderRadius: 3 }}>sku_id, base_price, min_qty?, max_qty?</code> — one row per line. Refuses if list is already active (create a new version first).
         </div>
@@ -91,13 +93,19 @@ export default function PriceListDetail() {
         />
         <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
           <Btn disabled={busy || pl.is_active || !csv.trim()} onClick={upload}>{busy ? 'Uploading…' : 'Upload'}</Btn>
-          {msg && <span style={{ fontSize: 12, color: msg.startsWith('✓') ? 'var(--green)' : 'var(--primary)' }}>{msg}</span>}
+          {msg && (
+            <span style={{ fontSize: 12, color: msg.startsWith('✓') ? 'var(--green)' : 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {/* The ✓ / ✗ prefix marks success / failure; draw it as an icon. */}
+              {/^[✓✗]/.test(msg) && <InlineIcon icon={msg.startsWith('✓') ? CheckCircle2 : XCircle} size={14} />}
+              {msg.replace(/^[✓✗]\s*/, '')}
+            </span>
+          )}
         </div>
       </Card>
 
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>{items.length} priced SKU{items.length === 1 ? '' : 's'}</div>
+          <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Package} size={16} style={{ color: 'var(--dim)' }} />{items.length} priced SKU{items.length === 1 ? '' : 's'}</div>
           <a href="/dashboard/other-management/skus" style={{ color: 'var(--primary)', fontSize: 12, fontWeight: 700 }}>Manage SKUs →</a>
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

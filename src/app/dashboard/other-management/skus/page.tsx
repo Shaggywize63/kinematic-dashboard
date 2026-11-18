@@ -5,6 +5,8 @@ import { usePagination } from '../../../../components/shared/Pagination';
 import ClientSelect from '../../../../components/ClientSelect';
 import ConfirmModal from '../../../../components/ConfirmModal';
 import { useAuth } from '../../../../hooks/useAuth';
+import { Activity, Ban, Check, Package, Plus, Search, Tags } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 const C = {
   bg: 'var(--bg)', 
@@ -126,9 +128,12 @@ export default function SKUManagement() {
 
       {/* Stats */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}}>
-        {[{l:"Total SKU's",v:skus.length,c:C.purple},{l:'Active',v:active,c:C.green},{l:'Categories',v:categories.length,c:C.blue},{l:'Inactive',v:skus.length-active,c:C.gray}].map((s,i)=>(
+        {[{l:"Total SKU's",v:skus.length,c:C.purple,icon:Package},{l:'Active',v:active,c:C.green,icon:Activity},{l:'Categories',v:categories.length,c:C.blue,icon:Tags},{l:'Inactive',v:skus.length-active,c:C.gray,icon:Ban}].map((s,i)=>(
           <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px'}}>
-            <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:10}}>{s.l}</div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase'}}>{s.l}</div>
+              <IconTile icon={s.icon} tone={s.l==='Active'?'ok':s.l==='Inactive'?'neutral':'brand'} size={26} iconSize={14} />
+            </div>
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c}}>{s.v}</div>
           </div>
         ))}
@@ -161,7 +166,7 @@ export default function SKUManagement() {
         </div>
         {loading ? <div style={{padding:40,textAlign:'center'}}><Spinner/></div>
         : err ? <div style={{padding:40,textAlign:'center',color:C.red,fontSize:13}}>{err}</div>
-        : filtered.length===0 ? <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13}}>{search||filterCat?"No SKUs match.":"No SKUs yet. Add your first product."}</div>
+        : filtered.length===0 ? <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13,display:'flex',flexDirection:'column',alignItems:'center',gap:10}}><IconTile icon={search||filterCat?Search:Package} size={40} iconSize={20} />{search||filterCat?"No SKUs match.":"No SKUs yet. Add your first product."}</div>
         : pagedSkus.map((s,i)=>(
           <div key={s.id} style={{display:'grid',gridTemplateColumns:'110px 1fr 1fr 80px 90px 90px 80px',padding:'14px 20px',borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',gap:12,alignItems:'center'}}
             onMouseEnter={e=>e.currentTarget.style.background=C.s3}
@@ -265,7 +270,7 @@ export default function SKUManagement() {
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setShowModal(false)} style={{flex:1,padding:'11px',border:`1px solid ${C.border}`,borderRadius:11,background:'transparent',color:C.gray,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
               <button onClick={save} disabled={saving} style={{flex:1,padding:'11px',border:'none',borderRadius:11,background:C.red,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontFamily:"'DM Sans',sans-serif",opacity:saving?0.7:1}}>
-                {saving?<><Spinner/>Saving...</>:`${editing?'Update':'Create'} SKU`}
+                {saving?<><Spinner/>Saving...</>:<><InlineIcon icon={editing?Check:Plus} />{`${editing?'Update':'Create'} SKU`}</>}
               </button>
             </div>
           </div>

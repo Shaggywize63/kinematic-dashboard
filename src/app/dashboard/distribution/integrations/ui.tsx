@@ -1,5 +1,7 @@
 'use client';
 import type React from 'react';
+import type { LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 // ── Modal + tokens ────────────────────────────────────────────────────────────
 export function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -12,8 +14,8 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
   );
 }
 
-export function Modal({ children, onClose, title, subtitle }: {
-  children: React.ReactNode; onClose: () => void; title: string; subtitle?: string;
+export function Modal({ children, onClose, title, subtitle, icon, iconColor }: {
+  children: React.ReactNode; onClose: () => void; title: string; subtitle?: React.ReactNode; icon?: LucideIcon; iconColor?: string;
 }) {
   return (
     <div onClick={onClose} style={{
@@ -26,7 +28,9 @@ export function Modal({ children, onClose, title, subtitle }: {
         padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
       }}>
         <div style={{ marginBottom: 18 }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{title}</h2>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            {icon && <InlineIcon icon={icon} size={18} style={{ color: iconColor || 'var(--dim)' }} />}{title}
+          </h2>
           {subtitle && <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-dim)' }}>{subtitle}</p>}
         </div>
         {children}

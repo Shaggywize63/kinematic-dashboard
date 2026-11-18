@@ -4,6 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
 import { useAuth } from '../../../hooks/useAuth';
+import {
+  Activity, AlertTriangle, ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Boxes, Check, Package, Pencil, Plus, RotateCcw,
+  SlidersHorizontal, Trash2, Warehouse as WarehouseIcon,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon, PageIcon } from '../../../components/ui/PageIcon';
 
 /* ── colour tokens (Kinematic design system) ── */
 const C = {
@@ -57,12 +63,12 @@ interface Summary {
 }
 
 /* ── movement type config ── */
-const MV_TYPES: Record<string, { label: string; color: string; bg: string; sign: string }> = {
-  inbound:    { label: 'Inbound',    color: C.green,  bg: C.greenD,  sign: '+' },
-  outbound:   { label: 'Outbound',   color: C.red,    bg: C.redD,    sign: '−' },
-  transfer:   { label: 'Transfer',   color: C.blue,   bg: C.blueD,   sign: '→' },
-  adjustment: { label: 'Adjustment', color: C.yellow, bg: C.yellowD, sign: '±' },
-  damage:     { label: 'Damage',     color: C.orange, bg: C.orangeD, sign: '!' },
+const MV_TYPES: Record<string, { label: string; color: string; bg: string; icon: LucideIcon }> = {
+  inbound:    { label: 'Inbound',    color: C.green,  bg: C.greenD,  icon: ArrowDownToLine },
+  outbound:   { label: 'Outbound',   color: C.red,    bg: C.redD,    icon: ArrowUpFromLine },
+  transfer:   { label: 'Transfer',   color: C.blue,   bg: C.blueD,   icon: ArrowLeftRight },
+  adjustment: { label: 'Adjustment', color: C.yellow, bg: C.yellowD, icon: SlidersHorizontal },
+  damage:     { label: 'Damage',     color: C.orange, bg: C.orangeD, icon: AlertTriangle },
 };
 
 /* ── blank forms ── */
@@ -100,7 +106,7 @@ function Confirm({ msg, onConfirm, onCancel, danger = true }: { msg: string; onC
         <p style={{ color: C.white, fontSize: 15, marginBottom: 24, lineHeight: 1.6 }}>{msg}</p>
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onCancel} style={btnSecStyle}>Cancel</button>
-          <button onClick={onConfirm} style={danger ? btnDangerStyle : btnPrimStyle}>Delete</button>
+          <button onClick={onConfirm} style={{ ...(danger ? btnDangerStyle : btnPrimStyle), ...iconBtn }}><InlineIcon icon={Trash2} size={14} />Delete</button>
         </div>
       </div>
     </div>
@@ -112,6 +118,8 @@ const btnBase: React.CSSProperties = { border: 'none', borderRadius: 10, padding
 const btnPrimStyle: React.CSSProperties = { ...btnBase, background: C.blue, color: '#fff' };
 const btnSecStyle:  React.CSSProperties = { ...btnBase, background: C.s3, color: C.gray, border: `1px solid ${C.border}` };
 const btnDangerStyle: React.CSSProperties = { ...btnBase, background: C.red, color: '#fff' };
+/** Hand-styled buttons that lead with an icon. */
+const iconBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 };
 const inputStyle: React.CSSProperties = { background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.white, fontFamily: 'DM Sans, sans-serif', fontSize: 14, width: '100%', outline: 'none' };
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 600, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 6 };
 
@@ -157,8 +165,8 @@ function WarehouseForm({ initial, onSave, onClose, saving, err }: { initial: any
       </div>
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
         <button style={btnSecStyle} onClick={onClose}>Cancel</button>
-        <button style={btnPrimStyle} onClick={() => onSave(f)} disabled={saving || !f.name || !f.warehouse_code}>
-          {saving ? 'Saving…' : 'Save Warehouse'}
+        <button style={{ ...btnPrimStyle, ...iconBtn }} onClick={() => onSave(f)} disabled={saving || !f.name || !f.warehouse_code}>
+          <InlineIcon icon={Check} size={14} />{saving ? 'Saving…' : 'Save Warehouse'}
         </button>
       </div>
     </>
@@ -184,8 +192,8 @@ function MovementForm({ initial, skus, assets, onSave, onClose, saving, err }: {
         <label style={labelStyle}>Movement Type *</label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {Object.entries(MV_TYPES).map(([k, v]) => (
-            <button key={k} onClick={() => set('movement_type', k)} style={{ ...btnBase, padding: '8px 14px', fontSize: 12, background: f.movement_type === k ? v.color : C.s3, color: f.movement_type === k ? '#fff' : C.gray, border: `1px solid ${f.movement_type === k ? v.color : C.border}` }}>
-              {v.sign} {v.label}
+            <button key={k} onClick={() => set('movement_type', k)} style={{ ...btnBase, ...iconBtn, padding: '8px 14px', fontSize: 12, background: f.movement_type === k ? v.color : C.s3, color: f.movement_type === k ? '#fff' : C.gray, border: `1px solid ${f.movement_type === k ? v.color : C.border}` }}>
+              <InlineIcon icon={v.icon} size={13} />{v.label}
             </button>
           ))}
         </div>
@@ -234,8 +242,8 @@ function MovementForm({ initial, skus, assets, onSave, onClose, saving, err }: {
 
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
         <button style={btnSecStyle} onClick={onClose}>Cancel</button>
-        <button style={{ ...btnPrimStyle, background: mv.color }} onClick={() => onSave(f)} disabled={saving || !f.quantity || !f.movement_type}>
-          {saving ? 'Saving…' : 'Save Movement'}
+        <button style={{ ...btnPrimStyle, ...iconBtn, background: mv.color }} onClick={() => onSave(f)} disabled={saving || !f.quantity || !f.movement_type}>
+          <InlineIcon icon={Check} size={14} />{saving ? 'Saving…' : 'Save Movement'}
         </button>
       </div>
     </>
@@ -429,7 +437,7 @@ export default function WarehousePage() {
   if (err) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: 14, color: C.red, fontFamily: 'DM Sans, sans-serif' }}>
       <span>{err}</span>
-      <button style={btnPrimStyle} onClick={loadSummary}>Retry</button>
+      <button style={{ ...btnPrimStyle, ...iconBtn }} onClick={loadSummary}><InlineIcon icon={RotateCcw} size={14} />Retry</button>
     </div>
   );
 
@@ -441,25 +449,31 @@ export default function WarehousePage() {
       {/* ── Page header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: 26, fontWeight: 800, color: C.white, margin: 0 }}>Warehouse Management</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <PageIcon />
+            <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: 26, fontWeight: 800, color: C.white, margin: 0 }}>Warehouse Management</h1>
+          </div>
           <p style={{ color: C.gray, fontSize: 13, marginTop: 4 }}>Stock movements, inventory tracking & warehouse control</p>
         </div>
         {isPlatformAdmin && (
-          <button style={btnPrimStyle} onClick={openAddWh}>+ Add Warehouse</button>
+          <button style={{ ...btnPrimStyle, ...iconBtn }} onClick={openAddWh}><InlineIcon icon={Plus} />Add Warehouse</button>
         )}
       </div>
 
       {/* ── KPI bar ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 28 }}>
         {[
-          { label: 'Total Warehouses',    val: summary?.total_warehouses    ?? 0, color: C.blue   },
-          { label: 'Active',              val: summary?.active_warehouses   ?? 0, color: C.green  },
-          { label: 'SKUs Tracked',        val: summary?.total_skus          ?? 0, color: C.purple },
-          { label: 'Active Assets',       val: summary?.total_assets        ?? 0, color: C.teal   },
-          { label: 'Movements (30d)',      val: summary?.total_movements_30d ?? 0, color: C.yellow },
+          { label: 'Total Warehouses',    val: summary?.total_warehouses    ?? 0, color: C.blue,   icon: WarehouseIcon },
+          { label: 'Active',              val: summary?.active_warehouses   ?? 0, color: C.green,  icon: Activity },
+          { label: 'SKUs Tracked',        val: summary?.total_skus          ?? 0, color: C.purple, icon: Package },
+          { label: 'Active Assets',       val: summary?.total_assets        ?? 0, color: C.teal,   icon: Boxes },
+          { label: 'Movements (30d)',      val: summary?.total_movements_30d ?? 0, color: C.yellow, icon: ArrowLeftRight },
         ].map((k, i) => (
           <div key={i} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 20px' }}>
-            <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 28, fontWeight: 800, color: k.color }}>{k.val}</div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 28, fontWeight: 800, color: k.color }}>{k.val}</div>
+              <IconTile icon={k.icon} tone="brand" size={26} iconSize={14} />
+            </div>
             <div style={{ fontSize: 11, color: C.gray, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>{k.label}</div>
           </div>
         ))}
@@ -470,7 +484,7 @@ export default function WarehousePage() {
         {/* ── Warehouse list ── */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase' }}>Warehouses ({warehouses.length})</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={WarehouseIcon} size={14} />Warehouses ({warehouses.length})</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {warehouses.map(wh => (
@@ -502,8 +516,8 @@ export default function WarehousePage() {
                 <div style={{ display: 'flex', gap: 6, marginTop: 10 }} onClick={e => e.stopPropagation()}>
                   {isPlatformAdmin && (
                     <>
-                      <button style={{ ...btnSecStyle, flex: 1, padding: '6px 10px', fontSize: 11 }} onClick={() => openEditWh(wh)}>✎ Edit</button>
-                      <button style={{ ...btnBase, flex: 1, padding: '6px 10px', fontSize: 11, background: C.redD, color: C.red, border: `1px solid ${C.redB}` }} onClick={() => setDeleteWh(wh)}>✕ Delete</button>
+                      <button style={{ ...btnSecStyle, ...iconBtn, flex: 1, padding: '6px 10px', fontSize: 11 }} onClick={() => openEditWh(wh)}><InlineIcon icon={Pencil} size={13} />Edit</button>
+                      <button style={{ ...btnBase, ...iconBtn, flex: 1, padding: '6px 10px', fontSize: 11, background: C.redD, color: C.red, border: `1px solid ${C.redB}` }} onClick={() => setDeleteWh(wh)}><InlineIcon icon={Trash2} size={13} />Delete</button>
                     </>
                   )}
                 </div>
@@ -511,8 +525,9 @@ export default function WarehousePage() {
             ))}
             {warehouses.length === 0 && (
               <div style={{ textAlign: 'center', padding: '32px 16px', color: C.gray, fontSize: 13 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}><IconTile icon={WarehouseIcon} size={40} iconSize={20} /></div>
                 No warehouses yet.<br />
-                <button style={{ ...btnPrimStyle, marginTop: 12, fontSize: 12 }} onClick={openAddWh}>+ Add first warehouse</button>
+                <button style={{ ...btnPrimStyle, ...iconBtn, marginTop: 12, fontSize: 12 }} onClick={openAddWh}><InlineIcon icon={Plus} size={14} />Add first warehouse</button>
               </div>
             )}
           </div>
@@ -525,11 +540,11 @@ export default function WarehousePage() {
               {/* header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 700, color: C.white }}>{selWh.name}</div>
+                  <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 700, color: C.white, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={WarehouseIcon} size={16} style={{ color: C.gray }} />{selWh.name}</div>
                   <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>{selWh.warehouse_code} · {selWh.type} · {selWh.city}</div>
                 </div>
                 {isPlatformAdmin && (
-                  <button style={btnPrimStyle} onClick={openAddMv}>+ Log Movement</button>
+                  <button style={{ ...btnPrimStyle, ...iconBtn }} onClick={openAddMv}><InlineIcon icon={Plus} />Log Movement</button>
                 )}
               </div>
 
@@ -551,8 +566,9 @@ export default function WarehousePage() {
                 <div style={{ textAlign: 'center', padding: '40px', color: C.gray, fontSize: 13 }}>Loading movements…</div>
               ) : movements.length === 0 ? (
                 <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 12, padding: '40px', textAlign: 'center', color: C.gray, fontSize: 13 }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}><IconTile icon={ArrowLeftRight} size={40} iconSize={20} /></div>
                   No movements found.
-                  <button style={{ ...btnPrimStyle, marginTop: 14, fontSize: 12 }} onClick={openAddMv}>+ Log first movement</button>
+                  <button style={{ ...btnPrimStyle, ...iconBtn, marginTop: 14, fontSize: 12 }} onClick={openAddMv}><InlineIcon icon={Plus} size={14} />Log first movement</button>
                 </div>
               ) : (
                 <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
@@ -575,7 +591,7 @@ export default function WarehousePage() {
 
                         {/* type badge */}
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20, background: cfg.bg, color: cfg.color, width: 'fit-content' }}>
-                          {cfg.sign} {cfg.label}
+                          <InlineIcon icon={cfg.icon} size={12} />{cfg.label}
                         </span>
 
                         {/* quantity */}
@@ -606,12 +622,12 @@ export default function WarehousePage() {
                           {isPlatformAdmin && (
                             <>
                               <button onClick={() => openEditMv(mv)} title="Edit movement"
-                                style={{ background: C.blueD, border: `1px solid ${C.blue}33`, borderRadius: 7, padding: '5px 10px', color: C.blue, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                                ✎ Edit
+                                style={{ background: C.blueD, border: `1px solid ${C.blue}33`, borderRadius: 7, padding: '5px 10px', color: C.blue, fontSize: 12, fontWeight: 600, cursor: 'pointer', ...iconBtn, gap: 4 }}>
+                                <InlineIcon icon={Pencil} size={13} />Edit
                               </button>
                               <button onClick={() => setDeleteMv(mv)} title="Delete movement"
-                                style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 7, padding: '5px 10px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                                ✕
+                                style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 7, padding: '5px 10px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer', ...iconBtn }}>
+                                <InlineIcon icon={Trash2} size={13} />
                               </button>
                             </>
                           )}
@@ -624,6 +640,7 @@ export default function WarehousePage() {
             </>
           ) : (
             <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 12, padding: '60px 32px', textAlign: 'center', color: C.gray, fontSize: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}><IconTile icon={WarehouseIcon} size={40} iconSize={20} /></div>
               Select a warehouse to view movements
             </div>
           )}

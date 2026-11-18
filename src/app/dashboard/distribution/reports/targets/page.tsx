@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, StatCard, Row, Th, Td, Btn, Pill } from '../../../../../components/distribution/Atoms';
+import { CheckCircle2, TrendingUp } from 'lucide-react';
 
 const QUARTERS = ['Q1-2026', 'Q2-2026', 'Q3-2026', 'Q4-2026'];
 const statusPill = (s: string) => s === 'Exceeded' ? 'green' : s === 'Achieved' ? 'blue' : 'amber';
@@ -53,8 +54,8 @@ export default function TargetsReport() {
       <Row style={{ marginBottom: 20 }}>
         <StatCard label="Total Targets" value={summary.total || 0} />
         <StatCard label="Pending" value={summary.pending || 0} accent="#F59E0B" />
-        <StatCard label="Achieved" value={summary.achieved || 0} accent="var(--accent)" />
-        <StatCard label="Exceeded" value={summary.exceeded || 0} accent="var(--green)" />
+        <StatCard label="Achieved" icon={CheckCircle2} value={summary.achieved || 0} accent="var(--accent)" />
+        <StatCard label="Exceeded" icon={TrendingUp} value={summary.exceeded || 0} accent="var(--green)" />
       </Row>
 
       <Card>

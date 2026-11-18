@@ -3,6 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import api from '../../../../lib/api';
 import { Card, PageHeader } from '../../../../components/distribution/Atoms';
+import { Camera, Store, UserPlus, ZoomIn } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
+import { NavIcon } from '../../../../components/ui/icons';
+import { iconNameForPath } from '../../../../lib/routeIcons';
+import { metricIconFor } from '../../../../lib/labelIcons';
 
 /**
  * Last-Mile overview — the brand owner's single page for "where did my
@@ -122,7 +128,7 @@ export default function LastMileOverviewPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14, marginBottom: 18 }}>
         {/* Capture-channel mix — the unorganized sector breakdown */}
         <Card>
-          <SectionLabel>Capture channel mix</SectionLabel>
+          <SectionLabel icon={Camera}>Capture channel mix</SectionLabel>
           {loading ? (
             <Empty>Loading…</Empty>
           ) : Object.keys(stats.captureMix).length === 0 ? (
@@ -134,7 +140,7 @@ export default function LastMileOverviewPage() {
 
         {/* Registration channel mix */}
         <Card>
-          <SectionLabel>Registration channel mix</SectionLabel>
+          <SectionLabel icon={UserPlus}>Registration channel mix</SectionLabel>
           {loading ? (
             <Empty>Loading…</Empty>
           ) : Object.keys(stats.viaMix).length === 0 ? (
@@ -146,7 +152,7 @@ export default function LastMileOverviewPage() {
 
         {/* Top retailers by volume */}
         <Card>
-          <SectionLabel>Top retailers (by units)</SectionLabel>
+          <SectionLabel icon={Store}>Top retailers (by units)</SectionLabel>
           {loading ? (
             <Empty>Loading…</Empty>
           ) : stats.topRetailers.length === 0 ? (
@@ -169,12 +175,14 @@ export default function LastMileOverviewPage() {
       </div>
 
       <Card>
-        <SectionLabel>Drill-downs</SectionLabel>
+        <SectionLabel icon={ZoomIn}>Drill-downs</SectionLabel>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <Link href="/dashboard/distribution/last-mile/consumers" style={btnLink}>
+            <NavIcon name={iconNameForPath('/dashboard/distribution/last-mile/consumers') ?? undefined} size={15} strokeWidth={2} />
             Consumer Registry ↗
           </Link>
           <Link href="/dashboard/distribution/last-mile/tertiary-sales" style={btnLink}>
+            <NavIcon name={iconNameForPath('/dashboard/distribution/last-mile/tertiary-sales') ?? undefined} size={15} strokeWidth={2} />
             Retailer Sales ↗
           </Link>
         </div>
@@ -208,12 +216,14 @@ function formatINR(n: number): string {
 // ── presentational atoms ────────────────────────────────────────────
 
 function Kpi({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  const Icon = metricIconFor(label);
   return (
     <div style={{
       background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px',
       borderLeft: `3px solid ${accent || 'var(--primary)'}`,
     }}>
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+        {Icon && <InlineIcon icon={Icon} size={14} />}
         {label}
       </div>
       <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{value}</div>
@@ -221,9 +231,10 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent?: 
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: LucideIcon }) {
   return (
-    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>
+    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+      {icon && <InlineIcon icon={icon} size={14} />}
       {children}
     </div>
   );
@@ -259,5 +270,5 @@ function Bars({ items, colorOf }: { items: Record<string, number>; colorOf: (key
 const btnLink: React.CSSProperties = {
   background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)',
   padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-  textDecoration: 'none',
+  textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 8,
 };

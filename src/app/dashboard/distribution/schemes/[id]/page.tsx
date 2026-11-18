@@ -4,6 +4,8 @@ import { useParams, useRouter } from 'next/navigation';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Btn, fmtDate } from '../../../../../components/distribution/Atoms';
 import SchemeBuilder, { fromScheme, schemeToText, targetingToText, SCHEME_TYPE_LABEL, SchemeType } from '../../../../../components/distribution/SchemeBuilder';
+import { Archive, CalendarRange, FlaskConical, Gift, Plus, Trash2, Users } from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 
 export default function SchemeDetail() {
   const params = useParams();
@@ -91,7 +93,7 @@ export default function SchemeDetail() {
             <a href="/dashboard/distribution/schemes" style={{ color: 'var(--text-dim)', fontSize: 13 }}>← All schemes</a>
             <Pill color={sch.is_active ? 'green' : 'gray'}>{sch.is_active ? 'active' : 'retired'}</Pill>
             <Btn variant="ghost" onClick={() => setEditing(true)}>Edit</Btn>
-            {sch.is_active && <Btn variant="danger" onClick={deactivate}>Retire</Btn>}
+            {sch.is_active && <Btn variant="danger" onClick={deactivate} icon={<InlineIcon icon={Archive} />}>Retire</Btn>}
           </div>
         }
       />
@@ -99,19 +101,19 @@ export default function SchemeDetail() {
       {/* Plain-language summary */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22, marginBottom: 22 }}>
         <Card>
-          <div style={{ fontSize: 11, marginBottom: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700 }}>What the offer gives</div>
+          <div style={{ fontSize: 11, marginBottom: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Gift} size={14} />What the offer gives</div>
           <div style={{ marginBottom: 8 }}><Pill color="blue">{SCHEME_TYPE_LABEL[sch.type as SchemeType] || sch.type}</Pill></div>
           <div style={{ fontSize: 15, lineHeight: 1.6, color: 'var(--text)' }}>{schemeToText(sch, skuName)}</div>
         </Card>
         <Card>
-          <div style={{ fontSize: 11, marginBottom: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700 }}>Who gets it</div>
+          <div style={{ fontSize: 11, marginBottom: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Users} size={14} />Who gets it</div>
           <div style={{ fontSize: 15, lineHeight: 1.6, color: 'var(--text)' }}>{targetingToText(sch, outletName)}</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 10 }}>{sch.stackable ? 'Can combine with other schemes.' : 'Does not combine with other schemes.'}</div>
         </Card>
       </div>
 
       <Card style={{ marginBottom: 22 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Validity</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={CalendarRange} size={16} style={{ color: 'var(--dim)' }} />Validity</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, fontSize: 12 }}>
           <div><div style={{ color: 'var(--text-dim)' }}>Valid from</div><div style={{ fontWeight: 700, marginTop: 2 }}>{fmtDate(sch.valid_from)}</div></div>
           <div><div style={{ color: 'var(--text-dim)' }}>Valid to</div><div style={{ fontWeight: 700, marginTop: 2 }}>{sch.valid_to ? fmtDate(sch.valid_to) : '∞'}</div></div>
@@ -122,7 +124,7 @@ export default function SchemeDetail() {
 
       {/* Preview tester */}
       <Card>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Try it on a sample order</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={FlaskConical} size={16} style={{ color: 'var(--dim)' }} />Try it on a sample order</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>Pick an outlet and a few items to see exactly what free goods and discounts this scheme (and any others) would apply — before it goes live.</div>
 
         <div style={{ maxWidth: 420, marginBottom: 14 }}>
@@ -142,11 +144,11 @@ export default function SchemeDetail() {
                 {skus.map((k) => <option key={k.id} value={k.id}>{k.name || k.sku_code}</option>)}
               </select>
               <input value={row.qty} onChange={(e) => setRows(rows.map((r, j) => j === i ? { ...r, qty: e.target.value.replace(/[^0-9]/g, '') } : r))} placeholder="Qty" style={selStyle} />
-              <button type="button" onClick={() => setRows(rows.filter((_, j) => j !== i))} style={ghostBtn}>Remove</button>
+              <button type="button" onClick={() => setRows(rows.filter((_, j) => j !== i))} style={ghostBtn}><InlineIcon icon={Trash2} size={14} />Remove</button>
             </div>
           ))}
         </div>
-        <button type="button" onClick={() => setRows([...rows, { sku_id: '', qty: '1' }])} style={{ ...ghostBtn, marginTop: 8 }}>+ Add item</button>
+        <button type="button" onClick={() => setRows([...rows, { sku_id: '', qty: '1' }])} style={{ ...ghostBtn, marginTop: 8 }}><InlineIcon icon={Plus} size={14} />Add item</button>
 
         <div style={{ marginTop: 14, display: 'flex', gap: 12, alignItems: 'center' }}>
           <Btn disabled={previewing || !outletId || !rows.some((r) => r.sku_id)} onClick={runPreview}>{previewing ? 'Checking…' : 'Preview offers'}</Btn>
@@ -173,4 +175,4 @@ export default function SchemeDetail() {
 }
 
 const selStyle: React.CSSProperties = { width: '100%', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none' };
-const ghostBtn: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-dim)', cursor: 'pointer', padding: '8px 12px', fontSize: 12 };
+const ghostBtn: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-dim)', cursor: 'pointer', padding: '8px 12px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 };
