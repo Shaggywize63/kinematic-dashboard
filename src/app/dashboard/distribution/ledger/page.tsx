@@ -4,6 +4,8 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, StatCard, Row, Pill, Th, Td, inr, fmtDate } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { Check } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 export default function LedgerPage() {
   const [outletId, setOutletId] = useState('');
@@ -58,7 +60,7 @@ export default function LedgerPage() {
         <div style={{ display: 'flex', gap: 12 }}>
           <input value={outletId} onChange={(e) => setOutletId(e.target.value)} placeholder="Filter by outlet UUID"
             style={{ flex: 1, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }} />
-          <button onClick={load} style={{ background: 'var(--primary)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Apply</button>
+          <button onClick={load} style={{ background: 'var(--primary)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Check} />Apply</button>
         </div>
       </Card>
 

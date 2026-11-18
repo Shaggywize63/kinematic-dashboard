@@ -1,7 +1,8 @@
 'use client';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { Check, Copy } from 'lucide-react';
+import { Check, Contact, Copy, Mail, Megaphone, Phone, type LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../ui/PageIcon';
 import CallButton from '../shared/CallButton';
 import RecordedCallButton from '../shared/RecordedCallButton';
 import WhatsAppButton from '../shared/WhatsAppButton';
@@ -39,10 +40,10 @@ function FieldCopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-function Fact({ label, children }: { label: string; children: ReactNode }) {
+function Fact({ label, icon, children }: { label: string; icon?: LucideIcon; children: ReactNode }) {
   return (
     <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <div style={{ ...eyebrowStyle, fontSize: 10 }}>{label}</div>
+      <div style={{ ...eyebrowStyle, fontSize: 10, display: 'flex', alignItems: 'center', gap: 6 }}>{icon && <InlineIcon icon={icon} size={13} />}{label}</div>
       {children}
     </div>
   );
@@ -69,10 +70,10 @@ export default function ContactCard({
   if (!showEmail && !showPhone && campaigns.length === 0) return null;
 
   return (
-    <SectionCard title="Contact">
+    <SectionCard title="Contact" icon={Contact}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px 24px' }}>
         {showEmail && (
-          <Fact label={fields.labelFor('email', 'Email')}>
+          <Fact label={fields.labelFor('email', 'Email')} icon={Mail}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flexWrap: 'wrap' }}>
               <InlineEditText
                 value={lead.email || ''}
@@ -87,7 +88,7 @@ export default function ContactCard({
           </Fact>
         )}
         {showPhone && (
-          <Fact label={fields.labelFor('phone', 'Phone')}>
+          <Fact label={fields.labelFor('phone', 'Phone')} icon={Phone}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <InlineEditText
                 value={lead.phone || ''}
@@ -107,7 +108,7 @@ export default function ContactCard({
       </div>
       {campaigns.length > 0 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 18, paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
-          <span style={{ ...eyebrowStyle, fontSize: 10 }}>Engaged campaigns</span>
+          <span style={{ ...eyebrowStyle, fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Megaphone} size={13} />Engaged campaigns</span>
           {campaigns.map((c) => (
             <span key={c} style={{ fontSize: 12, fontWeight: 650, background: 'var(--s3)', border: `1px solid ${T.border}`, borderRadius: 999, padding: '3px 10px', color: T.text }}>{c}</span>
           ))}

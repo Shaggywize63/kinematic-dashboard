@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../../lib/api';
+import { CheckCircle2, Landmark, PowerOff, type LucideIcon } from 'lucide-react';
+import { IconTile, type IconTone } from '../../../../components/ui/PageIcon';
 import { usePagination } from '../../../../components/shared/Pagination';
 import ClientSelect from '../../../../components/ClientSelect';
 import ConfirmModal from '../../../../components/ConfirmModal';
@@ -143,8 +145,9 @@ export default function CityManagement() {
 
       {/* Stats */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:24}}>
-        {[{l:'Total Cities',v:cities.length,c:C.blue,bg:C.blueD},{l:'Active',v:active,c:C.green,bg:C.greenD},{l:'Inactive',v:cities.length-active,c:C.gray,bg:`rgba(122,139,160,0.08)`}].map((s,i)=>(
-          <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px'}}>
+        {([{l:'Total Cities',v:cities.length,c:C.blue,bg:C.blueD,icon:Landmark,tone:'brand'},{l:'Active',v:active,c:C.green,bg:C.greenD,icon:CheckCircle2,tone:'ok'},{l:'Inactive',v:cities.length-active,c:C.gray,bg:`rgba(122,139,160,0.08)`,icon:PowerOff,tone:'neutral'}] as {l:string;v:number;c:string;bg:string;icon:LucideIcon;tone:IconTone}[]).map((s,i)=>(
+          <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative'}}>
+            <IconTile icon={s.icon} tone={s.tone} style={{position:'absolute',top:14,right:14}} />
             <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:10}}>{s.l}</div>
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c}}>{s.v}</div>
           </div>
@@ -182,6 +185,7 @@ export default function CityManagement() {
           <div style={{padding:40,textAlign:'center',color:C.red,fontSize:13}}>{err}</div>
         ) : filtered.length === 0 ? (
           <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13}}>
+            <IconTile icon={Landmark} size={40} iconSize={20} style={{display:'flex',margin:'0 auto 10px'}} />
             {search ? 'No cities match your search.' : 'No cities yet. Add your first city.'}
           </div>
         ) : pagedCities.map((c,i)=>(

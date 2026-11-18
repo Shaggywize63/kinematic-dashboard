@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Trash2 } from 'lucide-react';
+import { ListChecks, Network, Target, Trash2, TrendingUp, UserRound } from 'lucide-react';
 import { crmTargets } from '../../lib/crmApi';
 import { MAX_RUPEES, MAX_RUPEES_LABEL, fmtGrouped, fmtRupees, groupRupeeInput, parseRupeeInput } from '../../lib/rupees';
 import type { RupeeLeaderboard, TargetEntry, TargetType } from '../../types/crm';
@@ -21,7 +21,7 @@ export interface TargetUser { id: string; name: string; role: string; city: stri
 export interface TargetLevel { id: string; name: string }
 
 const card: React.CSSProperties = { background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 16 };
-const h2: React.CSSProperties = { fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 };
+const h2: React.CSSProperties = { fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 };
 const hint: React.CSSProperties = { fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' };
 const inputStyle: React.CSSProperties = { width: 128, background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
 const selStyle: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, width: '100%' };
@@ -179,7 +179,7 @@ export default function RupeeTargets({ type, users, levels, baseLoading, narrow 
     <>
       {/* Per-hierarchy-level targets — the primary control */}
       <div style={card}>
-        <div style={h2}>{label} by hierarchy level</div>
+        <div style={h2}><Network aria-hidden size={15} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />{label} by hierarchy level</div>
         <p style={hint}>The monthly {lower} in rupees for every user at each level. Progress counts what they log this month.</p>
         {baseLoading || loading ? (
           <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: 12 }}>Loading…</div>
@@ -215,7 +215,7 @@ export default function RupeeTargets({ type, users, levels, baseLoading, narrow 
 
       {/* Individual overrides — optional fine-tuning */}
       <div style={card}>
-        <div style={h2}>Individual overrides <span style={{ fontWeight: 500, color: 'var(--text-dim)' }}>(optional)</span></div>
+        <div style={h2}><UserRound aria-hidden size={15} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Individual overrides <span style={{ fontWeight: 500, color: 'var(--text-dim)' }}>(optional)</span></div>
         <p style={hint}>Pick a level (and optional city) to list its people and override specific individuals. Leave a box empty to use their level’s target; enter 0 for no target at all.</p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
           <select aria-label="Level" value={pickLevel} onChange={(e) => setPickLevel(e.target.value)} style={{ ...selStyle, flex: '1 1 200px', minWidth: 0 }}>
@@ -261,7 +261,7 @@ export default function RupeeTargets({ type, users, levels, baseLoading, narrow 
 
       {/* Fallback default — for anyone with no level + no individual target */}
       <div style={card}>
-        <div style={h2}>Fallback default</div>
+        <div style={h2}><Target aria-hidden size={15} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Fallback default</div>
         <p style={hint}>Used only for people with no hierarchy level and no individual target.</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <RupeeBox label={`Fallback ${lower}`} value={defaultText} invalid={tooBig(defaultText)} onChange={setDefaultText} />
@@ -277,7 +277,7 @@ export default function RupeeTargets({ type, users, levels, baseLoading, narrow 
 
       {/* How the team is doing this month */}
       <div style={card}>
-        <div style={h2}>Team progress</div>
+        <div style={h2}><TrendingUp aria-hidden size={15} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Team progress</div>
         <p style={hint}>
           {board ? `${fmtDay(board.period_start)} – ${fmtDay(board.period_end)}` : 'This month'}
           {board && board.stats.target_participants > 0 ? ` · ${fmtRupees(board.stats.total_achieved)} of ${fmtRupees(board.stats.total_target)} · ${board.stats.meeting_target} of ${board.stats.target_participants} on target` : ''}
@@ -294,7 +294,7 @@ export default function RupeeTargets({ type, users, levels, baseLoading, narrow 
 
       {/* The entries those totals are made of */}
       <div style={card}>
-        <div style={h2}>Entries</div>
+        <div style={h2}><ListChecks aria-hidden size={15} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Entries</div>
         <p style={hint}>
           {ownOnly ? 'Showing your own entries.' : `Every ${kind === 'sales' ? 'sale' : 'collection'} logged by the team, newest first.`} Deleting one takes it off the total straight away.
         </p>

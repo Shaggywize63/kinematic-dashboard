@@ -15,6 +15,8 @@ import {
 } from '../../../../../lib/fieldOrder';
 import KiniFormBuilder from './KiniFormBuilder';
 import KiniMascot from './KiniMascot';
+import { Check, ListChecks, Lock, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 const ENTITIES: Array<CustomField['entity_type']> = ['lead', 'contact', 'account', 'deal', 'activity'];
 // Full set of supported input types. Render-side hooks (form renderer
@@ -762,7 +764,7 @@ export default function CustomFieldsPage() {
   if (accessDenied) {
     return (
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 32, textAlign: 'center' }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
+        <IconTile icon={Lock} size={40} iconSize={20} style={{ marginBottom: 12 }} />
         <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Admin Access Required</div>
         <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
           Custom fields are visible to admins and managers only. Contact your administrator for access.
@@ -838,7 +840,7 @@ export default function CustomFieldsPage() {
 
       {/* Create form */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Add Custom Field</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Plus} size={16} style={{ color: 'var(--text-dim)' }} />Add Custom Field</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>
           Adds an extra field to lead, contact, account, or deal records. Field key is the API identifier — use lowercase + underscores only.
         </div>
@@ -986,9 +988,9 @@ export default function CustomFieldsPage() {
                     onClick={() => setAppliesTo(o.v)}
                     style={{ padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                       border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
-                      background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)' }}
+                      background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
-                    {on ? '✓ ' : ''}{o.label}
+                    {on && <InlineIcon icon={Check} size={12} />}{o.label}
                   </button>
                 );
               })}
@@ -1010,22 +1012,23 @@ export default function CustomFieldsPage() {
                     onClick={() => setPickedRoles((prev) => on ? prev.filter((x) => x !== r.id) : [...prev, r.id])}
                     style={{ padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                       border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
-                      background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)' }}
+                      background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
-                    {on ? '✓ ' : ''}{r.name}
+                    {on && <InlineIcon icon={Check} size={12} />}{r.name}
                   </button>
                 );
               })}
             </div>
           </div>
         )}
-        <button onClick={create} disabled={creating} style={btnPrimary}>{creating ? 'Adding…' : '+ Add Field'}</button>
+        <button onClick={create} disabled={creating} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}>{!creating && <InlineIcon icon={Plus} />}{creating ? 'Adding…' : 'Add Field'}</button>
       </div>
 
       {/* Field list */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <InlineIcon icon={ListChecks} size={16} style={{ color: 'var(--text-dim)' }} />
             Fields ({totalSystem + totalCustom} total — {totalSystem} system, {totalCustom} custom)
           </div>
           <div style={{
@@ -1040,9 +1043,9 @@ export default function CustomFieldsPage() {
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               onClick={() => setShowBuiltin((v) => !v)}
-              style={{ ...btnFilter, background: showBuiltin ? '#6366f115' : 'transparent', color: showBuiltin ? '#6366f1' : 'var(--text-dim)', borderColor: showBuiltin ? '#6366f1' : 'var(--border)' }}
+              style={{ ...btnFilter, background: showBuiltin ? '#6366f115' : 'transparent', color: showBuiltin ? '#6366f1' : 'var(--text-dim)', borderColor: showBuiltin ? '#6366f1' : 'var(--border)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
-              {showBuiltin ? '✓ ' : ''}System Fields
+              {showBuiltin && <InlineIcon icon={Check} size={12} />}System Fields
             </button>
             {(['all', ...ENTITIES] as const).map((f) => (
               <button key={f} onClick={() => setFilter(f as any)} style={{ ...btnFilter, background: filter === f ? 'var(--primary)' : 'transparent', color: filter === f ? '#fff' : 'var(--text-dim)' }}>
@@ -1231,7 +1234,7 @@ export default function CustomFieldsPage() {
                             )}
                           </td>
                           <td style={td}>{f ? f.type : (TYPE_LABELS[c!.field_type] ?? c!.field_type)}</td>
-                          <td style={td}>{effRequired ? '✓' : ''}</td>
+                          <td style={td}>{effRequired ? <InlineIcon icon={Check} size={14} style={{ color: 'var(--ok)' }} /> : ''}</td>
                           <td style={td}>
                             {f
                               ? <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: '#6366f115', color: '#6366f1' }}>System</span>
@@ -1243,9 +1246,9 @@ export default function CustomFieldsPage() {
                                 <button
                                   onClick={() => setEditing({ entity: g.entity, key: f.key, label: effLabel, required: effRequired, hidden: effHidden })}
                                   disabled={saving}
-                                  style={btnSmall}
+                                  style={{ ...btnSmall, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                                 >
-                                  {saving ? '…' : 'Edit'}
+                                  {!saving && <InlineIcon icon={Pencil} size={12} />}{saving ? '…' : 'Edit'}
                                 </button>
                                 {overridden && (
                                   <button
@@ -1254,14 +1257,14 @@ export default function CustomFieldsPage() {
                                     style={btnSmallGhost}
                                     title="Reset label / required / hidden to the system default (keeps its position)"
                                   >
-                                    ↺
+                                    <InlineIcon icon={RotateCcw} size={12} />
                                   </button>
                                 )}
                               </div>
                             ) : (
                               <>
-                                <button onClick={() => startEditCustom(c!)} disabled={!!busy[c!.id]} style={{ ...btnSmall, marginRight: 6 }}>Edit</button>
-                                <button onClick={() => remove(c!)} disabled={!!busy[c!.id]} style={{ ...btnSmallDanger, opacity: busy[c!.id] ? 0.5 : 1 }}>{busy[c!.id] ? '...' : 'Delete'}</button>
+                                <button onClick={() => startEditCustom(c!)} disabled={!!busy[c!.id]} style={{ ...btnSmall, marginRight: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Pencil} size={12} />Edit</button>
+                                <button onClick={() => remove(c!)} disabled={!!busy[c!.id]} style={{ ...btnSmallDanger, opacity: busy[c!.id] ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', gap: 4 }}>{!busy[c!.id] && <InlineIcon icon={Trash2} size={12} />}{busy[c!.id] ? '...' : 'Delete'}</button>
                               </>
                             )}
                           </td>
@@ -1315,9 +1318,10 @@ export default function CustomFieldsPage() {
             background: 'var(--s3)', border: '1px dashed var(--border)',
             color: 'var(--text)', padding: '10px 18px', borderRadius: 10,
             cursor: 'pointer', fontSize: 13, fontWeight: 700,
+            display: 'inline-flex', alignItems: 'center', gap: 6,
           }}
         >
-          + Add another field
+          <InlineIcon icon={Plus} />Add another field
         </button>
       </div>
 
@@ -1369,9 +1373,9 @@ export default function CustomFieldsPage() {
                   await saveOverride(editing.entity, editing.key, { label: editing.label, required: editing.required, hidden: editing.hidden });
                   setEditing(null);
                 }}
-                style={btnPrimary}
+                style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                Save
+                <InlineIcon icon={Check} />Save
               </button>
             </div>
           </div>
@@ -1462,9 +1466,9 @@ export default function CustomFieldsPage() {
                         onClick={() => setEditingCustom({ ...editingCustom, appliesTo: o.v })}
                         style={{ padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                           border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
-                          background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)' }}
+                          background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                       >
-                        {on ? '✓ ' : ''}{o.label}
+                        {on && <InlineIcon icon={Check} size={12} />}{o.label}
                       </button>
                     );
                   })}
@@ -1538,9 +1542,9 @@ export default function CustomFieldsPage() {
                         onClick={() => setEditingCustom({ ...editingCustom, org_role_ids: on ? editingCustom.org_role_ids.filter((x) => x !== r.id) : [...editingCustom.org_role_ids, r.id] })}
                         style={{ padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                           border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
-                          background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)' }}
+                          background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                       >
-                        {on ? '✓ ' : ''}{r.name}
+                        {on && <InlineIcon icon={Check} size={12} />}{r.name}
                       </button>
                     );
                   })}
@@ -1550,8 +1554,8 @@ export default function CustomFieldsPage() {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button onClick={() => setEditingCustom(null)} disabled={savingCustom} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-              <button onClick={saveEditCustom} disabled={savingCustom} style={{ ...btnPrimary, opacity: savingCustom ? 0.6 : 1, cursor: savingCustom ? 'not-allowed' : 'pointer' }}>
-                {savingCustom ? 'Saving…' : 'Save'}
+              <button onClick={saveEditCustom} disabled={savingCustom} style={{ ...btnPrimary, opacity: savingCustom ? 0.6 : 1, cursor: savingCustom ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {!savingCustom && <InlineIcon icon={Check} />}{savingCustom ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>
@@ -1741,8 +1745,8 @@ function LookupConfig({
           })()}
           <button
             onClick={addRow}
-            style={{ background: 'transparent', border: '1px dashed var(--border)', color: 'var(--primary)', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-          >+ Add condition</button>
+            style={{ background: 'transparent', border: '1px dashed var(--border)', color: 'var(--primary)', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          ><InlineIcon icon={Plus} size={14} />Add condition</button>
         </>
       )}
     </div>

@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../../../lib/api';
+import { MapPinOff, RefreshCw } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../components/ui/PageIcon';
 
 /**
  * Route Deviations — off-route visits for the org (module route_deviation).
@@ -60,17 +62,21 @@ export default function RouteDeviationsPage() {
   return (
     <div style={{ padding: '24px 20px', maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
-        <div>
-          <h1 style={{ fontFamily: 'var(--heading, inherit)', fontSize: 24, fontWeight: 700, color: C.text, margin: 0 }}>Route Deviations</h1>
-          <p style={{ fontSize: 13, color: C.sec, margin: '4px 0 0' }}>
-            Visits where the rep checked in outside the planned outlet&apos;s geofence.
-          </p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <PageIcon />
+          <div>
+            <h1 style={{ fontFamily: 'var(--heading, inherit)', fontSize: 24, fontWeight: 700, color: C.text, margin: 0 }}>Route Deviations</h1>
+            <p style={{ fontSize: 13, color: C.sec, margin: '4px 0 0' }}>
+              Visits where the rep checked in outside the planned outlet&apos;s geofence.
+            </p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
             style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.text, fontSize: 13 }} />
           <button onClick={load} disabled={loading}
-            style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 12px', color: C.text, fontSize: 13, cursor: loading ? 'default' : 'pointer' }}>
+            style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 12px', color: C.text, fontSize: 13, cursor: loading ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <InlineIcon icon={RefreshCw} />
             {loading ? 'Loading…' : 'Refresh'}
           </button>
         </div>
@@ -92,7 +98,7 @@ export default function RouteDeviationsPage() {
             </thead>
             <tbody>
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={6} style={{ padding: '28px 14px', color: C.tert, textAlign: 'center' }}>No off-route visits for this date.</td></tr>
+                <tr><td colSpan={6} style={{ padding: '28px 14px', color: C.tert, textAlign: 'center' }}><IconTile icon={MapPinOff} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />No off-route visits for this date.</td></tr>
               )}
               {rows.map((d) => (
                 <tr key={d.outlet_id} style={{ borderTop: `1px solid ${C.border}`, color: C.text }}>

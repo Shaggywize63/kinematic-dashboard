@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { Mic } from 'lucide-react';
 import { intentColor, sentimentColor, statusMeta, type ConversationRow } from '../../../lib/conversationsApi';
 import { T } from '../../ui';
 import SectionCard from './SectionCard';
@@ -8,7 +9,7 @@ import { fmtIST, relTime } from './format';
 /** Recorded / consented calls that went through Conversation Analysis. */
 export default function InsightsTab({ conversations }: { conversations: ConversationRow[] }) {
   return (
-    <SectionCard title="Call insights" count={conversations.length}>
+    <SectionCard title="Call insights" icon={Mic} count={conversations.length}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {conversations.map((c) => {
           const sm = statusMeta(c.status);

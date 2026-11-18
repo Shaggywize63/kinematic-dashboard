@@ -15,12 +15,15 @@
 import { useEffect, useState } from 'react';
 import AutomationCanvas from '../../../../../components/crm/automations/AutomationCanvas';
 import CadencesManager from '../../../../../components/crm/CadencesManager';
+import type { LucideIcon } from 'lucide-react';
+import { ListOrdered, Zap } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 type Tab = 'rules' | 'sequences';
-const TABS: Array<{ id: Tab; icon: string; label: string; blurb: string }> = [
-  { id: 'rules', icon: '⚡', label: 'Rules',
+const TABS: Array<{ id: Tab; icon: LucideIcon; label: string; blurb: string }> = [
+  { id: 'rules', icon: Zap, label: 'Rules',
     blurb: 'Instant reactions — when an event happens, do one thing right away (assign an owner, notify, create a task).' },
-  { id: 'sequences', icon: '🪜', label: 'Sequences',
+  { id: 'sequences', icon: ListOrdered, label: 'Sequences',
     blurb: 'Timed multi-step drips — a follow-up cadence with waits between touches, fired on a lead/deal trigger.' },
 ];
 
@@ -50,7 +53,10 @@ export default function AutomationsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Automations</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <PageIcon />
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Automations</h1>
+        </div>
         <p style={{ fontSize: 12.5, color: 'var(--text-dim)', margin: '4px 0 0', maxWidth: 680 }}>
           One place to automate your CRM. <strong style={{ color: 'var(--text)' }}>Rules</strong> react instantly to an
           event; <strong style={{ color: 'var(--text)' }}>Sequences</strong> run a timed multi-step follow-up. Both fire
@@ -77,7 +83,7 @@ export default function AutomationsPage() {
                 transition: 'background 0.15s ease, color 0.15s ease',
               }}
             >
-              <span style={{ fontSize: 15 }}>{t.icon}</span>{t.label}
+              <InlineIcon icon={t.icon} />{t.label}
             </button>
           );
         })}

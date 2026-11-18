@@ -69,7 +69,7 @@ async function setup(page: Page, o: { uploadStatus?: number } = {}): Promise<See
 
 async function open(page: Page) {
   await page.goto('/dashboard/finance/expenses');
-  await expect(page.getByRole('button', { name: '+ New expense' })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole('button', { name: 'New expense' })).toBeVisible({ timeout: 45_000 });
 }
 
 test.describe('Finance expenses: receipts', () => {
@@ -82,7 +82,7 @@ test.describe('Finance expenses: receipts', () => {
   test('attaching a receipt uploads it as multipart, fills the empty boxes, and saves the reference', async ({ page }) => {
     const seen = await setup(page);
     await open(page);
-    await page.getByRole('button', { name: '+ New expense' }).click();
+    await page.getByRole('button', { name: 'New expense' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByTestId('receipt-input').setInputFiles({ name: 'bill.png', mimeType: 'image/png', buffer: PNG });
     await expect(dialog.getByTestId('receipt-attached')).toBeVisible();
@@ -102,7 +102,7 @@ test.describe('Finance expenses: receipts', () => {
   test('what was read never overwrites what the person already typed', async ({ page }) => {
     await setup(page);
     await open(page);
-    await page.getByRole('button', { name: '+ New expense' }).click();
+    await page.getByRole('button', { name: 'New expense' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.locator('input[id$="-vendor"]').fill('My own vendor name');
     await dialog.locator('input[id$="-amt"]').fill('999');
@@ -115,7 +115,7 @@ test.describe('Finance expenses: receipts', () => {
   test('a bill without a receipt is saved with a null reference', async ({ page }) => {
     const seen = await setup(page);
     await open(page);
-    await page.getByRole('button', { name: '+ New expense' }).click();
+    await page.getByRole('button', { name: 'New expense' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.locator('input[id$="-vendor"]').fill('Cash vendor');
     await dialog.locator('input[id$="-amt"]').fill('500');
@@ -147,7 +147,7 @@ test.describe('Finance expenses: receipts', () => {
   test('a file over 10 MB is refused in the browser and never uploaded', async ({ page }) => {
     const seen = await setup(page);
     await open(page);
-    await page.getByRole('button', { name: '+ New expense' }).click();
+    await page.getByRole('button', { name: 'New expense' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByTestId('receipt-input').setInputFiles({ name: 'huge.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(10 * 1024 * 1024 + 10, 1) });
     await expect(page.getByText(/larger than 10 MB/i).first()).toBeVisible();
@@ -158,7 +158,7 @@ test.describe('Finance expenses: receipts', () => {
   test('a failed upload leaves the form usable and attaches nothing', async ({ page }) => {
     const seen = await setup(page, { uploadStatus: 500 });
     await open(page);
-    await page.getByRole('button', { name: '+ New expense' }).click();
+    await page.getByRole('button', { name: 'New expense' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByTestId('receipt-input').setInputFiles({ name: 'bill.png', mimeType: 'image/png', buffer: PNG });
     await expect.poll(() => seen.uploads.length).toBe(1);
@@ -175,7 +175,7 @@ test.describe('Finance expenses: receipts', () => {
     await page.setViewportSize({ width: 390, height: 800 });
     await setup(page);
     await open(page);
-    await page.getByRole('button', { name: '+ New expense' }).click();
+    await page.getByRole('button', { name: 'New expense' }).click();
     await expect(page.getByTestId('receipt-input')).toBeAttached();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);

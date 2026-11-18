@@ -7,11 +7,12 @@
 import Link from 'next/link';
 import { FormEvent, useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Paperclip } from 'lucide-react';
+import { Ban, BarChart3, Calculator, CheckCircle2, FileText, IndianRupee, Landmark, Paperclip, Percent, Receipt } from 'lucide-react';
 import { Badge, Button, Card, Field, FormGrid, Input, Select, Textarea, T, useIsCompact } from '../../../../components/ui';
-import { Col, DataTable, FinancePage, Modal, Pager, SearchBox, Stat, Toolbar, fail, inr, useConfirm, useDebounced } from '../../../../components/finance/ui';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { Col, DataTable, FinancePage, Modal, Pager, SearchBox, Toolbar, fail, inr, useConfirm, useDebounced } from '../../../../components/finance/ui';
 import { ReceiptField, type ReceiptValue } from '../../../../components/finance/ReceiptField';
-import { ReceiptViewer, RECEIPT_MAX_BYTES, prepareReceipt } from '../../../../components/expenses/kit';
+import { IconStat, ReceiptViewer, RECEIPT_MAX_BYTES, prepareReceipt } from '../../../../components/expenses/kit';
 import { ErrorNote, RadioGroup, RupeeInput, GSTIN_RE, usePage, useRemote } from '../../../../components/finance/masterBits';
 import { PRESET_LABELS, RangePreset, presetRange } from '../../../../components/finance/dateRanges';
 import { fmtDate, num } from '../../../../lib/financeFormat';
@@ -100,8 +101,8 @@ export default function ExpensesPage() {
     ) },
     { key: 'category', label: 'Category', render: (r) => catLabel(r.category) },
     { key: 'source', label: 'Source', render: (r) => r.source === 'claim'
-      ? <Link href={`/dashboard/expenses/${r.claim_id}`} style={{ color: T.info, fontWeight: 600, fontSize: 12.5 }}>Field claim{r.claimed_by ? ` · ${r.claimed_by}` : ''}</Link>
-      : <Badge tone="neutral">Bill</Badge> },
+      ? <Link href={`/dashboard/expenses/${r.claim_id}`} style={{ color: T.info, fontWeight: 600, fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={Receipt} size={13} />{`Field claim${r.claimed_by ? ` · ${r.claimed_by}` : ''}`}</Link>
+      : <Badge tone="neutral"><InlineIcon icon={FileText} size={12} />Bill</Badge> },
     { key: 'tax', label: 'GST', align: 'right', render: (r) => (
       <span title={`Taxable ${inr(r.taxable_value)} · ${r.igst ? `IGST ${inr(r.igst)}` : `CGST ${inr(r.cgst)} + SGST ${inr(r.sgst)}`}`}>{inr(r.total_tax)} <span style={{ color: T.mute, fontSize: 11.5 }}>@{r.gst_rate}%</span></span>
     ) },
@@ -119,7 +120,7 @@ export default function ExpensesPage() {
 
   return (
     <FinancePage title="Expenses & GST" description="Bills and approved field-expense claims, the GST you paid on them and the input credit you can claim."
-      actions={<Button variant="primary" onClick={() => setEditing('new')}>+ New expense</Button>}>
+      actions={<Button variant="primary" onClick={() => setEditing('new')}>New expense</Button>}>
       <Toolbar>
         <Select aria-label="Period" value={preset} onChange={(e) => setPreset(e.target.value as RangePreset)} style={{ width: 190 }}>
           {PRESET_LABELS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
@@ -134,20 +135,20 @@ export default function ExpensesPage() {
 
       <Card padding={16}>
         <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 16 }}>
-          <Stat label="Total spend" value={inr(totals?.spend ?? 0)} hint={`${totals?.count ?? 0} expenses`} />
-          <Stat label="GST paid" value={inr(totals?.gst_paid ?? 0)} hint={`On ${inr(totals?.taxable ?? 0)} taxable`} tone="info" />
-          <Stat label="Input credit (claimable)" value={inr(totals?.itc_claimable ?? 0)} tone="ok" hint="Needs a valid supplier GSTIN" />
-          <Stat label="Not claimable" value={inr(totals?.itc_blocked ?? 0)} tone="warn" hint="Blocked or no GST invoice" />
+          <IconStat icon={IndianRupee} label="Total spend" value={inr(totals?.spend ?? 0)} hint={`${totals?.count ?? 0} expenses`} />
+          <IconStat icon={Landmark} label="GST paid" value={inr(totals?.gst_paid ?? 0)} hint={`On ${inr(totals?.taxable ?? 0)} taxable`} tone="info" />
+          <IconStat icon={CheckCircle2} label="Input credit (claimable)" value={inr(totals?.itc_claimable ?? 0)} tone="ok" hint="Needs a valid supplier GSTIN" />
+          <IconStat icon={Ban} label="Not claimable" value={inr(totals?.itc_blocked ?? 0)} tone="warn" hint="Blocked or no GST invoice" />
         </div>
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '3fr 2fr', gap: 12, alignItems: 'start' }}>
         <Card padding={0} style={{ overflow: 'hidden' }}>
           <div style={{ padding: '14px 16px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <div style={{ fontFamily: T.heading, fontWeight: 700, fontSize: 14.5, color: T.text }}>GST summary of expenses</div>
+            <div style={{ fontFamily: T.heading, fontWeight: 700, fontSize: 14.5, color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Percent} size={16} style={{ color: T.dim }} />GST summary of expenses</div>
             <span style={{ display: 'inline-flex', gap: 6 }}>
               <Button size="sm" onClick={() => download('gst-expenses')}>Download CSV</Button>
-              <Button size="sm" variant="ghost" href={`/dashboard/finance/reports/gst-expenses`}>Full report</Button>
+              <Button size="sm" variant="ghost" href={`/dashboard/finance/reports/gst-expenses`} icon={<BarChart3 size={14} strokeWidth={2} />}>Full report</Button>
             </span>
           </div>
           {summary.error && <div style={{ padding: '0 16px 12px' }}><ErrorNote message={summary.error} onRetry={summary.reload} /></div>}
@@ -175,7 +176,7 @@ export default function ExpensesPage() {
         </Card>
 
         <Card padding={16}>
-          <div style={{ fontFamily: T.heading, fontWeight: 700, fontSize: 14.5, color: T.text }}>Net GST payable</div>
+          <div style={{ fontFamily: T.heading, fontWeight: 700, fontSize: 14.5, color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Calculator} size={16} style={{ color: T.dim }} />Net GST payable</div>
           <div style={{ fontSize: 12.5, color: T.mute, marginTop: 2 }}>GST on sales − input credit on expenses</div>
           {net.error ? <div style={{ marginTop: 10 }}><ErrorNote message={net.error} onRetry={net.reload} /></div> : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginTop: 12, fontSize: 13.5 }}>
@@ -204,7 +205,7 @@ export default function ExpensesPage() {
       {list.error && <ErrorNote message={list.error} onRetry={list.reload} />}
       <Card padding={0} style={{ overflow: 'hidden' }}>
         <DataTable<ExpenseRecord> columns={columns} rows={rows} loading={list.loading}
-          empty={<div style={{ padding: 28, textAlign: 'center', color: T.mute, fontSize: 13.5 }}>No expenses in this period. Add a bill, or add GST details to a Field Expense claim line and get it approved.</div>} />
+          empty={<div style={{ padding: 28, textAlign: 'center', color: T.mute, fontSize: 13.5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}><IconTile icon={Receipt} size={40} iconSize={20} /><span>No expenses in this period. Add a bill, or add GST details to a Field Expense claim line and get it approved.</span></div>} />
       </Card>
       {pagination && <Pager page={pagination.page} limit={pagination.limit} total={pagination.total} onPage={setPage} />}
 
@@ -388,7 +389,7 @@ function ExpenseModal({ bill, businessState, onClose, onSaved }: { bill: Expense
           )}
         </FormGrid>
         <div>
-          <div style={{ fontSize: 12.5, fontWeight: 500, color: T.dim, marginBottom: 6 }}>Receipt</div>
+          <div style={{ fontSize: 12.5, fontWeight: 500, color: T.dim, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Paperclip} size={14} />Receipt</div>
           <ReceiptField value={receipt} uploading={uploading} onPick={attach} onView={setViewing}
             onClear={() => { setReceipt(null); setScanNote(null); }}
             hint={canClaim && !receipt ? 'Keep the tax invoice with the bill: you need it to claim input credit. Drop a photo or PDF, up to 10 MB.' : undefined} />

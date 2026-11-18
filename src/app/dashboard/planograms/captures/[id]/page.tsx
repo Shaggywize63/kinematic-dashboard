@@ -6,6 +6,12 @@ import { toast } from 'sonner';
 import planogramApi from '../../../../../lib/planogramApi';
 import PlanogramShelfOverlay, { categoryColor, type MarkableSku } from '../../../../../components/PlanogramShelfOverlay';
 import { PC, scoreTone, toneColor, fmtDateTime, ScorePill } from '../../_components/planogramUi';
+import {
+  AlertTriangle, Calculator, CalendarDays, Camera, Check, CheckCircle2, ClipboardList, Crosshair, Eye, Gauge, IndianRupee, LayoutDashboard,
+  LayoutGrid, ListChecks, MapPin, Megaphone, Package, PackageCheck, PackageX, Pencil, PieChart, RefreshCw, RotateCcw, ScanLine, Settings2,
+  Shuffle, Tag, Tags, Target, User, X, XCircle, type LucideIcon,
+} from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import type {
   Capture,
   Compliance,
@@ -434,6 +440,10 @@ export default function CaptureDetailPage() {
     ? 'Share of shelf only'
     : tone === 'good' ? 'On track' : tone === 'warn' ? 'Needs attention' : 'Action needed';
 
+  const TAB_ICONS: Record<TabKey, LucideIcon> = {
+    overview: LayoutDashboard, skus: Package, stock: PackageCheck, categories: Tags, placement: LayoutGrid,
+    competitors: Target, pricing: IndianRupee, promotions: Tag, posm: Megaphone, methodology: Calculator,
+  };
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'skus', label: 'SKUs', count: detected.length || undefined },
@@ -502,16 +512,16 @@ export default function CaptureDetailPage() {
               flexWrap: 'wrap',
             }}
           >
-            <span>📅 {fmtDateTime(capture?.captured_at)}</span>
-            <span>👤 {capture?.fe?.name || 'FE Executive'}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={CalendarDays} size={13} />{fmtDateTime(capture?.captured_at)}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={User} size={13} />{capture?.fe?.name || 'FE Executive'}</span>
             {capture?.capture_lat != null && capture?.capture_lng != null && (
-              <span>
-                📍 {capture.capture_lat.toFixed(5)}, {capture.capture_lng.toFixed(5)}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <InlineIcon icon={MapPin} size={13} />{capture.capture_lat.toFixed(5)}, {capture.capture_lng.toFixed(5)}
               </span>
             )}
             {(expectedSkuCount > 0 || shelfCount) && (
-              <span>
-                🧴 {expectedSkuCount > 0 ? `${expectedSkuCount} expected SKU${expectedSkuCount === 1 ? '' : 's'}` : ''}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <InlineIcon icon={Package} size={13} />{expectedSkuCount > 0 ? `${expectedSkuCount} expected SKU${expectedSkuCount === 1 ? '' : 's'}` : ''}
                 {expectedSkuCount > 0 && shelfCount ? ' · ' : ''}
                 {shelfCount ? `${shelfCount} shelf${shelfCount === 1 ? '' : 'ves'}` : ''}
               </span>
@@ -569,7 +579,7 @@ export default function CaptureDetailPage() {
                     borderRadius: 100,
                   }}
                 >
-                  ⚠ Flagged for review
+                  <InlineIcon icon={AlertTriangle} size={12} />Flagged for review
                 </div>
               )}
             </div>
@@ -587,11 +597,12 @@ export default function CaptureDetailPage() {
             gap: 9,
           }}
         >
-          <KpiTile label="Presence" value={shareOnly ? null : compliance.presence_score} pctValue metricTone emptyLabel="N/A" sub="on-shelf vs expected" />
-          <KpiTile label="Facings" value={shareOnly ? null : compliance.facing_score} pctValue metricTone emptyLabel="N/A" sub="detected vs planned" />
-          <KpiTile label="Position" value={shareOnly ? null : compliance.position_score} pctValue metricTone emptyLabel="N/A" sub="on the right shelf" />
+          <KpiTile label="Presence" icon={Eye} value={shareOnly ? null : compliance.presence_score} pctValue metricTone emptyLabel="N/A" sub="on-shelf vs expected" />
+          <KpiTile label="Facings" icon={LayoutGrid} value={shareOnly ? null : compliance.facing_score} pctValue metricTone emptyLabel="N/A" sub="detected vs planned" />
+          <KpiTile label="Position" icon={Crosshair} value={shareOnly ? null : compliance.position_score} pctValue metricTone emptyLabel="N/A" sub="on the right shelf" />
           <KpiTile
             label="Occupancy"
+            icon={Gauge}
             value={compliance.occupancy_score ?? null}
             pctValue
             color={C.blue}
@@ -599,6 +610,7 @@ export default function CaptureDetailPage() {
           />
           <KpiTile
             label="Shelf share"
+            icon={PieChart}
             value={compliance.shelf_share_own ?? null}
             pctValue
             metricTone
@@ -606,6 +618,7 @@ export default function CaptureDetailPage() {
           />
           <KpiTile
             label="Availability"
+            icon={PackageCheck}
             value={shareOnly ? null : availabilityRate}
             pctValue
             metricTone
@@ -614,6 +627,7 @@ export default function CaptureDetailPage() {
           />
           <KpiTile
             label="POSM"
+            icon={Megaphone}
             value={posmScore}
             pctValue
             metricTone
@@ -644,8 +658,12 @@ export default function CaptureDetailPage() {
                 fontSize: 14,
                 fontWeight: 800,
                 marginBottom: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
               }}
             >
+              <InlineIcon icon={ScanLine} size={16} style={{ color: C.gray }} />
               Shelf recognition
             </div>
             {capture && recognition ? (
@@ -674,8 +692,12 @@ export default function CaptureDetailPage() {
                 letterSpacing: '0.1em',
                 color: C.grayd,
                 fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
               }}
             >
+              <InlineIcon icon={ClipboardList} size={14} />
               At a glance
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 11 }}>
@@ -786,6 +808,7 @@ export default function CaptureDetailPage() {
                 boxShadow: selected ? '0 1px 2px rgba(16,20,30,0.06)' : 'none',
               }}
             >
+              <InlineIcon icon={TAB_ICONS[t.key]} size={14} />
               {t.label}
               {t.count != null && (
                 <span
@@ -916,9 +939,7 @@ function ReanalyzeButton({ busy, onRun }: { busy: boolean; onRun: () => void }) 
           </>
         ) : (
           <>
-            <span aria-hidden style={{ fontSize: 14, lineHeight: 0 }}>
-              ↻
-            </span>
+            <InlineIcon icon={RefreshCw} size={14} />
             Re-analyze
           </>
         )}
@@ -1030,7 +1051,7 @@ function OverviewTab({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 14 }}>
         {/* Category shelf-share mini-bars */}
-        <Panel title="Category shelf-share" subtitle="Own vs competitor facings, per category">
+        <Panel title="Category shelf-share" icon={PieChart} subtitle="Own vs competitor facings, per category">
           <div style={{ padding: 16 }}>
             {categoryRows.length === 0 ? (
               <EmptyLine>No category data for this capture.</EmptyLine>
@@ -1069,7 +1090,7 @@ function OverviewTab({
         </Panel>
 
         {/* Capture quality */}
-        <Panel title="Capture quality" subtitle="Why this audit may need a closer look">
+        <Panel title="Capture quality" icon={Camera} subtitle="Why this audit may need a closer look">
           <div style={{ padding: 16 }}>
             <CaptureQuality
               needsReview={!!recognition?.needs_review}
@@ -1085,7 +1106,7 @@ function OverviewTab({
 
       {/* Full recommendation list (top 3 also surface in the hero) */}
       {recommendations.length > 0 && (
-        <Panel title="Recommended actions" subtitle="Prioritized fixes for this shelf">
+        <Panel title="Recommended actions" icon={ListChecks} subtitle="Prioritized fixes for this shelf">
           {[...recommendations]
             .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority))
             .map((r, i) => (
@@ -1141,6 +1162,7 @@ function SkusTab({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Panel
         title="Detected SKUs — is KINI AI right?"
+        icon={Package}
         subtitle="Confirm a correct detection to save its crop as a new reference pack-shot, or give feedback to teach KINI AI. Recovered & low-confidence detections are sorted first."
       >
         {rows.length === 0 ? (
@@ -1162,7 +1184,7 @@ function SkusTab({
       </Panel>
 
       {misplaced.length > 0 && (
-        <Panel title={`Misplaced (${misplaced.length})`} subtitle="Detected on the wrong shelf band">
+        <Panel title={`Misplaced (${misplaced.length})`} icon={Shuffle} subtitle="Detected on the wrong shelf band">
           {misplaced.map((m) => (
             <Row key={m.sku_id} left={m.sku_name} right={`shelf ${m.actual_shelf} → ${m.expected_shelf}`} />
           ))}
@@ -1294,7 +1316,7 @@ function DetectionRow({
             }}
           >
             {confirmDone ? (
-              <span style={doneMsgStyle}>✓ Saved as reference — KINI AI will use this photo</span>
+              <span style={doneMsgStyle}><InlineIcon icon={CheckCircle2} size={13} />Saved as reference — KINI AI will use this photo</span>
             ) : (
               <>
                 <button
@@ -1309,7 +1331,8 @@ function DetectionRow({
                   }
                   style={actionBtnStyle('ok', !eligible || confirmPending)}
                 >
-                  {confirmPending ? 'Saving…' : confirmError ? '↻ Retry' : '✓ Correct'}
+                  {!confirmPending && <InlineIcon icon={confirmError ? RotateCcw : Check} size={13} />}
+                  {confirmPending ? 'Saving…' : confirmError ? 'Retry' : 'Correct'}
                 </button>
                 <button
                   type="button"
@@ -1317,7 +1340,7 @@ function DetectionRow({
                   style={actionBtnStyle('fix', false)}
                   title="Tell KINI AI what it got wrong"
                 >
-                  ✎ Fix
+                  <InlineIcon icon={Pencil} size={13} />Fix
                 </button>
               </>
             )}
@@ -1335,7 +1358,7 @@ function DetectionRow({
       {/* Feedback confirmation */}
       {fbDone && (
         <div style={{ ...doneMsgStyle, marginTop: 8 }}>
-          ✓ Thanks — feedback saved. KINI AI will learn from this.
+          <InlineIcon icon={CheckCircle2} size={13} />Thanks — feedback saved. KINI AI will learn from this.
         </div>
       )}
 
@@ -1442,6 +1465,7 @@ function CategoriesTab({
   return (
     <Panel
       title="Category analysis"
+      icon={Tags}
       subtitle={computed ? 'Estimated from detected facings on this shelf' : 'Computed by the compliance engine'}
       info={info}
     >
@@ -1502,7 +1526,7 @@ function PlacementTab({
   isCompact: boolean;
 }) {
   return (
-    <Panel title="Placement zones" subtitle="Own vs competitor facings by shelf band" info={info}>
+    <Panel title="Placement zones" icon={LayoutGrid} subtitle="Own vs competitor facings by shelf band" info={info}>
       {rows.length === 0 ? (
         <EmptyLine>No placement-band data for this capture.</EmptyLine>
       ) : (
@@ -1559,6 +1583,7 @@ function CompetitorsTab({
   return (
     <Panel
       title={`Competitors on shelf${rows.length ? ` (${rows.length})` : ''}`}
+      icon={Target}
       subtitle="Matched to your tracked catalogue for stable identity & price trending."
       action={
         <Link
@@ -1572,7 +1597,7 @@ function CompetitorsTab({
           }}
           title="Add or edit the competitor SKUs and product images this planogram tracks"
         >
-          Manage tracked competitors →
+          <InlineIcon icon={Settings2} size={13} />Manage tracked competitors →
         </Link>
       }
     >
@@ -1620,7 +1645,7 @@ function CompetitorsTab({
 
 function PricingTab({ rows }: { rows: OwnPriceRow[] }) {
   return (
-    <Panel title={`Own-SKU pricing${rows.length ? ` (${rows.length})` : ''}`} subtitle="Shelf price vs your expected MRP">
+    <Panel icon={IndianRupee} title={`Own-SKU pricing${rows.length ? ` (${rows.length})` : ''}`} subtitle="Shelf price vs your expected MRP">
       {rows.length === 0 ? (
         <EmptyLine>No own-SKU prices were read on this shelf.</EmptyLine>
       ) : (
@@ -1657,7 +1682,7 @@ function PromotionsTab({
   promotions: { text: string; offer_type: OfferType; confidence: number; linked_sku_ids: string[] }[];
 }) {
   return (
-    <Panel title={`Promotions${promotions.length ? ` (${promotions.length})` : ''}`} subtitle="Offer signage visible on the shelf">
+    <Panel icon={Tag} title={`Promotions${promotions.length ? ` (${promotions.length})` : ''}`} subtitle="Offer signage visible on the shelf">
       {promotions.length === 0 ? (
         <EmptyLine>No promotions detected on this shelf.</EmptyLine>
       ) : (
@@ -1705,7 +1730,7 @@ function StockTab({
 
   if (!stock && !hasUnits && availabilityRate == null) {
     return (
-      <Panel title="Stock & availability" subtitle="Estimated on-shelf units and availability">
+      <Panel title="Stock & availability" icon={PackageCheck} subtitle="Estimated on-shelf units and availability">
         <EmptyLine>No stock estimate is available for this capture.</EmptyLine>
       </Panel>
     );
@@ -1713,7 +1738,7 @@ function StockTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Panel title="Stock & availability" subtitle="Estimated physical units on the shelf and availability rate">
+      <Panel title="Stock & availability" icon={PackageCheck} subtitle="Estimated physical units on the shelf and availability rate">
         <div
           style={{
             display: 'grid',
@@ -1737,6 +1762,7 @@ function StockTab({
       <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 14 }}>
         <Panel
           title={`Out of stock${oos.length ? ` (${oos.length})` : ''}`}
+          icon={PackageX}
           subtitle="Expected SKUs with no units detected on shelf"
         >
           {oos.length === 0 ? (
@@ -1747,6 +1773,7 @@ function StockTab({
         </Panel>
         <Panel
           title={`Low stock${low.length ? ` (${low.length})` : ''}`}
+          icon={AlertTriangle}
           subtitle="Running low — restock before they sell out"
         >
           {low.length === 0 ? (
@@ -1768,7 +1795,7 @@ function StockTab({
         </Panel>
       </div>
 
-      <Panel title="Per-SKU units & status" subtitle="Estimated units and stock status for each detected product">
+      <Panel title="Per-SKU units & status" icon={Package} subtitle="Estimated units and stock status for each detected product">
         {detected.length === 0 ? (
           <EmptyLine>No SKUs were detected on this shelf.</EmptyLine>
         ) : (
@@ -1864,7 +1891,7 @@ function StockStat({
 function PosmTab({ posm, isCompact }: { posm: PosmCompliance | null; isCompact: boolean }) {
   if (!posm || posm.expected_count === 0) {
     return (
-      <Panel title="POSM compliance" subtitle="Point-of-sale materials expected vs found on shelf">
+      <Panel title="POSM compliance" icon={Megaphone} subtitle="Point-of-sale materials expected vs found on shelf">
         <EmptyLine>No expected POSM defined for this planogram.</EmptyLine>
       </Panel>
     );
@@ -1874,7 +1901,7 @@ function PosmTab({ posm, isCompact }: { posm: PosmCompliance | null; isCompact: 
   const found = posm.found ?? [];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Panel title="POSM compliance" subtitle="How much of the expected point-of-sale material is present and intact">
+      <Panel title="POSM compliance" icon={Megaphone} subtitle="How much of the expected point-of-sale material is present and intact">
         <div
           style={{
             display: 'grid',
@@ -1898,6 +1925,7 @@ function PosmTab({ posm, isCompact }: { posm: PosmCompliance | null; isCompact: 
       <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 14 }}>
         <Panel
           title={`Missing${missing.length ? ` (${missing.length})` : ''}`}
+          icon={XCircle}
           subtitle="Expected POSM not detected on the shelf"
         >
           {missing.length === 0 ? (
@@ -1910,6 +1938,7 @@ function PosmTab({ posm, isCompact }: { posm: PosmCompliance | null; isCompact: 
         </Panel>
         <Panel
           title={`Damaged${damaged.length ? ` (${damaged.length})` : ''}`}
+          icon={AlertTriangle}
           subtitle="Present but damaged or obscured — needs replacing"
         >
           {damaged.length === 0 ? (
@@ -1931,7 +1960,7 @@ function PosmTab({ posm, isCompact }: { posm: PosmCompliance | null; isCompact: 
         </Panel>
       </div>
 
-      <Panel title={`Found${found.length ? ` (${found.length})` : ''}`} subtitle="Point-of-sale materials detected on this shelf">
+      <Panel icon={CheckCircle2} title={`Found${found.length ? ` (${found.length})` : ''}`} subtitle="Point-of-sale materials detected on this shelf">
         {found.length === 0 ? (
           <EmptyLine>No POSM was detected on this shelf.</EmptyLine>
         ) : (
@@ -2083,6 +2112,7 @@ function MethodologyTab({
   return (
     <Panel
       title="How every number is calculated"
+      icon={Calculator}
       subtitle="Full transparency — the real arithmetic and per-SKU breakdown behind each metric."
     >
       <div style={{ padding: 16 }}>
@@ -2228,6 +2258,7 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
 /** A KPI tile: label + value + meter bar + semantic colour. */
 function KpiTile({
   label,
+  icon,
   value,
   pctValue,
   metricTone,
@@ -2237,6 +2268,7 @@ function KpiTile({
   emptyLabel,
 }: {
   label: string;
+  icon: LucideIcon;
   value: number | null;
   pctValue?: boolean;
   metricTone?: boolean;
@@ -2251,7 +2283,7 @@ function KpiTile({
     meterPct != null ? meterPct : pctValue && value != null ? Math.max(0, Math.min(100, value)) : 0;
   return (
     <div style={{ ...cardStyle, padding: '12px 13px' }}>
-      <div style={{ fontSize: 11, color: C.gray, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 11, color: C.gray, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={icon} size={13} />{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>
         {value != null ? (
           <>
@@ -2370,7 +2402,7 @@ function CaptureQuality({
       )}
       <div style={{ padding: '11px 13px', background: tint, border: `1px solid ${bord}`, borderRadius: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800, color: accent }}>
-          <span aria-hidden>{clean ? '✓' : '⚠'}</span>
+          <InlineIcon icon={clean ? CheckCircle2 : AlertTriangle} size={15} />
           <span>{reshoot ? 'Re-shoot recommended' : needsReview ? 'Flagged for review' : 'Capture looks clean'}</span>
         </div>
         <div style={{ fontSize: 12, color: C.gray, marginTop: 4, lineHeight: 1.5 }}>
@@ -2649,7 +2681,7 @@ function MethodologyTable({
                 let content: React.ReactNode;
                 if (typeof v === 'boolean') {
                   color = v ? C.green : C.red;
-                  content = v ? '✓' : '✗';
+                  content = <InlineIcon icon={v ? Check : X} size={14} style={{ verticalAlign: '-2px' }} />;
                 } else if (typeof v === 'number' && isDelta) {
                   color = v < 0 ? C.red : v > 0 ? C.green : C.gray;
                   content = `${v > 0 ? '+' : ''}${round1(v)}`;
@@ -2897,7 +2929,7 @@ function QualityChip({
       }}
     >
       {label} {fmtScore(value)}
-      {warn ? ' ⚠' : ''}
+      {warn && <InlineIcon icon={AlertTriangle} size={11} style={{ marginLeft: 4, verticalAlign: '-1px' }} />}
     </span>
   );
 }
@@ -2956,12 +2988,14 @@ function PriorityBadge({ p }: { p: 'critical' | 'high' | 'medium' | 'low' }) {
 /** A titled card. `info` renders a methodology ⓘ toggle in the header. */
 function Panel({
   title,
+  icon,
   subtitle,
   info,
   action,
   children,
 }: {
   title: string;
+  icon?: LucideIcon;
   subtitle?: string;
   info?: MethodologyEntry;
   action?: React.ReactNode;
@@ -2973,6 +3007,7 @@ function Panel({
       <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {icon && <InlineIcon icon={icon} size={16} style={{ color: C.gray }} />}
             <span style={{ fontFamily: 'var(--font-manrope)', fontSize: 14, fontWeight: 800 }}>{title}</span>
             <InfoDotButton method={info} open={open} onToggle={() => setOpen((o) => !o)} />
           </div>

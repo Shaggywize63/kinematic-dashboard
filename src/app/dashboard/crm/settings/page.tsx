@@ -3,9 +3,11 @@ import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
-  Blocks, Boxes, ChevronRight, ClipboardList, Database, Factory, GitBranch, Layers, ListChecks, ListOrdered, MapPinned, Moon, Network, Palette, Phone, Plug, Shuffle,
-  Sparkles, Sun, Tag, Target, UserCircle, Users, Workflow, Zap,
+  Blocks, Boxes, Briefcase, Building2, ChevronRight, ClipboardList, Database, Factory, GitBranch, Layers, ListChecks, ListOrdered, MapPinned, Moon, Network, Palette, Phone, Plug, Scale, Shuffle,
+  Sparkles, Sun, SunMoon, Tag, Target, User, UserCircle, UserCog, Users, Workflow, Zap,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 import { crmSettings } from '../../../../lib/crmApi';
 import api from '../../../../lib/api';
 import NewBadge from '../../../../components/shared/NewBadge';
@@ -38,10 +40,10 @@ const SECTIONS = [
   { href: '/dashboard/crm/settings/custom-objects', title: 'Custom Objects', desc: 'Define your own record types (Property, Vehicle, Policy…) with their own fields, beyond leads/contacts/deals/accounts.', icon: <Boxes {...ICON_PROPS} /> },
 ];
 
-const BUSINESS_OPTIONS: Array<{ value: BusinessType; label: string; desc: string }> = [
-  { value: 'b2b', label: 'B2B', desc: 'Selling to companies. Forms emphasise company, title, industry, revenue.' },
-  { value: 'b2c', label: 'B2C', desc: 'Selling to consumers. Forms emphasise demographics, address, channel preference, loyalty.' },
-  { value: 'both', label: 'Mixed', desc: 'Show both. Each lead/contact can be tagged B2B or B2C individually.' },
+const BUSINESS_OPTIONS: Array<{ value: BusinessType; label: string; desc: string; icon: LucideIcon }> = [
+  { value: 'b2b', label: 'B2B', icon: Building2, desc: 'Selling to companies. Forms emphasise company, title, industry, revenue.' },
+  { value: 'b2c', label: 'B2C', icon: User, desc: 'Selling to consumers. Forms emphasise demographics, address, channel preference, loyalty.' },
+  { value: 'both', label: 'Mixed', icon: Users, desc: 'Show both. Each lead/contact can be tagged B2B or B2C individually.' },
 ];
 
 // Two-state theme — 'system' was removed because OS auto-switching was
@@ -177,7 +179,8 @@ export default function SettingsIndex() {
     catch (e: any) { toast.error(e.message || 'Seeding failed'); }
   };
 
-  const cardTitle: React.CSSProperties = { fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text };
+  const cardTitle: React.CSSProperties = { fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, display: 'flex', alignItems: 'center', gap: 8 };
+  const titleIcon: React.CSSProperties = { color: T.dim };
   const cardHint: React.CSSProperties = { fontSize: 13, color: T.dim, marginTop: 2, lineHeight: 1.5 };
 
   return (
@@ -196,7 +199,7 @@ export default function SettingsIndex() {
             attribute, so changing it in either place is global. */}
         <Card padding={20} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0 }}>
-            <div style={cardTitle}>Appearance</div>
+            <div style={cardTitle}><InlineIcon icon={SunMoon} size={16} style={titleIcon} />Appearance</div>
             <div style={cardHint}>Choose Light or Dark. The choice sticks across refreshes.</div>
           </div>
           <Segmented
@@ -219,7 +222,7 @@ export default function SettingsIndex() {
         <Card padding={20} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={cardTitle}>Default role</div>
+              <div style={cardTitle}><InlineIcon icon={UserCog} size={16} style={titleIcon} />Default role</div>
               <div style={cardHint}>
                 The org-role new users (or invitees) are placed under unless an explicit role is chosen.
                 Saves per client when one is active in the global picker; otherwise it&rsquo;s the org-level default.
@@ -243,7 +246,7 @@ export default function SettingsIndex() {
 
       <Card padding={20} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
-          <div style={cardTitle}>Business type</div>
+          <div style={cardTitle}><InlineIcon icon={Briefcase} size={16} style={titleIcon} />Business type</div>
           <div style={cardHint}>
             Tells the CRM whether you sell to companies (B2B), consumers (B2C), or both. Affects which fields are shown by default on lead and contact forms.
           </div>
@@ -269,7 +272,7 @@ export default function SettingsIndex() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 13.5, fontWeight: 600 }}>{o.label}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={o.icon} size={14} style={{ color: T.dim }} />{o.label}</span>
                   <span aria-hidden style={{ width: 14, height: 14, borderRadius: 999, border: `1px solid ${active ? T.red : T.borderStrong}`, background: active ? T.red : 'transparent', boxShadow: active ? 'inset 0 0 0 3px var(--card)' : 'none', flexShrink: 0 }} />
                 </div>
                 <div style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.45 }}>{o.desc}</div>
@@ -286,7 +289,7 @@ export default function SettingsIndex() {
       {steel && (
         <Card padding={20} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={cardTitle}>Weight-based pricing</div>
+            <div style={cardTitle}><InlineIcon icon={Scale} size={16} style={titleIcon} />Weight-based pricing</div>
             <div style={{ ...cardHint, maxWidth: 640 }}>
               Pricing is configured per product — each product carries its own price and weight per unit. On a deal, pick the product and enter the volume in kilograms; amount auto-calculates.
             </div>

@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Users } from 'lucide-react';
+import { Building2, Trash2, Users } from 'lucide-react';
 import type { Contact } from '../../types/crm';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
 import OwnerAvatar from './shared/OwnerAvatar';
@@ -98,9 +98,9 @@ export default function ContactsTable({ contacts, loading, isB2C = false, onAssi
                           type="button"
                           onClick={() => onDelete(c)}
                           aria-label={`Delete ${name}`}
-                          style={{ background: 'transparent', border: 0, padding: 0, marginTop: 2, fontSize: 11.5, fontWeight: 600, color: '#ef4444', cursor: 'pointer' }}
+                          style={{ background: 'transparent', border: 0, padding: 0, marginTop: 2, fontSize: 11.5, fontWeight: 600, color: '#ef4444', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                         >
-                          Delete
+                          <Trash2 aria-hidden size={12} strokeWidth={2} />Delete
                         </button>
                       </div>
                     )}
@@ -116,9 +116,9 @@ export default function ContactsTable({ contacts, loading, isB2C = false, onAssi
                             type="button"
                             onClick={() => onChangeAccount(c)}
                             aria-label={`${c.account_id ? `Change ${companyWord.toLowerCase()}` : `Add to a ${companyWord.toLowerCase()}`} for ${name}`}
-                            style={{ background: 'transparent', border: 0, padding: 0, marginTop: 2, fontSize: 11.5, fontWeight: 600, color: T.red, cursor: 'pointer' }}
+                            style={{ background: 'transparent', border: 0, padding: 0, marginTop: 2, fontSize: 11.5, fontWeight: 600, color: T.red, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                           >
-                            {c.account_id ? `Change ${companyWord.toLowerCase()}` : `Add to a ${companyWord.toLowerCase()}`}
+                            <Building2 aria-hidden size={12} strokeWidth={2} />{c.account_id ? `Change ${companyWord.toLowerCase()}` : `Add to a ${companyWord.toLowerCase()}`}
                           </button>
                         </div>
                       )}

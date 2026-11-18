@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import SignedImage from '@/components/shared/SignedImage';
 import { toast } from 'sonner';
+import { Camera, ExternalLink, Image as ImageIcon, Loader2, Paperclip } from 'lucide-react';
 import { crmCustomFields, crmLookup, crmProducts, crmSettings, type LookupHit } from '../../lib/crmApi';
 import { customOrder, extractFieldOverrides, hasFormOrder } from '../../lib/crmFieldOverrides';
 import api from '../../lib/api';
@@ -555,7 +556,8 @@ function FileUploader({ field, value, onChange }: { field: CustomField; value: u
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         {isImage && (
           <label style={pickerLabelStyle(uploading)}>
-            {uploading ? '⏳ Uploading…' : '📸 Take Photo'}
+            {uploading ? <Loader2 aria-hidden size={15} strokeWidth={2} className="km-spin" /> : <Camera aria-hidden size={15} strokeWidth={2} />}
+            {uploading ? 'Uploading…' : 'Take Photo'}
             <input
               type="file"
               accept="image/*"
@@ -568,7 +570,8 @@ function FileUploader({ field, value, onChange }: { field: CustomField; value: u
         )}
         {!(isImage && cameraOnly) && (
         <label style={pickerLabelStyle(uploading)}>
-          {uploading ? '⏳ Uploading…' : (isImage ? '🖼 Choose from Gallery' : '📎 Upload File')}
+          {uploading ? <Loader2 aria-hidden size={15} strokeWidth={2} className="km-spin" /> : isImage ? <ImageIcon aria-hidden size={15} strokeWidth={2} /> : <Paperclip aria-hidden size={15} strokeWidth={2} />}
+          {uploading ? 'Uploading…' : (isImage ? 'Choose from Gallery' : 'Upload File')}
           <input
             type="file"
             accept={isImage ? 'image/*' : undefined}
@@ -584,8 +587,8 @@ function FileUploader({ field, value, onChange }: { field: CustomField; value: u
               // eslint-disable-next-line @next/next/no-img-element
               <SignedImage src={url} alt={field.label} style={{ maxWidth: 120, maxHeight: 80, borderRadius: 6, border: '1px solid var(--border)' }} />
             ) : (
-              <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontSize: 12, textDecoration: 'underline' }}>
-                View attached file ↗
+              <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontSize: 12, textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Paperclip aria-hidden size={12} strokeWidth={2} />View attached file ↗
               </a>
             )}
             <button

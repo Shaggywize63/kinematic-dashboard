@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Download, FileUp, Pencil, Plus, Power, RefreshCw, Search, Trash2, Upload, Users, X } from 'lucide-react';
+import { Activity, Download, FileUp, KeyRound, Landmark, Mail, Map as MapIcon, Pencil, Phone, Plus, Power, RefreshCw, Search, Settings2, Trash2, Upload, User, UserCog, Users, X, type LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon, type IconTone } from '../../../components/ui/PageIcon';
 import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
 import ClientSelect from '../../../components/ClientSelect';
@@ -435,14 +436,17 @@ export default function ManpowerDirectoryPage() {
 
         {/* Stats */}
         <div style={{display:'grid',gridTemplateColumns:narrow?'repeat(2, minmax(0,1fr))':'repeat(4, minmax(0,1fr))',gap:14}}>
-          {[
-            { l:'Total manpower', v:stats.total },
-            { l:'Executives', v:stats.executives },
-            { l:'Supervisors', v:stats.supervisors },
-            { l:'Currently active', v:stats.active, c:T.ok },
-          ].map((s)=>(
+          {([
+            { l:'Total manpower', v:stats.total, icon:Users, tone:'brand' },
+            { l:'Executives', v:stats.executives, icon:User, tone:'brand' },
+            { l:'Supervisors', v:stats.supervisors, icon:UserCog, tone:'brand' },
+            { l:'Currently active', v:stats.active, c:T.ok, icon:Activity, tone:'ok' },
+          ] as { l:string; v:number; c?:string; icon:LucideIcon; tone:IconTone }[]).map((s)=>(
             <Card key={s.l} padding={16}>
-              <Eyebrow>{s.l}</Eyebrow>
+              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
+                <Eyebrow style={{paddingTop:2}}>{s.l}</Eyebrow>
+                <IconTile icon={s.icon} tone={s.tone} />
+              </div>
               <div style={{fontFamily:T.heading,fontSize:26,fontWeight:700,letterSpacing:'-0.01em',color:s.c||T.text,lineHeight:1.1,marginTop:8,fontVariantNumeric:'tabular-nums'}}>{s.v}</div>
             </Card>
           ))}
@@ -723,9 +727,9 @@ export default function ManpowerDirectoryPage() {
 
             <div style={{border:`1px solid ${T.border}`,borderRadius:8,padding:14,background:T.raised,display:'flex',flexDirection:'column',gap:12}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
-                <Eyebrow>App credentials</Eyebrow>
+                <Eyebrow style={{display:'flex',alignItems:'center',gap:6}}><InlineIcon icon={KeyRound} size={13} />App credentials</Eyebrow>
                 {!showPwReset ? (
-                  <Button size="sm" onClick={() => { setShowPwReset(true); setNewAppPw(selected.app_password || ''); }}>Manage</Button>
+                  <Button size="sm" onClick={() => { setShowPwReset(true); setNewAppPw(selected.app_password || ''); }} icon={<InlineIcon icon={Settings2} size={14} />}>Manage</Button>
                 ) : (
                   <Button size="sm" variant="ghost" onClick={() => setShowPwReset(false)}>Cancel</Button>
                 )}
@@ -776,14 +780,14 @@ export default function ManpowerDirectoryPage() {
 
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               {[
-                { l:'Email address', v:selected.email, span:true },
-                { l:'Mobile', v:selected.mobile, mono:true },
-                { l:'City', v:selected.zones?.city||selected.city },
-                { l:'Zone', v:selected.zones?.name },
-                { l:'Supervisor', v:selected.supervisors?.name },
+                { l:'Email address', v:selected.email, span:true, icon:Mail },
+                { l:'Mobile', v:selected.mobile, mono:true, icon:Phone },
+                { l:'City', v:selected.zones?.city||selected.city, icon:Landmark },
+                { l:'Zone', v:selected.zones?.name, icon:MapIcon },
+                { l:'Supervisor', v:selected.supervisors?.name, icon:UserCog },
               ].map((r) => (
                 <div key={r.l} style={{gridColumn:r.span?'1/-1':undefined, background:T.raised, borderRadius:8, padding:'10px 12px'}}>
-                  <Eyebrow style={{marginBottom:4}}>{r.l}</Eyebrow>
+                  <Eyebrow style={{marginBottom:4,display:'flex',alignItems:'center',gap:6}}><InlineIcon icon={r.icon} size={13} />{r.l}</Eyebrow>
                   <div style={{fontSize:13.5,color:r.v?T.text:T.mute,fontFamily:r.mono?T.mono:undefined,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.v||'—'}</div>
                 </div>
               ))}

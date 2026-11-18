@@ -8,6 +8,11 @@ import { useReportCityKey } from '../../../../../components/crm/reports/ReportFi
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { fmtChange, changeTone } from '../../../../../lib/crm/plusFormat';
+import { Download } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../../lib/labelIcons';
+
+const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
 // The report API now also returns follow-through and previous-period columns.
 // They are optional so an older backend (or demo data without them) still renders.
@@ -206,7 +211,7 @@ function Header({ range, onChange, canExport, onExport }: { range: { from: strin
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
       <div>
         <Link href="/dashboard/crm/reports" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none' }}>← All reports</Link>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px' }}>Team Performance</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Team Performance</h1>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
           Per-rep KPI roll-up across your hierarchy subtree.
         </p>
@@ -215,7 +220,7 @@ function Header({ range, onChange, canExport, onExport }: { range: { from: strin
         <DateInput label="From" value={range.from} onChange={(v) => onChange({ ...range, from: v })} />
         <DateInput label="To"   value={range.to}   onChange={(v) => onChange({ ...range, to: v })} />
         <button onClick={onExport} disabled={!canExport} aria-label="Download CSV"
-          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55 }}>⬇ CSV</button>
+          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} size={14} />CSV</button>
       </div>
     </div>
   );
@@ -254,8 +259,8 @@ function KpiStrip({ total, loading }: { total: PerfRow | null; loading: boolean 
           background: 'var(--s2)', border: '1px solid var(--border)', borderLeft: `3px solid ${k.accent}`,
           borderRadius: 12, padding: '12px 14px',
         }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
-            {k.label}
+          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>
+            {kpiIcon(k.label)}{k.label}
           </div>
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{loading ? '—' : k.value}</div>
         </div>

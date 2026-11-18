@@ -5,6 +5,8 @@ import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import { toast } from 'sonner';
 import type { Activity } from '../../types/crm';
 import { format, formatDistanceToNow } from 'date-fns';
+import { CheckCircle2, CheckSquare, Pencil, Play, Plus, RotateCcw, X, XCircle } from 'lucide-react';
+import { IconTile, InlineIcon } from '../ui/PageIcon';
 import { crmActivities } from '../../lib/crmApi';
 import { prettifySlug } from '../../lib/activityTypes';
 import { ActivityTypeIcon } from './shared/ActivityTypeIcon';
@@ -93,7 +95,7 @@ export default function ActivityTimeline({ activities, onChange, onEdit, addHref
   const [completing, setCompleting] = useState<Activity | null>(null);
 
   const addBtn = addHref ? (
-    <Link href={addHref} style={addBtnStyle}>+ Add activity</Link>
+    <Link href={addHref} style={addBtnStyle}><InlineIcon icon={Plus} size={14} />Add activity</Link>
   ) : null;
 
   const updateStatus = async (a: Activity, status: string) => {
@@ -134,7 +136,7 @@ export default function ActivityTimeline({ activities, onChange, onEdit, addHref
   if (!activities.length) return (
     <div>
       {addBtn && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>{addBtn}</div>}
-      <div style={{ color: 'var(--text-dim)', padding: 16, textAlign: 'center' }}>No activities yet.</div>
+      <div style={{ color: 'var(--text-dim)', padding: 16, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}><IconTile icon={CheckSquare} size={40} iconSize={20} />No activities yet.</div>
     </div>
   );
   return (
@@ -225,27 +227,27 @@ export default function ActivityTimeline({ activities, onChange, onEdit, addHref
                 <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
                   {onEdit && (
                     <button onClick={() => onEdit(a)} title="Edit activity" aria-label={`Edit activity: ${a.subject || prettifySlug(a.type)}`} style={btnGhost}>
-                      ✎ Edit
+                      <InlineIcon icon={Pencil} size={12} />Edit
                     </button>
                   )}
                   {showActions && !isCompleted && (
                     <button onClick={() => updateStatus(a, 'completed')} disabled={busyId === a.id} style={btnGreen}>
-                      ✓ Mark Complete
+                      <InlineIcon icon={CheckCircle2} size={12} />Mark Complete
                     </button>
                   )}
                   {showActions && status !== 'in_progress' && !isCompleted && (
                     <button onClick={() => updateStatus(a, 'in_progress')} disabled={busyId === a.id} style={btnAmber}>
-                      ▶ In Progress
+                      <InlineIcon icon={Play} size={12} />In Progress
                     </button>
                   )}
                   {showActions && isCompleted && (
                     <button onClick={() => updateStatus(a, 'open')} disabled={busyId === a.id} style={btnGhost}>
-                      ↺ Reopen
+                      <InlineIcon icon={RotateCcw} size={12} />Reopen
                     </button>
                   )}
                   {showActions && status !== 'cancelled' && !isCompleted && (
                     <button onClick={() => updateStatus(a, 'cancelled')} disabled={busyId === a.id} style={btnGray}>
-                      ✕ Cancel
+                      <InlineIcon icon={XCircle} size={12} />Cancel
                     </button>
                   )}
                 </div>
@@ -262,7 +264,7 @@ export default function ActivityTimeline({ activities, onChange, onEdit, addHref
                 aria-label="Delete activity"
                 style={btnDelete}
               >
-                ✕
+                <InlineIcon icon={X} size={13} />
               </button>
             )}
           </div>
@@ -275,9 +277,9 @@ export default function ActivityTimeline({ activities, onChange, onEdit, addHref
 const addBtnStyle: React.CSSProperties = {
   padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
   background: 'var(--primary)', color: '#fff', textDecoration: 'none',
-  display: 'inline-block', border: '1px solid var(--primary)',
+  display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--primary)',
 };
-const btnBase: React.CSSProperties = { padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'transparent' };
+const btnBase: React.CSSProperties = { padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'transparent', display: 'inline-flex', alignItems: 'center', gap: 5 };
 const btnGreen: React.CSSProperties = { ...btnBase, border: '1px solid #10b981', color: '#10b981' };
 const btnAmber: React.CSSProperties = { ...btnBase, border: '1px solid #f59e0b', color: '#f59e0b' };
 const btnGhost: React.CSSProperties = { ...btnBase, border: '1px solid var(--border)', color: 'var(--text-dim)' };

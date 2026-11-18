@@ -3,8 +3,12 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ArrowLeft, Pencil } from 'lucide-react';
+import {
+  AlertTriangle, ArrowLeft, Banknote, Building2, Car, CheckCircle2, CheckSquare, FileText, Handshake, History, Info, MessageSquare, Pencil,
+  Receipt, RotateCcw, Route, ScanSearch, ScrollText, Send, ShieldCheck, Trash2, Undo2, UserCheck, UserPlus, Zap, type LucideIcon,
+} from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, T, useIsCompact } from '../../../../components/ui';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 import { Modal, useConfirm } from '../../../../components/finance/ui';
 import {
   ClaimStatusBadge, ClaimTimeline, ExpensesShell, Field, LineSummary, Panel, PolicyFindings, RejectionBanner, errText, fmtDate, fmtDateTime, isPartial, money, useClaimRules, useExpenseRoles,
@@ -59,7 +63,7 @@ export default function ClaimDetailPage() {
     if (await act(() => expensesApi.cancelClaim(claim.id), draft ? 'Draft deleted' : 'Claim withdrawn', 'Could not cancel the claim')) router.push('/dashboard/expenses');
   };
 
-  if (error) return <ExpensesShell title="Claim" tab="mine"><Card><EmptyState title="Couldn’t open this claim" description={error} action={<Button onClick={load}>Try again</Button>} /></Card></ExpensesShell>;
+  if (error) return <ExpensesShell title="Claim" tab="mine"><Card><EmptyState icon={<AlertTriangle size={20} strokeWidth={1.5} />} title="Couldn’t open this claim" description={error} action={<Button onClick={load}>Try again</Button>} /></Card></ExpensesShell>;
   if (!claim) return <ExpensesShell title="Claim" tab="mine"><Card style={{ color: T.mute, fontSize: 14 }}>Loading…</Card></ExpensesShell>;
 
   const c = claim;
@@ -75,9 +79,9 @@ export default function ClaimDetailPage() {
         <Button href={`/dashboard/expenses/${c.id}/edit`} icon={<Pencil size={14} strokeWidth={1.7} />}>Edit</Button>
         <Button variant="primary" disabled={busy} onClick={() => act(() => expensesApi.submitClaim(c.id), 'Submitted for approval', 'Could not submit the claim')}>Submit for approval</Button>
       </>}
-      {mine && c.status === 'rejected' && <Button variant="primary" href={`/dashboard/expenses/${c.id}/edit`}>Fix and resubmit</Button>}
+      {mine && c.status === 'rejected' && <Button variant="primary" href={`/dashboard/expenses/${c.id}/edit`} icon={<Pencil size={14} strokeWidth={1.7} />}>Fix and resubmit</Button>}
       {mine && c.status === 'submitted' && <Button href={`/dashboard/expenses/${c.id}/edit`} icon={<Pencil size={14} strokeWidth={1.7} />}>Edit</Button>}
-      {canAdmin && c.status === 'approved' && <Button variant="primary" onClick={() => setPaying(true)}>Mark reimbursed</Button>}
+      {canAdmin && c.status === 'approved' && <Button variant="primary" icon={<CheckCircle2 size={15} strokeWidth={2} />} onClick={() => setPaying(true)}>Mark reimbursed</Button>}
     </>
   );
 
@@ -88,8 +92,9 @@ export default function ClaimDetailPage() {
 
       <RejectionBanner claim={c} />
       {partial && (
-        <div style={{ padding: '12px 16px', borderRadius: T.radius.lg, background: T.warnWash, fontSize: 13.5, color: T.text }}>
-          <strong>{money(c.approved_amount, c.currency)}</strong> of {money(c.total_amount, c.currency)} approved. The rejected lines are marked below with the reviewer’s remark.
+        <div style={{ padding: '12px 16px', borderRadius: T.radius.lg, background: T.warnWash, fontSize: 13.5, color: T.text, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <InlineIcon icon={AlertTriangle} size={16} style={{ color: T.warn, marginTop: 1 }} />
+          <div><strong>{money(c.approved_amount, c.currency)}</strong> of {money(c.total_amount, c.currency)} approved. The rejected lines are marked below with the reviewer’s remark.</div>
         </div>
       )}
 
@@ -98,7 +103,7 @@ export default function ClaimDetailPage() {
           {reviewing ? (
             <ReviewPanel claim={c} rules={rules} onDone={() => { load(); }} />
           ) : (
-            <Panel title="Expenses" aside={<span style={{ fontSize: 13, color: T.mute }}>{items.length} {items.length === 1 ? 'line' : 'lines'}</span>} padding={20}>
+            <Panel title="Expenses" icon={Receipt} aside={<span style={{ fontSize: 13, color: T.mute }}>{items.length} {items.length === 1 ? 'line' : 'lines'}</span>} padding={20}>
               {items.length === 0 ? <div style={{ fontSize: 13.5, color: T.mute }}>This claim has no lines.</div> : (
                 <div>{items.map((it, i) => <div key={it.id} style={{ borderTop: i ? `1px solid ${T.border}` : 0 }}><LineSummary item={it} currency={c.currency} rules={rules} also={items.map((x) => x.category)} /></div>)}</div>
               )}
@@ -110,14 +115,14 @@ export default function ClaimDetailPage() {
           )}
 
           {findings.length > 0 && (
-            <Panel title="Policy checks" padding={20}>
+            <Panel title="Policy checks" icon={ShieldCheck} padding={20}>
               {c.ai_summary && <div style={{ fontSize: 13.5, color: T.dim, marginBottom: 12, lineHeight: 1.5 }}>{c.ai_summary}</div>}
               <PolicyFindings flags={findings} />
             </Panel>
           )}
 
           {forensic.length > 0 && (
-            <Panel title="Forensic highlights" padding={20} aside={<RiskBadge findings={forensic} />}>
+            <Panel title="Forensic highlights" icon={ScanSearch} padding={20} aside={<RiskBadge findings={forensic} />}>
               <div style={{ fontSize: 12.5, color: T.mute, marginBottom: 12, lineHeight: 1.5 }}>
                 Forgery signals detected for this claim. Review before approving.
               </div>
@@ -127,42 +132,43 @@ export default function ClaimDetailPage() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Panel title="Details" padding={20}>
+          <Panel title="Details" icon={Info} padding={20}>
             <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: '9px 16px', fontSize: 13 }}>
               {([
-                ['Submitted', c.submitted_at ? fmtDateTime(c.submitted_at) : 'Not yet'],
-                ['Policy', c.policy_name || '—'],
+                ['Submitted', c.submitted_at ? fmtDateTime(c.submitted_at) : 'Not yet', Send],
+                ['Policy', c.policy_name || '—', ScrollText],
                 // Connected-B2B links (shown only when set): the account + the filled form's reference and date
                 // (the form's name for an older claim that has no reference).
-                c.account_name ? ['Company', c.account_name] : null,
+                c.account_name ? ['Company', c.account_name, Building2] : null,
                 // The CRM lead / deal the money was spent on — links to their pages (where the total spend shows).
-                c.lead_id ? ['Lead', <Link key="lead" href={`/dashboard/crm/leads/${c.lead_id}`} style={{ color: T.info }}>{c.lead_name || 'View lead'}</Link>] : null,
-                c.deal_id ? ['Deal', <Link key="deal" href={`/dashboard/crm/deals/${c.deal_id}`} style={{ color: T.info }}>{c.deal_name || 'View deal'}</Link>] : null,
-                c.form_ref_no ? ['Form', formRefTitle(c.form_ref_no, c.form_submitted_at)] : c.form_title ? ['Form', c.form_title] : null,
-                c.clarification ? ['Clarification', c.clarification] : null,
-                ['Claimed', money(c.total_amount, c.currency)],
-                c.approved_amount != null && c.status !== 'rejected' ? ['Approved', money(c.approved_amount, c.currency)] : null,
-                c.status === 'submitted' && c.approver_name ? ['With', `${c.approver_name}${c.current_level > 1 ? ` (level ${c.current_level})` : ''}`] : null,
-                c.reviewed_at && c.status !== 'submitted' ? ['Decided', `${fmtDate(c.reviewed_at)}${c.reviewer_name ? ` by ${c.reviewer_name}` : ''}`] : null,
-                c.distance_km != null ? ['Mileage claimed', `${c.distance_km} km`] : null,
-                c.gps_derived_km != null ? ['GPS trail', `${c.gps_derived_km} km`] : null,
-                c.reimbursed_at ? ['Reimbursed', `${fmtDate(c.reimbursed_at)}${c.reimbursed_ref ? ` · ${c.reimbursed_ref}` : ''}`] : null,
-                (c.submit_count ?? 1) > 1 ? ['Attempts', String(c.submit_count)] : null,
-              ] as Array<[string, ReactNode] | null>).filter((r): r is [string, ReactNode] => !!r).map(([k, v]) => (
+                c.lead_id ? ['Lead', <Link key="lead" href={`/dashboard/crm/leads/${c.lead_id}`} style={{ color: T.info }}>{c.lead_name || 'View lead'}</Link>, UserPlus] : null,
+                c.deal_id ? ['Deal', <Link key="deal" href={`/dashboard/crm/deals/${c.deal_id}`} style={{ color: T.info }}>{c.deal_name || 'View deal'}</Link>, Handshake] : null,
+                c.form_ref_no ? ['Form', formRefTitle(c.form_ref_no, c.form_submitted_at), FileText] : c.form_title ? ['Form', c.form_title, FileText] : null,
+                c.clarification ? ['Clarification', c.clarification, MessageSquare] : null,
+                ['Claimed', money(c.total_amount, c.currency), Receipt],
+                c.approved_amount != null && c.status !== 'rejected' ? ['Approved', money(c.approved_amount, c.currency), CheckCircle2] : null,
+                c.status === 'submitted' && c.approver_name ? ['With', `${c.approver_name}${c.current_level > 1 ? ` (level ${c.current_level})` : ''}`, UserCheck] : null,
+                c.reviewed_at && c.status !== 'submitted' ? ['Decided', `${fmtDate(c.reviewed_at)}${c.reviewer_name ? ` by ${c.reviewer_name}` : ''}`, CheckSquare] : null,
+                c.distance_km != null ? ['Mileage claimed', `${c.distance_km} km`, Car] : null,
+                c.gps_derived_km != null ? ['GPS trail', `${c.gps_derived_km} km`, Route] : null,
+                c.reimbursed_at ? ['Reimbursed', `${fmtDate(c.reimbursed_at)}${c.reimbursed_ref ? ` · ${c.reimbursed_ref}` : ''}`, Banknote] : null,
+                (c.submit_count ?? 1) > 1 ? ['Attempts', String(c.submit_count), RotateCcw] : null,
+              ] as Array<[string, ReactNode, LucideIcon] | null>).filter((r): r is [string, ReactNode, LucideIcon] => !!r).map(([k, v, icon]) => (
                 <div key={k} style={{ display: 'contents' }}>
-                  <dt style={{ color: T.mute }}>{k}</dt><dd style={{ margin: 0, color: T.text, fontWeight: 500, overflowWrap: 'anywhere' }}>{v}</dd>
+                  <dt style={{ color: T.mute, display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'start' }}><InlineIcon icon={icon} size={14} />{k}</dt><dd style={{ margin: 0, color: T.text, fontWeight: 500, overflowWrap: 'anywhere' }}>{v}</dd>
                 </div>
               ))}
             </dl>
-            {c.auto_approved && <div style={{ marginTop: 12 }}><Badge tone="ok">Auto-approved by policy</Badge></div>}
+            {c.auto_approved && <div style={{ marginTop: 12 }}><Badge tone="ok"><InlineIcon icon={Zap} size={12} />Auto-approved by policy</Badge></div>}
           </Panel>
 
-          <Panel title="History" padding={20}><ClaimTimeline claim={c} rules={rules} /></Panel>
+          <Panel title="History" icon={History} padding={20}><ClaimTimeline claim={c} rules={rules} /></Panel>
 
           {mine && (c.status === 'draft' || c.status === 'submitted' || c.status === 'rejected') && (
-            <div><Button variant="ghost" disabled={busy} onClick={withdraw} style={{ color: T.red }}>{c.status === 'draft' ? 'Delete draft' : 'Withdraw this claim'}</Button></div>
+            <div><Button variant="ghost" disabled={busy} onClick={withdraw} style={{ color: T.red }}
+              icon={c.status === 'draft' ? <Trash2 size={15} strokeWidth={2} /> : <Undo2 size={15} strokeWidth={2} />}>{c.status === 'draft' ? 'Delete draft' : 'Withdraw this claim'}</Button></div>
           )}
-          {!mine && <Link href="/dashboard/expenses/approvals" style={{ fontSize: 13, color: T.info }}>Back to approvals</Link>}
+          {!mine && <Link href="/dashboard/expenses/approvals" style={{ fontSize: 13, color: T.info, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ArrowLeft} size={14} />Back to approvals</Link>}
         </div>
       </div>
 

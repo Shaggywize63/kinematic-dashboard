@@ -9,6 +9,11 @@ import { getStoredUser } from '../../../../../lib/auth';
 import { isBmwActive } from '../../../../../lib/clientFeatures';
 import { useLeadFieldGate } from '../../../../../lib/crm/useLeadFieldGate';
 import { downloadCsv } from '../../../../../lib/exportCsv';
+import { Download, MapPin } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../../lib/labelIcons';
+
+const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
 // The API now also returns open follow-ups per rep. Optional so an older backend / demo data still renders.
 type Card = TeamDailyCard & { open_followups_due_that_day?: number; open_followups_overdue?: number };
@@ -149,8 +154,8 @@ function RepCard({ card, hideAddress }: { card: Card; hideAddress: boolean }) {
       <div style={{ padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         {mapHref ? (
           <a href={mapHref} target="_blank" rel="noreferrer"
-            style={{ background: 'rgba(255,255,255,0.20)', color: '#fff', padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
-            📍 Open in Maps
+            style={{ background: 'rgba(255,255,255,0.20)', color: '#fff', padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <InlineIcon icon={MapPin} size={13} />Open in Maps
           </a>
         ) : (
           <span style={{ fontSize: 12, color: palette.sub }}>No location captured</span>
@@ -199,7 +204,7 @@ function Header({ date, onChange, canExport, onExport }: { date: string; onChang
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
       <div>
         <Link href="/dashboard/crm/reports" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none' }}>← All reports</Link>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px' }}>Team Daily Activity</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Team Daily Activity</h1>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
           One CRM-only snapshot per rep — activities, leads, deals, location.
         </p>
@@ -211,7 +216,7 @@ function Header({ date, onChange, canExport, onExport }: { date: string; onChang
             style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '8px 10px', fontSize: 13 }} />
         </label>
         <button onClick={onExport} disabled={!canExport} aria-label="Download CSV"
-          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55 }}>⬇ CSV</button>
+          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} size={14} />CSV</button>
       </div>
     </div>
   );
@@ -223,7 +228,7 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent: s
       background: 'var(--s2)', border: '1px solid var(--border)', borderLeft: `3px solid ${accent}`,
       borderRadius: 12, padding: '12px 14px',
     }}>
-      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</div>
+      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{kpiIcon(label)}{label}</div>
       <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>
   );

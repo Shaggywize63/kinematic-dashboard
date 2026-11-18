@@ -14,7 +14,7 @@
  * parent for insertion or in-place update.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { X, BarChart3, LineChart as LineIcon, PieChart, Activity, Table as TableIcon } from 'lucide-react';
+import { X, BarChart3, LineChart as LineIcon, PieChart, Activity, Table as TableIcon, Check, Plus, Sliders } from 'lucide-react';
 import {
   CUSTOM_DATASETS, datasetById,
   type ChartType,
@@ -107,7 +107,7 @@ export default function CustomChartBuilder({ onSave, onClose, initial }: Props) 
         <header style={headerStyle}>
           <div>
             <div style={kicker}>{initial ? 'Edit chart' : 'Build chart'}</div>
-            <div style={titleStyle}>Custom analytics chart</div>
+            <div style={{ ...titleStyle, display: 'flex', alignItems: 'center', gap: 8 }}><Sliders aria-hidden size={17} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Custom analytics chart</div>
             <div style={subStyle}>Pick a dataset, choose X / Y axes, then a chart type.</div>
           </div>
           <button onClick={onClose} style={closeBtn} aria-label="Close">
@@ -181,8 +181,9 @@ export default function CustomChartBuilder({ onSave, onClose, initial }: Props) 
           <button
             onClick={save}
             disabled={!canSave}
-            style={{ ...primaryBtn, opacity: canSave ? 1 : 0.5, cursor: canSave ? 'pointer' : 'not-allowed' }}
+            style={{ ...primaryBtn, opacity: canSave ? 1 : 0.5, cursor: canSave ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
+            {initial ? <Check aria-hidden size={15} strokeWidth={2} /> : <Plus aria-hidden size={15} strokeWidth={2} />}
             {initial ? 'Save changes' : 'Add chart'}
           </button>
         </footer>

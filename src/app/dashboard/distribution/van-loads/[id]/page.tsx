@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Btn, Th, Td, StatCard, fmtDate } from '../../../../../components/distribution/Atoms';
+import { ArrowLeftRight, CheckCircle2, Lock, Package, PackageX, ShoppingCart, Truck, Undo2, XCircle } from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 
 function loadStatusColor(status: string): 'gray' | 'green' | 'red' | 'amber' | 'blue' {
   switch ((status || '').toLowerCase()) {
@@ -125,14 +127,14 @@ export default function VanLoadDetail() {
         }
       />
 
-      {msg && <div style={{ marginBottom: 14, fontSize: 12, color: msg.kind === 'ok' ? 'var(--green)' : 'var(--primary)' }}>{msg.kind === 'ok' ? '✓ ' : '✗ '}{msg.text}</div>}
+      {msg && <div style={{ marginBottom: 14, fontSize: 12, color: msg.kind === 'ok' ? 'var(--green)' : 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={msg.kind === 'ok' ? CheckCircle2 : XCircle} size={14} />{msg.text}</div>}
 
       {/* Totals */}
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
-        <StatCard label="Loaded" value={Number(totals.loaded || 0).toLocaleString('en-IN')} />
-        <StatCard label="Sold" value={Number(totals.sold || 0).toLocaleString('en-IN')} accent="var(--green)" />
-        <StatCard label="Returned" value={Number(totals.returned || 0).toLocaleString('en-IN')} accent="var(--accent)" />
-        <StatCard label="Damaged" value={Number(totals.damaged || 0).toLocaleString('en-IN')} accent={Number(totals.damaged) > 0 ? 'var(--primary)' : undefined} />
+        <StatCard label="Loaded" icon={Truck} value={Number(totals.loaded || 0).toLocaleString('en-IN')} />
+        <StatCard label="Sold" icon={ShoppingCart} value={Number(totals.sold || 0).toLocaleString('en-IN')} accent="var(--green)" />
+        <StatCard label="Returned" icon={Undo2} value={Number(totals.returned || 0).toLocaleString('en-IN')} accent="var(--accent)" />
+        <StatCard label="Damaged" icon={PackageX} value={Number(totals.damaged || 0).toLocaleString('en-IN')} accent={Number(totals.damaged) > 0 ? 'var(--primary)' : undefined} />
       </div>
 
       {/* Meta */}
@@ -148,7 +150,7 @@ export default function VanLoadDetail() {
 
       {/* Items */}
       <Card style={{ marginBottom: 22 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Items</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Package} size={16} style={{ color: 'var(--dim)' }} />Items</div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
             <Th>SKU</Th>
@@ -177,8 +179,8 @@ export default function VanLoadDetail() {
       {!isClosed && (
         <Card>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>Reconcile</div>
-            <Btn variant="danger" disabled={closing} onClick={closeLoad}>{closing ? 'Closing…' : 'Close load'}</Btn>
+            <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={ArrowLeftRight} size={16} style={{ color: 'var(--dim)' }} />Reconcile</div>
+            <Btn variant="danger" disabled={closing} onClick={closeLoad} icon={<InlineIcon icon={Lock} />}>{closing ? 'Closing…' : 'Close load'}</Btn>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Enter returned and damaged quantities per SKU. Sold is derived (loaded − returned − damaged).</div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>

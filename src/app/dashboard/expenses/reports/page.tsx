@@ -12,16 +12,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Download } from 'lucide-react';
+import {
+  AlertTriangle, BarChart3, Download, Gauge, Hourglass, LayoutDashboard, MapPin, Percent, PieChart as PieChartIcon, Receipt,
+  Route, ScrollText, Tags, Timer, TrendingUp, Users, Zap, type LucideIcon,
+} from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
   PieChart, Pie, Legend, AreaChart, Area, LabelList,
 } from 'recharts';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { Badge, Button, Card, EmptyState, Input, Select, T, useIsCompact } from '../../../../components/ui';
-import { Col, DataTable, Pager, Stat, Toolbar } from '../../../../components/finance/ui';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { Col, DataTable, Pager, Toolbar } from '../../../../components/finance/ui';
 import {
-  ClaimStatusBadge, ExpensesShell, errText, fmtDate, money, payable, saveBlob, vehicleName,
+  ClaimStatusBadge, ExpensesShell, IconStat, STATUS_ICON, categoryIcon, errText, fmtDate, money, payable, saveBlob, vehicleName,
 } from '../../../../components/expenses/kit';
 import { ChartCard, ChartTooltip, ChartEmpty, GradientDefs, grad, CHART } from '../../../../lib/chartTheme';
 import { formatINRCompact } from '../../../../lib/formatCurrency';
@@ -42,20 +46,23 @@ const STATUS_COLOR: Record<ClaimStatus, string> = {
 const CAT_PALETTE = ['#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#14B8A6', '#F97316', '#0EA5E9', '#EF4444'];
 
 type ReportKind = 'summary' | 'list' | 'odometer';
-interface ReportDef { id: string; label: string; kind: ReportKind; status?: ClaimStatus }
+interface ReportDef { id: string; label: string; kind: ReportKind; status?: ClaimStatus; icon: LucideIcon }
 const REPORTS: ReportDef[] = [
-  { id: 'overview', label: 'Overview', kind: 'summary' },
-  { id: 'category', label: 'By category', kind: 'summary' },
-  { id: 'employee', label: 'By employee', kind: 'summary' },
-  { id: 'trend', label: 'Monthly trend', kind: 'summary' },
-  { id: 'policy', label: 'By policy', kind: 'summary' },
-  { id: 'status', label: 'By status', kind: 'summary' },
-  { id: 'approvals', label: 'Approvals & SLA', kind: 'summary' },
-  { id: 'reimbursements', label: 'Reimbursement register', kind: 'list', status: 'reimbursed' },
-  { id: 'pending', label: 'Pending & aging', kind: 'list', status: 'submitted' },
-  { id: 'rejected', label: 'Rejected', kind: 'list', status: 'rejected' },
-  { id: 'mileage', label: 'Mileage & odometer', kind: 'odometer' },
+  { id: 'overview', label: 'Overview', kind: 'summary', icon: LayoutDashboard },
+  { id: 'category', label: 'By category', kind: 'summary', icon: Tags },
+  { id: 'employee', label: 'By employee', kind: 'summary', icon: Users },
+  { id: 'trend', label: 'Monthly trend', kind: 'summary', icon: TrendingUp },
+  { id: 'policy', label: 'By policy', kind: 'summary', icon: ScrollText },
+  { id: 'status', label: 'By status', kind: 'summary', icon: PieChartIcon },
+  { id: 'approvals', label: 'Approvals & SLA', kind: 'summary', icon: Timer },
+  { id: 'reimbursements', label: 'Reimbursement register', kind: 'list', status: 'reimbursed', icon: STATUS_ICON.reimbursed },
+  { id: 'pending', label: 'Pending & aging', kind: 'list', status: 'submitted', icon: Hourglass },
+  { id: 'rejected', label: 'Rejected', kind: 'list', status: 'rejected', icon: STATUS_ICON.rejected },
+  { id: 'mileage', label: 'Mileage & odometer', kind: 'odometer', icon: Gauge },
 ];
+
+/** The small icon tile in a chart card's corner, naming what the card is about. */
+const cardIcon = (icon: LucideIcon) => <IconTile icon={icon} tone="neutral" size={26} iconSize={14} />;
 
 const LIMIT = 25;         // reimbursement / rejected registers paginate
 const PENDING_SCAN = 200; // pending aging is computed over one wider fetch (oldest first)
@@ -268,7 +275,8 @@ export default function ExpenseReportsPage() {
             <button key={r.id} role="tab" aria-selected={on} onClick={() => setReportId(r.id)} style={{
               padding: '7px 13px', fontSize: 13, fontWeight: on ? 700 : 500, borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap',
               border: `1px solid ${on ? T.red : T.border}`, background: on ? T.redWash : 'transparent', color: on ? T.text : T.dim,
-            }}>{r.label}</button>
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}><InlineIcon icon={r.icon} size={14} style={{ color: on ? T.red : T.mute }} />{r.label}</button>
           );
         })}
       </div>
@@ -296,15 +304,15 @@ export default function ExpenseReportsPage() {
         <Input aria-label="From" type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} style={{ width: 150 }} />
         <span style={{ fontSize: 13, color: T.mute }}>to</span>
         <Input aria-label="To" type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} style={{ width: 150 }} />
-        {selectedCity && <Badge>{selectedCity}</Badge>}
+        {selectedCity && <Badge><InlineIcon icon={MapPin} size={12} />{selectedCity}</Badge>}
       </Toolbar>
 
       {error ? (
-        <Card><EmptyState title="Couldn’t load the report" description={error} action={<Button onClick={() => setNonce((n) => n + 1)}>Try again</Button>} /></Card>
+        <Card><EmptyState icon={<AlertTriangle size={20} strokeWidth={1.5} />} title="Couldn’t load the report" description={error} action={<Button onClick={() => setNonce((n) => n + 1)}>Try again</Button>} /></Card>
       ) : loading && !summary ? (
         <Card style={{ color: T.mute, fontSize: 14 }}>Loading…</Card>
       ) : !hasData ? (
-        <Card><EmptyState title="No expense data yet" description="No claims match these filters. Clear a filter or widen the date range." /></Card>
+        <Card><EmptyState icon={<BarChart3 size={20} strokeWidth={1.5} />} title="No expense data yet" description="No claims match these filters. Clear a filter or widen the date range." /></Card>
       ) : (
         <ReportBody
           report={active} summary={summary!} rules={rules} currency={currency} narrow={narrow}
@@ -343,12 +351,12 @@ function KpiGrid({ t, currency }: { t: ClaimsSummary['totals']; currency: string
   return (
     <Card padding={20}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 20 }}>
-        <Stat label="Claimed" value={money(t.claimed, currency)} hint={`${t.claims} ${t.claims === 1 ? 'claim' : 'claims'}`} />
-        <Stat label="Awaiting approval" value={money(t.pending_amount, currency)} hint={`${t.pending_count} claims`} tone={t.pending_count ? 'warn' : undefined} />
-        <Stat label="Approved" value={money(t.approved_amount, currency)} hint={`${t.approved_count} to be paid`} tone={t.approved_count ? 'ok' : undefined} />
-        <Stat label="Reimbursed" value={money(t.reimbursed_amount, currency)} hint={`${t.reimbursed_count} claims`} tone="info" />
-        <Stat label="Rejected" value={money(t.rejected_amount, currency)} hint={`${t.rejected_count} claims`} tone={t.rejected_count ? 'red' : undefined} />
-        <Stat label="Decision time" value={decision} hint={t.auto_approved_count ? `${t.auto_approved_count} auto-approved` : 'Average, manual'} />
+        <IconStat icon={Receipt} label="Claimed" value={money(t.claimed, currency)} hint={`${t.claims} ${t.claims === 1 ? 'claim' : 'claims'}`} />
+        <IconStat icon={STATUS_ICON.submitted} label="Awaiting approval" value={money(t.pending_amount, currency)} hint={`${t.pending_count} claims`} tone={t.pending_count ? 'warn' : undefined} />
+        <IconStat icon={STATUS_ICON.approved} label="Approved" value={money(t.approved_amount, currency)} hint={`${t.approved_count} to be paid`} tone={t.approved_count ? 'ok' : undefined} />
+        <IconStat icon={STATUS_ICON.reimbursed} label="Reimbursed" value={money(t.reimbursed_amount, currency)} hint={`${t.reimbursed_count} claims`} tone="info" />
+        <IconStat icon={STATUS_ICON.rejected} label="Rejected" value={money(t.rejected_amount, currency)} hint={`${t.rejected_count} claims`} tone={t.rejected_count ? 'red' : undefined} />
+        <IconStat icon={Timer} label="Decision time" value={decision} hint={t.auto_approved_count ? `${t.auto_approved_count} auto-approved` : 'Average, manual'} />
       </div>
     </Card>
   );
@@ -361,7 +369,7 @@ function Overview({ summary, currency, narrow }: { summary: ClaimsSummary; curre
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <KpiGrid t={summary.totals} currency={currency} />
       <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.6fr 1fr', gap: 16 }}>
-        <ChartCard title="Spend over time" subtitle="Claimed amount by month" minHeight={260}>
+        <ChartCard title="Spend over time" subtitle="Claimed amount by month" minHeight={260} right={cardIcon(TrendingUp)}>
           {trend.length === 0 ? <ChartEmpty /> : (
             <ResponsiveContainer width="100%" height={230}>
               <AreaChart data={trend} margin={CHART.margin}>
@@ -375,7 +383,7 @@ function Overview({ summary, currency, narrow }: { summary: ClaimsSummary; curre
             </ResponsiveContainer>
           )}
         </ChartCard>
-        <ChartCard title="Where the money sits" subtitle="Claimed amount by status" minHeight={260}>
+        <ChartCard title="Where the money sits" subtitle="Claimed amount by status" minHeight={260} right={cardIcon(PieChartIcon)}>
           {donut.length === 0 ? <ChartEmpty /> : (
             <ResponsiveContainer width="100%" height={230}>
               <PieChart>
@@ -406,7 +414,7 @@ function ReimbursementPipeline({ t, currency }: { t: ClaimsSummary['totals']; cu
     { label: 'Reimbursed', amount: t.reimbursed_amount, pct: pct(t.reimbursed_amount), color: STATUS_COLOR.reimbursed },
   ];
   return (
-    <ChartCard title="Reimbursement pipeline" subtitle="How claimed money moves through to paid">
+    <ChartCard title="Reimbursement pipeline" subtitle="How claimed money moves through to paid" right={cardIcon(STATUS_ICON.reimbursed)}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '6px 2px 2px' }}>
         {stages.map((s) => (
           <div key={s.label}>
@@ -467,16 +475,17 @@ function CategoryReport({ summary, rules, currency, narrow }: { summary: ClaimsS
   const mix = bars.slice(0, TOP).map((b, i) => ({ name: b.name, value: b.value, color: CAT_PALETTE[i] }));
   const tail = bars.slice(TOP).reduce((s, b) => s + b.value, 0);
   if (tail > 0) mix.push({ name: 'Other', value: tail, color: CAT_PALETTE[CAT_PALETTE.length - 1] });
-  const cols: Col<{ id: string; label: string; amount: number }>[] = [
-    { key: 'label', label: 'Category' },
+  const cols: Col<{ id: string; label: string; amount: number; category: string }>[] = [
+    { key: 'label', label: 'Category', render: (r) => (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={categoryIcon(r.category)} size={14} style={{ color: T.dim }} />{r.label}</span>) },
     { key: 'amount', label: 'Amount', align: 'right', render: (r) => money(r.amount, currency) },
     { key: 'pct', label: 'Share', align: 'right', render: (r) => `${Math.round((r.amount / total) * 100)}%` },
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.5fr 1fr', gap: 16 }}>
-        <ChartCard title="Spend by category" subtitle="Claimed amount per expense category"><MagnitudeBars data={bars} currency={currency} /></ChartCard>
-        <ChartCard title="Category mix" subtitle="Share of total claimed" minHeight={260}>
+        <ChartCard title="Spend by category" subtitle="Claimed amount per expense category" right={cardIcon(Tags)}><MagnitudeBars data={bars} currency={currency} /></ChartCard>
+        <ChartCard title="Category mix" subtitle="Share of total claimed" minHeight={260} right={cardIcon(PieChartIcon)}>
           {mix.length === 0 ? <ChartEmpty /> : (
             <ResponsiveContainer width="100%" height={230}>
               <PieChart>
@@ -490,7 +499,7 @@ function CategoryReport({ summary, rules, currency, narrow }: { summary: ClaimsS
           )}
         </ChartCard>
       </div>
-      <ReportTable cols={cols} rows={bars.map((b, i) => ({ id: String(i), label: b.name, amount: b.value }))} empty="No categories." />
+      <ReportTable cols={cols} rows={bars.map((b, i) => ({ id: String(i), label: b.name, amount: b.value, category: rows[i].category }))} empty="No categories." />
     </div>
   );
 }
@@ -506,7 +515,7 @@ function EmployeeReport({ summary, currency }: { summary: ClaimsSummary; currenc
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <ChartCard title="Spend by employee" subtitle="Top claimants by total claimed"><MagnitudeBars data={bars} currency={currency} /></ChartCard>
+      <ChartCard title="Spend by employee" subtitle="Top claimants by total claimed" right={cardIcon(Users)}><MagnitudeBars data={bars} currency={currency} /></ChartCard>
       <ReportTable cols={cols} rows={rows.map((p) => ({ id: p.user_id, name: p.name || 'Unknown', claims: p.claims, amount: p.amount }))} empty="No claimants." />
     </div>
   );
@@ -523,7 +532,7 @@ function TrendReport({ summary, currency, narrow }: { summary: ClaimsSummary; cu
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.5fr 1fr', gap: 16 }}>
-        <ChartCard title="Spend over time" subtitle="Claimed amount by month" minHeight={260}>
+        <ChartCard title="Spend over time" subtitle="Claimed amount by month" minHeight={260} right={cardIcon(TrendingUp)}>
           {data.length === 0 ? <ChartEmpty /> : (
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={data} margin={CHART.margin}>
@@ -537,7 +546,7 @@ function TrendReport({ summary, currency, narrow }: { summary: ClaimsSummary; cu
             </ResponsiveContainer>
           )}
         </ChartCard>
-        <ChartCard title="Claims filed" subtitle="Number of claims per month" minHeight={260}>
+        <ChartCard title="Claims filed" subtitle="Number of claims per month" minHeight={260} right={cardIcon(BarChart3)}>
           {data.length === 0 ? <ChartEmpty /> : (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={data} margin={CHART.margin}>
@@ -567,7 +576,7 @@ function PolicyReport({ summary, currency }: { summary: ClaimsSummary; currency:
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <ChartCard title="Spend by policy" subtitle="Claimed amount per expense policy"><MagnitudeBars data={bars} currency={currency} /></ChartCard>
+      <ChartCard title="Spend by policy" subtitle="Claimed amount per expense policy" right={cardIcon(ScrollText)}><MagnitudeBars data={bars} currency={currency} /></ChartCard>
       <ReportTable cols={cols} rows={rows.map((p, i) => ({ id: String(i), policy: p.policy, claims: p.claims, amount: p.amount }))} empty="No policies." />
     </div>
   );
@@ -583,7 +592,7 @@ function StatusReport({ summary, currency }: { summary: ClaimsSummary; currency:
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <ChartCard title="By status" subtitle="Claimed amount by claim status" minHeight={280}>
+      <ChartCard title="By status" subtitle="Claimed amount by claim status" minHeight={280} right={cardIcon(PieChartIcon)}>
         {donut.length === 0 ? <ChartEmpty /> : (
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
@@ -621,16 +630,16 @@ function ApprovalsReport({ summary, currency, narrow }: { summary: ClaimsSummary
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Card padding={20}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 20 }}>
-          <Stat label="Approval rate" value={approvalRate == null ? '—' : `${approvalRate}%`}
+          <IconStat icon={Percent} label="Approval rate" value={approvalRate == null ? '—' : `${approvalRate}%`}
             hint={decided ? `${cleared} of ${decided} decided` : 'No decisions yet'}
             tone={approvalRate != null && approvalRate >= 80 ? 'ok' : undefined} />
-          <Stat label="Avg decision time" value={decision} hint="Submit → decision" />
-          <Stat label="Auto-approved" value={`${autoPct}%`} hint={`${t.auto_approved_count} of ${t.claims} claims`} tone={t.auto_approved_count ? 'info' : undefined} />
-          <Stat label="Awaiting approval" value={String(t.pending_count)} hint={money(t.pending_amount, currency)} tone={t.pending_count ? 'warn' : undefined} />
+          <IconStat icon={Timer} label="Avg decision time" value={decision} hint="Submit → decision" />
+          <IconStat icon={Zap} label="Auto-approved" value={`${autoPct}%`} hint={`${t.auto_approved_count} of ${t.claims} claims`} tone={t.auto_approved_count ? 'info' : undefined} />
+          <IconStat icon={STATUS_ICON.submitted} label="Awaiting approval" value={String(t.pending_count)} hint={money(t.pending_amount, currency)} tone={t.pending_count ? 'warn' : undefined} />
         </div>
       </Card>
       <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1fr 1fr', gap: 16 }}>
-        <ChartCard title="Claims by status" subtitle="Count of claims in each state" minHeight={280}>
+        <ChartCard title="Claims by status" subtitle="Count of claims in each state" minHeight={280} right={cardIcon(PieChartIcon)}>
           {donut.length === 0 ? <ChartEmpty /> : (
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
@@ -702,7 +711,7 @@ function PendingReport({ rows, total, currency, loading, onOpenClaim }: { rows: 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Card padding={20}>
-        <div style={{ fontFamily: T.heading, fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 14 }}>How long claims have waited</div>
+        <div style={{ fontFamily: T.heading, fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Hourglass} size={16} style={{ color: T.dim }} />How long claims have waited</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16 }}>
           {buckets.map((b) => (
             <div key={b.key} style={{ borderLeft: `3px solid ${b.tone}`, paddingLeft: 12 }}>
@@ -740,8 +749,8 @@ function MileageReport({ rows, currency, loading, onOpenClaim }: { rows: Odomete
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Card padding={20}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 20 }}>
-          <Stat label="Total distance" value={`${totalKm.toLocaleString('en-IN')} km`} hint={`${rows.length} ${rows.length === 1 ? 'reading' : 'readings'}`} />
-          <Stat label="Mileage claimed" value={money(totalAmt, currency)} hint="Across shown readings" />
+          <IconStat icon={Route} label="Total distance" value={`${totalKm.toLocaleString('en-IN')} km`} hint={`${rows.length} ${rows.length === 1 ? 'reading' : 'readings'}`} />
+          <IconStat icon={categoryIcon('mileage')} label="Mileage claimed" value={money(totalAmt, currency)} hint="Across shown readings" />
         </div>
       </Card>
       <Card padding={0} style={{ overflow: 'hidden' }}>

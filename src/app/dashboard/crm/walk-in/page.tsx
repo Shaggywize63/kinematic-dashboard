@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Camera, CalendarClock, Check, HelpCircle, IndianRupee, Store, UserRound, Gem, type LucideIcon } from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../components/ui/PageIcon';
 import { crmLeads } from '../../../../lib/crmApi';
 import type { AfterSalesTelecaller } from '../../../../types/crm';
 import { useAuth } from '../../../../hooks/useAuth';
@@ -197,15 +199,18 @@ export default function WalkInLeadPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 820 }}>
-      <div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <PageIcon name="store" />
+        <div>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px' }}>Create Lead (Not Purchased)</h1>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
           Capture a walk-in customer who didn&rsquo;t purchase and hand them to a telecaller. The lead appears in the telecaller&rsquo;s My Calls under the Walk-in category, with the reason highlighted.
         </p>
+        </div>
       </div>
 
       <Card>
-        <SectionTitle>1. Customer Details</SectionTitle>
+        <SectionTitle icon={UserRound}>1. Customer Details</SectionTitle>
         <Grid>
           <Field label="Customer name *"><input style={inp()} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Anita Sharma" /></Field>
           <Field label="Mobile number *"><input style={inp()} value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="10-digit mobile" /></Field>
@@ -214,7 +219,7 @@ export default function WalkInLeadPage() {
       </Card>
 
       <Card>
-        <SectionTitle>2. Visit Details</SectionTitle>
+        <SectionTitle icon={Store}>2. Visit Details</SectionTitle>
         <Grid>
           <Field label="Visit date"><input type="date" style={inp()} value={form.visitDate} onChange={(e) => set('visitDate', e.target.value)} /></Field>
           <Field label="Marketing employee"><input style={inp()} value={form.marketingEmployee} onChange={(e) => set('marketingEmployee', e.target.value)} /></Field>
@@ -223,7 +228,7 @@ export default function WalkInLeadPage() {
       </Card>
 
       <Card>
-        <SectionTitle>3. Items Viewed / Shown</SectionTitle>
+        <SectionTitle icon={Gem}>3. Items Viewed / Shown</SectionTitle>
         <Field label="Items viewed / shown">
           <textarea style={{ ...inp(), minHeight: 60, resize: 'vertical' }} value={form.itemsViewed} onChange={(e) => set('itemsViewed', e.target.value)} placeholder="e.g. 22K bangles set, diamond pendant" />
         </Field>
@@ -245,7 +250,7 @@ export default function WalkInLeadPage() {
             </div>
           )}
           <label style={{ ...ghostBtn(), display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            {uploading > 0 ? 'Uploading…' : '📷 Add photos'}
+            <InlineIcon icon={Camera} />{uploading > 0 ? 'Uploading…' : 'Add photos'}
             <input type="file" accept="image/*" multiple style={{ display: 'none' }} disabled={uploading > 0}
               onChange={(e) => { void uploadPhotos(e.target.files); e.target.value = ''; }} />
           </label>
@@ -253,7 +258,7 @@ export default function WalkInLeadPage() {
       </Card>
 
       <Card>
-        <SectionTitle>4. Estimate &amp; Discount Offered</SectionTitle>
+        <SectionTitle icon={IndianRupee}>4. Estimate &amp; Discount Offered</SectionTitle>
         <Grid>
           <Field label="Gold rate (₹/gm)"><input type="number" style={inp()} value={form.goldRate} onChange={(e) => set('goldRate', e.target.value)} /></Field>
           <Field label="Total weight (gm)"><input type="number" style={inp()} value={form.totalWeight} onChange={(e) => set('totalWeight', e.target.value)} /></Field>
@@ -273,7 +278,7 @@ export default function WalkInLeadPage() {
       </Card>
 
       <Card>
-        <SectionTitle>5. Reason for Not Purchasing *</SectionTitle>
+        <SectionTitle icon={HelpCircle}>5. Reason for Not Purchasing *</SectionTitle>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {REASONS.map((r) => (
             <Chip key={r} selected={form.notPurchaseReason === r} onClick={() => set('notPurchaseReason', r)}>{r}</Chip>
@@ -287,7 +292,7 @@ export default function WalkInLeadPage() {
       </Card>
 
       <Card>
-        <SectionTitle>6. Follow Up Details</SectionTitle>
+        <SectionTitle icon={CalendarClock}>6. Follow Up Details</SectionTitle>
         <Grid>
           <Field label="Next follow-up date"><input type="date" style={inp()} value={form.nextFollowUpDate} onChange={(e) => set('nextFollowUpDate', e.target.value)} /></Field>
           <Field label="Assign telecaller *">
@@ -312,7 +317,7 @@ export default function WalkInLeadPage() {
       )}
 
       <div style={{ display: 'flex', gap: 10 }}>
-        <button onClick={submit} disabled={saving} style={primaryBtn(saving)}>{saving ? 'Saving…' : 'Save as Lead'}</button>
+        <button onClick={submit} disabled={saving} style={{ ...primaryBtn(saving), display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Check} />{saving ? 'Saving…' : 'Save as Lead'}</button>
         <button onClick={() => router.push('/dashboard/crm/leads')} disabled={saving} style={ghostBtn()}>Cancel</button>
       </div>
     </div>
@@ -323,8 +328,8 @@ export default function WalkInLeadPage() {
 function Card({ children }: { children: React.ReactNode }) {
   return <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 18 }}>{children}</div>;
 }
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: 'var(--text-dim)', margin: '0 0 10px' }}>{children}</div>;
+function SectionTitle({ children, icon }: { children: React.ReactNode; icon?: LucideIcon }) {
+  return <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: 'var(--text-dim)', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 6 }}>{icon && <InlineIcon icon={icon} size={14} />}{children}</div>;
 }
 function Grid({ children }: { children: React.ReactNode }) {
   return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>{children}</div>;

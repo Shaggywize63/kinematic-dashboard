@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import Modal from './shared/Modal';
 import { crmAi } from '../../lib/crmApi';
 import type { TemplateDraft } from './TemplateEditModal';
+import { Lightbulb, Sparkles } from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 
 interface Props {
   open: boolean;
@@ -154,14 +156,14 @@ Return JSON only — no prose, no code fences.`;
       footer={
         <>
           <button type="button" onClick={onClose} style={btn.secondary}>Cancel</button>
-          <button type="button" onClick={generate} disabled={busy || !goal.trim()} style={btn.primary(busy)}>{busy ? 'Generating…' : '✦ Generate with KINI AI'}</button>
+          <button type="button" onClick={generate} disabled={busy || !goal.trim()} style={btn.primary(busy)}>{!busy && <InlineIcon icon={Sparkles} />}{busy ? 'Generating…' : 'Generate with KINI AI'}</button>
         </>
       }>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {busy && (
           <div aria-live="polite" style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>✦ KINI AI is drafting your {channel === 'email' ? 'emailer' : 'template'}…</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Sparkles} size={14} style={{ color: 'var(--accent)' }} />KINI AI is drafting your {channel === 'email' ? 'emailer' : 'template'}…</span>
               <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>{Math.min(100, Math.round(progress))}%</span>
             </div>
             <div style={{ height: 8, borderRadius: 999, background: 'var(--s2)', overflow: 'hidden' }}>
@@ -202,7 +204,7 @@ Return JSON only — no prose, no code fences.`;
           </label>
         </div>
         <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-          <strong style={{ color: 'var(--text)' }}>Tip:</strong> Be specific. Mention the audience, the action you want, and any key facts (price, dates, links). The more context you give, the better the draft — you can always edit before saving.
+          <InlineIcon icon={Lightbulb} size={14} style={{ verticalAlign: '-2px', marginRight: 6, color: 'var(--warn)' }} /><strong style={{ color: 'var(--text)' }}>Tip:</strong> Be specific. Mention the audience, the action you want, and any key facts (price, dates, links). The more context you give, the better the draft — you can always edit before saving.
         </div>
       </div>
     </Modal>
@@ -213,5 +215,5 @@ const lblStyle: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', 
 const inputStyle: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
 const btn = {
   secondary: { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 } as React.CSSProperties,
-  primary: (busy: boolean): React.CSSProperties => ({ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 700, fontSize: 13, opacity: busy ? 0.7 : 1 }),
+  primary: (busy: boolean): React.CSSProperties => ({ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 700, fontSize: 13, opacity: busy ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }),
 };

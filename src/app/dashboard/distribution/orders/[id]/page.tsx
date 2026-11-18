@@ -4,6 +4,8 @@ import { useParams } from 'next/navigation';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Btn, Th, Td, inr, fmtDate, statusColor } from '../../../../../components/distribution/Atoms';
 import { useDistributionNames, shortId } from '../../../../../lib/useDistributionNames';
+import { BookOpen, CircleDot, CreditCard, FileText, IndianRupee, Link2, Package, Truck } from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -45,7 +47,7 @@ export default function OrderDetailPage() {
             {canApprove && <Btn onClick={approve} disabled={busy}>Approve</Btn>}
             {order.status === 'approved' && (
               <a href={`/dashboard/distribution/invoices?order_id=${order.id}`}>
-                <Btn>Issue invoice →</Btn>
+                <Btn icon={<InlineIcon icon={FileText} />}>Issue invoice →</Btn>
               </a>
             )}
             {canCancel && <Btn variant="danger" onClick={cancel} disabled={busy}>Cancel</Btn>}
@@ -56,16 +58,16 @@ export default function OrderDetailPage() {
       {/* Cross-links */}
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', fontSize: 13 }}>
-          <span style={{ color: 'var(--text-dim)' }}>Linked to:</span>
-          <a href={`/dashboard/distribution/distributors/${order.distributor_id}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Distributor →</a>
+          <span style={{ color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Link2} size={14} />Linked to:</span>
+          <a href={`/dashboard/distribution/distributors/${order.distributor_id}`} style={{ color: 'var(--primary)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Truck} size={14} />Distributor →</a>
           <span style={{ color: 'var(--text-dim)' }}>·</span>
-          <a href={`/dashboard/distribution/payments?outlet_id=${order.outlet_id}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Outlet payments →</a>
+          <a href={`/dashboard/distribution/payments?outlet_id=${order.outlet_id}`} style={{ color: 'var(--primary)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={CreditCard} size={14} />Outlet payments →</a>
           <span style={{ color: 'var(--text-dim)' }}>·</span>
-          <a href={`/dashboard/distribution/ledger?outlet_id=${order.outlet_id}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Outlet ledger →</a>
+          <a href={`/dashboard/distribution/ledger?outlet_id=${order.outlet_id}`} style={{ color: 'var(--primary)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={BookOpen} size={14} />Outlet ledger →</a>
           {['invoiced', 'partially_invoiced'].includes(order.status) && (
             <>
               <span style={{ color: 'var(--text-dim)' }}>·</span>
-              <a href={`/dashboard/distribution/invoices?order_id=${order.id}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Invoice →</a>
+              <a href={`/dashboard/distribution/invoices?order_id=${order.id}`} style={{ color: 'var(--primary)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={FileText} size={14} />Invoice →</a>
             </>
           )}
         </div>
@@ -75,7 +77,7 @@ export default function OrderDetailPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 22 }}>
         <Card>
-          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Line items</div>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, ...cardHead }}><InlineIcon icon={Package} size={16} style={{ color: 'var(--dim)' }} />Line items</div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead><tr><Th>SKU</Th><Th>Qty</Th><Th style={{ textAlign: 'right' }}>Unit</Th><Th style={{ textAlign: 'right' }}>Taxable</Th><Th>GST</Th><Th style={{ textAlign: 'right' }}>Total</Th></tr></thead>
             <tbody>
@@ -98,7 +100,7 @@ export default function OrderDetailPage() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Card>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Status</div>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, ...cardHead }}><InlineIcon icon={CircleDot} size={16} style={{ color: 'var(--dim)' }} />Status</div>
             <Pill color={statusColor(order.status)}>{order.status}</Pill>
             <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div title={order.outlet_id}>Outlet: {names.outletName(order.outlet_id) || shortId(order.outlet_id)}</div>
@@ -111,7 +113,7 @@ export default function OrderDetailPage() {
           </Card>
 
           <Card>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Tax breakdown</div>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, ...cardHead }}><InlineIcon icon={IndianRupee} size={16} style={{ color: 'var(--dim)' }} />Tax breakdown</div>
             <Row k="Subtotal" v={inr(order.subtotal)} />
             <Row k="Discount" v={`- ${inr(order.discount_total)}`} />
             <Row k="Scheme" v={`- ${inr(order.scheme_total)}`} />
@@ -130,6 +132,8 @@ export default function OrderDetailPage() {
     </div>
   );
 }
+
+const cardHead: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 };
 
 function Row({ k, v }: { k: string; v: string }) {
   return <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', color: 'var(--text-dim)' }}><span>{k}</span><span style={{ color: 'var(--text)', fontFamily: 'JetBrains Mono, monospace' }}>{v}</span></div>;

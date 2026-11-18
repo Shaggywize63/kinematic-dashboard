@@ -10,6 +10,8 @@
  */
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
+import { AlertTriangle, Check, CheckCircle2, Timer } from 'lucide-react';
+import { InlineIcon } from './ui/PageIcon';
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -107,7 +109,11 @@ export default function FieldTrackingCadencePicker() {
             textTransform: 'uppercase',
             letterSpacing: '0.8px',
             marginBottom: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
           }}>
+            <InlineIcon icon={Timer} size={16} />
             Location Ping Cadence
           </div>
           <div style={{ fontSize: 12, color: C.gray, lineHeight: 1.5 }}>
@@ -197,8 +203,12 @@ export default function FieldTrackingCadencePicker() {
             cursor: dirty && !saving ? 'pointer' : 'not-allowed',
             fontFamily: 'inherit',
             opacity: saving ? 0.6 : 1,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
           }}
         >
+          {dirty && <InlineIcon icon={Check} size={14} />}
           {saving ? 'Saving…' : (dirty ? 'Save cadence' : 'No changes')}
         </button>
         {updatedAt && !dirty && (
@@ -212,8 +222,11 @@ export default function FieldTrackingCadencePicker() {
             color: status.kind === 'ok' ? C.green : C.red,
             flex: 1,
             minWidth: 200,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
           }}>
-            {status.kind === 'ok' ? '✓' : '⚠️'} {status.msg}
+            <InlineIcon icon={status.kind === 'ok' ? CheckCircle2 : AlertTriangle} size={14} />{status.msg}
           </span>
         )}
       </div>
@@ -227,8 +240,11 @@ export default function FieldTrackingCadencePicker() {
         fontSize: 11,
         color: C.gray,
         lineHeight: 1.5,
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 6,
       }}>
-        ⚠️ iOS users continue to ping every 5 min in the foreground only. Background iOS support is deferred until the team is on a paid Apple Developer Program account.
+        <InlineIcon icon={AlertTriangle} size={13} style={{ marginTop: 1 }} />iOS users continue to ping every 5 min in the foreground only. Background iOS support is deferred until the team is on a paid Apple Developer Program account.
       </div>
     </div>
   );

@@ -1,10 +1,10 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Receipt } from 'lucide-react';
+import { AlertTriangle, Pencil, Plus, Receipt, XCircle } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Segmented, T } from '../../../components/ui';
-import { Stat } from '../../../components/finance/ui';
-import { ExpensesShell, ClaimStatusBadge, errText, fmtDate, isPartial, money, payable } from '../../../components/expenses/kit';
+import { InlineIcon } from '../../../components/ui/PageIcon';
+import { ExpensesShell, ClaimStatusBadge, IconStat, STATUS_ICON, errText, fmtDate, isPartial, money, payable } from '../../../components/expenses/kit';
 import { ExpenseClaim, expensesApi } from '../../../lib/expensesApi';
 
 type View = 'all' | 'attention' | 'waiting' | 'approved' | 'paid';
@@ -52,10 +52,10 @@ export default function MyClaimsPage() {
 
       <Card padding={20}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 20 }}>
-          <Stat label="Awaiting approval" value={money(sum(waiting), currency)} hint={`${waiting.length} ${waiting.length === 1 ? 'claim' : 'claims'}`} tone={waiting.length ? 'warn' : undefined} />
-          <Stat label="Approved, to be paid" value={money(sum(toBePaid), currency)} hint={`${toBePaid.length} ${toBePaid.length === 1 ? 'claim' : 'claims'}`} tone={toBePaid.length ? 'ok' : undefined} />
-          <Stat label="Sent back" value={String(rejected.length)} hint={rejected.length ? 'Fix and resubmit' : 'Nothing to fix'} tone={rejected.length ? 'red' : undefined} />
-          <Stat label="Reimbursed" value={money(sum(paid), currency)} hint={`${paid.length} ${paid.length === 1 ? 'claim' : 'claims'}`} />
+          <IconStat icon={STATUS_ICON.submitted} label="Awaiting approval" value={money(sum(waiting), currency)} hint={`${waiting.length} ${waiting.length === 1 ? 'claim' : 'claims'}`} tone={waiting.length ? 'warn' : undefined} />
+          <IconStat icon={STATUS_ICON.approved} label="Approved, to be paid" value={money(sum(toBePaid), currency)} hint={`${toBePaid.length} ${toBePaid.length === 1 ? 'claim' : 'claims'}`} tone={toBePaid.length ? 'ok' : undefined} />
+          <IconStat icon={STATUS_ICON.rejected} label="Sent back" value={String(rejected.length)} hint={rejected.length ? 'Fix and resubmit' : 'Nothing to fix'} tone={rejected.length ? 'red' : undefined} />
+          <IconStat icon={STATUS_ICON.reimbursed} label="Reimbursed" value={money(sum(paid), currency)} hint={`${paid.length} ${paid.length === 1 ? 'claim' : 'claims'}`} />
         </div>
       </Card>
 
@@ -64,7 +64,7 @@ export default function MyClaimsPage() {
       </div>
 
       {error ? (
-        <Card><EmptyState icon={<Receipt size={20} strokeWidth={1.5} />} title="Couldn’t load your claims" description={error} action={<Button onClick={load}>Try again</Button>} /></Card>
+        <Card><EmptyState icon={<AlertTriangle size={20} strokeWidth={1.5} />} title="Couldn’t load your claims" description={error} action={<Button onClick={load}>Try again</Button>} /></Card>
       ) : loading && claims.length === 0 ? (
         <Card style={{ color: T.mute, fontSize: 14 }}>Loading…</Card>
       ) : shown.length === 0 ? (
@@ -72,7 +72,7 @@ export default function MyClaimsPage() {
           <EmptyState icon={<Receipt size={20} strokeWidth={1.5} />}
             title={live.length === 0 ? 'No claims yet' : 'Nothing in this view'}
             description={live.length === 0 ? 'Add your expenses with a photo of each receipt and send them for approval.' : 'Try another filter above.'}
-            action={live.length === 0 ? <Button variant="primary" href="/dashboard/expenses/new">File your first claim</Button> : undefined} />
+            action={live.length === 0 ? <Button variant="primary" href="/dashboard/expenses/new" icon={<Plus size={15} strokeWidth={2} />}>File your first claim</Button> : undefined} />
         </Card>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -105,11 +105,12 @@ function ClaimRow({ claim: c, onOpen, onFix }: { claim: ExpenseClaim; onOpen: ()
 
           {c.status === 'rejected' && (
             <div style={{ marginTop: 8, padding: '8px 10px', background: T.redWash, borderRadius: T.radius.sm, fontSize: 13, color: T.text, lineHeight: 1.45, overflowWrap: 'anywhere' }}>
+              <InlineIcon icon={XCircle} size={14} style={{ color: T.red, verticalAlign: '-2px', marginRight: 6 }} />
               <strong style={{ color: T.red, fontWeight: 600 }}>Rejected{c.reviewer_name ? ` by ${c.reviewer_name}` : ''}: </strong>{c.review_note || 'No remark left.'}
             </div>
           )}
-          {isPartial(c) && <div style={{ marginTop: 6, fontSize: 12.5, color: T.warn }}>Some lines were rejected — open the claim to see why.</div>}
-          {c.status === 'submitted' && high && <div style={{ marginTop: 6 }}><Badge tone="warn">Policy points flagged</Badge></div>}
+          {isPartial(c) && <div style={{ marginTop: 6, fontSize: 12.5, color: T.warn, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={AlertTriangle} size={14} />Some lines were rejected — open the claim to see why.</div>}
+          {c.status === 'submitted' && high && <div style={{ marginTop: 6 }}><Badge tone="warn"><InlineIcon icon={AlertTriangle} size={12} />Policy points flagged</Badge></div>}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
@@ -123,7 +124,7 @@ function ClaimRow({ claim: c, onOpen, onFix }: { claim: ExpenseClaim; onOpen: ()
 
       {(c.status === 'rejected' || c.status === 'draft') && (
         <div style={{ padding: '0 18px 14px' }}>
-          <Button size="sm" variant={c.status === 'rejected' ? 'primary' : 'secondary'} onClick={onFix}>{c.status === 'rejected' ? 'Fix and resubmit' : 'Continue editing'}</Button>
+          <Button size="sm" variant={c.status === 'rejected' ? 'primary' : 'secondary'} icon={<Pencil size={14} strokeWidth={2} />} onClick={onFix}>{c.status === 'rejected' ? 'Fix and resubmit' : 'Continue editing'}</Button>
         </div>
       )}
     </Card>

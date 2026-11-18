@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CalendarClock, CheckCircle2, Info, Lightbulb, Sparkles } from 'lucide-react';
 import type { NextBestAction, NextBestActionMethodology } from '../../types/crm';
 import AiBadge from './shared/AiBadge';
 
@@ -53,7 +54,7 @@ export default function NextBestActionCard({
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Next Best Action</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><Lightbulb aria-hidden size={16} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Next Best Action</div>
           <AiBadge label="Powered by KINI AI" />
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -68,12 +69,13 @@ export default function NextBestActionCard({
                 display: 'inline-flex', alignItems: 'center', gap: 4,
               }}
             >
-              <span style={{ fontSize: 12 }}>ⓘ</span>
+              <Info aria-hidden size={12} strokeWidth={2} />
               <span>How?</span>
             </button>
           )}
           {onLoad && (
-            <button onClick={onLoad} disabled={loading} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>
+            <button onClick={onLoad} disabled={loading} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Sparkles aria-hidden size={12} strokeWidth={2} />
               {loading ? 'Thinking…' : 'Suggest'}
             </button>
           )}
@@ -112,13 +114,13 @@ export default function NextBestActionCard({
                 onClick={() => router.push(buildComposeHref({ action, leadId, dealId, mode: 'log' }))}
                 style={ctaPrimary(tone)}
               >
-                ✓ Log it now
+                <CheckCircle2 aria-hidden size={14} strokeWidth={2} />Log it now
               </button>
               <button
                 onClick={() => router.push(buildComposeHref({ action, leadId, dealId, mode: 'schedule' }))}
                 style={ctaSecondary}
               >
-                📅 Schedule {action.suggested_when ? `for ${WHEN_LABEL[action.suggested_when] || action.suggested_when}` : ''}
+                <CalendarClock aria-hidden size={14} strokeWidth={2} />Schedule {action.suggested_when ? `for ${WHEN_LABEL[action.suggested_when] || action.suggested_when}` : ''}
               </button>
             </div>
           )}
@@ -356,7 +358,7 @@ function ctaPrimary(tone: string): React.CSSProperties {
   return {
     padding: '7px 14px', borderRadius: 8, border: 'none',
     background: tone, color: '#fff', fontSize: 12, fontWeight: 700,
-    cursor: 'pointer',
+    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
   };
 }
 
@@ -364,7 +366,7 @@ const ctaSecondary: React.CSSProperties = {
   padding: '7px 14px', borderRadius: 8,
   border: '1px solid var(--border)',
   background: 'var(--s3)', color: 'var(--text)',
-  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+  fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
 };
 
 function PlanStep({ step }: { step: NextBestActionMethodology['closing_plan'][number] }) {

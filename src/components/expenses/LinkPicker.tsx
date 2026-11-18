@@ -5,7 +5,9 @@
 // you type — so the caller decides what is searched and how a row is labelled.
 
 import { useEffect, useRef, useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { Button, Input, T } from '../ui';
+import { InlineIcon } from '../ui/PageIcon';
 
 export interface LinkOption { id: string; label: string }
 
@@ -14,7 +16,8 @@ export default function LinkPicker<O extends LinkOption>({ id, ariaLabel, icon, 
   id?: string;
   /** Names the search box and the Clear button, e.g. "Lead". */
   ariaLabel: string;
-  icon: string;
+  /** Drawn before the chosen record's name. */
+  icon: LucideIcon;
   placeholder: string;
   selectedId: string;
   selectedLabel: string;
@@ -56,7 +59,7 @@ export default function LinkPicker<O extends LinkOption>({ id, ariaLabel, icon, 
   if (selectedId) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text, overflowWrap: 'anywhere' }}>{icon} {selectedLabel || fallbackLabel}</span>
+        <span data-testid={`link-picked-${ariaLabel.toLowerCase()}`} style={{ fontSize: 13.5, fontWeight: 600, color: T.text, overflowWrap: 'anywhere', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={icon} size={15} style={{ color: T.dim }} />{selectedLabel || fallbackLabel}</span>
         <Button size="sm" variant="ghost" aria-label={`Clear ${ariaLabel.toLowerCase()}`} onClick={() => { onClear(); setQuery(''); setResults([]); }}>Clear</Button>
       </div>
     );

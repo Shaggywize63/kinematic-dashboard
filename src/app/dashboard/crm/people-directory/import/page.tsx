@@ -19,6 +19,9 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmPeopleDirectory } from '../../../../../lib/crmApi';
+import type { LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, Check, CheckCircle2, Eye, FileSpreadsheet, Plus, RefreshCw, SkipForward, Sigma, Upload } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 // `id` here is the user-typed employee / dealer identifier (stored
 // server-side as `code`). The system UUID is never imported / exported.
@@ -213,7 +216,10 @@ export default function PeopleDirectoryImportPage() {
           onClick={() => router.push('/dashboard/crm/people-directory')}
           style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 13, cursor: 'pointer', marginBottom: 8 }}
         >← Back to People Directory</button>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>Bulk Import</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <PageIcon />
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>Bulk Import</h1>
+        </div>
         <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>
           Drop a CSV with your roster and map each column to a directory field.
         </div>
@@ -224,8 +230,8 @@ export default function PeopleDirectoryImportPage() {
       {step === 1 && (
         <Card>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-            <h3 style={{ ...cardHeader, margin: 0 }}>Step 1 — Upload CSV</h3>
-            <button onClick={downloadTemplate} style={btnSecondary}>Download template</button>
+            <h3 style={{ ...cardHeader, margin: 0 }}><InlineIcon icon={Upload} size={16} style={{ color: 'var(--text-dim)' }} />Step 1 — Upload CSV</h3>
+            <button onClick={downloadTemplate} style={btnSecondary}><InlineIcon icon={FileSpreadsheet} />Download template</button>
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 12 }}>
             Pick a file (recommended) or paste rows below. The first row must be the header.{' '}
@@ -257,7 +263,7 @@ export default function PeopleDirectoryImportPage() {
 
       {step === 2 && parsed && (
         <Card>
-          <h3 style={cardHeader}>Step 2 — Map your columns</h3>
+          <h3 style={cardHeader}><InlineIcon icon={ArrowLeftRight} size={16} style={{ color: 'var(--text-dim)' }} />Step 2 — Map your columns</h3>
           <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 16 }}>
             We auto-matched what we could. Adjust if needed. Leave a field blank to skip it.
           </div>
@@ -300,7 +306,7 @@ export default function PeopleDirectoryImportPage() {
 
       {step === 3 && parsed && !result && (
         <Card>
-          <h3 style={cardHeader}>Step 3 — Review &amp; import</h3>
+          <h3 style={cardHeader}><InlineIcon icon={Eye} size={16} style={{ color: 'var(--text-dim)' }} />Step 3 — Review &amp; import</h3>
           <div style={{ fontSize: 14, color: 'var(--text)', marginBottom: 14 }}>
             <strong>{mappedRows.length}</strong> usable row{mappedRows.length === 1 ? '' : 's'} from <strong>{parsed.rows.length}</strong> in the file
             {' '}(skipped {parsed.rows.length - mappedRows.length} that had no name, mobile, or email).
@@ -333,19 +339,19 @@ export default function PeopleDirectoryImportPage() {
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
             <button onClick={() => setStep(2)} style={btnSecondary} disabled={busy}>← Back</button>
-            <button onClick={commit} style={btnPrimary} disabled={busy}>{busy ? 'Importing…' : `Import ${mappedRows.length} row${mappedRows.length === 1 ? '' : 's'}`}</button>
+            <button onClick={commit} style={btnPrimary} disabled={busy}>{!busy && <InlineIcon icon={Upload} />}{busy ? 'Importing…' : `Import ${mappedRows.length} row${mappedRows.length === 1 ? '' : 's'}`}</button>
           </div>
         </Card>
       )}
 
       {result && (
         <Card>
-          <h3 style={cardHeader}>Import complete</h3>
+          <h3 style={cardHeader}><InlineIcon icon={CheckCircle2} size={16} style={{ color: 'var(--ok)' }} />Import complete</h3>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
-            <Stat label="Added"   value={result.added} accent="#16a34a" />
-            <Stat label="Updated" value={result.updated} accent="#2563eb" />
-            <Stat label="Skipped" value={result.skipped} accent="#6b7280" />
-            <Stat label="Total"   value={result.total} />
+            <Stat label="Added"   value={result.added} accent="#16a34a" icon={Plus} />
+            <Stat label="Updated" value={result.updated} accent="#2563eb" icon={RefreshCw} />
+            <Stat label="Skipped" value={result.skipped} accent="#6b7280" icon={SkipForward} />
+            <Stat label="Total"   value={result.total} icon={Sigma} />
           </div>
           <button onClick={() => router.push('/dashboard/crm/people-directory')} style={btnPrimary}>Go to directory →</button>
         </Card>
@@ -372,9 +378,9 @@ function Stepper({ step }: { step: 1 | 2 | 3 }) {
             background: active ? 'var(--primary)' : done ? 'rgba(22,163,74,0.12)' : 'var(--s2)',
             color: active ? '#fff' : done ? '#16a34a' : 'var(--text-dim)',
             border: `1px solid ${active ? 'var(--primary)' : 'var(--border)'}`,
-            textAlign: 'center',
+            textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
           }}>
-            {done ? '✓' : s.n}. {s.label}
+            {done ? <InlineIcon icon={Check} size={13} /> : `${s.n}.`} {s.label}
           </div>
         );
       })}
@@ -414,19 +420,19 @@ function Preview({ rows }: { rows: Array<Record<string, string | null>> }) {
     </div>
   );
 }
-function Stat({ label, value, accent }: { label: string; value: number; accent?: string }) {
+function Stat({ label, value, accent, icon }: { label: string; value: number; accent?: string; icon?: LucideIcon }) {
   return (
     <div style={{ padding: '8px 14px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>{icon && <InlineIcon icon={icon} size={12} />}{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color: accent || 'var(--text)' }}>{value}</div>
     </div>
   );
 }
 
-const cardHeader: React.CSSProperties = { margin: '0 0 12px', fontSize: 15, color: 'var(--text)', fontWeight: 700 };
+const cardHeader: React.CSSProperties = { margin: '0 0 12px', fontSize: 15, color: 'var(--text)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 };
 const radioLabel: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 13, color: 'var(--text)', cursor: 'pointer' };
 const selectStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 8, background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13 };
-const btnPrimary: React.CSSProperties = { padding: '8px 16px', borderRadius: 8, background: 'var(--primary)', color: '#fff', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer' };
-const btnSecondary: React.CSSProperties = { padding: '8px 14px', borderRadius: 8, background: 'transparent', color: 'var(--text)', fontWeight: 600, fontSize: 13, border: '1px solid var(--border)', cursor: 'pointer' };
+const btnPrimary: React.CSSProperties = { padding: '8px 16px', borderRadius: 8, background: 'var(--primary)', color: '#fff', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 };
+const btnSecondary: React.CSSProperties = { padding: '8px 14px', borderRadius: 8, background: 'transparent', color: 'var(--text)', fontWeight: 600, fontSize: 13, border: '1px solid var(--border)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 };
 const previewTh: React.CSSProperties = { padding: '6px 10px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)' };
 const previewTd: React.CSSProperties = { padding: '6px 10px', color: 'var(--text)' };

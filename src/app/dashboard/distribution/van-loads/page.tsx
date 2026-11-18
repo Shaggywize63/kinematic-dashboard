@@ -82,7 +82,7 @@ export default function VanLoadsPage() {
       <PageHeader
         title="Van Sales"
         subtitle="Van / route loads — stock loaded out, sold, returned and damaged, reconciled at day-end."
-        right={<a href="/dashboard/distribution/van-loads/new"><Btn>+ New load</Btn></a>}
+        right={<a href="/dashboard/distribution/van-loads/new"><Btn>New load</Btn></a>}
       />
 
       <Card style={{ marginBottom: 22 }}>

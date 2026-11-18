@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { FolderTree, Package, Pencil, Plus, Trash2, Upload } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import { crmProducts, crmProductCategories, crmMakes, crmBrands } from '../../../../lib/crmApi';
 import { formatINR } from '../../../../lib/formatCurrency';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
@@ -94,14 +96,14 @@ export default function ProductsListPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Link href="/dashboard/crm/products/categories" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none' }}>Categories</Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Link href="/dashboard/crm/products/categories" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={FolderTree} />Categories</Link>
           {b2b && (
             <button type="button" onClick={() => setImporting(true)}
-              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>Import from file</button>
+              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Upload} />Import from file</button>
           )}
           <Link href="/dashboard/crm/products/new"
-            style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Product</Link>
+            style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />New Product</Link>
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
@@ -148,7 +150,7 @@ export default function ProductsListPage() {
           </tr></thead>
           <tbody>
             {loading && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading...</td></tr>}
-            {!loading && items.length === 0 && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No products yet.</td></tr>}
+            {!loading && items.length === 0 && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}><IconTile icon={Package} size={40} iconSize={20} style={{ display: 'flex', margin: '8px auto' }} />No products yet.</td></tr>}
             {pagedProducts.map((p) => {
               const w = p.weight_kg ?? 0;
               const perTonne = w > 0 ? Math.round((Number(p.price) / w) * 1000) : null;
@@ -166,8 +168,8 @@ export default function ProductsListPage() {
                 {!b2b && <td style={td}>{p.hsn_code || '—'}</td>}
                 <td style={td}>{p.is_active ? 'Yes' : <span style={{ color: 'var(--text-dim)' }}>No</span>}</td>
                 <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <Link href={`/dashboard/crm/products/${p.id}`} style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 12, marginRight: 12, textDecoration: 'none' }}>Edit</Link>
-                  <button type="button" onClick={() => handleDelete(p)} style={{ background: 'transparent', border: '1px solid #E01E2C', color: '#E01E2C', padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Delete</button>
+                  <Link href={`/dashboard/crm/products/${p.id}`} style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 12, marginRight: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}><InlineIcon icon={Pencil} size={13} />Edit</Link>
+                  <button type="button" onClick={() => handleDelete(p)} style={{ background: 'transparent', border: '1px solid #E01E2C', color: '#E01E2C', padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}><InlineIcon icon={Trash2} size={13} />Delete</button>
                 </td>
               </tr>
               );

@@ -6,6 +6,8 @@ import { INDIA_STATES, parseGstinClient, stateName } from '../../../../lib/india
 import PrefetchLink from '../../../../components/PrefetchLink';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { AlertTriangle, CheckCircle2, RotateCcw, Upload, XCircle } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 interface DistForm {
   name: string;
@@ -208,14 +210,14 @@ export default function DistributorsPage() {
     <div>
       <PageHeader title="Distributors" subtitle="Stockists, distributors, wholesalers" right={
         <div style={{ display: 'flex', gap: 8 }}>
-          <Btn variant="ghost" onClick={() => { setShowImport((s) => !s); setShowForm(false); }}>{showImport ? 'Close Import' : '⭳ Import dealers'}</Btn>
-          <Btn onClick={() => { setShowForm((s) => !s); setShowImport(false); }}>{showForm ? 'Cancel' : '+ Add Distributor'}</Btn>
+          <Btn variant="ghost" onClick={() => { setShowImport((s) => !s); setShowForm(false); }}>{showImport ? 'Close Import' : 'Import dealers'}</Btn>
+          <Btn onClick={() => { setShowForm((s) => !s); setShowImport(false); }}>{showForm ? 'Cancel' : 'Add Distributor'}</Btn>
         </div>
       } />
 
       {showImport && (
         <Card style={{ marginBottom: 22 }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>Bulk upload dealers</div>
+          <div style={{ fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Upload} size={16} style={{ color: 'var(--dim)' }} />Bulk upload dealers</div>
           <ol style={{ margin: '0 0 12px', paddingLeft: 18, lineHeight: 1.8, fontSize: 12, color: 'var(--text-dim)' }}>
             <li><a onClick={downloadTemplate} style={{ color: 'var(--primary)', fontWeight: 700, cursor: 'pointer' }}>Download the CSV template</a> and fill one dealer per row. <strong>code</strong> and <strong>name</strong> are required; everything else is optional.</li>
             <li>Upload the completed CSV, review the preview, then Import. Existing codes are skipped, so re-uploading is safe.</li>
@@ -256,7 +258,7 @@ export default function DistributorsPage() {
           {importResult && (
             <div style={{ marginTop: 14, fontSize: 13 }}>
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                <span style={{ color: 'var(--green)', fontWeight: 700 }}>✓ {importResult.created} created</span>
+                <span style={{ color: 'var(--green)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={CheckCircle2} size={14} />{importResult.created} created</span>
                 <span style={{ color: 'var(--text-dim)' }}>{importResult.skipped} skipped (already exist)</span>
                 {importResult.errors.length > 0 && <span style={{ color: 'var(--primary)' }}>{importResult.errors.length} error{importResult.errors.length === 1 ? '' : 's'}</span>}
                 <span style={{ color: 'var(--text-dim)' }}>of {importResult.total} rows</span>
@@ -302,7 +304,7 @@ export default function DistributorsPage() {
               </div>
               {verifyMsg && (
                 <div style={{ marginTop: 6, fontSize: 12, color: verifyMsg.kind === 'ok' ? 'var(--green)' : verifyMsg.kind === 'warn' ? '#F59E0B' : 'var(--primary)' }}>
-                  {verifyMsg.kind === 'ok' ? '✓ ' : verifyMsg.kind === 'warn' ? '⚠ ' : '✗ '}{verifyMsg.text}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={verifyMsg.kind === 'ok' ? CheckCircle2 : verifyMsg.kind === 'warn' ? AlertTriangle : XCircle} size={14} />{verifyMsg.text}</span>
                 </div>
               )}
             </div>
@@ -386,7 +388,7 @@ export default function DistributorsPage() {
                   <Td style={{ textAlign: 'right' }}>
                     {d.is_active
                       ? <Btn variant="danger" onClick={() => remove(d.id, d.name)}>Delete</Btn>
-                      : <Btn variant="ghost"  onClick={() => reactivate(d.id, d.name)}>Reactivate</Btn>}
+                      : <Btn variant="ghost"  onClick={() => reactivate(d.id, d.name)} icon={<InlineIcon icon={RotateCcw} />}>Reactivate</Btn>}
                   </Td>
                 </tr>
               ))}

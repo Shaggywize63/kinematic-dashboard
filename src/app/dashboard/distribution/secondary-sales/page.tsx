@@ -4,6 +4,8 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { Check, Plus } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 // Type-aware column sorting for the secondary-sales table (raw values per key).
 const secondarySaleVal = (s: any, key: string): unknown => {
@@ -46,7 +48,7 @@ export default function SecondarySalesPage() {
       <PageHeader
         title="Consumer · Secondary Sales"
         subtitle="On-shelf, in-hand. Off-take captured per outlet × SKU × period; joins planogram compliance."
-        right={<Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : '+ Capture'}</Btn>}
+        right={<Btn onClick={() => setShowForm((s) => !s)} icon={showForm ? null : <InlineIcon icon={Plus} />}>{showForm ? 'Cancel' : 'Capture'}</Btn>}
       />
 
       {showForm && (
@@ -61,7 +63,7 @@ export default function SecondarySalesPage() {
             <div style={{ gridColumn: 'span 2' }}><Field label="Notes" value={form.notes} onChange={(v) => setForm({ ...form, notes: v })} /></div>
           </div>
           {err && <div style={{ marginTop: 10, color: 'var(--primary)', fontSize: 12 }}>{err}</div>}
-          <div style={{ marginTop: 12 }}><Btn disabled={busy} onClick={submit}>{busy ? 'Saving…' : 'Capture'}</Btn></div>
+          <div style={{ marginTop: 12 }}><Btn disabled={busy} onClick={submit} icon={<InlineIcon icon={Check} />}>{busy ? 'Saving…' : 'Capture'}</Btn></div>
         </Card>
       )}
 

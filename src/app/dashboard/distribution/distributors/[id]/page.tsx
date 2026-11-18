@@ -4,6 +4,8 @@ import { useParams } from 'next/navigation';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, Row, inr, fmtDate, statusColor } from '../../../../../components/distribution/Atoms';
 import { stateName } from '../../../../../lib/india';
+import { CalendarClock, CalendarDays, CircleDot, CreditCard, FileText, Hash, IndianRupee, MapPin, ShoppingCart } from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 
 export default function DistributorDetail() {
   const params = useParams();
@@ -50,24 +52,24 @@ export default function DistributorDetail() {
       />
 
       <Row style={{ marginBottom: 22 }}>
-        <StatCard label="GSTIN"          value={<span style={{ fontSize: 14, fontFamily: 'JetBrains Mono, monospace' }}>{dist.gstin || '—'}</span>} />
-        <StatCard label="State"          value={dist.state_code ? `${dist.state_code} · ${stateName(dist.state_code) || ''}` : '—'} />
-        <StatCard label="Credit Limit"   value={inr(limit)} hint={limit ? `${utilPct}% used` : undefined} />
+        <StatCard label="GSTIN"          icon={Hash} value={<span style={{ fontSize: 14, fontFamily: 'JetBrains Mono, monospace' }}>{dist.gstin || '—'}</span>} />
+        <StatCard label="State"          icon={MapPin} value={dist.state_code ? `${dist.state_code} · ${stateName(dist.state_code) || ''}` : '—'} />
+        <StatCard label="Credit Limit"   icon={CreditCard} value={inr(limit)} hint={limit ? `${utilPct}% used` : undefined} />
         <StatCard label="Outstanding"    value={inr(used)} accent={limit && used > limit * 0.8 ? 'var(--primary)' : undefined} />
-        <StatCard label="Payment Terms"  value={`${dist.payment_terms_days || 0}d`} />
-        <StatCard label="Status"         value={<Pill color={dist.is_active ? 'green' : 'gray'}>{dist.is_active ? 'active' : 'inactive'}</Pill>} />
+        <StatCard label="Payment Terms"  icon={CalendarClock} value={`${dist.payment_terms_days || 0}d`} />
+        <StatCard label="Status"         icon={CircleDot} value={<Pill color={dist.is_active ? 'green' : 'gray'}>{dist.is_active ? 'active' : 'inactive'}</Pill>} />
       </Row>
 
       {billing && (
         <Card style={{ marginBottom: 22 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8 }}>Billing summary</div>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={IndianRupee} size={16} />Billing summary</div>
           <Row>
             <StatCard label="Open orders"   value={billing.open_orders || 0} />
             <StatCard label="Invoiced"      value={billing.invoiced || 0} />
             <StatCard label="Cancelled"     value={billing.cancelled || 0} />
-            <StatCard label="0–30d"         value={inr(billing.ageing?.['0_30'] || 0)} />
-            <StatCard label="31–60d"        value={inr(billing.ageing?.['31_60'] || 0)} />
-            <StatCard label="61–90d"        value={inr(billing.ageing?.['61_90'] || 0)} />
+            <StatCard label="0–30d"         icon={CalendarDays} value={inr(billing.ageing?.['0_30'] || 0)} />
+            <StatCard label="31–60d"        icon={CalendarDays} value={inr(billing.ageing?.['31_60'] || 0)} />
+            <StatCard label="61–90d"        icon={CalendarDays} value={inr(billing.ageing?.['61_90'] || 0)} />
             <StatCard label="90+ days"      value={inr(billing.ageing?.['90_plus'] || 0)} accent={(billing.ageing?.['90_plus'] || 0) > 0 ? 'var(--primary)' : undefined} />
           </Row>
         </Card>
@@ -76,7 +78,7 @@ export default function DistributorDetail() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
         <Card>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>Recent orders</div>
+            <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={ShoppingCart} size={16} style={{ color: 'var(--dim)' }} />Recent orders</div>
             <a href={`/dashboard/distribution/orders?distributor_id=${id}`} style={{ color: 'var(--primary)', fontSize: 12, fontWeight: 700 }}>All orders →</a>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -95,7 +97,7 @@ export default function DistributorDetail() {
 
         <Card>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>Recent invoices</div>
+            <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={FileText} size={16} style={{ color: 'var(--dim)' }} />Recent invoices</div>
             <a href={`/dashboard/distribution/invoices?distributor_id=${id}`} style={{ color: 'var(--primary)', fontSize: 12, fontWeight: 700 }}>All invoices →</a>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -118,7 +120,7 @@ export default function DistributorDetail() {
           <Btn variant="ghost">Open ledger</Btn>
         </a>
         <a href={`/dashboard/distribution/payments?distributor_id=${id}`}>
-          <Btn variant="ghost">Payments</Btn>
+          <Btn variant="ghost" icon={<InlineIcon icon={CreditCard} />}>Payments</Btn>
         </a>
       </div>
     </div>

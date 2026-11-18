@@ -130,7 +130,7 @@ export default function OrdersPage() {
         right={
           <div style={{ display: 'flex', gap: 8 }}>
             <Btn variant="ghost" onClick={exportCsv} disabled={exporting || badRange}>{exporting ? 'Exporting…' : 'Export CSV'}</Btn>
-            <a href="/dashboard/distribution/orders/new"><Btn>+ New order</Btn></a>
+            <a href="/dashboard/distribution/orders/new"><Btn>New order</Btn></a>
           </div>
         }
       />

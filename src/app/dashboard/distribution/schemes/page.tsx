@@ -35,7 +35,7 @@ export default function SchemesPage() {
       <PageHeader
         title="Schemes"
         subtitle="Trade offers — buy-to-get free goods, quantity-slab discounts, buy-X-get-Y, and cart-value discounts. Versioned and applied automatically at order time."
-        right={<Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : '+ New Scheme'}</Btn>}
+        right={<Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : 'New Scheme'}</Btn>}
       />
 
       {showForm && (

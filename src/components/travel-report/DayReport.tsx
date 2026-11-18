@@ -10,7 +10,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { ArrowLeft, Download, Printer, RefreshCw, UserX } from 'lucide-react';
+import { ArrowLeft, Car, Clock, Download, ListOrdered, Map as MapIcon, MapPin, PauseCircle, Printer, RefreshCw, Route, UserX, type LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 import api, { type DailyReport } from '../../lib/api';
 import { downloadCsv } from '../../lib/exportCsv';
 import {
@@ -36,10 +37,10 @@ function distanceNote(r: DailyReport): string {
   return [METHOD_NOTE[r.travel.method], legs ? `${legs} ${legs === 1 ? 'leg' : 'legs'}` : ''].filter(Boolean).join(' · ');
 }
 
-function Tile({ id, label, value, sub, small }: { id: string; label: string; value: string; sub?: string; small?: boolean }) {
+function Tile({ id, label, value, sub, small, icon }: { id: string; label: string; value: string; sub?: string; small?: boolean; icon: LucideIcon }) {
   return (
     <div data-testid={id} style={{ background: T.raised, borderRadius: 8, padding: '12px 14px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <Eyebrow>{label}</Eyebrow>
+      <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={icon} size={13} />{label}</Eyebrow>
       <div data-testid={`${id}-value`} style={{ fontFamily: T.mono, fontSize: small ? 14 : 17, fontWeight: 600, color: T.text, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{value}</div>
       {sub && <div style={{ fontSize: 12, color: T.mute }}>{sub}</div>}
     </div>
@@ -214,16 +215,16 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
       {report && hasShift && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-            <Tile id="tile-km" label="Total distance" value={fmtKm(report.summary.total_km)} sub={distanceNote(report)} />
+            <Tile id="tile-km" label="Total distance" icon={Route} value={fmtKm(report.summary.total_km)} sub={distanceNote(report)} />
             <Tile
-              id="tile-mode" label="Mode of transport"
+              id="tile-mode" label="Mode of transport" icon={Car}
               value={report.transport.mode || report.transport.label ? modeText(report.transport.mode, report.transport.label) : '—'}
               sub={report.transport.mode || report.transport.label ? undefined : 'Not recorded'}
             />
-            <Tile id="tile-visits" label="Customer visits" value={String(report.summary.visits)} sub={report.summary.visits ? `${fmtMinutes(report.summary.visit_minutes)} at customers` : 'None recorded'} />
-            <Tile id="tile-halts" label="Halts" value={String(report.summary.halts)} sub={report.summary.halts ? `${fmtMinutes(report.summary.halt_minutes)} halted` : 'None recorded'} />
+            <Tile id="tile-visits" label="Customer visits" icon={MapPin} value={String(report.summary.visits)} sub={report.summary.visits ? `${fmtMinutes(report.summary.visit_minutes)} at customers` : 'None recorded'} />
+            <Tile id="tile-halts" label="Halts" icon={PauseCircle} value={String(report.summary.halts)} sub={report.summary.halts ? `${fmtMinutes(report.summary.halt_minutes)} halted` : 'None recorded'} />
             <Tile
-              id="tile-shift" label="Shift" small
+              id="tile-shift" label="Shift" small icon={Clock}
               value={`${fmtClock(report.shift.checkin_at)} – ${report.shift.checkout_at ? fmtClock(report.shift.checkout_at) : 'now'}`}
               sub={report.shift.in_progress ? 'In progress' : fmtHours(report.shift.total_hours)}
             />
@@ -231,7 +232,7 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
 
           <Card padding={14} style={{ display: 'flex', flexDirection: 'column', gap: 10, breakInside: 'avoid' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
-              <Eyebrow>Route</Eyebrow>
+              <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={MapIcon} size={13} />Route</Eyebrow>
               <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: T.dim }}>
                 {[['Start', T.ok], ['Visit', T.info], ['Halt', T.warn], ['End', '#ef4444']].map(([l, c]) => (
                   <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -252,7 +253,7 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
 
           <Card padding={0} style={{ overflow: 'hidden' }}>
             <div style={{ padding: '14px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <Eyebrow>Timeline</Eyebrow>
+              <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ListOrdered} size={13} />Timeline</Eyebrow>
               <div style={{ fontSize: 12.5, color: T.dim }}>
                 {items.length} {items.length === 1 ? 'event' : 'events'}, in the order they started. A halt inside a long drive is listed after the leg it happened on.
               </div>

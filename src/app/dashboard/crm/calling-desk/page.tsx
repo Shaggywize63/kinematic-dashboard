@@ -2,6 +2,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { BarChart3, CheckCircle2, Clock, ListPlus, PhoneCall, XCircle } from 'lucide-react';
+import { IconTile, InlineIcon, PageIcon } from '../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../lib/labelIcons';
 import { crmDesk } from '../../../../lib/crmApi';
 import type { DeskCallTask, DeskCallStatus, DeskDaySummary } from '../../../../lib/crmApi';
 import { istToday, istDate, istTime } from '../../../../lib/istTime';
@@ -96,22 +99,26 @@ export default function CallingDeskPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <PageIcon name="listChecks" />
+          <div>
           <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Calling Desk</h1>
           <p style={{ margin: '4px 0 0', color: 'var(--muted, #6b7280)', fontSize: 13 }}>
             Daily customer calling list — {istDate(date)} (IST)
           </p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <input type="date" value={date} max={istToday()} onChange={(e) => setDate(e.target.value || istToday())}
             style={inputStyle} />
           <button onClick={generate} disabled={generating || date !== istToday()}
             title={date !== istToday() ? 'You can only generate today’s list' : 'Build today’s calling list from the customer master'}
-            style={{ ...btnStyle, opacity: generating || date !== istToday() ? 0.6 : 1 }}>
+            style={{ ...btnStyle, opacity: generating || date !== istToday() ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <InlineIcon icon={ListPlus} />
             {generating ? 'Generating…' : 'Generate Today’s List'}
           </button>
-          <Link href="/dashboard/crm/calling-desk/reports" style={{ ...btnStyle, background: '#fff', color: 'var(--primary, #2563eb)', textDecoration: 'none' }}>
-            Reports →
+          <Link href="/dashboard/crm/calling-desk/reports" style={{ ...btnStyle, background: '#fff', color: 'var(--primary, #2563eb)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <InlineIcon icon={BarChart3} />Reports →
           </Link>
         </div>
       </div>
@@ -144,6 +151,7 @@ export default function CallingDeskPage() {
                 <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>Loading…</td></tr>
               ) : rows.length === 0 ? (
                 <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>
+                  <IconTile icon={PhoneCall} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 8px' }} />
                   No customers on this day&rsquo;s list. {date === istToday() ? 'Click “Generate Today’s List”.' : ''}
                 </td></tr>
               ) : rows.map((t) => (
@@ -161,9 +169,9 @@ export default function CallingDeskPage() {
                         onChange={(e) => setOrderDraft((d) => ({ ...d, [t.id]: e.target.value }))}
                         style={{ ...inputStyle, width: 110 }}
                       />
-                      <button disabled={savingId === t.id} onClick={() => setStatus(t, 'order_taken')} style={pill('#16a34a')}>Order Taken</button>
-                      <button disabled={savingId === t.id} onClick={() => setStatus(t, 'order_pending')} style={pill('#b45309')}>Pending</button>
-                      <button disabled={savingId === t.id} onClick={() => setStatus(t, 'no_order')} style={pill('#6b7280')}>No Order</button>
+                      <button disabled={savingId === t.id} onClick={() => setStatus(t, 'order_taken')} style={pill('#16a34a')}><InlineIcon icon={CheckCircle2} size={13} />Order Taken</button>
+                      <button disabled={savingId === t.id} onClick={() => setStatus(t, 'order_pending')} style={pill('#b45309')}><InlineIcon icon={Clock} size={13} />Pending</button>
+                      <button disabled={savingId === t.id} onClick={() => setStatus(t, 'no_order')} style={pill('#6b7280')}><InlineIcon icon={XCircle} size={13} />No Order</button>
                     </div>
                   </td>
                 </tr>
@@ -193,12 +201,15 @@ function SummaryStrip({ summary, loading }: { summary: DeskDaySummary | null; lo
   ];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
-      {cells.map((c) => (
+      {cells.map((c) => {
+        const Icon = metricIconFor(c.label);
+        return (
         <div key={c.label} style={cardStyle}>
-          <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>{c.label}</div>
+          <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>{Icon && <InlineIcon icon={Icon} size={13} />}{c.label}</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: (c as any).color || '#111827', opacity: loading ? 0.4 : 1 }}>{c.value}</div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -209,4 +220,4 @@ const cardStyle: React.CSSProperties = { background: 'var(--card, #fff)', border
 const thStyle: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 12, fontWeight: 700, color: '#6b7280', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' };
 const tdStyle: React.CSSProperties = { padding: '10px 12px', fontSize: 13, color: '#111827', verticalAlign: 'middle' };
 const badge: React.CSSProperties = { padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' };
-const pill = (c: string): React.CSSProperties => ({ padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#fff', background: c, border: 'none', cursor: 'pointer' });
+const pill = (c: string): React.CSSProperties => ({ padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#fff', background: c, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 });

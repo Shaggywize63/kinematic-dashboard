@@ -5,6 +5,12 @@ import { toast } from 'sonner';
 import { QRCodeCanvas } from 'qrcode.react';
 import { crmIntegrations } from '../../../../../lib/crmApi';
 import type { Integration, IntegrationProvider, IntegrationStatus } from '../../../../../types/integrations';
+import type { LucideIcon } from 'lucide-react';
+import {
+  AlertTriangle, Check, CheckCircle2, Cloud, Code2, Copy, Database, ExternalLink, Eye, Facebook, FileText, Globe, Link2, ListChecks, Mail,
+  MessageCircle, Mic, Palette, PhoneCall, Play, Plug, Plus, Send, Settings2, Terminal, Unplug, Webhook, XCircle,
+} from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 // ── Provider catalogue ─────────────────────────────────────────────────────────
 const PROVIDERS: Array<{
@@ -12,70 +18,70 @@ const PROVIDERS: Array<{
   label: string;
   desc: string;
   available: boolean;
-  icon: string;
+  icon: LucideIcon;
 }> = [
   {
     id: 'web_form',
     label: 'Web Form',
     desc: 'Drop a JS snippet on your site. Submissions land as leads instantly.',
     available: true,
-    icon: '📝',
+    icon: FileText,
   },
   {
     id: 'generic_webhook',
     label: 'Generic Webhook',
     desc: 'Sign + POST any JSON. Works with Zapier, Make, custom backends.',
     available: true,
-    icon: '🔗',
+    icon: Webhook,
   },
   {
     id: 'meta_lead_ads',
     label: 'Meta Lead Ads',
     desc: 'Facebook + Instagram lead forms. Real-time push via Meta App.',
     available: true,
-    icon: '📘',
+    icon: Facebook,
   },
   {
     id: 'google_ads',
     label: 'Google Ads',
     desc: 'Lead Form Extensions. Webhook-based, no OAuth needed.',
     available: true,
-    icon: '🌐',
+    icon: Globe,
   },
   {
     id: 'zoho',
     label: 'Zoho CRM',
     desc: 'Push from Zoho via Workflow → Webhook. Mirrors new / updated Leads into Kinematic.',
     available: true,
-    icon: '🟠',
+    icon: Database,
   },
   {
     id: 'salesforce',
     label: 'Salesforce',
     desc: 'Push from Salesforce via Flow → HTTP Callout (or Outbound Message). One Flow per object.',
     available: true,
-    icon: '☁️',
+    icon: Cloud,
   },
   {
     id: 'email_inbound',
     label: 'Inbound Email',
     desc: 'Forward or route enquiry emails to your capture address. KINI reads each one and creates a lead.',
     available: true,
-    icon: '✉️',
+    icon: Mail,
   },
   {
     id: 'ivr_missed_call',
     label: 'IVR / Missed Call',
     desc: 'Point your telephony provider (Exotel, Knowlarity, Twilio…) at the webhook. Every inbound / missed call becomes a lead from the caller’s number.',
     available: true,
-    icon: '📞',
+    icon: PhoneCall,
   },
   {
     id: 'call_recording',
     label: 'Call Recording → Analysis',
     desc: 'Point your telephony provider’s recording callback at the webhook. Each recorded call is transcribed and analysed by KINI on the matching lead.',
     available: true,
-    icon: '🎙️',
+    icon: Mic,
   },
 ];
 
@@ -90,8 +96,8 @@ function providerLabel(id: string): string {
   return PROVIDERS.find((p) => p.id === id)?.label ?? id;
 }
 
-function providerIcon(id: string): string {
-  return PROVIDERS.find((p) => p.id === id)?.icon ?? '🔌';
+function providerIcon(id: string): LucideIcon {
+  return PROVIDERS.find((p) => p.id === id)?.icon ?? Plug;
 }
 
 function formatLastEvent(when: string | null, count: number): string {
@@ -173,7 +179,10 @@ export default function IntegrationsPage() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 20, color: 'var(--text)', fontWeight: 800 }}>Lead-Source Integrations</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <PageIcon />
+            <h1 style={{ margin: 0, fontSize: 20, color: 'var(--text)', fontWeight: 800 }}>Lead-Source Integrations</h1>
+          </div>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-dim)', maxWidth: 640 }}>
             Connect your website forms, ad platforms, and other CRMs so leads land in Kinematic automatically. Cross-channel duplicates merge by phone or email.
           </p>
@@ -182,7 +191,7 @@ export default function IntegrationsPage() {
           onClick={() => setPickingProvider(true)}
           style={primaryBtn}
         >
-          + Add integration
+          <InlineIcon icon={Plus} />Add integration
         </button>
       </div>
 
@@ -194,12 +203,12 @@ export default function IntegrationsPage() {
           background: 'var(--s2)', border: '1px dashed var(--border)', borderRadius: 14,
           padding: 48, textAlign: 'center', marginBottom: 20,
         }}>
-          <div style={{ fontSize: 32, marginBottom: 10 }}>🔌</div>
+          <IconTile icon={Plug} size={40} iconSize={20} style={{ marginBottom: 10 }} />
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>No integrations yet</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', maxWidth: 380, margin: '0 auto 18px' }}>
             Pick a source below to start pulling leads in. The web form is the fastest — paste one line of JavaScript on your site.
           </div>
-          <button onClick={() => setPickingProvider(true)} style={primaryBtn}>Connect your first source</button>
+          <button onClick={() => setPickingProvider(true)} style={primaryBtn}><InlineIcon icon={Plug} />Connect your first source</button>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12, marginBottom: 24 }}>
@@ -211,7 +220,7 @@ export default function IntegrationsPage() {
                 padding: 16, display: 'flex', flexDirection: 'column', gap: 12,
               }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <div style={{ fontSize: 26, lineHeight: 1 }}>{providerIcon(i.provider)}</div>
+                  <IconTile icon={providerIcon(i.provider)} tone="brand" size={36} iconSize={18} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {i.label}
@@ -239,9 +248,10 @@ export default function IntegrationsPage() {
 
                 <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
                   <button onClick={() => openSetup(i)} style={ghostBtn}>
+                    <InlineIcon icon={i.provider === 'web_form' ? Palette : Settings2} />
                     {i.provider === 'web_form' ? 'Design form' : 'Setup'}
                   </button>
-                  <button onClick={() => handleDisconnect(i)} style={ghostBtnDanger}>Disconnect</button>
+                  <button onClick={() => handleDisconnect(i)} style={ghostBtnDanger}><InlineIcon icon={Unplug} />Disconnect</button>
                 </div>
               </div>
             );
@@ -267,7 +277,7 @@ export default function IntegrationsPage() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 22 }}>{p.icon}</span>
+                  <IconTile icon={p.icon} tone="brand" />
                   <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>{p.label}</span>
                   {!p.available && (
                     <span style={{
@@ -461,7 +471,7 @@ function ConnectModal({
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={ghostBtn} disabled={submitting}>Cancel</button>
           <button onClick={submit} style={primaryBtn} disabled={submitting}>
-            {submitting ? 'Connecting…' : 'Connect'}
+            {!submitting && <InlineIcon icon={Plug} />}{submitting ? 'Connecting…' : 'Connect'}
           </button>
         </div>
       </div>
@@ -801,7 +811,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
   return (
     <Modal
       onClose={onClose}
-      title="✅ Connected"
+      title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={CheckCircle2} size={18} style={{ color: 'var(--ok)' }} />Connected</span>}
       subtitle="Copy your webhook URL now — the secret is only shown once. We auto-created a matching lead source you'll see in reports."
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -811,7 +821,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
           <label style={fieldLabel}>Webhook URL</label>
           <div style={{ display: 'flex', gap: 6 }}>
             <input value={url} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
-            <button onClick={() => copy(url, 'Webhook URL')} style={ghostBtn}>Copy</button>
+            <button onClick={() => copy(url, 'Webhook URL')} style={ghostBtn}><InlineIcon icon={Copy} />Copy</button>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
             Paste this URL into the provider&rsquo;s webhook field, or POST JSON to it from your site.
@@ -824,7 +834,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
             <label style={fieldLabel}>Verify Token</label>
             <div style={{ display: 'flex', gap: 6 }}>
               <input value={verifyToken} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
-              <button onClick={() => copy(verifyToken, 'Verify Token')} style={ghostBtn}>Copy</button>
+              <button onClick={() => copy(verifyToken, 'Verify Token')} style={ghostBtn}><InlineIcon icon={Copy} />Copy</button>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
               Meta echoes this back during the subscription handshake — we verify the match
@@ -841,7 +851,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
             <label style={fieldLabel}>Webhook Key</label>
             <div style={{ display: 'flex', gap: 6 }}>
               <input value={webhookKey} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
-              <button onClick={() => copy(webhookKey, 'Webhook Key')} style={ghostBtn}>Copy</button>
+              <button onClick={() => copy(webhookKey, 'Webhook Key')} style={ghostBtn}><InlineIcon icon={Copy} />Copy</button>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
               Paste this into the <strong>Key</strong> field of Google Ads&rsquo; webhook integration.
@@ -853,7 +863,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
         {provider === 'web_form' && (
           <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <label style={{ ...fieldLabel, marginBottom: 0 }}>🎨 Form designer</label>
+              <label style={{ ...fieldLabel, marginBottom: 0, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Palette} size={14} />Form designer</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {formDirty && <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Unsaved</span>}
                 <button
@@ -861,7 +871,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
                   disabled={savingForm}
                   style={{ ...primaryBtn, padding: '6px 12px', fontSize: 12, opacity: savingForm ? 0.55 : 1, cursor: savingForm ? 'wait' : 'pointer' }}
                 >
-                  {savingForm ? 'Saving…' : 'Save design'}
+                  {!savingForm && <InlineIcon icon={Check} size={14} />}{savingForm ? 'Saving…' : 'Save design'}
                 </button>
               </div>
             </div>
@@ -870,7 +880,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
             </div>
 
             {/* Fields */}
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-dim)', marginBottom: 8 }}>Fields</div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-dim)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ListChecks} size={14} />Fields</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
               {FORM_FIELD_CATALOG.map((c) => {
                 const idx = dFields.findIndex((f) => f.key === c.key);
@@ -931,8 +941,8 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
             background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.35)',
             borderRadius: 10, padding: 14,
           }}>
-            <label style={{ ...fieldLabel, color: 'rgb(59, 130, 246)' }}>
-              ✨ Easiest — share a link, no website needed
+            <label style={{ ...fieldLabel, color: 'rgb(59, 130, 246)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={Link2} size={14} />Easiest — share a link, no website needed
             </label>
             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.5 }}>
               Kinematic hosts the form for you. Share the link in WhatsApp, email, or your bio. Or print the QR for a poster / business card.
@@ -943,7 +953,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
                 <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>Share link</div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <input value={hostedFormUrl} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
-                  <button onClick={() => copy(hostedFormUrl, 'Form link')} style={ghostBtn}>Copy</button>
+                  <button onClick={() => copy(hostedFormUrl, 'Form link')} style={ghostBtn}><InlineIcon icon={Copy} />Copy</button>
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                   <a
@@ -952,7 +962,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
                     rel="noreferrer"
                     style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
                   >
-                    Open form ↗
+                    <InlineIcon icon={ExternalLink} />Open form
                   </a>
                   <a
                     href={`https://wa.me/?text=${encodeURIComponent(hostedFormUrl)}`}
@@ -960,7 +970,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
                     rel="noreferrer"
                     style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
                   >
-                    Share on WhatsApp
+                    <InlineIcon icon={MessageCircle} />Share on WhatsApp
                   </a>
                 </div>
               </div>
@@ -987,10 +997,10 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
             borderRadius: 10, padding: 12,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <label style={{ ...fieldLabel, marginBottom: 0, color: 'rgb(34, 197, 94)' }}>
-                ✓ Have a website — one-line embed
+              <label style={{ ...fieldLabel, marginBottom: 0, color: 'rgb(34, 197, 94)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <InlineIcon icon={Code2} size={14} />Have a website — one-line embed
               </label>
-              <button onClick={() => copy(embedSnippet, 'Embed snippet')} style={ghostBtn}>Copy</button>
+              <button onClick={() => copy(embedSnippet, 'Embed snippet')} style={ghostBtn}><InlineIcon icon={Copy} />Copy</button>
             </div>
             <textarea
               value={embedSnippet}
@@ -1026,7 +1036,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
                 <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                   Use this if you can&rsquo;t load a remote script (CSP, air-gapped, etc.). You lose the auto-validation, branded styling, and dynamic success state.
                 </div>
-                <button onClick={() => copy(jsSnippet, 'HTML snippet')} style={ghostBtn}>Copy</button>
+                <button onClick={() => copy(jsSnippet, 'HTML snippet')} style={ghostBtn}><InlineIcon icon={Copy} />Copy</button>
               </div>
             </div>
           </details>
@@ -1035,14 +1045,14 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
         {provider !== 'meta_lead_ads' && provider !== 'google_ads' && (
           <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <label style={{ ...fieldLabel, marginBottom: 0 }}>Send a test lead</label>
+              <label style={{ ...fieldLabel, marginBottom: 0, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Send} size={14} />Send a test lead</label>
               <button
                 type="button"
                 onClick={sendTestLead}
                 disabled={testing || !url}
                 style={{ ...primaryBtn, padding: '6px 12px', fontSize: 12, opacity: testing ? 0.6 : 1, cursor: testing ? 'wait' : 'pointer' }}
               >
-                {testing ? 'Sending…' : '▶ Run test'}
+                {!testing && <InlineIcon icon={Play} size={14} />}{testing ? 'Sending…' : 'Run test'}
               </button>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: testResult ? 10 : 0 }}>
@@ -1054,8 +1064,9 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
                 border: `1px solid ${testResult.ok ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
                 color: testResult.ok ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)',
                 borderRadius: 6, padding: '8px 10px', fontSize: 12, fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
               }}>
-                {testResult.ok ? '✓ ' : '✗ '}{testResult.msg}
+                <InlineIcon icon={testResult.ok ? CheckCircle2 : XCircle} size={14} />{testResult.msg}
                 {testResult.ok && (
                   <Link href="/dashboard/crm/leads" onClick={onClose} style={{ marginLeft: 8, color: 'inherit', textDecoration: 'underline' }}>
                     Open Leads →
@@ -1068,7 +1079,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
 
         {jsSnippet && (
           <div>
-            <label style={fieldLabel}>Live preview</label>
+            <label style={{ ...fieldLabel, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Eye} size={14} />Live preview</label>
             <div style={{
               background: '#ffffff', color: '#111827', border: '1px solid var(--border)',
               borderRadius: 8, padding: 14, marginBottom: 8,
@@ -1087,7 +1098,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
 
         {provider !== 'meta_lead_ads' && provider !== 'google_ads' && (
           <div>
-            <label style={fieldLabel}>Quick test (curl)</label>
+            <label style={{ ...fieldLabel, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Terminal} size={14} />Quick test (curl)</label>
             <textarea
               value={curlSnippet}
               readOnly
@@ -1095,7 +1106,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
               style={{ ...input, fontFamily: 'monospace', fontSize: 11 }}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-              <button onClick={() => copy(curlSnippet, 'curl command')} style={ghostBtn}>Copy curl</button>
+              <button onClick={() => copy(curlSnippet, 'curl command')} style={ghostBtn}><InlineIcon icon={Copy} />Copy curl</button>
             </div>
           </div>
         )}
@@ -1103,10 +1114,12 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
         <div style={{
           background: 'rgba(251, 146, 60, 0.08)', border: '1px solid rgba(251, 146, 60, 0.25)',
           borderRadius: 8, padding: 10, fontSize: 11, color: 'var(--text)',
+          display: 'flex', alignItems: 'flex-start', gap: 8,
         }}>
-          ⚠️ The webhook URL contains a secret. Anyone with the URL can post leads to your CRM
+          <InlineIcon icon={AlertTriangle} size={14} style={{ color: 'var(--warn)', marginTop: 1 }} />
+          <span>The webhook URL contains a secret. Anyone with the URL can post leads to your CRM
           (rate-limited to 200/min). Don&rsquo;t commit it to a public repo — use a server-side
-          form proxy or environment variable when embedding.
+          form proxy or environment variable when embedding.</span>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -1123,7 +1136,7 @@ function Modal({
 }: {
   children: React.ReactNode;
   onClose: () => void;
-  title: string;
+  title: React.ReactNode;
   subtitle?: string;
 }) {
   return (
@@ -1167,10 +1180,12 @@ const input: React.CSSProperties = {
 const primaryBtn: React.CSSProperties = {
   background: 'var(--primary)', border: 'none', color: '#fff',
   padding: '9px 18px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
 };
 const ghostBtn: React.CSSProperties = {
   background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)',
   padding: '9px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 600,
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
 };
 const ghostBtnDanger: React.CSSProperties = {
   ...ghostBtn,

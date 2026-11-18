@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Responsive, WidthProvider, type Layout, type Layouts } from 'react-grid-layout';
 import { Plus, Edit3, Save, X, BarChart3, LineChart as LineIcon, PieChart, Layers, Activity, Sliders } from 'lucide-react';
+import { PageIcon } from '../../ui/PageIcon';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
@@ -202,11 +203,14 @@ export default function LeadAnalyticsSection() {
       style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, scrollMarginTop: 80 }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
+        <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <PageIcon name="lineChart" style={{ marginTop: 2 }} />
+          <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Lead Analytics</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>Custom widgets</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
             Add presets, build your own charts with custom X / Y axes, drag &amp; resize, and pin favorites to the CRM Overview. Layout saves automatically.
+          </div>
           </div>
         </div>
         <button onClick={() => setAdding(true)} style={primaryBtn}>
@@ -302,9 +306,10 @@ export default function LeadAnalyticsSection() {
                       height: 20, padding: '0 8px', borderRadius: 4,
                       background: '#ef4444', color: '#fff', border: 'none',
                       fontSize: 10, fontWeight: 700, letterSpacing: 0.4, cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
                     }}
                   >
-                    ✕ REMOVE
+                    <X aria-hidden size={11} strokeWidth={2.5} />REMOVE
                   </button>
                 </>
               )}

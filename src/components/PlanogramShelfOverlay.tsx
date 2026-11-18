@@ -1,6 +1,8 @@
 'use client';
 import { useMemo, useRef, useState } from 'react';
 import type { DetectedSKU, Promotion, ShelfZone } from '../types/planogram';
+import { Check, Pencil, Tag } from 'lucide-react';
+import { InlineIcon } from './ui/PageIcon';
 
 /** A product the reviewer can tag a hand-drawn box with. */
 export interface MarkableSku {
@@ -233,9 +235,13 @@ export default function PlanogramShelfOverlay({
               background: markMode ? MARK_COLOR : 'rgba(224,30,44,0.12)',
               border: `1px solid ${markMode ? MARK_COLOR : 'rgba(224,30,44,0.4)'}`,
               color: markMode ? '#fff' : MARK_COLOR,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
             }}
           >
-            {markMode ? '✓ Done marking' : '✎ Mark a product'}
+            <InlineIcon icon={markMode ? Check : Pencil} size={12} />
+            {markMode ? 'Done marking' : 'Mark a product'}
           </button>
         )}
       </div>
@@ -295,7 +301,7 @@ export default function PlanogramShelfOverlay({
                 zIndex: hoveredPromo === i ? 8 : 4,
               }}
             >
-              🏷
+              <InlineIcon icon={Tag} size={11} style={{ color: 'var(--k-paper)' }} />
               {hoveredPromo === i && (
                 <div style={tooltipStyle(PROMO_COLOR)}>
                   {p.text} · {Math.round(p.confidence * 100)}%

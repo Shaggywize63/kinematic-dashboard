@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { Info, Lock, Target } from 'lucide-react';
 import AiBadge from './shared/AiBadge';
 import type { WinProbabilityBreakdown } from '../../types/crm';
 
@@ -32,7 +33,7 @@ export default function WinProbabilityGauge({ probability, confidence, drivers, 
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Win Probability</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><Target aria-hidden size={16} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Win Probability</div>
           {ai && <AiBadge label="Powered by KINI AI" />}
         </div>
         {canExplain && (
@@ -46,7 +47,7 @@ export default function WinProbabilityGauge({ probability, confidence, drivers, 
               display: 'inline-flex', alignItems: 'center', gap: 4,
             }}
           >
-            <span style={{ fontSize: 12 }}>ⓘ</span>
+            <Info aria-hidden size={12} strokeWidth={2} />
             <span>How?</span>
           </button>
         )}
@@ -176,8 +177,9 @@ function ShortCircuitView({ breakdown }: { breakdown: WinProbabilityBreakdown })
       padding: '14px 16px', borderRadius: 10,
       border: `1px solid ${accent}40`, background: `${accent}10`,
     }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: accent, marginBottom: 6 }}>
-        {breakdown.short_circuit === 'won' ? '✓ Locked — deal already Won' : '✗ Locked — deal already Lost'}
+      <div style={{ fontSize: 13, fontWeight: 700, color: accent, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Lock aria-hidden size={14} strokeWidth={2} />
+        {breakdown.short_circuit === 'won' ? 'Locked — deal already Won' : 'Locked — deal already Lost'}
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
         When a deal sits in a stage of type <code>{breakdown.short_circuit}</code>{breakdown.stage_name ? <> (currently <strong style={{ color: 'var(--text)' }}>{breakdown.stage_name}</strong>)</> : null}, the heuristic skips the age + engagement factors and locks the probability at {breakdown.final_probability}%. Move the deal back to an open stage to recompute.

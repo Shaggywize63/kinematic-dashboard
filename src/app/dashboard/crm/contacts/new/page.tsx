@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Briefcase, Building2, Check, Contact as ContactIcon, MapPin, Plus, ShieldCheck, Store, UserRound, type LucideIcon } from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmContacts, crmSettings, crmAccounts } from '../../../../../lib/crmApi';
 import type { Account, BusinessType } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
@@ -283,8 +285,8 @@ export default function NewContactPage() {
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>A new company is created with this name (an existing company with the same name is reused).</div>
         </div>
       ) : (
-        <button type="button" onClick={() => setAddingCompany(true)} style={{ marginTop: 6, background: 'transparent', border: 'none', color: 'var(--accent)', fontSize: 12, fontWeight: 600, padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>
-          + Not listed? Add a new company
+        <button type="button" onClick={() => setAddingCompany(true)} style={{ marginTop: 6, background: 'transparent', border: 'none', color: 'var(--accent)', fontSize: 12, fontWeight: 600, padding: 0, cursor: 'pointer', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <InlineIcon icon={Plus} size={13} />Not listed? Add a new company
         </button>
       ))}
     </>
@@ -355,7 +357,7 @@ export default function NewContactPage() {
 
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 820 }}>
-      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Contact</h2>
+      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />New Contact</h2>
       <p style={{ margin: '-4px 0 18px', fontSize: 13, color: 'var(--text-dim)' }}>
         {form.is_b2c ? 'Individual consumer contact — store personal details, consent, and loyalty info.' : 'Business contact — link a person to a company account.'}
         {' '}Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.
@@ -363,13 +365,13 @@ export default function NewContactPage() {
 
       {showToggle && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => setForm({ ...form, is_b2c: true })} style={{ flex: '1 1 140px', padding: '10px 14px', borderRadius: 8, border: `1px solid ${form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2C Customer</button>
-          <button type="button" onClick={() => setForm({ ...form, is_b2c: false })} style={{ flex: '1 1 140px', padding: '10px 14px', borderRadius: 8, border: `1px solid ${!form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: !form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: !form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2B Contact</button>
+          <button type="button" onClick={() => setForm({ ...form, is_b2c: true })} style={{ flex: '1 1 140px', padding: '10px 14px', borderRadius: 8, border: `1px solid ${form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><InlineIcon icon={UserRound} size={14} />B2C Customer</button>
+          <button type="button" onClick={() => setForm({ ...form, is_b2c: false })} style={{ flex: '1 1 140px', padding: '10px 14px', borderRadius: 8, border: `1px solid ${!form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: !form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: !form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><InlineIcon icon={Store} size={14} />B2B Contact</button>
         </div>
       )}
 
       {ordered ? (
-        <Section title="Details">
+        <Section title="Details" icon={ContactIcon}>
           <div style={gridStyle}>
             {personalRows}
             {spark && !fields.isHidden('account_id') && (
@@ -400,7 +402,7 @@ export default function NewContactPage() {
         </Section>
       ) : (
       <>
-      <Section title="Personal">
+      <Section title="Personal" icon={UserRound}>
         <div style={gridStyle}>
           {personalRows}
         </div>
@@ -408,7 +410,7 @@ export default function NewContactPage() {
       </Section>
 
       {spark && !fields.isHidden('account_id') && (
-        <Section title={fields.labelFor('account_id', 'Company')}>
+        <Section title={fields.labelFor('account_id', 'Company')} icon={Building2}>
           <div style={gridStyle}>
             <div>
               {sparkAccountInner}
@@ -423,7 +425,7 @@ export default function NewContactPage() {
           below renders the full address section with the same picker, so
           this lighter version only shows for B2B. */}
       {!form.is_b2c && !fields.isHidden('city') && (
-        <Section title="Location">
+        <Section title="Location" icon={MapPin}>
           <div style={gridStyle}>
             <div>
               {b2bLocationInner}
@@ -433,7 +435,7 @@ export default function NewContactPage() {
       )}
 
       {!form.is_b2c ? (
-        <Section title="Work">
+        <Section title="Work" icon={Briefcase}>
           <div style={gridStyle}>
             {text('title', 'Job Title')}
             {horizonAccountSelect}
@@ -444,12 +446,12 @@ export default function NewContactPage() {
         </Section>
       ) : (
         <>
-          <Section title="Customer Details">
+          <Section title="Customer Details" icon={UserRound}>
             <div style={gridStyle}>
               {customerRows}
             </div>
           </Section>
-          <Section title="Address">
+          <Section title="Address" icon={MapPin}>
             <div style={gridStyle}>
               {text('address_line1', 'Address Line 1')}{text('address_line2', 'Address Line 2')}
               {!fields.isHidden('city') && locationPicker}
@@ -461,7 +463,7 @@ export default function NewContactPage() {
             </div>
           </Section>
           {(!fields.isHidden('marketing_consent') || !fields.isHidden('whatsapp_consent')) && (
-          <Section title="Consent">
+          <Section title="Consent" icon={ShieldCheck}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: 'var(--text)' }}>
               {consentChecks}
             </div>
@@ -475,16 +477,16 @@ export default function NewContactPage() {
 
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button type="button" onClick={() => router.back()} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
-        <button type="submit" disabled={busy} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>{busy ? 'Saving...' : 'Create'}</button>
+        <button type="submit" disabled={busy} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Check} />{busy ? 'Saving...' : 'Create'}</button>
       </div>
     </form>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, icon }: { title: string; children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <div style={{ marginTop: 18 }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>{title}</div>
+      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>{icon && <InlineIcon icon={icon} size={14} />}{title}</div>
       {children}
     </div>
   );

@@ -2,6 +2,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { ArrowLeftRight, CheckCircle2, Download, Eye, FileText, FileUp, GitMerge, Lightbulb, RotateCcw, Upload, UserPlus, XCircle, type LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmImport, crmSettings, crmCustomFields } from '../../../../../lib/crmApi';
 import { extractFieldOverrides, buildFieldHelpers, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
@@ -293,20 +295,20 @@ export default function LeadImportPage() {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 900 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 18 }}>Import Leads</h2>
-        <button onClick={() => downloadTemplate(targetFields)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-          ⬇ Download Template CSV
+        <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 18, display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Import Leads</h2>
+        <button onClick={() => downloadTemplate(targetFields)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <InlineIcon icon={Download} size={14} />Download Template CSV
         </button>
       </div>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
         {[
-          { s: 1, label: 'Upload' },
-          { s: 2, label: 'Map Columns' },
-          { s: 3, label: 'Review' },
-          { s: 4, label: 'Summary' },
-        ].map(({ s, label }) => (
-          <div key={s} style={{ flex: 1, padding: 10, borderRadius: 8, background: step >= (s as 1|2|3|4) ? 'var(--primary)' : 'var(--s3)', color: step >= (s as 1|2|3|4) ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>
-            Step {s}: {label}
+          { s: 1, label: 'Upload', icon: Upload },
+          { s: 2, label: 'Map Columns', icon: ArrowLeftRight },
+          { s: 3, label: 'Review', icon: Eye },
+          { s: 4, label: 'Summary', icon: CheckCircle2 },
+        ].map(({ s, label, icon }) => (
+          <div key={s} style={{ flex: 1, padding: 10, borderRadius: 8, background: step >= (s as 1|2|3|4) ? 'var(--primary)' : 'var(--s3)', color: step >= (s as 1|2|3|4) ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <InlineIcon icon={icon} size={14} />Step {s}: {label}
           </div>
         ))}
       </div>
@@ -316,10 +318,10 @@ export default function LeadImportPage() {
           onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) upload(f); }}
           style={{ border: '2px dashed var(--border-l)', borderRadius: 12, padding: 50, textAlign: 'center', color: 'var(--text-dim)' }}
         >
-          <div style={{ fontSize: 28, marginBottom: 10 }}>⬇</div>
+          <IconTile icon={Upload} size={48} iconSize={24} style={{ marginBottom: 10 }} />
           <div style={{ marginBottom: 12 }}>Drop a CSV or XLSX file here, or</div>
-          <label style={{ background: 'var(--primary)', color: '#fff', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
-            Choose File
+          <label style={{ background: 'var(--primary)', color: '#fff', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <InlineIcon icon={FileUp} />Choose File
             <input type="file" accept=".csv,.xlsx" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
           </label>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 14, maxWidth: 480, margin: '14px auto 0' }}>
@@ -353,7 +355,7 @@ export default function LeadImportPage() {
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
             <button onClick={() => setStep(1)} style={btnGhost}>Back</button>
-            <button onClick={preview} disabled={busy} style={btnPrimary}>{busy ? '...' : 'Preview'}</button>
+            <button onClick={preview} disabled={busy} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Eye} />{busy ? '...' : 'Preview'}</button>
           </div>
         </div>
       )}
@@ -408,14 +410,14 @@ export default function LeadImportPage() {
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
             <button onClick={() => setStep(2)} disabled={busy} style={btnGhost}>Back</button>
-            <button onClick={commit} disabled={busy} style={btnPrimary}>{busy ? 'Importing…' : `Commit ${job.total_rows || sample.length} Rows`}</button>
+            <button onClick={commit} disabled={busy} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Upload} />{busy ? 'Importing…' : `Commit ${job.total_rows || sample.length} Rows`}</button>
           </div>
         </div>
       )}
       {step === 4 && summary && (
         <div>
           <div style={{ textAlign: 'center', padding: '20px 0 24px' }}>
-            <div style={{ fontSize: 38, marginBottom: 6 }}>✅</div>
+            <IconTile icon={CheckCircle2} tone="ok" size={56} iconSize={30} style={{ marginBottom: 8 }} />
             <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>Import complete</div>
             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
               Cross-channel dedup ran on every row before insert.
@@ -436,7 +438,7 @@ export default function LeadImportPage() {
               background: 'rgba(99, 179, 237, 0.08)', border: '1px solid rgba(99, 179, 237, 0.25)',
               borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)', marginBottom: 12,
             }}>
-              💡 {summary.merged} row{summary.merged === 1 ? '' : 's'} matched existing leads by phone or email.
+              <InlineIcon icon={Lightbulb} size={14} style={{ color: 'var(--info)', verticalAlign: '-2px', marginRight: 6 }} />{summary.merged} row{summary.merged === 1 ? '' : 's'} matched existing leads by phone or email.
               Each is attached as an additional source on the original lead — no duplicates created.
               Check Lead Sources for the &ldquo;Excel/CSV Import&rdquo; attribution.
             </div>
@@ -447,7 +449,8 @@ export default function LeadImportPage() {
               background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)',
               borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)', marginBottom: 12,
             }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <InlineIcon icon={XCircle} size={14} style={{ color: 'var(--red)' }} />
                 {summary.error_count} row{summary.error_count === 1 ? '' : 's'} skipped
               </div>
               <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--text-dim)' }}>
@@ -460,11 +463,11 @@ export default function LeadImportPage() {
           )}
 
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={() => { setStep(1); setJob(null); setHeaders([]); setMapping({}); setSample([]); setSummary(null); }} style={btnGhost}>
-              Import another file
+            <button onClick={() => { setStep(1); setJob(null); setHeaders([]); setMapping({}); setSample([]); setSummary(null); }} style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={RotateCcw} size={14} />Import another file
             </button>
-            <button onClick={() => router.push('/dashboard/crm/leads')} style={btnPrimary}>
-              View leads →
+            <button onClick={() => router.push('/dashboard/crm/leads')} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={Eye} />View leads →
             </button>
           </div>
         </div>
@@ -473,10 +476,13 @@ export default function LeadImportPage() {
   );
 }
 
+const SUMMARY_ICON: Record<string, LucideIcon> = { Processed: FileText, 'New leads': UserPlus, 'Merged into existing': GitMerge, Errors: XCircle };
+
 function SummaryCard({ label, value, tint }: { label: string; value: number; tint: string }) {
+  const Icon = SUMMARY_ICON[label];
   return (
     <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>{Icon && <InlineIcon icon={Icon} size={13} style={{ color: tint }} />}{label}</div>
       <div style={{ fontSize: 24, fontWeight: 800, color: tint, marginTop: 4 }}>{value.toLocaleString()}</div>
     </div>
   );

@@ -2,6 +2,8 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import planogramApi from '../../../../lib/planogramApi';
+import { AlertTriangle, Check, FileText, ImagePlus, Package, Plus, RefreshCw, Tag, Target, X } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import type { ExpectedSKU, PlanogramCompetitor } from '../../../../types/planogram';
 import { PC, SectionCard, useIsCompact, TableScroll, th, thR, td } from '../_components/planogramUi';
 
@@ -208,9 +210,7 @@ export default function NewPlanogramPage() {
             cursor: 'pointer',
           }}
         >
-          <div style={{ fontSize: 42, marginBottom: 12 }} aria-hidden>
-            📐
-          </div>
+          <IconTile icon={ImagePlus} size={48} iconSize={24} style={{ display: 'flex', margin: '0 auto 12px' }} />
           <div style={{ fontSize: 16, fontWeight: 800, color: PC.text, fontFamily: 'var(--font-manrope)' }}>
             Drop a planogram image here
           </div>
@@ -328,7 +328,7 @@ export default function NewPlanogramPage() {
 
           {/* Editable definition */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <SectionCard title="Planogram details">
+            <SectionCard title="Planogram details" icon={FileText}>
               <div
                 style={{
                   display: 'grid',
@@ -360,6 +360,7 @@ export default function NewPlanogramPage() {
 
             <SectionCard
               title={`Expected SKUs (${skus.length})`}
+              icon={Package}
               caption={
                 missingSkuShots > 0
                   ? undefined
@@ -367,7 +368,7 @@ export default function NewPlanogramPage() {
               }
               right={
                 <button onClick={addSku} style={btnSecondary}>
-                  + Add SKU
+                  <InlineIcon icon={Plus} size={14} />Add SKU
                 </button>
               }
               bodyPad={false}
@@ -408,8 +409,12 @@ export default function NewPlanogramPage() {
                       fontSize: 14.5,
                       fontWeight: 800,
                       color: PC.text,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
                     }}
                   >
+                    <InlineIcon icon={Target} size={16} style={{ color: PC.muted }} />
                     Tracked competitors ({competitors.length})
                   </div>
                   <div style={{ fontSize: 12, color: PC.muted, marginTop: 3, maxWidth: 520, lineHeight: 1.5 }}>
@@ -419,7 +424,7 @@ export default function NewPlanogramPage() {
                   {missingCompShots > 0 && <PackshotHint missing={missingCompShots} />}
                 </div>
                 <button onClick={addCompetitor} style={btnAdd}>
-                  + Add competitor
+                  <InlineIcon icon={Plus} size={14} />Add competitor
                 </button>
               </div>
               <CompetitorTable
@@ -432,9 +437,10 @@ export default function NewPlanogramPage() {
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button onClick={() => setPhase('idle')} style={btnSecondary}>
-                Replace image
+                <InlineIcon icon={RefreshCw} size={14} />Replace image
               </button>
               <button onClick={save} disabled={phase === 'saving'} style={btnPrimary(phase === 'saving')}>
+                <InlineIcon icon={Check} size={14} />
                 {phase === 'saving' ? 'Saving…' : 'Save planogram'}
               </button>
             </div>
@@ -462,7 +468,7 @@ function PackshotHint({ missing }: { missing: number }) {
         fontWeight: 600,
       }}
     >
-      <span aria-hidden>⚠</span>
+      <InlineIcon icon={AlertTriangle} size={13} />
       {missing} without a pack-shot — add photos to improve recognition.
     </div>
   );
@@ -596,9 +602,7 @@ function CompetitorTable({
   if (competitors.length === 0)
     return (
       <div style={{ padding: '36px 24px', textAlign: 'center' }}>
-        <div style={{ fontSize: 28, marginBottom: 10 }} aria-hidden>
-          🏷️
-        </div>
+        <IconTile icon={Tag} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />
         <div style={{ fontSize: 14, fontWeight: 800, color: PC.text, fontFamily: 'var(--font-manrope)' }}>
           No competitors tracked yet
         </div>
@@ -607,7 +611,7 @@ function CompetitorTable({
           category, expected price, and a product photo so recognition can identify it reliably.
         </div>
         <button onClick={onAdd} style={btnAdd}>
-          + Add your first competitor
+          <InlineIcon icon={Plus} size={14} />Add your first competitor
         </button>
       </div>
     );
@@ -758,7 +762,7 @@ function RefImageCell({ value, onChange }: { value?: string | null; onChange: (u
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (
-          <span aria-hidden>{broken ? '⚠' : '+'}</span>
+          <InlineIcon icon={broken ? AlertTriangle : Plus} size={16} />
         )}
       </button>
       <input
@@ -789,9 +793,12 @@ function RemoveButton({ onClick }: { onClick: () => void }) {
         width: 28,
         height: 28,
         lineHeight: 0,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
     >
-      ✕
+      <InlineIcon icon={X} size={14} />
     </button>
   );
 }
@@ -845,6 +852,10 @@ const cellTd: React.CSSProperties = {
 const cellTdR: React.CSSProperties = { ...cellTd, textAlign: 'right' };
 
 const btnSecondary: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
   padding: '8px 14px',
   background: PC.surface2,
   border: `1px solid ${PC.border}`,
@@ -856,6 +867,10 @@ const btnSecondary: React.CSSProperties = {
 };
 
 const btnAdd: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
   padding: '9px 15px',
   background: PC.brandWash,
   border: `1px solid ${PC.brand}55`,
@@ -869,6 +884,10 @@ const btnAdd: React.CSSProperties = {
 
 function btnPrimary(disabled = false): React.CSSProperties {
   return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     padding: '10px 18px',
     background: PC.brand,
     color: '#fff',

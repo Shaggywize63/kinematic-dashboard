@@ -2,6 +2,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { ArrowLeft, TrendingUp, Trophy, Users, type LucideIcon } from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../../lib/labelIcons';
 import { crmDesk } from '../../../../../lib/crmApi';
 import type { DeskReport, DeskProductivity } from '../../../../../lib/crmApi';
 import { istToday, istDate } from '../../../../../lib/istTime';
@@ -44,11 +47,14 @@ export default function CallingDeskReportsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <PageIcon name="fileSheet" />
+          <div>
           <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Calling Desk — Reports</h1>
           <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>{istDate(range.from)} – {istDate(range.to)} (IST)</p>
+          </div>
         </div>
-        <Link href="/dashboard/crm/calling-desk" style={{ ...btn, background: '#fff', color: 'var(--primary,#2563eb)', textDecoration: 'none' }}>← Back to Desk</Link>
+        <Link href="/dashboard/crm/calling-desk" style={{ ...btn, background: '#fff', color: 'var(--primary,#2563eb)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ArrowLeft} />Back to Desk</Link>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -70,15 +76,18 @@ export default function CallingDeskReportsPage() {
           { label: 'Pending', value: t?.order_pending ?? 0, color: '#b45309' },
           { label: 'No Order', value: t?.no_order ?? 0, color: '#6b7280' },
           { label: 'Order Value', value: inr(t?.orders_value ?? 0), color: '#16a34a' },
-        ].map((c) => (
+        ].map((c) => {
+          const Icon = metricIconFor(c.label);
+          return (
           <div key={c.label} style={card}>
-            <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>{c.label}</div>
+            <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>{Icon && <InlineIcon icon={Icon} size={13} />}{c.label}</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: (c as any).color || '#111827', opacity: loading ? 0.4 : 1 }}>{c.value}</div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
-      <Section title={`${granularity === 'day' ? 'Daily' : granularity === 'week' ? 'Weekly' : 'Monthly'} trend`}>
+      <Section title={`${granularity === 'day' ? 'Daily' : granularity === 'week' ? 'Weekly' : 'Monthly'} trend`} icon={TrendingUp}>
         <Table head={['Period', 'Assigned', 'Connected', 'Order Taken', 'Pending', 'No Order', 'Order Value']}>
           {(report?.series ?? []).map((b) => (
             <tr key={b.bucket} style={row}>
@@ -91,7 +100,7 @@ export default function CallingDeskReportsPage() {
         </Table>
       </Section>
 
-      <Section title="Operator productivity">
+      <Section title="Operator productivity" icon={Trophy}>
         <Table head={['Operator', 'Assigned', 'Called', 'Connect %', 'Orders', 'Order %', 'Order Value']}>
           {(prod?.operators ?? []).map((o) => (
             <tr key={o.operator_id || 'unassigned'} style={row}>
@@ -104,7 +113,7 @@ export default function CallingDeskReportsPage() {
         </Table>
       </Section>
 
-      <Section title="Customer-wise orders">
+      <Section title="Customer-wise orders" icon={Users}>
         <Table head={['Customer', 'Calls', 'Orders', 'Order Value']}>
           {(report?.customers ?? []).slice(0, 200).map((c) => (
             <tr key={`${c.customer_type}:${c.customer_id}`} style={row}>
@@ -118,10 +127,10 @@ export default function CallingDeskReportsPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, icon }: { title: string; children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <div style={card}>
-      <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>{title}</h2>
+      <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 8 }}>{icon && <InlineIcon icon={icon} size={16} style={{ color: 'var(--text-dim)' }} />}{title}</h2>
       <div style={{ overflowX: 'auto' }}>{children}</div>
     </div>
   );

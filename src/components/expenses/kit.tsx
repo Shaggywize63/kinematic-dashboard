@@ -7,7 +7,8 @@ import { cloneElement, isValidElement, ReactElement, ReactNode, useEffect, useId
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
-import { AlertTriangle, Camera, Check, CircleDot, ExternalLink, FileText, Receipt, X } from 'lucide-react';
+import { AlertTriangle, Ban, Banknote, BarChart3, BedDouble, Camera, Car, Check, CheckCircle2, CheckSquare, CircleDot, Clock, ExternalLink, FilePlus, FileText, Fuel, Gauge, Info, ListChecks, PencilLine, Plane, Receipt, ScrollText, Send, Ticket, Utensils, X, XCircle, Zap, type LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 import { Badge, Button, Card, Field as BaseField, PageHeader, Textarea, T, Tone, useIsCompact } from '../ui';
 import { Modal } from '../finance/ui';
 import {
@@ -132,6 +133,7 @@ function useOdometerFlow(canApprove: boolean, ready: boolean): boolean {
 
 // ── page shell ──────────────────────────────────────────────────────────────
 type TabKey = 'mine' | 'approvals' | 'all' | 'reports' | 'odometer' | 'policies';
+const TAB_ICONS: Record<TabKey, LucideIcon> = { mine: Receipt, approvals: CheckSquare, all: ListChecks, reports: BarChart3, odometer: Gauge, policies: ScrollText };
 
 export function ExpensesShell({ title, description, actions, tab, children, maxWidth }: {
   title: ReactNode; description?: ReactNode; actions?: ReactNode; tab?: TabKey; children: ReactNode; maxWidth?: number;
@@ -159,9 +161,10 @@ export function ExpensesShell({ title, description, actions, tab, children, maxW
             const on = t.key === tab;
             return (
               <Link key={t.key} href={t.href} aria-current={on ? 'page' : undefined} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
                 padding: '9px 14px', fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', textDecoration: 'none',
                 color: on ? T.text : T.dim, borderBottom: `2px solid ${on ? T.red : 'transparent'}`, marginBottom: -1,
-              }}>{t.label}</Link>
+              }}><InlineIcon icon={TAB_ICONS[t.key]} size={15} style={{ color: on ? T.red : T.mute }} />{t.label}</Link>
             );
           })}
         </nav>
@@ -171,22 +174,48 @@ export function ExpensesShell({ title, description, actions, tab, children, maxW
   );
 }
 
+// ── category icons ──────────────────────────────────────────────────────────
+/** One glyph per expense category, drawn beside its name wherever a line or a category is listed. */
+export const CATEGORY_ICONS: Record<ItemCategory, LucideIcon> = {
+  mileage: Car, travel: Plane, food: Utensils, lodging: BedDouble, fuel: Fuel, toll: Ticket, misc: Receipt,
+};
+export const categoryIcon = (c: ItemCategory | string): LucideIcon => CATEGORY_ICONS[c as ItemCategory] ?? Receipt;
+
+// ── summary figures ─────────────────────────────────────────────────────────
+/** A summary figure (label, big value, hint) with an icon before its label: the finance `Stat`, plus the icon. */
+export function IconStat({ icon, label, value, tone, hint }: { icon: LucideIcon; label: string; value: ReactNode; tone?: 'red' | 'ok' | 'warn' | 'info'; hint?: ReactNode }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>
+        <InlineIcon icon={icon} size={14} style={{ color: tone ? T[tone] : T.dim }} />{label}
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: tone ? T[tone] : T.text, fontFamily: T.heading, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>{value}</div>
+      {hint && <div style={{ fontSize: 12, color: T.mute, marginTop: 2 }}>{hint}</div>}
+    </div>
+  );
+}
+
 // ── badges ──────────────────────────────────────────────────────────────────
 const STATUS_TONE: Record<ClaimStatus, Tone> = {
   draft: 'neutral', submitted: 'warn', approved: 'ok', rejected: 'red', reimbursed: 'info', cancelled: 'neutral',
 };
+/** The same glyph for a state everywhere: badges, summary figures, the claim history. */
+export const STATUS_ICON: Record<ClaimStatus, LucideIcon> = {
+  draft: PencilLine, submitted: Clock, approved: CheckCircle2, rejected: XCircle, reimbursed: Banknote, cancelled: Ban,
+};
 
 export function ClaimStatusBadge({ status, partial }: { status: ClaimStatus; partial?: boolean }) {
-  return <Badge tone={STATUS_TONE[status] ?? 'neutral'} dot>{partial && status === 'approved' ? 'Partly approved' : CLAIM_STATUS_LABEL[status] ?? status}</Badge>;
+  return <Badge tone={STATUS_TONE[status] ?? 'neutral'}><InlineIcon icon={STATUS_ICON[status] ?? CircleDot} size={12} />{partial && status === 'approved' ? 'Partly approved' : CLAIM_STATUS_LABEL[status] ?? status}</Badge>;
 }
 
 export const isPartial = (c: Pick<ExpenseClaim, 'status' | 'approved_amount' | 'total_amount'>) =>
   (c.status === 'approved' || c.status === 'reimbursed') && c.approved_amount != null && Number(c.approved_amount) < Number(c.total_amount) - 0.005;
 
 const SEVERITY_TONE: Record<ExpenseFlag['severity'], Tone> = { info: 'info', warn: 'warn', high: 'red' };
+const SEVERITY_ICON: Record<ExpenseFlag['severity'], LucideIcon> = { info: Info, warn: AlertTriangle, high: AlertTriangle };
 
 export function FlagBadge({ flag }: { flag: ExpenseFlag }) {
-  return <span title={flag.detail}><Badge tone={SEVERITY_TONE[flag.severity] ?? 'warn'}>{flagLabel(flag.code)}</Badge></span>;
+  return <span title={flag.detail}><Badge tone={SEVERITY_TONE[flag.severity] ?? 'warn'}><InlineIcon icon={SEVERITY_ICON[flag.severity] ?? AlertTriangle} size={12} />{flagLabel(flag.code)}</Badge></span>;
 }
 
 /** Policy findings as readable sentences. `blocking` ones are called out as must-fix. */
@@ -308,7 +337,7 @@ export function RejectionBanner({ claim }: { claim: ExpenseClaim }) {
   const by = claim.reviewer_name;
   return (
     <div role="alert" style={{ display: 'flex', gap: 12, padding: '14px 16px', background: T.redWash, borderRadius: T.radius.lg, border: `1px solid ${T.red}33` }}>
-      <X size={18} strokeWidth={2} style={{ color: T.red, flexShrink: 0, marginTop: 2 }} />
+      <XCircle size={18} strokeWidth={2} style={{ color: T.red, flexShrink: 0, marginTop: 2 }} />
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 700, color: T.red }}>Rejected{by ? ` by ${by}` : ''}{claim.reviewed_at ? ` · ${fmtDate(claim.reviewed_at)}` : ''}</div>
         <div style={{ fontSize: 14, color: T.text, marginTop: 4, lineHeight: 1.5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{claim.review_note || 'No remark was left.'}</div>
@@ -319,10 +348,10 @@ export function RejectionBanner({ claim }: { claim: ExpenseClaim }) {
 }
 
 // ── timeline ────────────────────────────────────────────────────────────────
-interface Step { key: string; tone: 'ok' | 'red' | 'warn' | 'mute'; title: ReactNode; when?: string | null; remark?: string | null; lines?: Array<{ text: string; note: string | null }> }
+interface Step { key: string; tone: 'ok' | 'red' | 'warn' | 'mute'; icon?: LucideIcon; title: ReactNode; when?: string | null; remark?: string | null; lines?: Array<{ text: string; note: string | null }> }
 
 function stepsFor(claim: ExpenseClaim, approvals: ClaimApproval[], rules?: FormRules): Step[] {
-  const out: Step[] = [{ key: 'created', tone: 'mute', title: 'Claim created', when: claim.created_at }];
+  const out: Step[] = [{ key: 'created', tone: 'mute', icon: FilePlus, title: 'Claim created', when: claim.created_at }];
   const also = (claim.items ?? []).map((i) => i.category);
   const rounds = Array.from(new Set(approvals.map((a) => a.round ?? 1)));
   const multi = rounds.length > 1 || (claim.submit_count ?? 1) > 1;
@@ -331,22 +360,22 @@ function stepsFor(claim: ExpenseClaim, approvals: ClaimApproval[], rules?: FormR
     const r = a.round ?? 1;
     if (r !== lastRound) {
       lastRound = r;
-      out.push({ key: `sub-${r}`, tone: 'mute', title: multi ? `Submitted${r > 1 ? ' again' : ''} (attempt ${r})` : 'Submitted for approval', when: r === rounds[rounds.length - 1] ? claim.submitted_at : undefined });
+      out.push({ key: `sub-${r}`, tone: 'mute', icon: Send, title: multi ? `Submitted${r > 1 ? ' again' : ''} (attempt ${r})` : 'Submitted for approval', when: r === rounds[rounds.length - 1] ? claim.submitted_at : undefined });
     }
     const who = a.approver_name || 'approver';
     const lvl = a.level > 1 ? ` (level ${a.level})` : '';
     const rejectedLines = (a.item_decisions ?? []).filter((d) => d.decision === 'rejected');
-    if (a.status === 'pending') out.push({ key: a.id, tone: 'warn', title: `Waiting for ${who}${lvl}` });
+    if (a.status === 'pending') out.push({ key: a.id, tone: 'warn', icon: Clock, title: `Waiting for ${who}${lvl}` });
     else out.push({
-      key: a.id, tone: a.status === 'approved' ? 'ok' : 'red',
+      key: a.id, tone: a.status === 'approved' ? 'ok' : 'red', icon: a.status === 'approved' ? CheckCircle2 : XCircle,
       title: `${a.status === 'approved' ? (rejectedLines.length ? 'Partly approved' : 'Approved') : 'Rejected'} by ${who}${lvl}`,
       when: a.decided_at, remark: a.note,
       lines: rejectedLines.map((d) => ({ text: `${categoryLabel(rules, d.category, also)} · ${money(d.amount, claim.currency)}`, note: d.note })),
     });
   }
-  if (claim.auto_approved) out.push({ key: 'auto', tone: 'ok', title: 'Approved automatically under the policy', when: claim.reviewed_at });
-  if (claim.status === 'cancelled') out.push({ key: 'cancel', tone: 'mute', title: 'Cancelled' });
-  if (claim.reimbursed_at) out.push({ key: 'paid', tone: 'ok', title: `Reimbursed${claim.reimbursed_ref ? ` · ref ${claim.reimbursed_ref}` : ''}`, when: claim.reimbursed_at });
+  if (claim.auto_approved) out.push({ key: 'auto', tone: 'ok', icon: Zap, title: 'Approved automatically under the policy', when: claim.reviewed_at });
+  if (claim.status === 'cancelled') out.push({ key: 'cancel', tone: 'mute', icon: Ban, title: 'Cancelled' });
+  if (claim.reimbursed_at) out.push({ key: 'paid', tone: 'ok', icon: Banknote, title: `Reimbursed${claim.reimbursed_ref ? ` · ref ${claim.reimbursed_ref}` : ''}`, when: claim.reimbursed_at });
   return out;
 }
 
@@ -359,7 +388,7 @@ export function ClaimTimeline({ claim, rules }: { claim: ExpenseClaim; rules?: F
         <li key={s.key} style={{ display: 'grid', gridTemplateColumns: '20px 1fr', columnGap: 12 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <span style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: color[s.tone] }}>
-              {s.tone === 'ok' ? <Check size={16} strokeWidth={2.2} /> : s.tone === 'red' ? <X size={16} strokeWidth={2.2} /> : <CircleDot size={14} strokeWidth={2} />}
+              {s.icon ? <InlineIcon icon={s.icon} size={16} /> : s.tone === 'ok' ? <Check size={16} strokeWidth={2.2} /> : s.tone === 'red' ? <X size={16} strokeWidth={2.2} /> : <CircleDot size={14} strokeWidth={2} />}
             </span>
             {i < steps.length - 1 && <span style={{ flex: 1, width: 1, background: T.border, minHeight: 14 }} />}
           </div>
@@ -399,11 +428,11 @@ export function LineSummary({ item, currency, rules, also }: { item: ClaimItem; 
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: '4px 16px', padding: '12px 0', alignItems: 'start' }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>{categoryLabel(rules, item.category, also)}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 600, color: T.text }}><InlineIcon icon={categoryIcon(item.category)} size={15} style={{ color: T.dim }} />{categoryLabel(rules, item.category, also)}</span>
           <span style={{ fontSize: 12.5, color: T.mute }}>{fmtDate(item.item_date)}</span>
-          {item.flagged && <Badge tone="warn">Flagged</Badge>}
-          {rejected && <Badge tone="red">Line rejected</Badge>}
-          {item.decision === 'approved' && <Badge tone="ok">Approved</Badge>}
+          {item.flagged && <Badge tone="warn"><InlineIcon icon={AlertTriangle} size={12} />Flagged</Badge>}
+          {rejected && <Badge tone="red"><InlineIcon icon={XCircle} size={12} />Line rejected</Badge>}
+          {item.decision === 'approved' && <Badge tone="ok"><InlineIcon icon={CheckCircle2} size={12} />Approved</Badge>}
         </div>
         {detail && <div style={{ fontSize: 13, color: T.dim, marginTop: 2, overflowWrap: 'anywhere' }}>{detail}</div>}
         {item.gst_rate != null && item.category !== 'mileage' && (
@@ -431,7 +460,7 @@ export function LineSummary({ item, currency, rules, also }: { item: ClaimItem; 
           <PhotoLink stored={item.odometer_start_photo_url} signed={item.odometer_start_photo_signed_url} label="Odometer before" title="Odometer before the trip" />
           <PhotoLink stored={item.odometer_end_photo_url} signed={item.odometer_end_photo_signed_url} label="Odometer after" title="Odometer after the trip" />
           {!item.receipt_url && item.category !== 'mileage' && <span style={{ fontSize: 12.5, color: T.mute, display: 'inline-flex', gap: 5, alignItems: 'center' }}><FileText size={13} strokeWidth={1.6} />No receipt</span>}
-          {item.flagged && item.flag_reason && <span style={{ fontSize: 12.5, color: T.warn }}>{item.flag_reason}</span>}
+          {item.flagged && item.flag_reason && <span style={{ fontSize: 12.5, color: T.warn, display: 'inline-flex', gap: 5, alignItems: 'center' }}><InlineIcon icon={AlertTriangle} size={13} />{item.flag_reason}</span>}
         </div>
       </div>
       <div style={{ fontSize: 14, fontWeight: 700, color: rejected ? T.mute : T.text, fontVariantNumeric: 'tabular-nums', textDecoration: rejected ? 'line-through' : undefined }}>
@@ -441,12 +470,12 @@ export function LineSummary({ item, currency, rules, also }: { item: ClaimItem; 
   );
 }
 
-export function Panel({ title, aside, children, padding = 20 }: { title?: ReactNode; aside?: ReactNode; children: ReactNode; padding?: number }) {
+export function Panel({ title, icon, aside, children, padding = 20 }: { title?: ReactNode; icon?: LucideIcon; aside?: ReactNode; children: ReactNode; padding?: number }) {
   return (
     <Card padding={padding}>
       {(title || aside) && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-          <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, color: T.text }}>{title}</div>
+          <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}>{icon && <InlineIcon icon={icon} size={16} style={{ color: T.dim }} />}{title}</div>
           {aside}
         </div>
       )}

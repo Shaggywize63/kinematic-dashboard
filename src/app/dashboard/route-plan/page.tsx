@@ -4,6 +4,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { api } from '../../../lib/api';
 import { userHasModule, getStoredUser } from '../../../lib/auth';
+import { AlertTriangle, Car, Check, CheckCircle2, Clock, Download, FileText, FolderOpen, Link2, ListOrdered, MessageSquareText, RotateCcw, Route as RouteIcon, StickyNote, Target, Timer, User, X, Zap, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../components/ui/PageIcon';
 
 // Leaflet-based map of a single plan's stops; client-only (ssr:false).
 const RoutePlanMap = dynamic(() => import('../../../components/route-plan/RoutePlanMap'), { ssr: false });
@@ -679,9 +681,9 @@ function RoutePlanContent() {
       {/* ── TABS ───────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 2, background: C.s2, padding: 4, borderRadius: 12, marginBottom: 24, width: 'fit-content', border: `1px solid ${C.border}` }}>
         {showRoutePlans && (
-          <button onClick={() => setTab('plans')} style={{ padding: '8px 20px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: tab === 'plans' ? C.red : 'transparent', color: tab === 'plans' ? '#fff' : C.gray, transition: 'all 0.2s', fontFamily: "'Syne', sans-serif" }}>Route Plans</button>
+          <button onClick={() => setTab('plans')} style={{ padding: '8px 20px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: tab === 'plans' ? C.red : 'transparent', color: tab === 'plans' ? '#fff' : C.gray, transition: 'all 0.2s', fontFamily: "'Syne', sans-serif", display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={RouteIcon} size={14} />Route Plans</button>
         )}
-        <button onClick={() => setTab('mapping')} style={{ padding: '8px 20px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: tab === 'mapping' ? C.red : 'transparent', color: tab === 'mapping' ? '#fff' : C.gray, transition: 'all 0.2s', fontFamily: "'Syne', sans-serif" }}>Activity-FE Mapping</button>
+        <button onClick={() => setTab('mapping')} style={{ padding: '8px 20px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: tab === 'mapping' ? C.red : 'transparent', color: tab === 'mapping' ? '#fff' : C.gray, transition: 'all 0.2s', fontFamily: "'Syne', sans-serif", display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Link2} size={14} />Activity-FE Mapping</button>
       </div>
 
       {tab === 'mapping' ? <MappingView users={users} activities={activities} mapping={activityUsers} onRefresh={fetchFormData} /> : (
@@ -689,7 +691,9 @@ function RoutePlanContent() {
 
       {/* ── HEADER ─────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <PageIcon />
+          <div>
           <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, margin: 0, color: C.white }}>
             {tab === 'plans' ? 'Route Plan' : 'Activity-FE Mapping'}
           </h2>
@@ -698,6 +702,7 @@ function RoutePlanContent() {
               ? 'Manage daily outlet assignments — track visits, targets and completion in real-time'
               : 'Assign Field Executives to specific activities to enable route planning.'}
           </p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
@@ -757,14 +762,14 @@ function RoutePlanContent() {
 
           {/* Status breakdown */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 24 }}>
-            {[
-              { label: 'Completed',   value: summary.completed_plans,   color: C.green  },
-              { label: 'In Progress', value: summary.in_progress_plans, color: C.blue   },
-              { label: 'Partial',     value: summary.partial_plans,     color: C.yellow },
-              { label: 'Pending',     value: summary.pending_plans,     color: C.gray   },
-            ].map(s => (
+            {([
+              { label: 'Completed',   value: summary.completed_plans,   color: C.green, icon: CheckCircle2 },
+              { label: 'In Progress', value: summary.in_progress_plans, color: C.blue, icon: Clock },
+              { label: 'Partial',     value: summary.partial_plans,     color: C.yellow, icon: Timer },
+              { label: 'Pending',     value: summary.pending_plans,     color: C.gray, icon: Clock },
+            ] as { label: string; value: number; color: string; icon: LucideIcon }[]).map(s => (
               <div key={s.label} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: 12, color: C.gray }}>{s.label}</div>
+                <div style={{ fontSize: 12, color: C.gray, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={s.icon} size={14} style={{ color: s.color }} />{s.label}</div>
                 <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
               </div>
             ))}
@@ -846,11 +851,11 @@ function RoutePlanContent() {
                     </div>
                     <ProgressBar pct={Number(plan.completion_pct)} color={sm.color} />
                     <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-                      {completedCount > 0  && <span style={{ fontSize: 10, color: C.green  }}>✓ {completedCount} done</span>}
+                      {completedCount > 0  && <span style={{ fontSize: 10, color: C.green, display: 'inline-flex', alignItems: 'center', gap: 3 }}><InlineIcon icon={Check} size={11} />{completedCount} done</span>}
                       {inProgressCount > 0 && <span style={{ fontSize: 10, color: C.blue   }}>● {inProgressCount} active</span>}
-                      {missedCount > 0     && <span style={{ fontSize: 10, color: C.red    }}>✗ {missedCount} missed</span>}
+                      {missedCount > 0     && <span style={{ fontSize: 10, color: C.red, display: 'inline-flex', alignItems: 'center', gap: 3 }}><InlineIcon icon={X} size={11} />{missedCount} missed</span>}
                       {plan.vehicle_type && (
-                        <span style={{ fontSize: 10, color: C.gray }}>🚗 {VEHICLE_LABEL[plan.vehicle_type] || plan.vehicle_type}</span>
+                        <span style={{ fontSize: 10, color: C.gray, display: 'inline-flex', alignItems: 'center', gap: 3 }}><InlineIcon icon={Car} size={11} />{VEHICLE_LABEL[plan.vehicle_type] || plan.vehicle_type}</span>
                       )}
                     </div>
                   </div>
@@ -893,7 +898,7 @@ function RoutePlanContent() {
                   <div style={{ borderTop: `1px solid ${C.border}`, background: C.bg }}>
                     {/* Plan meta strip */}
                     <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-                      {plan.notes && <span style={{ fontSize: 12, color: C.gray, fontStyle: 'italic' }}>📝 {plan.notes}</span>}
+                      {plan.notes && <span style={{ fontSize: 12, color: C.gray, fontStyle: 'italic', display: 'inline-flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={StickyNote} size={13} />{plan.notes}</span>}
                       {plan.frequency && plan.frequency !== 'daily' && <Badge label={plan.frequency} color={C.teal} />}
                       {plan.fe_mobile && (
                         <a href={`tel:${plan.fe_mobile}`} style={{ fontSize: 12, color: C.blue, display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}>
@@ -992,9 +997,9 @@ function RoutePlanContent() {
                                     </div>
 
                                     {/* Visit detail */}
-                                    {outlet.target_notes && <div style={{ fontSize: 11, color: C.grayd, marginBottom: 4 }}>📋 {outlet.target_notes}</div>}
-                                    {outlet.visit_notes  && <div style={{ fontSize: 11, color: C.gray,  marginBottom: 4 }}>💬 {outlet.visit_notes}</div>}
-                                    {outlet.rejection_reason && <div style={{ fontSize: 11, color: C.red }}>⚠ {outlet.rejection_reason}</div>}
+                                    {outlet.target_notes && <div style={{ fontSize: 11, color: C.grayd, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={Target} size={12} />{outlet.target_notes}</div>}
+                                    {outlet.visit_notes  && <div style={{ fontSize: 11, color: C.gray,  marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={MessageSquareText} size={12} />{outlet.visit_notes}</div>}
+                                    {outlet.rejection_reason && <div style={{ fontSize: 11, color: C.red, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={AlertTriangle} size={12} />{outlet.rejection_reason}</div>}
 
                                     {/* Timing */}
                                     {outlet.checkin_at && (
@@ -1017,7 +1022,7 @@ function RoutePlanContent() {
                                     {/* Store owner + phone */}
                                     {(outlet.store_owner || outlet.store_phone) && (
                                       <div style={{ fontSize: 11, color: C.grayd, marginTop: 4, display: 'flex', gap: 10 }}>
-                                        {outlet.store_owner && <span>👤 {outlet.store_owner}</span>}
+                                        {outlet.store_owner && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={User} size={11} />{outlet.store_owner}</span>}
                                         {outlet.store_phone && (
                                           <a href={`tel:${outlet.store_phone}`} style={{ color: C.blue, textDecoration: 'none' }}>
                                             {outlet.store_phone}
@@ -1271,7 +1276,7 @@ function RoutePlanContent() {
               {/* Vehicle */}
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 12, color: C.gray, marginBottom: 7, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  🚗 Vehicle for this trip
+                  <InlineIcon icon={Car} size={14} />Vehicle for this trip
                 </div>
                 <select value={form.vehicle_type} onChange={e => setForm(f => ({ ...f, vehicle_type: e.target.value }))}
                   style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: C.white, fontSize: 13, outline: 'none' }}>
@@ -1281,14 +1286,15 @@ function RoutePlanContent() {
 
               {/* Outlet stops */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <InlineIcon icon={ListOrdered} size={16} />
                   Outlet Stops ({form.outlets.length})
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button onClick={handleOptimize} disabled={optimizing}
                     style={{ background: optimizing ? C.s3 : C.greenD, border: `1px solid ${optimizing ? C.border : C.greenB}`, borderRadius: 8, padding: '6px 13px', color: optimizing ? C.gray : C.green, fontSize: 12, fontWeight: 600, cursor: optimizing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                     title="Reorder stops with nearest-neighbour + 2-opt (haversine)">
-                    {optimizing ? '…' : '⚡'} Optimise Order
+                    {optimizing ? '…' : <InlineIcon icon={Zap} size={13} />} Optimise Order
                   </button>
                   <button onClick={addOutlet}
                     style={{ background: C.blueD, border: `1px solid ${C.blueB}`, borderRadius: 8, padding: '6px 13px', color: C.blue, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1420,12 +1426,12 @@ function RoutePlanContent() {
               {/* Download template */}
               <div style={{ background: C.greenD, border: `1px solid ${C.greenB}`, borderRadius: 12, padding: '14px 16px', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 3 }}>📥 Download Template</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={FileText} size={14} />Download Template</div>
                   <div style={{ fontSize: 12, color: C.gray }}>Pre-filled CSV with your live FE IDs and store codes</div>
                 </div>
                 <button onClick={downloadTemplate}
-                  style={{ background: C.green, border: 'none', borderRadius: 9, padding: '9px 18px', color: C.bg, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Syne',sans-serif", flexShrink: 0 }}>
-                  ↓ Download CSV
+                  style={{ background: C.green, border: 'none', borderRadius: 9, padding: '9px 18px', color: C.bg, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Syne',sans-serif", flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <InlineIcon icon={Download} />Download CSV
                 </button>
               </div>
 
@@ -1457,8 +1463,9 @@ function RoutePlanContent() {
               {/* Import result */}
               {importResult && (
                 <div style={{ marginTop: 16, background: importResult.failed === 0 ? C.greenD : C.yellowD, border: `1px solid ${importResult.failed === 0 ? C.greenB : C.yellowB}`, borderRadius: 12, padding: 16 }}>
-                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 15, fontWeight: 800, color: importResult.failed === 0 ? C.green : C.yellow, marginBottom: 10 }}>
-                    {importResult.failed === 0 ? '✓ Import Complete' : '⚠ Import Partial'}
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 15, fontWeight: 800, color: importResult.failed === 0 ? C.green : C.yellow, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <InlineIcon icon={importResult.failed === 0 ? CheckCircle2 : AlertTriangle} size={16} />
+                    {importResult.failed === 0 ? 'Import Complete' : 'Import Partial'}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 10 }}>
                     {[
@@ -1540,7 +1547,7 @@ function MappingView({ users, activities, mapping, onRefresh }: { users: FEUser[
     <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 800, margin: 0, color: C.white }}>Activity-FE Mapping</h3>
+          <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 800, margin: 0, color: C.white, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Link2} size={16} style={{ color: C.gray }} />Activity-FE Mapping</h3>
           <p style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>Assign Field Executives to specific activities to enable route planning.</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -1571,7 +1578,7 @@ function MappingView({ users, activities, mapping, onRefresh }: { users: FEUser[
 
       {!selectedActivity ? (
         <div style={{ padding: 60, textAlign: 'center', background: C.s3, borderRadius: 12, border: `1px dashed ${C.border}` }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🎯</div>
+          <IconTile icon={Target} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 12px' }} />
           <div style={{ fontSize: 14, color: C.gray, fontWeight: 700 }}>Select an activity above to view and manage FE assignments.</div>
         </div>
       ) : (
@@ -1694,16 +1701,16 @@ function MappingBulkUpload({ onClose, onRefresh, users, activities, mapping }: {
         </div>
 
         {err && <div style={{ background: C.redD, border: `1px solid ${C.redB}`, color: C.red, padding: '10px 14px', borderRadius: 9, fontSize: 13, marginBottom: 16 }}>{err}</div>}
-        {done && <div style={{ background: C.greenD, border: `1px solid ${C.greenB}`, color: C.green, padding: '10px 14px', borderRadius: 9, fontSize: 13, marginBottom: 16 }}>✓ Bulk mapping completed!</div>}
+        {done && <div style={{ background: C.greenD, border: `1px solid ${C.greenB}`, color: C.green, padding: '10px 14px', borderRadius: 9, fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={CheckCircle2} size={14} />Bulk mapping completed!</div>}
 
         {!rows.length ? (
           <div style={{ border: `2px dashed ${C.border}`, borderRadius: 16, padding: 32, textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 10 }}>📄</div>
+            <IconTile icon={FileText} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />
             <div style={{ fontSize: 14, color: C.gray, marginBottom: 20 }}>Upload a CSV with <b>activity_name</b> and <b>fe_employee_id</b> columns.</div>
             <input type="file" accept=".csv" onChange={onFile} style={{ display: 'none' }} id="bulk-map-file" />
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-              <label htmlFor="bulk-map-file" style={{ background: C.red, color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Choose CSV</label>
-              <button onClick={downloadTemplate} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Template</button>
+              <label htmlFor="bulk-map-file" style={{ background: C.red, color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={FolderOpen} />Choose CSV</label>
+              <button onClick={downloadTemplate} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} />Template</button>
             </div>
           </div>
         ) : (
@@ -1713,10 +1720,10 @@ function MappingBulkUpload({ onClose, onRefresh, users, activities, mapping }: {
               <div style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>Example: {rows[0].activity_name} → {rows[0].fe_employee_id}</div>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setRows([])} style={{ flex: 1, background: C.s3, border: `1px solid ${C.border}`, color: C.gray, padding: '11px', borderRadius: 11, fontSize: 13, fontWeight: 600 }}>Reset</button>
+              <button onClick={() => setRows([])} style={{ flex: 1, background: C.s3, border: `1px solid ${C.border}`, color: C.gray, padding: '11px', borderRadius: 11, fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><InlineIcon icon={RotateCcw} />Reset</button>
               <button onClick={handleImport} disabled={busy || done} 
                 style={{ flex: 1, background: C.blue, color: '#fff', border: 'none', padding: '11px', borderRadius: 11, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: busy ? 0.7 : 1 }}>
-                {busy ? <div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> : 'Apply Mapping'}
+                {busy ? <div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> : <><InlineIcon icon={Check} />Apply Mapping</>}
               </button>
             </div>
           </div>

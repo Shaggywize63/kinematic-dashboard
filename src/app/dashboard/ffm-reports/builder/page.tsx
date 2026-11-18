@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import api from '../../../../lib/api';
+import { ArrowUpDown, CalendarCheck, ClipboardCheck, Columns3, Database, Download, Filter, Inbox, MapPin, Play, Plus, Trash2, Users, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 /**
  * Field-Force Report Builder. Mirrors the UX of the Lead Management
@@ -70,6 +72,7 @@ const ENTITY_FIELDS: Record<Entity, FieldDef[]> = {
   ],
 };
 
+const ENTITY_ICONS: Record<Entity, LucideIcon> = { team: Users, attendance: CalendarCheck, visits: MapPin, submissions: ClipboardCheck };
 const ENTITY_LABELS: Record<Entity, string> = {
   team: 'Team Roster',
   attendance: 'Attendance',
@@ -264,16 +267,19 @@ export default function FfmReportBuilderPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <PageIcon />
+          <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>FFM Report Builder</h1>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-dim)' }}>
             Pick an entity, choose columns, filter, sort &mdash; then export to CSV.
             <Link href="/dashboard/ffm-reports" style={{ color: 'var(--primary)', marginLeft: 8 }}>← Back to reports</Link>
           </p>
+          </div>
         </div>
       </header>
 
-      <Section title="Entity">
+      <Section title="Entity" icon={Database}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {(Object.keys(ENTITY_LABELS) as Entity[]).map((e) => (
             <button
@@ -284,15 +290,17 @@ export default function FfmReportBuilderPage() {
                 border: `1px solid ${entity === e ? 'var(--primary)' : 'var(--border)'}`,
                 background: entity === e ? 'var(--primary)' : 'var(--s3)',
                 color: entity === e ? '#fff' : 'var(--text)',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
               }}
             >
+              <InlineIcon icon={ENTITY_ICONS[e]} />
               {ENTITY_LABELS[e]}
             </button>
           ))}
         </div>
       </Section>
 
-      <Section title="Fields">
+      <Section title="Fields" icon={Columns3}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
           {fields.map((f) => {
             const checked = selectedFields.includes(f.key);
@@ -308,12 +316,14 @@ export default function FfmReportBuilderPage() {
 
       <Section
         title="Filters"
+        icon={Filter}
         action={
           <button
             onClick={addFilter}
-            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}
+            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            + Add filter
+            <InlineIcon icon={Plus} size={14} />
+            Add filter
           </button>
         }
       >
@@ -371,8 +381,9 @@ export default function FfmReportBuilderPage() {
                 )}
                 <button
                   onClick={() => removeFilter(i)}
-                  style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}
+                  style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
+                  <InlineIcon icon={Trash2} size={14} />
                   Remove
                 </button>
               </div>
@@ -381,7 +392,7 @@ export default function FfmReportBuilderPage() {
         </div>
       </Section>
 
-      <Section title="Sort">
+      <Section title="Sort" icon={ArrowUpDown}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={selectStyle}>
             <option value="">— none —</option>
@@ -401,9 +412,10 @@ export default function FfmReportBuilderPage() {
           style={{
             background: 'var(--primary)', color: '#fff', border: 'none', padding: '10px 18px',
             borderRadius: 8, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', fontSize: 13,
-            opacity: loading ? 0.7 : 1,
+            opacity: loading ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6,
           }}
         >
+          <InlineIcon icon={Play} />
           {loading ? 'Running…' : 'Run report'}
         </button>
         <button
@@ -413,10 +425,11 @@ export default function FfmReportBuilderPage() {
             background: 'transparent', color: 'var(--text)', border: '1px solid var(--border)',
             padding: '10px 18px', borderRadius: 8, fontWeight: 700,
             cursor: rows.length ? 'pointer' : 'not-allowed', fontSize: 13,
-            opacity: rows.length ? 1 : 0.5,
+            opacity: rows.length ? 1 : 0.5, display: 'inline-flex', alignItems: 'center', gap: 6,
           }}
         >
-          ⬇ Export CSV
+          <InlineIcon icon={Download} />
+          Export CSV
         </button>
       </div>
 
@@ -440,7 +453,7 @@ export default function FfmReportBuilderPage() {
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={colsForTable.length} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>No rows matched the filters.</td></tr>
+                <tr><td colSpan={colsForTable.length} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}><IconTile icon={Inbox} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />No rows matched the filters.</td></tr>
               )}
             </tbody>
           </table>
@@ -461,11 +474,11 @@ function formatCell(v: unknown, type: FieldDef['type']): string {
   return String(v);
 }
 
-function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
+function Section({ title, children, action, icon }: { title: string; children: React.ReactNode; action?: React.ReactNode; icon?: LucideIcon }) {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>{title}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>{icon && <InlineIcon icon={icon} size={16} />}{title}</div>
         {action}
       </div>
       {children}

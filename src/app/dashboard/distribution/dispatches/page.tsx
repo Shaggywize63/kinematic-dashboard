@@ -4,6 +4,8 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { Plus, Truck } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 export default function DispatchesPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -63,8 +65,8 @@ export default function DispatchesPage() {
                   <Td>
                     {d.status === 'prepared' && (
                       <div style={{ display: 'flex', gap: 6 }}>
-                        {!d.eway_bill_no && Number(d.total_value) > 50000 && <Btn variant="ghost" onClick={() => generate(d.id)}>+ EWB</Btn>}
-                        <Btn onClick={() => markOut(d.id)}>Mark out</Btn>
+                        {!d.eway_bill_no && Number(d.total_value) > 50000 && <Btn variant="ghost" onClick={() => generate(d.id)} icon={<InlineIcon icon={Plus} />}>EWB</Btn>}
+                        <Btn onClick={() => markOut(d.id)} icon={<InlineIcon icon={Truck} />}>Mark out</Btn>
                       </div>
                     )}
                   </Td>

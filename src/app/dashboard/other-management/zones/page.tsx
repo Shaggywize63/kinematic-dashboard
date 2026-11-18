@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../../lib/api';
+import { CheckCircle2, Landmark, Map as MapIcon, type LucideIcon } from 'lucide-react';
+import { IconTile, type IconTone } from '../../../../components/ui/PageIcon';
 import { usePagination } from '../../../../components/shared/Pagination';
 import CitySelect from '../../../../components/CitySelect';
 import ClientSelect from '../../../../components/ClientSelect';
@@ -142,8 +144,9 @@ export default function ZoneManagement() {
 
       {/* Stats */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:24}}>
-        {[{l:'Total Zones',v:zones.length,c:C.yellow},{l:'Active',v:active,c:C.green},{l:'Cities Covered',v:new Set(zones.map(z=>z.city).filter(Boolean)).size,c:C.blue}].map((s,i)=>(
-          <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px'}}>
+        {([{l:'Total Zones',v:zones.length,c:C.yellow,icon:MapIcon,tone:'brand'},{l:'Active',v:active,c:C.green,icon:CheckCircle2,tone:'ok'},{l:'Cities Covered',v:new Set(zones.map(z=>z.city).filter(Boolean)).size,c:C.blue,icon:Landmark,tone:'info'}] as {l:string;v:number;c:string;icon:LucideIcon;tone:IconTone}[]).map((s,i)=>(
+          <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative'}}>
+            <IconTile icon={s.icon} tone={s.tone} style={{position:'absolute',top:14,right:14}} />
             <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:10}}>{s.l}</div>
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c}}>{s.v}</div>
           </div>
@@ -177,7 +180,7 @@ export default function ZoneManagement() {
         </div>
         {loading ? <div style={{padding:40,textAlign:'center'}}><Spinner/></div>
         : err ? <div style={{padding:40,textAlign:'center',color:C.red,fontSize:13}}>{err}</div>
-        : filtered.length===0 ? <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13}}>{search?'No zones match.':'No zones yet.'}</div>
+        : filtered.length===0 ? <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13}}><IconTile icon={MapIcon} size={40} iconSize={20} style={{display:'flex',margin:'0 auto 10px'}} />{search?'No zones match.':'No zones yet.'}</div>
         : pagedZones.map((z,i)=>(
           <div key={z.id} style={{display:'grid',gridTemplateColumns:isPlatformAdmin?'1fr 1fr 1fr 140px 100px 90px 80px':'1fr 1fr 1fr 140px 90px 80px',padding:'14px 20px',borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',gap:12,alignItems:'center'}}
             onMouseEnter={e=>e.currentTarget.style.background=C.s3}

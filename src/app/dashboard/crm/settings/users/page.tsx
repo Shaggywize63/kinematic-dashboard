@@ -7,6 +7,8 @@ import { rolesApi, type OrgRole } from '../../../../../lib/rolesApi';
 import { getStoredUser } from '../../../../../lib/auth';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 import { usePagination } from '../../../../../components/shared/Pagination';
+import { Ban, Check, FileSpreadsheet, KeyRound, Pencil, Play, RotateCcw, Trash2, Upload, UserCog, UserPlus } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 // CRM-scoped user management. Module permissions live on the role hierarchy
 // (org_roles.permissions / .permissions_write) — not redefined per-user — so
@@ -572,15 +574,18 @@ export default function CrmUsersPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Team Members</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <PageIcon />
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Team Members</h1>
+          </div>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-dim)', maxWidth: 720 }}>
             Add team members. Module access is inherited from the <Link href="/dashboard/settings/roles" style={{ color: 'var(--primary)' }}>Hierarchy Role</Link> you assign — define permissions once on the role, not per user.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Link href="/dashboard/crm/settings" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none' }}>← Back</Link>
-          <button onClick={() => { setShowBulk((s) => !s); resetBulk(); }} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Bulk Upload</button>
-          <button onClick={startCreate} disabled={atLimit} title={atLimit ? `Active-user limit reached (${userLimit}). Deactivate a user first.` : ''} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: atLimit ? 'not-allowed' : 'pointer', opacity: atLimit ? 0.5 : 1 }}>+ Add User</button>
+          <button onClick={() => { setShowBulk((s) => !s); resetBulk(); }} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Upload} />Bulk Upload</button>
+          <button onClick={startCreate} disabled={atLimit} title={atLimit ? `Active-user limit reached (${userLimit}). Deactivate a user first.` : ''} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: atLimit ? 'not-allowed' : 'pointer', opacity: atLimit ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={UserPlus} />Add User</button>
         </div>
       </div>
 
@@ -588,7 +593,7 @@ export default function CrmUsersPage() {
         <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Bulk Upload Users</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Upload} size={16} style={{ color: 'var(--text-dim)' }} />Bulk Upload Users</div>
               <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, maxWidth: 640 }}>
                 Drop any CSV — we&apos;ll detect your columns and let you map them. Required: <strong style={{ color: 'var(--text)' }}>Name</strong>, <strong style={{ color: 'var(--text)' }}>Mobile</strong>, <strong style={{ color: 'var(--text)' }}>Password</strong>. Optional: <strong style={{ color: 'var(--text)' }}>Email</strong>, <strong style={{ color: 'var(--text)' }}>Hierarchy Role</strong>.
               </div>
@@ -604,7 +609,7 @@ export default function CrmUsersPage() {
               admin can still hit "Start over" to come back here. */}
           {!bulkHeader && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <button type="button" onClick={downloadTemplate} style={btnGhost}>Download template</button>
+              <button type="button" onClick={downloadTemplate} style={btnGhost}><InlineIcon icon={FileSpreadsheet} />Download template</button>
               <input
                 ref={fileRef}
                 type="file"
@@ -627,7 +632,7 @@ export default function CrmUsersPage() {
                 <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
                   <strong style={{ color: 'var(--text)' }}>{bulkFileName}</strong> · {bulkRows.length} data row{bulkRows.length === 1 ? '' : 's'} · {bulkHeader.length} column{bulkHeader.length === 1 ? '' : 's'} detected
                 </div>
-                <button type="button" onClick={resetBulk} style={btnTiny}>Start over</button>
+                <button type="button" onClick={resetBulk} style={btnTiny}><InlineIcon icon={RotateCcw} size={11} />Start over</button>
               </div>
 
               <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 10, padding: 8, background: 'var(--s4)', border: '1px solid var(--border)', borderRadius: 6 }}>
@@ -719,7 +724,7 @@ export default function CrmUsersPage() {
                   disabled={bulkBusy || BULK_FIELDS.some((f) => f.required && bulkMap[f.key] < 0) || (bulkMap.mobile < 0 && bulkMap.email < 0)}
                   style={{ ...btnPrimary, opacity: (bulkBusy || BULK_FIELDS.some((f) => f.required && bulkMap[f.key] < 0) || (bulkMap.mobile < 0 && bulkMap.email < 0)) ? 0.5 : 1 }}
                 >
-                  {bulkBusy ? 'Importing…' : `Import ${bulkRows.length} row${bulkRows.length === 1 ? '' : 's'}`}
+                  {!bulkBusy && <InlineIcon icon={Upload} />}{bulkBusy ? 'Importing…' : `Import ${bulkRows.length} row${bulkRows.length === 1 ? '' : 's'}`}
                 </button>
               </div>
             </div>
@@ -733,7 +738,7 @@ export default function CrmUsersPage() {
                   <strong style={{ color: '#10b981' }}>{bulkResult.ok} imported</strong>
                   {bulkResult.failed.length > 0 && <> · <strong style={{ color: '#E01E2C' }}>{bulkResult.failed.length} failed</strong></>}
                 </div>
-                <button type="button" onClick={resetBulk} style={btnTiny}>Upload another file</button>
+                <button type="button" onClick={resetBulk} style={btnTiny}><InlineIcon icon={Upload} size={11} />Upload another file</button>
               </div>
               {/* Summary by reason — surfaced above the per-row list so a
                   systemic problem (every row failing the same check) is
@@ -761,7 +766,7 @@ export default function CrmUsersPage() {
       {showAdd && (
         <div ref={formRef} style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16, scrollMarginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{editId ? 'Edit User' : 'New User'}</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={editId ? UserCog : UserPlus} size={16} style={{ color: 'var(--text-dim)' }} />{editId ? 'Edit User' : 'New User'}</div>
             <button onClick={() => { setShowAdd(false); setEditId(null); setForm(blank); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
@@ -830,7 +835,7 @@ export default function CrmUsersPage() {
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
             <button onClick={() => { setShowAdd(false); setEditId(null); setForm(blank); }} disabled={saving} style={btnGhost}>Cancel</button>
-            <button onClick={save} disabled={saving} style={btnPrimary}>{saving ? 'Saving…' : (editId ? 'Save Changes' : 'Create User')}</button>
+            <button onClick={save} disabled={saving} style={btnPrimary}>{!saving && <InlineIcon icon={editId ? Check : UserPlus} />}{saving ? 'Saving…' : (editId ? 'Save Changes' : 'Create User')}</button>
           </div>
         </div>
       )}
@@ -854,8 +859,8 @@ export default function CrmUsersPage() {
           </span>
           <input value={limitInput} onChange={(e) => setLimitInput(e.target.value.replace(/[^0-9]/g, ''))} placeholder="—" title="Max active users (blank = no limit)"
             style={{ ...input, width: 64, minWidth: 0, textAlign: 'center' }} />
-          <button onClick={saveLimit} disabled={savingLimit} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: savingLimit ? 0.6 : 1 }}>
-            {savingLimit ? 'Saving…' : 'Set limit'}
+          <button onClick={saveLimit} disabled={savingLimit} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: savingLimit ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {!savingLimit && <InlineIcon icon={Check} size={14} />}{savingLimit ? 'Saving…' : 'Set limit'}
           </button>
         </div>
       </div>
@@ -881,7 +886,7 @@ export default function CrmUsersPage() {
           </thead>
           <tbody>
             {loading && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading users…</td></tr>}
-            {!loading && filtered.length === 0 && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>+ Add User</strong> or <strong style={{ color: 'var(--text)' }}>Bulk Upload</strong>.</td></tr>}
+            {!loading && filtered.length === 0 && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>Add User</strong> or <strong style={{ color: 'var(--text)' }}>Bulk Upload</strong>.</td></tr>}
             {pagedUsers.map((u) => {
               // Prefer the server-joined role name (getUsers in
               // misc.controller.ts now returns org_role.name alongside
@@ -946,11 +951,11 @@ export default function CrmUsersPage() {
                     </span>
                   </td>
                   <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button onClick={() => startEdit(u)} style={btnSmall}>Edit</button>{' '}
-                    <button onClick={() => sendReset(u)} style={btnSmall} title="Email this user a password reset link">Reset email</button>{' '}
-                    <button onClick={() => toggleActive(u)} style={btnSmall}>{u.is_active === false ? 'Reactivate' : 'Deactivate'}</button>
+                    <button onClick={() => startEdit(u)} style={btnSmall}><InlineIcon icon={Pencil} size={12} />Edit</button>{' '}
+                    <button onClick={() => sendReset(u)} style={btnSmall} title="Email this user a password reset link"><InlineIcon icon={KeyRound} size={12} />Reset email</button>{' '}
+                    <button onClick={() => toggleActive(u)} style={btnSmall}><InlineIcon icon={u.is_active === false ? Play : Ban} size={12} />{u.is_active === false ? 'Reactivate' : 'Deactivate'}</button>
                     {canDelete && <>{' '}
-                      <button onClick={() => deleteUser(u)} style={{ ...btnSmall, color: '#e5484d', borderColor: '#e5484d' }} title="Remove this user from the directory">Delete</button>
+                      <button onClick={() => deleteUser(u)} style={{ ...btnSmall, color: '#e5484d', borderColor: '#e5484d' }} title="Remove this user from the directory"><InlineIcon icon={Trash2} size={12} />Delete</button>
                     </>}
                   </td>
                 </tr>
@@ -976,7 +981,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const input: React.CSSProperties = { background: 'var(--s4)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', width: '100%' };
 const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
 const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700 };
-const btnGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer' };
-const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' };
-const btnSmall: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' };
-const btnTiny: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer' };
+const btnGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 };
+const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 };
+const btnSmall: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' };
+const btnTiny: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 };

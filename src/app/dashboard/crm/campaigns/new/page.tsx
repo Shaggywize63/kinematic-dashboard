@@ -16,6 +16,8 @@ import {
   type BroadcastAudience, type BroadcastVariableMap, type BroadcastPreview, type BroadcastSegment,
 } from '../../../../../lib/crmApi';
 import type { WhatsappTemplate } from '../../../../../types/crm';
+import { AlertTriangle, Bookmark, Braces, CalendarClock, FileText, Gauge, Save, Send, Users } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -25,8 +27,9 @@ const C = {
 const card: React.CSSProperties = { background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22, marginBottom: 16 };
 const input: React.CSSProperties = { width: '100%', background: 'var(--s4)', border: `1px solid ${C.border}`, padding: '9px 12px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13, boxSizing: 'border-box' };
 const label: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 };
-const btnPrimary: React.CSSProperties = { background: C.red, border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' };
-const btnGhost: React.CSSProperties = { background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' };
+const btnPrimary: React.CSSProperties = { background: C.red, border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 };
+const btnGhost: React.CSSProperties = { background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 };
+const stepTitle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 };
 
 const LEAD_FIELDS = ['full_name', 'first_name', 'last_name', 'company', 'city', 'state', 'country', 'phone', 'status', 'industry'];
 
@@ -148,12 +151,15 @@ export default function NewCampaignPage() {
     <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.white, paddingBottom: 60, maxWidth: 820 }}>
       <div style={{ marginBottom: 20 }}>
         <Link href="/dashboard/crm/campaigns" style={{ color: C.gray, fontSize: 12, textDecoration: 'none' }}>← Campaigns</Link>
-        <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: '6px 0 0' }}>New campaign</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
+          <PageIcon />
+          <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: 0 }}>New campaign</h1>
+        </div>
       </div>
 
       {/* 1 — Basics + template */}
       <div style={card}>
-        <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 14, color: C.blue }}>1 · Template</div>
+        <div style={{ ...stepTitle, fontSize: 13, fontWeight: 800, marginBottom: 14, color: C.blue }}><InlineIcon icon={FileText} size={16} />1 · Template</div>
         <div style={{ marginBottom: 14 }}>
           <span style={label}>Campaign name</span>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Diwali offer — Bihar leads" style={input} />
@@ -186,7 +192,7 @@ export default function NewCampaignPage() {
               </div>
             )}
             {template.status && template.status !== 'approved' && (
-              <div style={{ fontSize: 11, color: C.amber, marginTop: 8 }}>⚠ This template is {template.status}. WhatsApp only delivers approved templates.</div>
+              <div style={{ fontSize: 11, color: C.amber, marginTop: 8, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={AlertTriangle} size={12} />This template is {template.status}. WhatsApp only delivers approved templates.</div>
             )}
           </div>
         )}
@@ -195,7 +201,7 @@ export default function NewCampaignPage() {
       {/* 2 — Variables */}
       {template && vars.length > 0 && (
         <div style={card}>
-          <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6, color: C.blue }}>2 · Personalisation</div>
+          <div style={{ ...stepTitle, fontSize: 13, fontWeight: 800, marginBottom: 6, color: C.blue }}><InlineIcon icon={Braces} size={16} />2 · Personalisation</div>
           <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>Map each template variable to a lead field or a fixed value.</div>
           {vars.map((k) => {
             const v = varMap[k] || { type: 'literal' as const };
@@ -221,7 +227,7 @@ export default function NewCampaignPage() {
 
       {/* 3 — Audience */}
       <div style={card}>
-        <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6, color: C.blue }}>3 · Audience</div>
+        <div style={{ ...stepTitle, fontSize: 13, fontWeight: 800, marginBottom: 6, color: C.blue }}><InlineIcon icon={Users} size={16} />3 · Audience</div>
         <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>
           Filter your leads. Leave everything blank to target every lead in scope. Only opted-in leads with a phone number are messaged — the rest are suppressed and shown below.
         </div>
@@ -244,8 +250,8 @@ export default function NewCampaignPage() {
           <div style={{ gridColumn: '1 / -1' }}><span style={label}>Search <span style={{ color: C.grayd, textTransform: 'none' }}>(name / company / phone)</span></span><input value={aud.search} onChange={(e) => setAud({ ...aud, search: e.target.value })} style={input} /></div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
-          <button onClick={runPreview} disabled={previewing} style={{ ...btnGhost, cursor: previewing ? 'not-allowed' : 'pointer' }}>{previewing ? 'Checking…' : 'Preview audience'}</button>
-          <button onClick={saveSegment} style={{ ...btnGhost, background: 'transparent' }}>Save as segment</button>
+          <button onClick={runPreview} disabled={previewing} style={{ ...btnGhost, cursor: previewing ? 'not-allowed' : 'pointer' }}>{!previewing && <InlineIcon icon={Users} />}{previewing ? 'Checking…' : 'Preview audience'}</button>
+          <button onClick={saveSegment} style={{ ...btnGhost, background: 'transparent' }}><InlineIcon icon={Bookmark} />Save as segment</button>
           {preview && (
             <span style={{ fontSize: 13, color: C.white }}>
               <b style={{ color: C.green }}>{preview.counts.eligible}</b> will receive
@@ -268,7 +274,7 @@ export default function NewCampaignPage() {
 
       {/* 4 — Pacing */}
       <div style={card}>
-        <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 14, color: C.blue }}>4 · Pacing & schedule</div>
+        <div style={{ ...stepTitle, fontSize: 13, fontWeight: 800, marginBottom: 14, color: C.blue }}><InlineIcon icon={Gauge} size={16} />4 · Pacing & schedule</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div>
             <span style={label}>Messages per minute</span>
@@ -286,8 +292,8 @@ export default function NewCampaignPage() {
       {msg && <div style={{ ...card, padding: '12px 16px', background: msg.ok ? 'rgba(0,217,126,0.10)' : 'rgba(224,30,44,0.10)', borderColor: msg.ok ? 'rgba(0,217,126,0.3)' : 'rgba(224,30,44,0.3)', color: msg.ok ? C.green : C.red, fontSize: 13 }}>{msg.text}</div>}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <button onClick={() => create(true)} disabled={saving} style={{ ...btnPrimary, cursor: saving ? 'not-allowed' : 'pointer' }}>{saving ? 'Working…' : (scheduleAt ? 'Create & schedule' : 'Create & send now')}</button>
-        <button onClick={() => create(false)} disabled={saving} style={{ ...btnGhost, cursor: saving ? 'not-allowed' : 'pointer' }}>Save as draft</button>
+        <button onClick={() => create(true)} disabled={saving} style={{ ...btnPrimary, cursor: saving ? 'not-allowed' : 'pointer' }}>{!saving && <InlineIcon icon={scheduleAt ? CalendarClock : Send} />}{saving ? 'Working…' : (scheduleAt ? 'Create & schedule' : 'Create & send now')}</button>
+        <button onClick={() => create(false)} disabled={saving} style={{ ...btnGhost, cursor: saving ? 'not-allowed' : 'pointer' }}><InlineIcon icon={Save} />Save as draft</button>
       </div>
       <div style={{ fontSize: 12, color: C.gray, marginTop: 14, lineHeight: 1.6 }}>
         Messages only leave the building once <Link href="/dashboard/settings/whatsapp" style={{ color: C.blue }}>Settings → WhatsApp</Link> has an active connection. A draft can be launched later from its detail page.

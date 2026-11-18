@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { ArrowLeftRight, Package, Plus, X } from 'lucide-react';
 import { crmLeads, crmProducts } from '../../lib/crmApi';
 import { useClient } from '../../context/ClientContext';
 import type { Product } from '../../types/crm';
@@ -276,7 +277,7 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, width: 640, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
-        <h3 style={{ margin: '0 0 14px', color: 'var(--text)' }}>Convert Lead</h3>
+        <h3 style={{ margin: '0 0 14px', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><ArrowLeftRight aria-hidden size={18} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Convert Lead</h3>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, color: 'var(--text)', fontSize: 13 }}>
           <input type="checkbox" checked={createDeal} onChange={(e) => setCreateDeal(e.target.checked)} /> Create Deal
         </label>
@@ -293,8 +294,8 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
             {allowWeight && (
               <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 6 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>
-                    Products (line items)
+                  <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <Package aria-hidden size={12} strokeWidth={2} />Products (line items)
                   </span>
                   <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                     Add one row per product. Pieces ↔ kg ↔ amount auto-sync.
@@ -326,8 +327,8 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
                           onClick={() => removeLine(l.rowId)}
                           disabled={lines.length === 1}
                           title={lines.length === 1 ? 'At least one line is required' : 'Remove this product'}
-                          style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: lines.length === 1 ? 'not-allowed' : 'pointer', opacity: lines.length === 1 ? 0.4 : 1 }}
-                        >✕ Remove</button>
+                          style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: lines.length === 1 ? 'not-allowed' : 'pointer', opacity: lines.length === 1 ? 0.4 : 1, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                        ><X aria-hidden size={13} strokeWidth={2} />Remove</button>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${isBmw ? 2 : 3}, 1fr)`, gap: 8 }}>
                         <Field label="Pieces">
@@ -376,8 +377,8 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
                 <button
                   type="button"
                   onClick={addLine}
-                  style={{ alignSelf: 'flex-start', background: 'transparent', border: '1px dashed var(--primary)', color: 'var(--primary)', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                >+ Add another product</button>
+                  style={{ alignSelf: 'flex-start', background: 'transparent', border: '1px dashed var(--primary)', color: 'var(--primary)', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                ><Plus aria-hidden size={13} strokeWidth={2} />Add another product</button>
 
                 {totals.count > 0 && (
                   <div style={{ display: 'flex', gap: 14, justifyContent: 'space-between', flexWrap: 'wrap', padding: '8px 10px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, color: 'var(--text)' }}>
@@ -425,7 +426,7 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
         )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14, flexWrap: 'wrap' }}>
           <button onClick={onClose} style={btnGhost}>Cancel</button>
-          <button onClick={submit} disabled={busy} style={btnPrimary}>{busy ? 'Converting...' : 'Convert & open deal'}</button>
+          <button onClick={submit} disabled={busy} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><ArrowLeftRight aria-hidden size={15} strokeWidth={2} />{busy ? 'Converting...' : 'Convert & open deal'}</button>
         </div>
       </div>
     </div>

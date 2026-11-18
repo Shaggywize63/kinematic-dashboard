@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, ClipboardCheck, Clock, CalendarDays, CalendarOff, UserCheck } from 'lucide-react';
+import { RefreshCw, ClipboardCheck, Clock, CalendarDays, CalendarOff, UserCheck, BarChart3, Building2, Landmark, MapPin, Users, type LucideIcon } from 'lucide-react';
 import api from '../../lib/api';
 import { getStoredUser, landingRouteFor } from '../../lib/auth';
 import { getStoredIndustryScope } from '../../context/IndustryScopeContext';
@@ -10,6 +10,8 @@ import { useClient } from '../../context/ClientContext';
 import { usePageTitle } from '../../lib/pageTitle';
 import { Button, Card, Eyebrow, Input, PageHeader, Segmented, T, useIsCompact } from '../../components/ui';
 import KiniMascot from '../../components/crm/KiniMascot';
+import { IconTile, InlineIcon } from '../../components/ui/PageIcon';
+import { metricIconFor } from '../../lib/labelIcons';
 
 /* ── types ─────────────────────────────────────────────────── */
 interface AttSummary {
@@ -106,10 +108,10 @@ const StatTile = ({ label, value, sub, loading, icon, tone = 'neutral' }:{
 };
 
 /** Card heading: Manrope title + one-line dim sub, optional right slot. */
-const CardTitle = ({ title, sub, right }:{ title:string; sub?:string; right?:React.ReactNode }) => (
+const CardTitle = ({ title, sub, right, icon }:{ title:string; sub?:string; right?:React.ReactNode; icon?:LucideIcon }) => (
   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:14, flexWrap:'wrap' }}>
     <div style={{ minWidth:0 }}>
-      <div style={{ fontFamily:T.heading, fontSize:15, fontWeight:700, letterSpacing:'-0.01em', color:T.text }}>{title}</div>
+      <div style={{ fontFamily:T.heading, fontSize:15, fontWeight:700, letterSpacing:'-0.01em', color:T.text, display:'flex', alignItems:'center', gap:8 }}>{icon && <InlineIcon icon={icon} size={16} style={{ color:T.dim }} />}{title}</div>
       {sub && <div style={{ fontSize:12.5, color:T.dim, marginTop:2 }}>{sub}</div>}
     </div>
     {right}
@@ -121,9 +123,23 @@ const td: CSSProperties = { padding:'12px 16px', fontSize:13.5, color:T.text, bo
 const tdNum: CSSProperties = { ...td, textAlign:'right', fontFamily:T.mono, fontSize:12.5, fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap' };
 const thNum: CSSProperties = { ...th, textAlign:'right' };
 
-const Empty = ({ children }:{ children:React.ReactNode }) => (
-  <div style={{ textAlign:'center', padding:'32px 0', color:T.dim, fontSize:13 }}>{children}</div>
+const Empty = ({ children, icon }:{ children:React.ReactNode; icon?:LucideIcon }) => (
+  <div style={{ textAlign:'center', padding:'32px 0', color:T.dim, fontSize:13 }}>
+    {icon && <IconTile icon={icon} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 10px' }} />}
+    {children}
+  </div>
 );
+
+/** A small figure beside a card title (label under the number), with the shared icon for its label. */
+const MiniStat = ({ label, value }:{ label:string; value:React.ReactNode }) => {
+  const Icon = metricIconFor(label);
+  return (
+    <div style={{ textAlign:'right' }}>
+      <div style={{ fontFamily:T.heading, fontSize:20, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>{value}</div>
+      <Eyebrow style={{ marginTop:4, display:'flex', alignItems:'center', justifyContent:'flex-end', gap:5 }}>{Icon && <InlineIcon icon={Icon} size={12} />}{label}</Eyebrow>
+    </div>
+  );
+};
 
 /* ── ATTENDANCE DONUT ──────────────────────────────────────── */
 // Ring order deliberately keeps green (Active) and amber (On break) apart —
@@ -219,7 +235,7 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
     );
   }
   if (!days.length) {
-    return <Empty>No data</Empty>;
+    return <Empty icon={BarChart3}>No data</Empty>;
   }
   const maxTFF = Math.max(...days.map(d => d.tff), 1);
   const avg = days.reduce((s,d) => s + d.tff, 0) / days.length;
@@ -504,6 +520,7 @@ export default function DashboardPage() {
 
       <div style={{ display:'flex', flexDirection:'column', gap:20, animation:'km-fadein .3s ease' }}>
         <PageHeader
+          icon={null /* the KINI mascot beside the greeting already marks this page */}
           eyebrow="Operational overview"
           title={
             <span style={{ display:'inline-flex', alignItems:'center', gap:12 }}>
@@ -540,6 +557,7 @@ export default function DashboardPage() {
           <div style={{ padding:'16px 16px 0' }}>
             <CardTitle
               title="Field visits"
+              icon={MapPin}
               sub="Ad-hoc marketing visits captured from the app"
               right={!loadingFv && fvData && (() => {
                 const total = fvData.length;
@@ -551,12 +569,7 @@ export default function DashboardPage() {
                 ];
                 return (
                   <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
-                    {tiles.map(s => (
-                      <div key={s.l} style={{ textAlign:'right' }}>
-                        <div style={{ fontFamily:T.heading, fontSize:20, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>{s.v}</div>
-                        <Eyebrow style={{ marginTop:4 }}>{s.l}</Eyebrow>
-                      </div>
-                    ))}
+                    {tiles.map(s => <MiniStat key={s.l} label={s.l} value={s.v} />)}
                   </div>
                 );
               })()}
@@ -605,7 +618,7 @@ export default function DashboardPage() {
                         </td>
                         <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom, whiteSpace:'nowrap' }}>{started}</td>
                         <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
-                          {maps ? <a href={maps} target="_blank" rel="noopener noreferrer" style={{ color:T.info, textDecoration:'none' }}>Map ↗</a> : '—'}
+                          {maps ? <a href={maps} target="_blank" rel="noopener noreferrer" style={{ color:T.info, textDecoration:'none', display:'inline-flex', alignItems:'center', gap:4 }}><InlineIcon icon={MapPin} size={14} />Map ↗</a> : '—'}
                         </td>
                       </tr>
                     );
@@ -614,7 +627,7 @@ export default function DashboardPage() {
               </table>
             </div>
           ) : (
-            <Empty>No marketing visits captured yet</Empty>
+            <Empty icon={MapPin}>No marketing visits captured yet</Empty>
           )}
         </Card>
         )}
@@ -622,7 +635,7 @@ export default function DashboardPage() {
         {/* Row 2: Attendance + Weekly Activity */}
         <div style={{ display:'grid', gridTemplateColumns:narrow ? '1fr' : 'minmax(0, 1fr) minmax(0, 1.5fr)', gap:16 }}>
           <Card>
-            <CardTitle title="Attendance today" sub="Active · On break · Checked out · Absent" />
+            <CardTitle title="Attendance today" icon={UserCheck} sub="Active · On break · Checked out · Absent" />
             {loadingAtt ? (
               <div style={{ display:'flex', gap:16, alignItems:'center' }}>
                 <Shimmer w={140} h={140} br={70}/>
@@ -641,13 +654,14 @@ export default function DashboardPage() {
                 total={att.total}
               />
             ) : (
-              <Empty>No attendance data</Empty>
+              <Empty icon={UserCheck}>No attendance data</Empty>
             )}
           </Card>
 
           <Card>
             <CardTitle
               title="Weekly activity"
+              icon={BarChart3}
               sub="Total forms filled (TFF) per day"
             />
             <WeeklyBar days={weekData?.days || []} loading={loadingWeek}/>
@@ -668,7 +682,7 @@ export default function DashboardPage() {
                     <div style={{ fontFamily:T.heading, fontSize:22, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>
                       {s.v}
                     </div>
-                    <div style={{ fontSize:12, color:T.dim, marginTop:4 }}>{s.l}</div>
+                    <div style={{ fontSize:12, color:T.dim, marginTop:4, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={ClipboardCheck} size={14} />{s.l}</div>
                   </div>
                 ))}
               </div>
@@ -679,7 +693,7 @@ export default function DashboardPage() {
         {isByteBack && (
         <Card padding={0}>
           <div style={{ padding:'16px 16px 0' }}>
-            <CardTitle title="User-wise performance" sub={`${from} → ${to} · per field executive`} />
+            <CardTitle title="User-wise performance" icon={Users} sub={`${from} → ${to} · per field executive`} />
           </div>
           {loadingUserPerf ? (
             <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'0 16px 16px' }}>
@@ -715,7 +729,7 @@ export default function DashboardPage() {
               </table>
             </div>
           ) : (
-            <Empty>No user activity for this period</Empty>
+            <Empty icon={Users}>No user activity for this period</Empty>
           ))}
         </Card>
         )}
@@ -725,6 +739,7 @@ export default function DashboardPage() {
           <div style={{ padding:'16px 16px 0' }}>
             <CardTitle
               title="City-wise performance"
+              icon={Landmark}
               sub={`${from} → ${to} · based on check-ins & form submissions`}
             />
           </div>
@@ -779,7 +794,7 @@ export default function DashboardPage() {
                 </table>
               </div>
             ) : (
-              <Empty>No city data for this period</Empty>
+              <Empty icon={Landmark}>No city data for this period</Empty>
             );
           })()}
         </Card>
@@ -792,6 +807,7 @@ export default function DashboardPage() {
           <div style={{ padding:'16px 16px 0' }}>
             <CardTitle
               title="Outlet coverage"
+              icon={Building2}
               sub={`Unique outlets contacted · ${from} → ${to}`}
               right={outletData?.summary && (
                 <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
@@ -799,14 +815,7 @@ export default function DashboardPage() {
                     { l:'Unique outlets', v:outletData.summary.total_outlets },
                     { l:'Total check-ins', v:outletData.summary.total_checkins },
                     { l:'Total TFF', v:outletData.summary.total_tff },
-                  ].map(s => (
-                    <div key={s.l} style={{ textAlign:'right' }}>
-                      <div style={{ fontFamily:T.heading, fontSize:20, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>
-                        {s.v}
-                      </div>
-                      <Eyebrow style={{ marginTop:4 }}>{s.l}</Eyebrow>
-                    </div>
-                  ))}
+                  ].map(s => <MiniStat key={s.l} label={s.l} value={s.v} />)}
                 </div>
               )}
             />
@@ -857,7 +866,7 @@ export default function DashboardPage() {
               </table>
             </div>
           ) : (
-            <Empty>No outlet data for this period</Empty>
+            <Empty icon={Building2}>No outlet data for this period</Empty>
           )}
         </Card>
         )}

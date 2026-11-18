@@ -8,6 +8,11 @@ import type { Deal } from '../../../../../types/crm';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
+import { Download } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../../lib/labelIcons';
+
+const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
 interface RepRow {
   user_id: string;
@@ -159,7 +164,7 @@ export default function RepLeaderboardPage() {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <h3 style={{ color: 'var(--text)', margin: 0 }}>Rep Leaderboard</h3>
+        <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}><PageIcon size={32} />Rep Leaderboard</h3>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Sort by</span>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} style={sel}>
@@ -168,7 +173,7 @@ export default function RepLeaderboardPage() {
             <option value="win_rate">Win Rate</option>
             <option value="avg_deal">Avg Deal Size</option>
           </select>
-          <button onClick={() => downloadCsv('rep-leaderboard', sorted as any)} disabled={loading || sorted.length === 0} style={csvBtn}>⬇ CSV</button>
+          <button onClick={() => downloadCsv('rep-leaderboard', sorted as any)} disabled={loading || sorted.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
         </div>
       </div>
 
@@ -247,7 +252,7 @@ export default function RepLeaderboardPage() {
 function Kpi({ label, value }: { label: string; value: string | number }) {
   return (
     <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{kpiIcon(label)}{label}</div>
       <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>
   );
@@ -262,7 +267,7 @@ function inr(n: number): string {
 }
 
 const sel: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px', borderRadius: 8, fontSize: 13 };
-const csvBtn: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700 };
+const csvBtn: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 };
 const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, borderBottom: '1px solid var(--border)' };
 const thNum: React.CSSProperties = { ...th, textAlign: 'right' };
 const td: React.CSSProperties = { padding: '8px 10px', color: 'var(--text)', borderBottom: '1px solid var(--border)' };

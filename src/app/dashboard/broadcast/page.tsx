@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../../../lib/api';
 import { useAuth } from '../../../hooks/useAuth';
+import { Activity, AlertTriangle, Check, Download, Eye, EyeOff, Lock, MessageCircle, MessageCircleQuestion, Plus, Radio, RotateCcw, Send, Trash2, Users, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon, type IconTone } from '../../../components/ui/PageIcon';
 
 const C = {
   bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -84,8 +86,8 @@ function TargetSummary({ q }: { q: BroadcastQuestion }) {
   const geo = [zones, cities].filter(Boolean).join(' · ');
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: C.purpleD, color: C.purple }}>
-        → {roles}
+      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: C.purpleD, color: C.purple, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <InlineIcon icon={Users} size={11} />{roles}
       </span>
       {geo && (
         <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: C.blueD, color: C.blue }}>
@@ -109,9 +111,10 @@ function TogglePill({
         background: active ? `${color}18` : C.s3,
         color: active ? color : C.gray,
         transition: 'all 0.15s', userSelect: 'none',
+        display: 'inline-flex', alignItems: 'center', gap: 5,
       }}
     >
-      {active ? '✓ ' : ''}{label}
+      {active && <InlineIcon icon={Check} size={13} />}{label}
     </div>
   );
 }
@@ -239,29 +242,33 @@ export default function BroadcastPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800 }}>Broadcast Questions</div>
-          <div style={{ fontSize: 13, color: C.gray, marginTop: 3 }}>Send questions to field executives & supervisors</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <PageIcon />
+          <div>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800 }}>Broadcast Questions</div>
+            <div style={{ fontSize: 13, color: C.gray, marginTop: 3 }}>Send questions to field executives & supervisors</div>
+          </div>
         </div>
         {isPlatformAdmin && (
           <button
             onClick={() => { setForm(defaultForm()); setShowCreate(true); }}
             style={{ background: C.red, color: '#fff', border: 'none', borderRadius: 12, padding: '11px 20px', fontSize: 13, fontWeight: 700, fontFamily: "'Syne',sans-serif", cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 8px 24px var(--primary-shadow)', whiteSpace: 'nowrap' }}
           >
-            + New Question
+            <InlineIcon icon={Plus} />New Question
           </button>
         )}
       </div>
 
       {/* Stats */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        {[
-          { l: 'Total Questions', v: String(questions.length), c: C.blue },
-          { l: 'Active', v: String(active.length), c: C.green },
-          { l: 'Total Responses', v: String(totalResp), c: C.yellow },
-          { l: 'Closed', v: String(closed.length), c: C.gray },
-        ].map(s => (
-          <div key={s.l} style={{ flex: 1, minWidth: 120, background: C.s2, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px' }}>
+        {([
+          { l: 'Total Questions', v: String(questions.length), c: C.blue, icon: MessageCircleQuestion, tone: 'info' },
+          { l: 'Active', v: String(active.length), c: C.green, icon: Activity, tone: 'ok' },
+          { l: 'Total Responses', v: String(totalResp), c: C.yellow, icon: MessageCircle, tone: 'warn' },
+          { l: 'Closed', v: String(closed.length), c: C.gray, icon: Lock, tone: 'neutral' },
+        ] as { l: string; v: string; c: string; icon: LucideIcon; tone: IconTone }[]).map(s => (
+          <div key={s.l} style={{ flex: 1, minWidth: 120, background: C.s2, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px', position: 'relative' }}>
+            <IconTile icon={s.icon} tone={s.tone} style={{ position: 'absolute', top: 14, right: 14 }} />
             <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 28, fontWeight: 800, color: s.c }}>{s.v}</div>
             <div style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>{s.l}</div>
           </div>
@@ -272,7 +279,7 @@ export default function BroadcastPage() {
       {error && (
         <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 12, padding: '12px 16px', color: C.red, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           {error}
-          <button onClick={load} style={{ background: 'none', border: 'none', color: C.red, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Retry</button>
+          <button onClick={load} style={{ background: 'none', border: 'none', color: C.red, cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={RotateCcw} size={14} />Retry</button>
         </div>
       )}
 
@@ -286,11 +293,11 @@ export default function BroadcastPage() {
       {/* Empty */}
       {!loading && !error && questions.length === 0 && (
         <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 24px', textAlign: 'center' }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>📡</div>
+          <IconTile icon={Radio} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 12px' }} />
           <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>No questions yet</div>
           <div style={{ fontSize: 13, color: C.gray, marginBottom: 20 }}>Create your first broadcast question to engage your field team.</div>
-          <button onClick={() => { setForm(defaultForm()); setShowCreate(true); }} style={{ background: C.red, color: '#fff', border: 'none', borderRadius: 11, padding: '11px 22px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Syne',sans-serif" }}>
-            + Create Question
+          <button onClick={() => { setForm(defaultForm()); setShowCreate(true); }} style={{ background: C.red, color: '#fff', border: 'none', borderRadius: 11, padding: '11px 22px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Syne',sans-serif", display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <InlineIcon icon={Plus} />Create Question
           </button>
         </div>
       )}
@@ -298,7 +305,8 @@ export default function BroadcastPage() {
       {/* Active questions */}
       {!loading && active.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.2px', color: C.grayd, textTransform: 'uppercase', marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.2px', color: C.grayd, textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <InlineIcon icon={Activity} size={16} />
             ACTIVE ({active.length})
           </div>
           {active.map((q, qi) => <QuestionCard key={q.id} q={q} qi={qi} expanded={expandedId === q.id} onExpand={() => setExpandedId(expandedId === q.id ? null : q.id)} onDelete={() => setDeleteId(q.id)} onToggleStatus={() => handleToggleStatus(q)} closingId={closingId} isPlatformAdmin={isPlatformAdmin} />)}
@@ -308,7 +316,8 @@ export default function BroadcastPage() {
       {/* Closed questions */}
       {!loading && closed.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.2px', color: C.grayd, textTransform: 'uppercase', marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.2px', color: C.grayd, textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <InlineIcon icon={Lock} size={16} />
             CLOSED ({closed.length})
           </div>
           {closed.map((q, qi) => <QuestionCard key={q.id} q={q} qi={active.length + qi} expanded={expandedId === q.id} onExpand={() => setExpandedId(expandedId === q.id ? null : q.id)} onDelete={() => setDeleteId(q.id)} onToggleStatus={() => handleToggleStatus(q)} closingId={closingId} isPlatformAdmin={isPlatformAdmin} />)}
@@ -323,7 +332,7 @@ export default function BroadcastPage() {
             <div style={{ fontSize: 13, color: C.gray, marginBottom: 24, lineHeight: 1.6 }}>This will permanently delete the question and all its responses. This cannot be undone.</div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setDeleteId(null)} style={{ flex: 1, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 11, padding: 12, color: C.gray, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => handleDelete(deleteId)} style={{ flex: 1, background: C.red, border: 'none', borderRadius: 11, padding: 12, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Delete</button>
+              <button onClick={() => handleDelete(deleteId)} style={{ flex: 1, background: C.red, border: 'none', borderRadius: 11, padding: 12, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><InlineIcon icon={Trash2} />Delete</button>
             </div>
           </div>
         </div>
@@ -392,7 +401,7 @@ export default function BroadcastPage() {
                 <TogglePill label="Supervisors" active={form.target_roles.includes('supervisor')} onClick={() => toggleRole('supervisor')} color={C.blue} />
               </div>
               {form.target_roles.length === 0 && (
-                <div style={{ fontSize: 11, color: C.red, marginTop: 6 }}>⚠ Select at least one role</div>
+                <div style={{ fontSize: 11, color: C.red, marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={AlertTriangle} size={12} />Select at least one role</div>
               )}
             </div>
 
@@ -436,7 +445,7 @@ export default function BroadcastPage() {
                   style={{ display: 'flex', alignItems: 'center', gap: 10, background: form.urgent ? C.redD : C.s3, border: `1.5px solid ${form.urgent ? C.red : C.border}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', transition: 'all 0.15s' }}
                 >
                   <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${form.urgent ? C.red : C.border}`, background: form.urgent ? C.red : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                    {form.urgent && <div style={{ color: '#fff', fontSize: 11, fontWeight: 800, lineHeight: 1 }}>✓</div>}
+                    {form.urgent && <InlineIcon icon={Check} size={12} style={{ color: 'var(--k-paper)' }} />}
                   </div>
                   <span style={{ fontSize: 13, color: form.urgent ? C.red : C.gray, fontWeight: form.urgent ? 700 : 400 }}>Mark as urgent</span>
                 </div>
@@ -472,9 +481,10 @@ export default function BroadcastPage() {
               <button
                 onClick={handleCreate}
                 disabled={submitting || !form.question.trim() || form.opts.filter(o => o.trim()).length < 2 || form.target_roles.length === 0}
-                style={{ flex: 2, background: form.target_roles.length === 0 ? C.grayd : C.purple, border: 'none', borderRadius: 12, padding: 13, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Syne',sans-serif", boxShadow: '0 8px 24px rgba(155,110,255,0.28)', opacity: submitting ? 0.7 : 1, transition: 'all 0.15s' }}
+                style={{ flex: 2, background: form.target_roles.length === 0 ? C.grayd : C.purple, border: 'none', borderRadius: 12, padding: 13, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Syne',sans-serif", boxShadow: '0 8px 24px rgba(155,110,255,0.28)', opacity: submitting ? 0.7 : 1, transition: 'all 0.15s', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
-                {submitting ? 'Sending...' : '📡 Broadcast Question'}
+                <InlineIcon icon={Send} />
+                {submitting ? 'Sending...' : 'Broadcast Question'}
               </button>
             </div>
           </div>
@@ -551,8 +561,8 @@ function QuestionCard({
               return (
                 <div key={i} style={{ marginBottom: 9 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
-                    <span style={{ color: isCorrect ? C.green : C.gray, fontWeight: isCorrect ? 700 : 400 }}>
-                      {isCorrect ? '✓ ' : ''}{t.label || `Option ${i + 1}`}
+                    <span style={{ color: isCorrect ? C.green : C.gray, fontWeight: isCorrect ? 700 : 400, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      {isCorrect && <InlineIcon icon={Check} size={13} />}{t.label || `Option ${i + 1}`}
                     </span>
                     <span style={{ color: C.white, fontWeight: 700 }}>{t.count} ({pct}%)</span>
                   </div>
@@ -569,7 +579,8 @@ function QuestionCard({
           {/* Responder list */}
           {q.responses && q.responses.length > 0 && (
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: C.grayd, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.grayd, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <InlineIcon icon={Users} size={14} />
                 RESPONDENTS ({q.responses.length})
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
@@ -599,8 +610,8 @@ function QuestionCard({
           {/* Options row */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {q.options.map((opt, i) => (
-              <div key={i} style={{ padding: '6px 12px', borderRadius: 9, border: `1px solid ${i === q.correct_option ? C.green + '40' : C.border}`, background: i === q.correct_option ? 'rgba(0,217,126,0.07)' : C.s3, fontSize: 12, color: i === q.correct_option ? C.green : C.gray }}>
-                {i === q.correct_option ? '✓ ' : ''}{opt.label}
+              <div key={i} style={{ padding: '6px 12px', borderRadius: 9, border: `1px solid ${i === q.correct_option ? C.green + '40' : C.border}`, background: i === q.correct_option ? 'rgba(0,217,126,0.07)' : C.s3, fontSize: 12, color: i === q.correct_option ? C.green : C.gray, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                {i === q.correct_option && <InlineIcon icon={Check} size={13} />}{opt.label}
               </div>
             ))}
           </div>
@@ -611,16 +622,17 @@ function QuestionCard({
       <div style={{ borderTop: `1px solid ${C.border}`, padding: '11px 16px', display: 'flex', gap: 8, background: C.s3 }}>
         <button
           onClick={onExpand}
-          style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 9, padding: '7px 12px', color: C.gray, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}
+          style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 9, padding: '7px 12px', color: C.gray, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
         >
+          <InlineIcon icon={expanded ? EyeOff : Eye} size={14} />
           {expanded ? 'Hide Results' : 'View Results'}
         </button>
         {q.response_count > 0 && (
           <button
             onClick={() => downloadCSV(q)}
-            style={{ background: 'rgba(62,158,255,0.08)', border: `1px solid ${C.blue}30`, borderRadius: 9, padding: '7px 12px', color: C.blue, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+            style={{ background: 'rgba(62,158,255,0.08)', border: `1px solid ${C.blue}30`, borderRadius: 9, padding: '7px 12px', color: C.blue, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            ↓ CSV
+            <InlineIcon icon={Download} size={14} />CSV
           </button>
         )}
         {isPlatformAdmin && (
@@ -628,14 +640,16 @@ function QuestionCard({
             <button
               onClick={onToggleStatus}
               disabled={closingId === q.id}
-              style={{ flex: 1, background: isClosed ? 'rgba(0,217,126,0.08)' : 'rgba(255,184,0,0.08)', border: `1px solid ${isClosed ? C.green + '30' : C.yellow + '30'}`, borderRadius: 9, padding: '7px 12px', color: isClosed ? C.green : C.yellow, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}
+              style={{ flex: 1, background: isClosed ? 'rgba(0,217,126,0.08)' : 'rgba(255,184,0,0.08)', border: `1px solid ${isClosed ? C.green + '30' : C.yellow + '30'}`, borderRadius: 9, padding: '7px 12px', color: isClosed ? C.green : C.yellow, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
             >
+              <InlineIcon icon={isClosed ? RotateCcw : Lock} size={14} />
               {closingId === q.id ? '...' : isClosed ? 'Reopen' : 'Close'}
             </button>
             <button
               onClick={onDelete}
-              style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 9, padding: '7px 12px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 9, padding: '7px 12px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
+              <InlineIcon icon={Trash2} size={14} />
               Delete
             </button>
           </>

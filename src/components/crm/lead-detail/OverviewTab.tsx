@@ -1,5 +1,6 @@
 'use client';
 import { useMemo } from 'react';
+import { CalendarClock, MessageSquareText, Store } from 'lucide-react';
 import type { LeadUpdate } from '../../../lib/crmApi';
 import type { FieldHelpers } from '../../../lib/crmFieldOverrides';
 import LeadDetailsPanel from '../LeadDetailsPanel';
@@ -90,7 +91,7 @@ export default function OverviewTab({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {completing && <CompleteActivityDialog activity={completing} onClose={closeCompleting} onDone={completedWithOutcome} />}
       {walkIn && (
-        <SectionCard title="Walk-in · Not purchased" accent={T.red}>
+        <SectionCard title="Walk-in · Not purchased" icon={Store} accent={T.red}>
           {walkIn.reason && (
             <div style={{ display: 'inline-block', padding: '5px 12px', borderRadius: 999, background: T.redWash, color: T.red, fontSize: 13, fontWeight: 700, marginBottom: walkIn.details.length ? 12 : 0 }}>
               Reason: {walkIn.reason}
@@ -121,6 +122,7 @@ export default function OverviewTab({
       {shown.length > 0 && (
         <SectionCard
           title="Up next"
+          icon={CalendarClock}
           count={upcoming.length}
           accent={overdue ? T.red : T.info}
           aside={upcoming.length > UP_NEXT_MAX ? <Button size="sm" variant="ghost" onClick={() => onOpenTab('timeline')}>See all {upcoming.length}</Button> : undefined}
@@ -145,6 +147,7 @@ export default function OverviewTab({
       {noteText && (
         <SectionCard
           title="Latest update"
+          icon={MessageSquareText}
           aside={<Button size="sm" variant="ghost" onClick={() => onOpenTab('timeline')}>Open timeline</Button>}
         >
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>

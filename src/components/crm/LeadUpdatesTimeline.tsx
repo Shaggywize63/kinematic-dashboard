@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { ClipboardList, Plus, Send, Sparkles } from 'lucide-react';
 import { crmLeads, crmAi, type LeadUpdate } from '../../lib/crmApi';
 import type { UpdateSuggestion } from '../../types/crm';
 import { getStoredUser } from '../../lib/auth';
@@ -186,7 +187,7 @@ export default function LeadUpdatesTimeline({
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                 }}
               >
-                <span>✨</span>{suggesting ? 'Thinking…' : 'Suggest'}
+                <Sparkles aria-hidden size={13} strokeWidth={2} />{suggesting ? 'Thinking…' : 'Suggest'}
               </button>
             )}
             <button
@@ -274,8 +275,8 @@ function SuggestionPanel({
       padding: 12, display: 'flex', flexDirection: 'column', gap: 10,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', letterSpacing: 0.3 }}>
-          ✨ KINI suggests
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', letterSpacing: 0.3, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Sparkles aria-hidden size={13} strokeWidth={2} />KINI suggests
         </span>
         <button onClick={onDismiss} title="Dismiss" style={{
           background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14,
@@ -284,17 +285,17 @@ function SuggestionPanel({
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {s.activity && (
           <button style={chip} onClick={onActivity} title={s.activity.body || ''}>
-            📋 Log {typeLabel(s.activity.type)}: {s.activity.subject}
+            <ClipboardList aria-hidden size={14} strokeWidth={2} />Log {typeLabel(s.activity.type)}: {s.activity.subject}
           </button>
         )}
         {s.followup && (
           <button style={chip} onClick={onFollowup} title={s.followup.message}>
-            ✉️ Draft {typeLabel(s.followup.channel)} follow-up
+            <Send aria-hidden size={14} strokeWidth={2} />Draft {typeLabel(s.followup.channel)} follow-up
           </button>
         )}
         {s.next_actions.map((a, i) => (
           <button key={i} style={chip} onClick={() => onNextAction(a)} title="Create as a task">
-            ✓ {a}
+            <Plus aria-hidden size={14} strokeWidth={2} />{a}
           </button>
         ))}
       </div>

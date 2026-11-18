@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Check } from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmProducts, crmProductCategories, crmMakes, crmBrands } from '../../../../../lib/crmApi';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import type { ProductCategory, Make, Brand } from '../../../../../types/crm';
@@ -75,7 +77,7 @@ export default function NewProductPage() {
 
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 760 }}>
-      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Product</h2>
+      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />New Product</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         <Field label={b2b ? 'Product reference' : 'SKU'} error={refError}><input value={form.sku} onChange={(e) => { setForm({ ...form, sku: e.target.value }); setRefError(''); }} required aria-invalid={refError ? true : undefined} style={refError ? { ...input, borderColor: '#E01E2C' } : input} /></Field>
         <Field label="Name"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required style={input} /></Field>
@@ -123,7 +125,7 @@ export default function NewProductPage() {
       )}
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end' }}>
         <button type="button" onClick={() => router.back()} style={btnGhost}>Cancel</button>
-        <button type="submit" disabled={busy} style={btnPrimary}>{busy ? 'Saving...' : 'Create'}</button>
+        <button type="submit" disabled={busy} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Check} />{busy ? 'Saving...' : 'Create'}</button>
       </div>
     </form>
   );

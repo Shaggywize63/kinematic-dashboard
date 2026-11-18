@@ -7,6 +7,9 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { palette as C, Card, PageHeader, Pill, Btn } from '../../../../components/distribution/Atoms';
+import { Bot, Camera, CircleSlash, Compass, Moon, PackagePlus, RefreshCw, ScanSearch, Send, ShoppingCart } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import api from '../../../../lib/api';
 
 interface Agent { key: string; name: string; icon: string; desc: string; autonomy: 'suggest' | 'approve' | 'auto' }
@@ -16,6 +19,9 @@ interface DraftOrder { id: string; distributor_id: string; distributor_name: str
 
 const LEVELS: Array<Agent['autonomy']> = ['suggest', 'approve', 'auto'];
 const LEVEL_LABEL: Record<string, string> = { suggest: 'Suggest', approve: 'Approve', auto: 'Auto' };
+// Each agent's icon, by key (the server's `icon` emoji is not drawn). Section headings and rationale notes reuse them.
+const AGENT_ICON: Record<string, LucideIcon> = { replenishment: PackagePlus, perfect_store: Camera, coverage: Compass, anomaly: ScanSearch };
+const sectionLabel: React.CSSProperties = { fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.dim, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 };
 
 export default function DistributionAiPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -125,7 +131,7 @@ export default function DistributionAiPage() {
           <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') ask(); }}
             placeholder="Ask KINI about your distribution…"
             style={{ flex: 1, background: 'transparent', border: 'none', color: C.text, fontSize: 15, outline: 'none' }} />
-          <Btn onClick={() => ask()} disabled={asking || !q.trim()}>{asking ? 'Thinking…' : 'Ask'}</Btn>
+          <Btn onClick={() => ask()} disabled={asking || !q.trim()} icon={<InlineIcon icon={Send} />}>{asking ? 'Thinking…' : 'Ask'}</Btn>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 11 }}>
           {EXAMPLES.map((e) => (
@@ -136,12 +142,12 @@ export default function DistributionAiPage() {
       </div>
 
       {/* Agents */}
-      <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.dim, fontWeight: 700, margin: '4px 2px 10px' }}>Agents</div>
+      <div style={{ ...sectionLabel, margin: '4px 2px 10px' }}><InlineIcon icon={Bot} size={14} />Agents</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, marginBottom: 20 }}>
         {(loading && !agents.length ? [] : agents).map((a) => (
           <Card key={a.key} style={{ padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, display: 'grid', placeItems: 'center', fontSize: 16, background: 'rgba(139,123,240,0.14)', border: `1px solid ${C.border}` }}>{a.icon}</div>
+              <IconTile icon={AGENT_ICON[a.key] || Bot} tone="brand" size={34} iconSize={16} />
               <div style={{ fontSize: 14, fontWeight: 800 }}>{a.name}</div>
               {saving === a.key && <span style={{ fontSize: 11, color: C.dim, marginLeft: 'auto' }}>saving…</span>}
             </div>
@@ -163,13 +169,13 @@ export default function DistributionAiPage() {
 
       {/* Replenishment suggestions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 2px 10px' }}>
-        <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.dim, fontWeight: 700 }}>Replenishment agent · suggestions</div>
+        <div style={sectionLabel}><InlineIcon icon={PackagePlus} size={14} />Replenishment agent · suggestions</div>
         <Pill color="blue">live</Pill>
-        <Btn variant="ghost" onClick={load}>↻</Btn>
+        <Btn variant="ghost" onClick={load} title="Refresh" icon={<InlineIcon icon={RefreshCw} />} />
       </div>
       {repl?.rationale && (
         <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', background: 'var(--s1)', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
-          <span style={{ fontSize: 16 }}>🤖</span>
+          <InlineIcon icon={PackagePlus} size={16} style={{ color: 'var(--primary)', marginTop: 1 }} />
           <div style={{ fontSize: 13.5, color: C.text }}>{repl.rationale}</div>
         </div>
       )}
@@ -211,7 +217,7 @@ export default function DistributionAiPage() {
       {drafts.length > 0 && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '22px 2px 10px' }}>
-            <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.dim, fontWeight: 700 }}>Draft orders · approved plans</div>
+            <div style={sectionLabel}><InlineIcon icon={ShoppingCart} size={14} />Draft orders · approved plans</div>
             <Pill color="green">{drafts.length}</Pill>
           </div>
           {placedNote && <div style={{ fontSize: 12.5, color: 'var(--green)', margin: '0 2px 10px', fontWeight: 600 }}>{placedNote}</div>}
@@ -238,7 +244,7 @@ export default function DistributionAiPage() {
                     <option value="">Place at outlet…</option>
                     {(draftOutlets[d.id] || []).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </select>
-                  <Btn onClick={() => place(d.id)} disabled={placing === d.id || !outletSel[d.id]}>{placing === d.id ? 'Placing…' : 'Place order'}</Btn>
+                  <Btn onClick={() => place(d.id)} disabled={placing === d.id || !outletSel[d.id]} icon={<InlineIcon icon={ShoppingCart} />}>{placing === d.id ? 'Placing…' : 'Place order'}</Btn>
                   <Btn variant="ghost" onClick={() => dismissDraft(d.id)} disabled={busyDraft === d.id}>{busyDraft === d.id ? '…' : 'Dismiss'}</Btn>
                 </div>
                 {draftOutlets[d.id] && draftOutlets[d.id].length === 0 && (
@@ -252,17 +258,18 @@ export default function DistributionAiPage() {
 
       {/* Coverage agent */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '22px 2px 10px' }}>
-        <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.dim, fontWeight: 700 }}>Coverage agent · gaps</div>
+        <div style={sectionLabel}><InlineIcon icon={Compass} size={14} />Coverage agent · gaps</div>
         <Pill color="blue">live</Pill>
       </div>
       {coverage?.rationale && (
         <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', background: 'var(--s1)', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
-          <span style={{ fontSize: 16 }}>🧭</span><div style={{ fontSize: 13.5, color: C.text }}>{coverage.rationale}</div>
+          <InlineIcon icon={Compass} size={16} style={{ color: 'var(--primary)', marginTop: 1 }} /><div style={{ fontSize: 13.5, color: C.text }}>{coverage.rationale}</div>
         </div>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
         <Card style={{ padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <InlineIcon icon={Moon} size={16} style={{ color: C.dim }} />
             <div style={{ fontSize: 14, fontWeight: 800 }}>Dormant outlets</div>
             <Pill color="amber">{coverage?.dormant_count ?? 0}</Pill>
             <span style={{ marginLeft: 'auto', fontSize: 12, color: C.dim }}>{coverage?.coverage_pct ?? 0}% covered</span>
@@ -278,6 +285,7 @@ export default function DistributionAiPage() {
         </Card>
         <Card style={{ padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <InlineIcon icon={CircleSlash} size={16} style={{ color: C.dim }} />
             <div style={{ fontSize: 14, fontWeight: 800 }}>Never ordered</div>
             <Pill color="gray">{coverage?.never_count ?? 0}</Pill>
           </div>
@@ -291,13 +299,13 @@ export default function DistributionAiPage() {
 
       {/* Anomaly agent */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '22px 2px 10px' }}>
-        <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.dim, fontWeight: 700 }}>Anomaly agent · pricing leakage</div>
+        <div style={sectionLabel}><InlineIcon icon={ScanSearch} size={14} />Anomaly agent · pricing leakage</div>
         <Pill color="blue">live</Pill>
         {anomalies?.total_impact > 0 && <Pill color="red">₹{Number(anomalies.total_impact).toLocaleString('en-IN')} at risk</Pill>}
       </div>
       {anomalies?.rationale && (
         <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', background: 'var(--s1)', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
-          <span style={{ fontSize: 16 }}>🕵️</span><div style={{ fontSize: 13.5, color: C.text }}>{anomalies.rationale}</div>
+          <InlineIcon icon={ScanSearch} size={16} style={{ color: 'var(--primary)', marginTop: 1 }} /><div style={{ fontSize: 13.5, color: C.text }}>{anomalies.rationale}</div>
         </div>
       )}
       <Card style={{ padding: 16 }}>

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { Check } from 'lucide-react';
 import { crmAccounts, crmContacts, crmDeals, crmLeads } from '../../../lib/crmApi';
 
 export type LinkedEntityType = '' | 'lead' | 'contact' | 'deal' | 'account';
@@ -125,7 +126,7 @@ export default function LinkedEntityField({ value, onChange }: { value: LinkedEn
               onBlur={() => setTimeout(() => setOpen(false), 150)}
               style={input}
             />
-            {value.id && <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>✓</div>}
+            {value.id && <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--primary)', fontWeight: 700, display: 'flex' }}><Check aria-hidden size={14} strokeWidth={2.2} /></div>}
             {open && (
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 200, overflowY: 'auto', zIndex: 50, marginTop: 2 }}>
                 {loading ? <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-dim)' }}>Searching…</div>

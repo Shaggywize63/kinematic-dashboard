@@ -7,6 +7,7 @@ import {
   Loader2, Lightbulb, Wand2, GripVertical,
   Type as TypeIcon, AlignLeft, Hash, IndianRupee, ToggleLeft,
   Calendar, Clock, List, ListChecks, CircleDot, Link2, Mail, Phone,
+  Home, Stethoscope, Car, Sun, GraduationCap, Dumbbell, ShieldCheck, Sofa, PartyPopper, Plane, Laptop, Factory, Gem, Camera, Truck, Wheat,
   type LucideIcon,
 } from 'lucide-react';
 import { crmLeadFormAI, type KiniClarifyingQuestion, type KiniProposedField } from '../../../../../lib/crmApi';
@@ -291,8 +292,9 @@ export default function KiniFormBuilder({
                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 14 }} style={successRing}>
                   <CheckCircle2 size={40} color="#10b981" />
                 </motion.div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginTop: 14 }}>
-                  Added {done} field{done === 1 ? '' : 's'} to {entityLabel} 🎉
+                <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  Added {done} field{done === 1 ? '' : 's'} to {entityLabel}
+                  <PartyPopper aria-hidden size={18} strokeWidth={2} style={{ color: 'var(--k-red)', flexShrink: 0 }} />
                 </div>
                 <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 4 }}>Your form is ready — they’re live on the {entityLabel} form now.</div>
               </motion.div>
@@ -328,14 +330,15 @@ export default function KiniFormBuilder({
                   style={textarea}
                 />
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 }}>Try an example</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4, display: 'flex', alignItems: 'center', gap: 6 }}><Lightbulb aria-hidden size={14} strokeWidth={2} />Try an example</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
                     {EXAMPLES.map((ex, i) => (
                       <motion.button
                         key={ex.label} type="button" onClick={() => setProblem(ex.text)}
                         initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i }}
-                        whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }} style={chip}
+                        whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }} style={{ ...chip, display: 'inline-flex', alignItems: 'center', gap: 6 }}
                       >
+                        <ex.icon aria-hidden size={14} strokeWidth={2} style={{ flexShrink: 0, color: 'var(--text-dim)' }} />
                         {ex.label}
                       </motion.button>
                     ))}
@@ -380,8 +383,8 @@ export default function KiniFormBuilder({
                           return (
                             <motion.button key={s} type="button" whileTap={{ scale: 0.95 }}
                               onClick={() => setAnswers((a) => ({ ...a, [q.id]: a[q.id] ? `${a[q.id]}, ${s}` : s }))}
-                              style={{ ...suggestChip, borderStyle: on ? 'solid' : 'dashed', color: on ? 'var(--k-red)' : 'var(--text-dim)', borderColor: on ? 'var(--k-red)' : 'var(--border)' }}>
-                              {on ? '✓ ' : '+ '}{s}
+                              style={{ ...suggestChip, borderStyle: on ? 'solid' : 'dashed', color: on ? 'var(--k-red)' : 'var(--text-dim)', borderColor: on ? 'var(--k-red)' : 'var(--border)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              {on ? <Check aria-hidden size={12} strokeWidth={2} /> : <Plus aria-hidden size={12} strokeWidth={2} />}{s}
                             </motion.button>
                           );
                         })}
@@ -488,23 +491,23 @@ export default function KiniFormBuilder({
   );
 }
 
-const EXAMPLES: Array<{ label: string; text: string }> = [
-  { label: '🏠 Real estate', text: 'I sell residential apartments. For each enquiry I want to capture budget range, preferred locality, apartment configuration (1/2/3 BHK), purchase timeline, whether they need a home loan, and how they heard about us.' },
-  { label: '🏥 Dental clinic', text: 'We run a dental clinic. For every new patient enquiry I need their reason for visit, preferred appointment time, insurance provider, whether they were referred, and any existing dental conditions.' },
-  { label: '🚗 Car dealership', text: 'I run a car dealership. For each lead I want the model of interest, budget, whether they have a vehicle to exchange, financing needs, and their expected purchase date.' },
-  { label: '☀️ Solar installer', text: 'Rooftop solar installer. Capture property type, average monthly electricity bill, roof area, shading, whether they own the property, preferred timeline, and financing interest.' },
-  { label: '🎓 Coaching / EdTech', text: 'We run a test-prep coaching institute. For each enquiry capture the course of interest, target exam and year, current grade/level, preferred batch timing (online/offline), the student’s city, and parent contact.' },
-  { label: '💪 Gym / fitness', text: 'I run a fitness studio. For each lead capture their fitness goal, preferred membership plan, prior gym experience, any medical conditions, preferred workout timing, and how they heard about us.' },
-  { label: '🛡️ Insurance advisor', text: 'I’m an insurance advisor. For each prospect capture the policy type of interest (term/health/motor/ULIP), age, annual income band, number of dependents, existing cover, and preferred premium budget.' },
-  { label: '🛋️ Interior design', text: 'Interior design firm. For each enquiry capture property type, carpet area, rooms to design, design style preference, budget range, possession/move-in date, and whether it’s a rented or owned home.' },
-  { label: '🎉 Event planning', text: 'We plan weddings and events. Capture event type, expected guest count, event date, venue status (booked/not), city, estimated budget, and the services needed (decor, catering, photography).' },
-  { label: '✈️ Travel agency', text: 'Travel agency. For each enquiry capture destination, travel type (leisure/business/honeymoon), number of travellers, tentative dates, duration, budget per person, and whether visa assistance is needed.' },
-  { label: '💻 B2B SaaS', text: 'We sell a B2B software product. For each lead capture company size, industry, role/designation, the problem they’re trying to solve, current tool in use, team size to onboard, and expected go-live timeline.' },
-  { label: '🏭 Manufacturing', text: 'Industrial equipment manufacturer. For each enquiry capture the product/category of interest, required quantity, application/use-case, expected delivery timeline, whether they need customisation, and GST/company details.' },
-  { label: '💍 Jewellery retail', text: 'Jewellery showroom. For each enquiry capture the occasion, product category (gold/diamond/silver), metal purity preference, budget range, preferred visit date, and whether it’s for an exchange.' },
-  { label: '📸 Photography', text: 'Wedding photography studio. For each enquiry capture the event type, event date(s), city/venue, package of interest, number of events to cover, deliverables wanted (album/video/drone), and budget.' },
-  { label: '🚚 Logistics', text: 'Logistics and freight company. For each enquiry capture shipment type, origin and destination cities, cargo weight/volume, frequency (one-time/recurring), preferred mode (road/air/sea), and required delivery timeline.' },
-  { label: '🌾 Agriculture', text: 'Agri-inputs dealer. For each farmer enquiry capture crop type, land area (acres), product category of interest (seeds/fertiliser/pesticide), season, irrigation type, and preferred delivery village/block.' },
+const EXAMPLES: Array<{ label: string; icon: LucideIcon; text: string }> = [
+  { label: 'Real estate', icon: Home, text: 'I sell residential apartments. For each enquiry I want to capture budget range, preferred locality, apartment configuration (1/2/3 BHK), purchase timeline, whether they need a home loan, and how they heard about us.' },
+  { label: 'Dental clinic', icon: Stethoscope, text: 'We run a dental clinic. For every new patient enquiry I need their reason for visit, preferred appointment time, insurance provider, whether they were referred, and any existing dental conditions.' },
+  { label: 'Car dealership', icon: Car, text: 'I run a car dealership. For each lead I want the model of interest, budget, whether they have a vehicle to exchange, financing needs, and their expected purchase date.' },
+  { label: 'Solar installer', icon: Sun, text: 'Rooftop solar installer. Capture property type, average monthly electricity bill, roof area, shading, whether they own the property, preferred timeline, and financing interest.' },
+  { label: 'Coaching / EdTech', icon: GraduationCap, text: 'We run a test-prep coaching institute. For each enquiry capture the course of interest, target exam and year, current grade/level, preferred batch timing (online/offline), the student’s city, and parent contact.' },
+  { label: 'Gym / fitness', icon: Dumbbell, text: 'I run a fitness studio. For each lead capture their fitness goal, preferred membership plan, prior gym experience, any medical conditions, preferred workout timing, and how they heard about us.' },
+  { label: 'Insurance advisor', icon: ShieldCheck, text: 'I’m an insurance advisor. For each prospect capture the policy type of interest (term/health/motor/ULIP), age, annual income band, number of dependents, existing cover, and preferred premium budget.' },
+  { label: 'Interior design', icon: Sofa, text: 'Interior design firm. For each enquiry capture property type, carpet area, rooms to design, design style preference, budget range, possession/move-in date, and whether it’s a rented or owned home.' },
+  { label: 'Event planning', icon: PartyPopper, text: 'We plan weddings and events. Capture event type, expected guest count, event date, venue status (booked/not), city, estimated budget, and the services needed (decor, catering, photography).' },
+  { label: 'Travel agency', icon: Plane, text: 'Travel agency. For each enquiry capture destination, travel type (leisure/business/honeymoon), number of travellers, tentative dates, duration, budget per person, and whether visa assistance is needed.' },
+  { label: 'B2B SaaS', icon: Laptop, text: 'We sell a B2B software product. For each lead capture company size, industry, role/designation, the problem they’re trying to solve, current tool in use, team size to onboard, and expected go-live timeline.' },
+  { label: 'Manufacturing', icon: Factory, text: 'Industrial equipment manufacturer. For each enquiry capture the product/category of interest, required quantity, application/use-case, expected delivery timeline, whether they need customisation, and GST/company details.' },
+  { label: 'Jewellery retail', icon: Gem, text: 'Jewellery showroom. For each enquiry capture the occasion, product category (gold/diamond/silver), metal purity preference, budget range, preferred visit date, and whether it’s for an exchange.' },
+  { label: 'Photography', icon: Camera, text: 'Wedding photography studio. For each enquiry capture the event type, event date(s), city/venue, package of interest, number of events to cover, deliverables wanted (album/video/drone), and budget.' },
+  { label: 'Logistics', icon: Truck, text: 'Logistics and freight company. For each enquiry capture shipment type, origin and destination cities, cargo weight/volume, frequency (one-time/recurring), preferred mode (road/air/sea), and required delivery timeline.' },
+  { label: 'Agriculture', icon: Wheat, text: 'Agri-inputs dealer. For each farmer enquiry capture crop type, land area (acres), product category of interest (seeds/fertiliser/pesticide), season, irrigation type, and preferred delivery village/block.' },
 ];
 
 // ── styles (inline, matching the dashboard's CSS-var convention) ────────────

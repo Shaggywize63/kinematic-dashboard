@@ -1,6 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { Camera, Paperclip, X } from 'lucide-react';
 import api from '../../../lib/api';
 import SignedImage, { openSignedUrl } from '../../shared/SignedImage';
 
@@ -57,7 +58,7 @@ export default function ActivityPhotoField({
             <SignedImage src={value} alt="Activity photo" style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, display: 'block' }} />
           </a>
           <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)' }}>Photo attached.</div>
-          <button type="button" onClick={() => onChange('')} style={{ ...btn, background: 'transparent', color: 'var(--text-dim)', padding: '6px 12px', fontSize: 12, fontWeight: 400 }}>Remove</button>
+          <button type="button" onClick={() => onChange('')} style={{ ...btn, background: 'transparent', color: 'var(--text-dim)', padding: '6px 12px', fontSize: 12, fontWeight: 400, display: 'inline-flex', alignItems: 'center', gap: 4 }}><X aria-hidden size={13} strokeWidth={2} />Remove</button>
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -67,8 +68,8 @@ export default function ActivityPhotoField({
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
           <input ref={galleryRef} data-testid="activity-photo-input" type="file" accept="image/*" disabled={uploading} style={{ display: 'none' }}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
-          <button type="button" onClick={() => cameraRef.current?.click()} disabled={uploading} style={btn}>📷 Take Photo</button>
-          <button type="button" onClick={() => galleryRef.current?.click()} disabled={uploading} style={btn}>📎 Upload from Device</button>
+          <button type="button" onClick={() => cameraRef.current?.click()} disabled={uploading} style={{ ...btn, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Camera aria-hidden size={15} strokeWidth={2} />Take Photo</button>
+          <button type="button" onClick={() => galleryRef.current?.click()} disabled={uploading} style={{ ...btn, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Paperclip aria-hidden size={15} strokeWidth={2} />Upload from Device</button>
           {uploading && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Uploading…</span>}
         </div>
       )}

@@ -3,12 +3,13 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Badge, Button, Card, Note, ProgressBar, SearchBox, T } from '../../ui';
+import { Badge, Button, Card, EmptyState, Note, ProgressBar, SearchBox, T } from '../../ui';
 import { Field, Input, Segmented } from '../../../ui';
 import type { HrmsDb } from '../../../../lib/hrms/types';
 import { addDays, fullName } from '../../../../lib/hrms/format';
 import type { Audience, Course, LearningState } from '../../../../lib/hrms/people/types';
-import { assignCourse, syncRuleAssignments, updateCourseRules } from '../../../../lib/hrms/people/learningActions';
+import { assignCourse, loadStandardCourses, syncRuleAssignments, updateCourseRules } from '../../../../lib/hrms/people/learningActions';
+import { isLive } from '../../../../lib/hrms/live/store';
 import { currentAssignments, eligibleFor, inAudience, isLearner, minutesText } from '../../../../lib/hrms/people/learningEngine';
 import { FormModal, Muted, Stack } from '../shared';
 import type { LearningView } from './view';
@@ -62,10 +63,11 @@ function AssignModal({ db, st, view, course, onClose }: { db: HrmsDb; st: Learni
   return (
     <FormModal title={`Assign: ${course.title}`} confirmLabel={`Assign to ${picked.size || ''} ${picked.size === 1 ? 'person' : 'people'}`.replace('  ', ' ')} width={560} disabled={picked.size === 0}
       onClose={onClose}
-      onConfirm={() => {
+      onConfirm={async () => {
         if (picked.size === 0) return 'Pick at least one person.';
         if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || due < view.today) return 'Pick a due date that is today or later.';
-        const r = assignCourse(course.id, [...picked], due);
+        const r = await assignCourse(course.id, [...picked], due);
+        if (!r.ok) return r.error;
         toast.success(`Assigned to ${r.created} ${r.created === 1 ? 'person' : 'people'}${r.skipped ? `. ${r.skipped} already had it open.` : '.'}`);
         return null;
       }}>
@@ -111,10 +113,11 @@ function RulesModal({ db, course, onClose }: { db: HrmsDb; course: Course; onClo
   );
   return (
     <FormModal title={`Who it is for: ${course.title}`} confirmLabel="Save" width={600} onClose={onClose}
-      onConfirm={() => {
+      onConfirm={async () => {
         const m = Number(months);
         if (!Number.isFinite(m) || m < 0 || m > 60) return 'The refresher interval is between 0 and 60 months. Use 0 for a one-off course.';
-        updateCourseRules(course.id, { mandatory, audience: aud, refresherMonths: m });
+        const r = await updateCourseRules(course.id, { mandatory, audience: aud, refresherMonths: m });
+        if (!r.ok) return r.error;
         toast.success('Saved. Use "Apply rules" to create assignments for anyone newly covered.');
         return null;
       }}>
@@ -136,9 +139,32 @@ export default function CatalogueTab({ db, st, view }: { db: HrmsDb; st: Learnin
   const [assign, setAssign] = useState<string | null>(null);
   const [rules, setRules] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'compliance' | 'skill'>('all');
+  const [busy, setBusy] = useState<'' | 'rules' | 'library'>('');
   const courses = st.courses.filter((c) => filter === 'all' || c.category === filter);
   const courseA = assign ? st.courses.find((c) => c.id === assign) : undefined;
   const courseR = rules ? st.courses.find((c) => c.id === rules) : undefined;
+
+  if (st.courses.length === 0) {
+    return (
+      <div data-testid="learning-empty">
+        <Card>
+          <EmptyState title="No courses yet"
+            description={isLive()
+              ? 'Start from the standard library: ten ready courses with lessons and a quiz, from POSH awareness and data protection to safety and people management. POSH, data protection and the code of conduct are mandatory for everyone; the others start as recommended until you choose who they are for.'
+              : 'The catalogue is empty.'}
+            action={isLive() ? (
+              <Button variant="primary" data-testid="learning-load-library" disabled={busy !== ''} style={{ minHeight: 40 }} onClick={async () => {
+                setBusy('library');
+                const r = await loadStandardCourses();
+                setBusy('');
+                if (!r.ok) { toast.error(r.error); return; }
+                toast.success(`${r.added} ${r.added === 1 ? 'course' : 'courses'} added. Use "Edit who it is for" to set the audience, then "Apply rules".`);
+              }}>{busy === 'library' ? 'Adding the courses…' : 'Load the standard courses'}</Button>
+            ) : undefined} />
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <Stack>
@@ -146,7 +172,13 @@ export default function CatalogueTab({ db, st, view }: { db: HrmsDb; st: Learnin
         <Note tone="warn">
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
             <span data-testid="missing-note"><b>{view.missing.length}</b> {view.missing.length === 1 ? 'assignment is' : 'assignments are'} missing: {view.missing.length === 1 ? 'a person matches' : 'people match'} a mandatory rule but {view.missing.length === 1 ? 'has' : 'have'} not been assigned the course.</span>
-            <Button variant="primary" size="sm" onClick={() => { const n = syncRuleAssignments(db.employees); toast.success(`${n} assignment${n === 1 ? '' : 's'} created from the rules.`); }}>Apply rules</Button>
+            <Button variant="primary" size="sm" disabled={busy !== ''} onClick={async () => {
+              setBusy('rules');
+              const r = await syncRuleAssignments(db.employees);
+              setBusy('');
+              if (!r.ok) { toast.error(r.error); return; }
+              toast.success(`${r.created} assignment${r.created === 1 ? '' : 's'} created from the rules.`);
+            }}>{busy === 'rules' ? 'Applying…' : 'Apply rules'}</Button>
           </div>
         </Note>
       ) : (
@@ -158,7 +190,7 @@ export default function CatalogueTab({ db, st, view }: { db: HrmsDb; st: Learnin
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 14 }}>
         {courses.map((c) => <CourseCard key={c.id} c={c} view={view} onAssign={() => setAssign(c.id)} onRules={() => setRules(c.id)} />)}
       </div>
-      <Muted>Which courses are mandatory is the company's decision. Some are expected by law, for example harassment awareness and safety training. Confirm the exact requirement and interval with your advisor.</Muted>
+      <Muted>Which courses are mandatory is the company&apos;s decision. Some are expected by law, for example harassment awareness and safety training. Confirm the exact requirement and interval with your advisor.</Muted>
       {courseA && <AssignModal db={db} st={st} view={view} course={courseA} onClose={() => setAssign(null)} />}
       {courseR && <RulesModal db={db} course={courseR} onClose={() => setRules(null)} />}
     </Stack>

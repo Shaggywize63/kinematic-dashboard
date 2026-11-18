@@ -9,6 +9,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Check, Plus, TrendingUp, X } from 'lucide-react';
 import { crmUpsells, type Upsell, type UpsellStatus } from '../../lib/crmApi';
 import { formatINR } from '../../lib/formatCurrency';
 
@@ -106,14 +107,14 @@ export default function UpsellsSection({ dealId, leadId }: { dealId?: string; le
     <div style={card}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Upsells</h3>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'center' }}><TrendingUp aria-hidden size={16} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Upsells</h3>
           {wonTotal > 0 && (
             <span style={{ fontSize: 12, color: '#10b981', fontWeight: 700 }}>{formatINR(wonTotal)} won</span>
           )}
         </div>
         {!adding && (
-          <button onClick={() => setAdding(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>
-            + Add upsell
+          <button onClick={() => setAdding(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Plus aria-hidden size={14} strokeWidth={2} />Add upsell
           </button>
         )}
       </div>
@@ -152,7 +153,7 @@ export default function UpsellsSection({ dealId, leadId }: { dealId?: string; le
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
             <button onClick={() => { setAdding(false); resetForm(); }} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-            <button onClick={submit} disabled={saving} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 13, opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving…' : 'Save upsell'}</button>
+            <button onClick={submit} disabled={saving} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 13, opacity: saving ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Check aria-hidden size={15} strokeWidth={2} />{saving ? 'Saving…' : 'Save upsell'}</button>
           </div>
         </div>
       )}
@@ -179,7 +180,7 @@ export default function UpsellsSection({ dealId, leadId }: { dealId?: string; le
                     {fmtDate(r.occurred_at)}{r.created_by_name ? ` · ${r.created_by_name}` : ''}
                   </div>
                 </div>
-                <button onClick={() => remove(r.id)} title="Remove" style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 2 }}>✕</button>
+                <button onClick={() => remove(r.id)} title="Remove" style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 2, display: 'inline-flex' }}><X aria-hidden size={15} strokeWidth={2} /></button>
               </div>
             );
           })}

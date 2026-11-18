@@ -8,6 +8,11 @@ import type { Deal } from '../../../../../types/crm';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
+import { Download } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../../lib/labelIcons';
+
+const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
 // "Stuck deal" = open status (not won/lost) where the stage hasn't moved
 // in N days. Pulls crm_deals, filters client-side, sorts by oldest first.
@@ -126,7 +131,7 @@ export default function StuckDealsPage() {
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
         <div>
-          <h3 style={{ color: 'var(--text)', margin: 0 }}>Stuck Deals</h3>
+          <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}><PageIcon size={32} />Stuck Deals</h3>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Open deals that have not changed stage in {threshold}+ days. Sorted by oldest first.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -140,7 +145,7 @@ export default function StuckDealsPage() {
               }}>{n}d</button>
             ))}
           </div>
-          <button onClick={() => downloadCsv(`stuck-deals-${threshold}d`, rows)} disabled={loading || rows.length === 0} style={csvBtn}>⬇ CSV</button>
+          <button onClick={() => downloadCsv(`stuck-deals-${threshold}d`, rows)} disabled={loading || rows.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
         </div>
       </div>
 
@@ -207,7 +212,7 @@ export default function StuckDealsPage() {
 function Kpi({ label, value }: { label: string; value: string | number }) {
   return (
     <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{kpiIcon(label)}{label}</div>
       <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>
   );
@@ -219,7 +224,7 @@ function inr(n: number): string {
   if (n >= 1e3) return `₹${(n / 1e3).toFixed(1)}K`;
   return `₹${Math.round(n)}`;
 }
-const csvBtn: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700 };
+const csvBtn: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 };
 const openBtn: React.CSSProperties = { display: 'inline-block', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: 'var(--primary)', textDecoration: 'none', border: '1px solid var(--primary)' };
 const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, borderBottom: '1px solid var(--border)' };
 const thNum: React.CSSProperties = { ...th, textAlign: 'right' };

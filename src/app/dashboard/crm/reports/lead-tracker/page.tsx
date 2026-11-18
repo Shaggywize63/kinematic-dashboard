@@ -9,6 +9,11 @@ import { useReportCityKey } from '../../../../../components/crm/reports/ReportFi
 import { useLeadFieldGate } from '../../../../../lib/crm/useLeadFieldGate';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { fmtChange, changeTone, monthLabel } from '../../../../../lib/crm/plusFormat';
+import { Download } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../../lib/labelIcons';
+
+const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
 // The API now also returns monthly conversion, like-for-like previous periods and
 // per-source conversion. Optional, so an older backend or demo data still renders.
@@ -151,7 +156,7 @@ function Header({ months, onChange, canExport, onExport }: { months: number; onC
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
       <div>
         <Link href="/dashboard/crm/reports" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none' }}>← All reports</Link>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px' }}>Lead Tracker</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Lead Tracker</h1>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
           New-lead volume + funnel mix across your hierarchy subtree.
         </p>
@@ -165,7 +170,7 @@ function Header({ months, onChange, canExport, onExport }: { months: number; onC
           </select>
         </label>
         <button onClick={onExport} disabled={!canExport} aria-label="Download CSV"
-          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55 }}>⬇ CSV</button>
+          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} size={14} />CSV</button>
       </div>
     </div>
   );
@@ -202,7 +207,7 @@ function PeriodCard({ data, prev, accent, loading }: {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</div>
+      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{kpiIcon(label)}{label}</div>
       <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>
   );

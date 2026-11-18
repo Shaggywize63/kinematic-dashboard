@@ -170,7 +170,7 @@ test.describe('Form Builder — editor', () => {
     await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
     await expect.poll(() => writes(seen, 'PATCH', '/api/v1/activities/act-1')[0]?.body).toEqual({ name: 'Store Audit' });
 
-    await page.getByRole('button', { name: '🗑 Delete form' }).last().click();
+    await page.getByRole('button', { name: 'Delete form' }).last().click();
     await confirm(page).click();
     await expect.poll(() => writes(seen, 'DELETE', '/api/v1/builder/forms/form-1').length).toBe(1);
     await expect(renameFormBtn(page, 'Outlet Audit')).toBeVisible();

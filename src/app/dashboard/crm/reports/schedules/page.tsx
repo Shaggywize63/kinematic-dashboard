@@ -14,6 +14,8 @@ import {
   type ReportSchedule,
   type DigestFrequency,
 } from '../../../../../lib/crmApi';
+import { CalendarClock, Check, Mail, Pause, Pencil, Play, Plus, Send, Trash2 } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -151,12 +153,15 @@ export default function ReportSchedulesPage() {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>📧 Scheduled Digests</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <PageIcon />
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Scheduled Digests</h1>
+          </div>
           <p style={{ margin: '4px 0 0', color: 'var(--text-dim)', fontSize: 13 }}>
             Email a report to your team on a recurring schedule. Times are in UTC.
           </p>
         </div>
-        {!showForm && <button style={btnPrimary} onClick={startCreate}>+ New digest</button>}
+        {!showForm && <button style={btnPrimary} onClick={startCreate}><InlineIcon icon={Plus} />New digest</button>}
       </div>
 
       {showForm && (
@@ -221,7 +226,7 @@ export default function ReportSchedulesPage() {
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
-              <button style={btnPrimary} disabled={saving} onClick={save}>{saving ? 'Saving…' : draft.id ? 'Update digest' : 'Schedule digest'}</button>
+              <button style={btnPrimary} disabled={saving} onClick={save}>{!saving && <InlineIcon icon={draft.id ? Check : CalendarClock} />}{saving ? 'Saving…' : draft.id ? 'Update digest' : 'Schedule digest'}</button>
               <button style={btnGhost} onClick={() => { setShowForm(false); setDraft(emptyDraft()); }}>Cancel</button>
             </div>
           </div>
@@ -231,7 +236,8 @@ export default function ReportSchedulesPage() {
       {loading ? (
         <p style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</p>
       ) : items.length === 0 ? (
-        <div style={{ ...card, textAlign: 'center', color: 'var(--text-dim)' }}>
+        <div style={{ ...card, textAlign: 'center', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <IconTile icon={Mail} size={40} iconSize={20} />
           No scheduled digests yet. Create one to email a report on a recurring cadence.
         </div>
       ) : (
@@ -240,7 +246,7 @@ export default function ReportSchedulesPage() {
             <div key={s.id} style={{ ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', opacity: s.is_active ? 1 : 0.6 }}>
               <div style={{ minWidth: 240 }}>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>
-                  {s.name}{' '}
+                  <InlineIcon icon={Mail} size={14} style={{ color: 'var(--text-dim)', verticalAlign: '-2px', marginRight: 6 }} />{s.name}{' '}
                   <span style={{ fontWeight: 500, color: 'var(--text-dim)', fontSize: 12 }}>· {reportLabel(s.report_key)}</span>
                 </div>
                 <div style={{ color: 'var(--text-dim)', fontSize: 12, marginTop: 3 }}>
@@ -249,10 +255,10 @@ export default function ReportSchedulesPage() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button style={btnSmallGhost} disabled={busy[s.id]} onClick={() => runNow(s)}>Send now</button>
-                <button style={btnSmallGhost} disabled={busy[s.id]} onClick={() => toggleActive(s)}>{s.is_active ? 'Pause' : 'Resume'}</button>
-                <button style={btnSmallGhost} onClick={() => startEdit(s)}>Edit</button>
-                <button style={btnSmallDanger} disabled={busy[s.id]} onClick={() => remove(s)}>Delete</button>
+                <button style={btnSmallGhost} disabled={busy[s.id]} onClick={() => runNow(s)}><InlineIcon icon={Send} size={12} />Send now</button>
+                <button style={btnSmallGhost} disabled={busy[s.id]} onClick={() => toggleActive(s)}><InlineIcon icon={s.is_active ? Pause : Play} size={12} />{s.is_active ? 'Pause' : 'Resume'}</button>
+                <button style={btnSmallGhost} onClick={() => startEdit(s)}><InlineIcon icon={Pencil} size={12} />Edit</button>
+                <button style={btnSmallDanger} disabled={busy[s.id]} onClick={() => remove(s)}><InlineIcon icon={Trash2} size={12} />Delete</button>
               </div>
             </div>
           ))}
@@ -273,7 +279,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const card: React.CSSProperties = { background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 };
 const input: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' };
-const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 };
+const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 };
 const btnGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 13 };
-const btnSmallGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11 };
-const btnSmallDanger: React.CSSProperties = { background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11 };
+const btnSmallGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 };
+const btnSmallDanger: React.CSSProperties = { background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 };

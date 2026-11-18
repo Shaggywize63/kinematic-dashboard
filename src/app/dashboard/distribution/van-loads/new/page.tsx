@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Btn, Th, Td } from '../../../../../components/distribution/Atoms';
+import { Package, Trash2 } from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 
 interface ItemRow { sku_id: string; loaded_qty: string }
 
@@ -105,8 +107,8 @@ export default function NewVanLoadPage() {
 
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>Items to load</div>
-          <Btn variant="ghost" onClick={addRow}>+ Add SKU</Btn>
+          <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Package} size={16} style={{ color: 'var(--dim)' }} />Items to load</div>
+          <Btn variant="ghost" onClick={addRow}>Add SKU</Btn>
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
@@ -129,7 +131,7 @@ export default function NewVanLoadPage() {
                 </Td>
                 <Td><input value={row.loaded_qty} placeholder="0" onChange={(e) => setItem(i, 'loaded_qty', e.target.value)} style={inputStyle} /></Td>
                 <Td style={{ textAlign: 'right' }}>
-                  <Btn variant="ghost" onClick={() => removeRow(i)} disabled={items.length <= 1}>✕</Btn>
+                  <Btn variant="ghost" onClick={() => removeRow(i)} disabled={items.length <= 1} title="Remove" icon={<InlineIcon icon={Trash2} />} />
                 </Td>
               </tr>
             ))}

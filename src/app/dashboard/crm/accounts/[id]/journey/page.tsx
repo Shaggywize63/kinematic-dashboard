@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
-  Building2, Check, ChevronDown, ChevronRight, Handshake, ListChecks, MapPin, Receipt, UserPlus, Users,
+  Building2, Check, CheckSquare, ChevronDown, ChevronRight, Handshake, History, ListChecks, MapPin, MessageSquareText, Receipt, UserPlus, Users,
   type LucideIcon,
 } from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../../../lib/labelIcons';
 import { crmAccounts, type AccountJourney, type JourneyDeal, type JourneyExpense, type JourneyStep, type JourneyStepKey, type JourneyTimelineRow } from '../../../../../../lib/crmApi';
 import { isB2bClientActive } from '../../../../../../lib/b2bClient';
 import { formatINR } from '../../../../../../lib/formatCurrency';
@@ -96,12 +98,15 @@ export default function AccountJourneyPage() {
 
       {/* ── Header: who + KPI chips ───────────────────────────────────────────── */}
       <div id="journey-top" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <PageIcon name="route" style={{ marginTop: 2 }} />
+          <div style={{ minWidth: 0 }}>
           <div style={eyebrowStyle}>Account journey</div>
           <h1 data-testid="journey-account-name" style={{ margin: '4px 0 0', fontFamily: T.heading, fontSize: narrow ? 22 : 26, fontWeight: 800, color: T.text, overflowWrap: 'anywhere' }}>{name}</h1>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Button href={`/dashboard/crm/accounts/${id}`}>Account</Button>
+          <Button href={`/dashboard/crm/accounts/${id}`} icon={<Building2 size={15} strokeWidth={2} />}>Account</Button>
           <Button variant="primary" href={`/dashboard/crm/deals/new?account_id=${id}`}>New deal</Button>
         </div>
       </div>
@@ -343,20 +348,28 @@ function Node({ step, active, onClick }: { step: JourneyStep; active: boolean; o
 const rowBox: React.CSSProperties = { padding: '10px 12px', background: 'var(--s3)', border: `1px solid ${T.border}`, borderRadius: 10 };
 
 function Kpi({ label, value }: { label: string; value: string }) {
+  const Icon = metricIconFor(label);
   return (
     <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '8px 14px', minWidth: 110 }}>
-      <div style={{ ...eyebrowStyle, fontSize: 10 }}>{label}</div>
+      <div style={{ ...eyebrowStyle, fontSize: 10, display: 'flex', alignItems: 'center', gap: 5 }}>{Icon && <InlineIcon icon={Icon} size={12} />}{label}</div>
       <div style={{ marginTop: 2, fontFamily: T.mono, fontSize: 17, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>{value}</div>
     </div>
   );
 }
 
+// One icon per detail section (by title).
+const SECTION_ICON: Record<string, LucideIcon> = {
+  Leads: UserPlus, Contacts: Users, 'Recent updates': MessageSquareText, 'Visits & forms': MapPin, Tasks: CheckSquare,
+  'Deals & quotations': Handshake, Expenses: Receipt, 'What happened': History,
+};
+
 function Section({ id, title, count, children, dim = 1, focused }: { id: string; title: string; count?: number; children: React.ReactNode; dim?: number; focused?: boolean }) {
+  const Icon = SECTION_ICON[title];
   return (
     <section id={id} aria-label={title} style={{ scrollMarginTop: 80, opacity: dim, transition: 'opacity .2s ease' }}>
       <Card padding={0} style={focused ? { borderColor: T.red } : undefined}>
         <div style={{ padding: '12px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <h2 style={{ margin: 0, fontFamily: T.heading, fontSize: 15, fontWeight: 700, color: T.text }}>{title}</h2>
+          <h2 style={{ margin: 0, fontFamily: T.heading, fontSize: 15, fontWeight: 700, color: T.text, display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'center' }}>{Icon && <InlineIcon icon={Icon} size={16} style={{ color: T.dim }} />}{title}</h2>
           {typeof count === 'number' && <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.mute }}>{count}</span>}
         </div>
         <div style={{ padding: 16 }}>{children}</div>

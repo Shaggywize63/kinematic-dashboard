@@ -135,26 +135,30 @@ test.describe('learning engine', () => {
     expect(makePeopleSeed().learning).toEqual(people.learning);
   });
 
-  test('actions: lessons, a failed quiz, a pass with a certificate, and a refresher', () => {
+  test('actions: lessons, a failed quiz, a pass with a certificate, and a refresher', async () => {
     peopleStore.reset();
     const l = () => peopleStore.get().learning;
     const a = l().assignments.find((x) => x.employeeId === 'emp_15' && x.courseId === 'c_safe_wh')!; // Dinesh, one lesson done
-    expect(submitQuiz(a.id, [0, 1, 1])).toBeNull();                       // quiz not open before the last lesson
-    completeLesson(a.id); completeLesson(a.id);
-    const fail = submitQuiz(a.id, [1, 0, 0])!;
+    expect(await submitQuiz(a.id, [0, 1, 1])).toEqual({ ok: false, error: 'Finish the lessons before the quiz.' }); // quiz not open before the last lesson
+    expect((await completeLesson(a.id)).ok).toBe(true);
+    expect((await completeLesson(a.id)).ok).toBe(true);
+    expect(await completeLesson(a.id)).toEqual({ ok: false, error: 'Every lesson is done. The quiz is next.' });
+    const fail = await submitQuiz(a.id, [1, 0, 0]);
+    if (!fail.ok) throw new Error(fail.error);
     expect(fail.result.passed).toBe(false);
     expect(l().assignments.find((x) => x.id === a.id)!.completedOn).toBeUndefined();
     expect(l().assignments.find((x) => x.id === a.id)!.attempts).toBe(1);
-    const pass = submitQuiz(a.id, [0, 1, 1])!;
+    const pass = await submitQuiz(a.id, [0, 1, 1]);
+    if (!pass.ok) throw new Error(pass.error);
     expect(pass.result.score).toBe(100);
     expect(pass.certificateId).toBe(certificateId(people.learning.certSeq + 1, PREVIEW_TODAY));
     expect(l().assignments.find((x) => x.id === a.id)!.completedOn).toBe(PREVIEW_TODAY);
     expect(l().certificates.find((c) => c.id === pass.certificateId)!.expiresOn).toBe(addMonthsISO(PREVIEW_TODAY, 6));
-    expect(submitQuiz(a.id, [0, 1, 1])).toBeNull();                       // done: cannot be marked twice
+    expect(await submitQuiz(a.id, [0, 1, 1])).toEqual({ ok: false, error: 'This course is already completed.' }); // cannot be marked twice
     // A refresher for a lapsed certificate creates a new assignment due in 14 days, once.
     const lapsed = l().certificates.find((c) => c.employeeId === 'emp_20' && c.courseId === 'c_posh')!;
-    expect(assignRefresher(lapsed.id)).toBe(true);
-    expect(assignRefresher(lapsed.id)).toBe(false);
+    expect((await assignRefresher(lapsed.id)).ok).toBe(true);
+    expect(await assignRefresher(lapsed.id)).toEqual({ ok: false, error: 'A refresher is already assigned.' });
     const asg = currentAssignments(l().assignments).find((x) => x.employeeId === 'emp_20' && x.courseId === 'c_posh')!;
     expect(asg.source).toBe('refresher');
     expect(asg.dueOn).toBe('2026-11-21');

@@ -9,7 +9,8 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Route } from 'lucide-react';
+import { AlertTriangle, CalendarCheck, CalendarOff, CheckCircle2, Contrast, Route, XCircle, type LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 import api from '../../lib/api';
 import Modal from '../crm/shared/Modal';
 import { Badge, Button, T, eyebrowStyle, type Tone } from '../ui';
@@ -129,9 +130,9 @@ export default function PersonMonthModal({
   const today = istTodayYmd();
   const label = from === to ? dayLabel(from) : `${dayLabel(from)} – ${dayLabel(to)}`;
   const worked = cells.filter((c) => c.rec && c.rec.checkin_at).reverse();
-  const stat = (l: string, v: number, color?: string) => (
+  const stat = (l: string, v: number, color: string | undefined, icon: LucideIcon) => (
     <div key={l} style={{ flex: '1 1 76px', minWidth: 0, background: T.raised, borderRadius: 8, padding: '9px 12px' }}>
-      <div style={{ ...eyebrowStyle, fontSize: 9.5 }}>{l}</div>
+      <div style={{ ...eyebrowStyle, fontSize: 9.5, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={icon} size={12} />{l}</div>
       <div style={{ fontFamily: T.heading, fontSize: 20, fontWeight: 700, color: v > 0 && color ? color : T.text, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
     </div>
   );
@@ -151,11 +152,11 @@ export default function PersonMonthModal({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {stat('Present', counts.present, T.ok)}
-            {stat('Late', counts.late, T.warn)}
-            {stat('Half day', counts.half, T.warn)}
-            {stat('Leave', counts.leave, T.info)}
-            {stat('Absent', counts.absent, T.red)}
+            {stat('Present', counts.present, T.ok, CheckCircle2)}
+            {stat('Late', counts.late, T.warn, AlertTriangle)}
+            {stat('Half day', counts.half, T.warn, Contrast)}
+            {stat('Leave', counts.leave, T.info, CalendarOff)}
+            {stat('Absent', counts.absent, T.red, XCircle)}
           </div>
 
           <div role="group" aria-label="Attendance calendar" data-testid="person-calendar">
@@ -195,7 +196,7 @@ export default function PersonMonthModal({
 
           {worked.length > 0 && (
             <div>
-              <div style={{ ...eyebrowStyle, marginBottom: 8 }}>Days worked</div>
+              <div style={{ ...eyebrowStyle, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={CalendarCheck} size={13} />Days worked</div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {worked.map((c, i) => (
                   <div key={c.ymd} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '9px 0', borderTop: i === 0 ? 0 : `1px solid ${T.border}`, fontSize: 13 }}>

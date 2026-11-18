@@ -14,8 +14,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ArrowUpRight, Bell, CheckCircle2, ChevronRight, Flame, Lightbulb, ListChecks, MessageCircle,
-  Phone, RefreshCw, Sparkles, Target, TrendingUp, Trophy, UserPlus2,
+  ArrowUpRight, CalendarDays, CheckCircle2, ChevronRight, Flame, Lightbulb, ListChecks, MessageCircle,
+  Phone, RefreshCw, Sparkles, StickyNote, Target, TrendingUp, Trophy, UserPlus2, type LucideIcon,
 } from 'lucide-react';
 import { crmHome, type HomePayload, type HomeNextAction } from '../../../../lib/crmApi';
 import { getStoredUser } from '../../../../lib/auth';
@@ -44,7 +44,7 @@ const ACTION_ICON: Record<HomeNextAction['action'], (size: number) => React.Reac
   whatsapp:    (s) => <MessageCircle size={s} strokeWidth={1.6} />,
   follow_up:   (s) => <ArrowUpRight size={s} strokeWidth={1.6} />,
   qualify:     (s) => <Sparkles size={s} strokeWidth={1.6} />,
-  meeting:     (s) => <Bell size={s} strokeWidth={1.6} />,
+  meeting:     (s) => <CalendarDays size={s} strokeWidth={1.6} />,
   create_deal: (s) => <TrendingUp size={s} strokeWidth={1.6} />,
   nurture:     (s) => <UserPlus2 size={s} strokeWidth={1.6} />,
 };
@@ -163,7 +163,7 @@ export default function CrmHomePage() {
       <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'minmax(0, 1.4fr) minmax(0, 2fr)', gap: 12, alignItems: 'stretch' }}>
         <Card padding={16} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <Eyebrow>Today’s target</Eyebrow>
+            <Eyebrow style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Target size={13} strokeWidth={2} aria-hidden />Today’s target</Eyebrow>
             {t?.has_target && (
               targetDone
                 ? <Badge tone="ok" dot>Done</Badge>
@@ -195,8 +195,8 @@ export default function CrmHomePage() {
           <ActivityStat label="Logged today" value={activity?.total ?? 0} icon={<CheckCircle2 size={16} strokeWidth={1.6} />} tone="ok" />
           <ActivityStat label="Calls"    value={activity?.by_type?.call ?? 0}     icon={<Phone size={16} strokeWidth={1.6} />}         tone="info" />
           <ActivityStat label="WhatsApp" value={activity?.by_type?.whatsapp ?? 0} icon={<MessageCircle size={16} strokeWidth={1.6} />} tone="ok" />
-          <ActivityStat label="Meetings" value={activity?.by_type?.meeting ?? 0}  icon={<Bell size={16} strokeWidth={1.6} />}          tone="warn" />
-          <ActivityStat label="Notes"    value={activity?.by_type?.note ?? 0}     icon={<Sparkles size={16} strokeWidth={1.6} />}      tone="neutral" />
+          <ActivityStat label="Meetings" value={activity?.by_type?.meeting ?? 0}  icon={<CalendarDays size={16} strokeWidth={1.6} />}  tone="warn" />
+          <ActivityStat label="Notes"    value={activity?.by_type?.note ?? 0}     icon={<StickyNote size={16} strokeWidth={1.6} />}    tone="neutral" />
         </div>
       </div>
 
@@ -206,6 +206,7 @@ export default function CrmHomePage() {
       {/* ── Next actions — top 3 with reasoning ──────────────────────── */}
       <Card padding={0} style={{ overflow: 'hidden' }}>
         <SectionHead
+          icon={Sparkles}
           title="Next best actions"
           hint="Ranked by urgency × score. Each suggestion explains why it’s the next move."
           count={nextActions.length}
@@ -225,6 +226,7 @@ export default function CrmHomePage() {
       {/* ── Closest to closing ──────────────────────────────────────── */}
       <Card padding={0} style={{ overflow: 'hidden' }}>
         <SectionHead
+          icon={Trophy}
           title="Closest to closing"
           hint="Grade A/B leads in sales-qualified or qualified. Mornings have higher connect rates — start here."
           count={nearClose.length}
@@ -266,7 +268,7 @@ export default function CrmHomePage() {
       {/* ── Productivity playbook ───────────────────────────────────── */}
       {tips.length > 0 && (
         <Card padding={0} style={{ overflow: 'hidden' }}>
-          <SectionHead title="Productivity playbook" hint="Data-driven nudges built from the rest of this page. Pick one and run with it." />
+          <SectionHead icon={Lightbulb} title="Productivity playbook" hint="Data-driven nudges built from the rest of this page. Pick one and run with it." />
           {tips.map((tip, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '28px 1fr', gap: 12, alignItems: 'start', padding: '12px 16px', borderBottom: i === tips.length - 1 ? 0 : `1px solid ${T.border}` }}>
               <span style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--s3)', color: T.dim, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.mono, fontSize: 11.5 }}>{String(i + 1).padStart(2, '0')}</span>
@@ -287,12 +289,15 @@ export default function CrmHomePage() {
 // without bouncing between files. None of these are needed elsewhere
 // yet; promote to /components if the mobile parity ever reuses them.
 
-function SectionHead({ title, hint, count }: { title: string; hint?: string; count?: number }) {
+function SectionHead({ title, hint, count, icon: Icon }: { title: string; hint?: string; count?: number; icon?: LucideIcon }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderBottom: `1px solid ${T.border}` }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>{title}</div>
+          <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            {Icon && <Icon aria-hidden size={16} strokeWidth={2} style={{ color: T.dim, flexShrink: 0 }} />}
+            {title}
+          </div>
           {typeof count === 'number' && count > 0 && <span style={{ fontFamily: T.mono, fontSize: 11, color: T.mute }}>{count}</span>}
         </div>
         {hint && <div style={{ fontSize: 12.5, color: T.dim }}>{hint}</div>}

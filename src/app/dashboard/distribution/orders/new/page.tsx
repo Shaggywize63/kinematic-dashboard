@@ -5,6 +5,8 @@ import api, { OrderCatalogue, OrderCatalogueItem, OrderPreview, OrderCredit } fr
 import { Card, PageHeader, Pill, Btn, Th, Td, inr } from '../../../../../components/distribution/Atoms';
 import StoreSelect from '../../../../../components/StoreSelect';
 import { useDistributionNames } from '../../../../../lib/useDistributionNames';
+import { AlertTriangle, Calculator, CheckCircle2, Package, ShoppingCart, Store, Truck } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 // Order-booking cart (dashboard order entry). Picks an outlet, loads its priced
 // catalogue, builds a cart with MOQ-enforced steppers, previews server-side
@@ -237,8 +239,10 @@ export default function NewOrderPage() {
                 border: 'none', cursor: 'pointer', borderRadius: 7, padding: '6px 16px', fontSize: 13, fontWeight: 700,
                 background: mode === m ? 'var(--primary)' : 'transparent',
                 color: mode === m ? '#fff' : 'var(--text-dim)',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
               }}
             >
+              <InlineIcon icon={m === 'outlet' ? Store : Truck} size={14} />
               {m === 'outlet' ? 'Outlet' : 'Dealer'}
             </button>
           ))}
@@ -292,14 +296,14 @@ export default function NewOrderPage() {
       {credit && <CreditBanner credit={credit} />}
 
       {!targetId ? (
-        <Card><div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: 20 }}>Select {mode === 'dealer' ? 'a dealer' : 'an outlet'} to begin.</div></Card>
+        <Card><div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}><IconTile icon={mode === 'dealer' ? Truck : Store} size={40} iconSize={20} />Select {mode === 'dealer' ? 'a dealer' : 'an outlet'} to begin.</div></Card>
       ) : (
         <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           {/* Catalogue */}
           <div style={{ flex: '2 1 460px', minWidth: 0 }}>
             <Card>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>Catalogue</div>
+                <div style={{ fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Package} size={16} style={{ color: 'var(--dim)' }} />Catalogue</div>
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search SKU / code / category" style={{ ...fieldStyle, flex: 1, minWidth: 180, width: 'auto' }} />
               </div>
 
@@ -364,7 +368,7 @@ export default function NewOrderPage() {
           <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
             <Card>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>Cart</div>
+                <div style={{ fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={ShoppingCart} size={16} style={{ color: 'var(--dim)' }} />Cart</div>
                 <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{cartCount} line{cartCount === 1 ? '' : 's'} · {cartQtyTotal} units</span>
               </div>
 
@@ -404,7 +408,7 @@ export default function NewOrderPage() {
 
                   <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
                     <Btn variant="ghost" onClick={doPreview} disabled={previewing || !cartCount}>{previewing ? 'Pricing…' : 'Preview'}</Btn>
-                    <Btn onClick={doPlace} disabled={placing || !preview || !cartCount}>{placing ? 'Placing…' : 'Place order'}</Btn>
+                    <Btn onClick={doPlace} disabled={placing || !preview || !cartCount} icon={<InlineIcon icon={ShoppingCart} />}>{placing ? 'Placing…' : 'Place order'}</Btn>
                   </div>
                   {!preview && !previewErr && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>Preview to enable placing.</div>}
                   {previewErr && <div style={{ color: 'var(--primary)', fontSize: 12, marginTop: 8 }}>{previewErr}</div>}
@@ -415,7 +419,7 @@ export default function NewOrderPage() {
 
             {preview && (
               <Card>
-                <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Priced preview</div>
+                <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Calculator} size={16} style={{ color: 'var(--dim)' }} />Priced preview</div>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr>
@@ -537,7 +541,8 @@ function CreditBanner({ credit }: { credit: OrderCredit }) {
   return (
     <div style={{ background: theme.bg, border: `1px solid ${theme.br}`, borderRadius: 12, padding: '12px 16px', marginBottom: 22 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ fontWeight: 700, color: theme.fg, fontSize: 14 }}>
+        <div style={{ fontWeight: 700, color: theme.fg, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <InlineIcon icon={credit.status === 'ok' ? CheckCircle2 : AlertTriangle} size={16} />
           {headline}
           {credit.utilization_pct != null && <span style={{ fontWeight: 500, color: 'var(--text-dim)', marginLeft: 8, fontSize: 12 }}>{credit.utilization_pct}% utilised</span>}
         </div>

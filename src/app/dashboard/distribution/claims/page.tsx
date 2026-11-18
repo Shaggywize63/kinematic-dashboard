@@ -4,6 +4,8 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, fmtDate, inr } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { Banknote, CheckCircle2, IndianRupee, Receipt, XCircle } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 const CLAIM_TYPES = ['damage', 'expiry', 'scheme', 'promotion', 'price_protection', 'freight', 'shortage', 'other'];
 const STATUSES = ['submitted', 'under_review', 'approved', 'rejected', 'settled'];
@@ -131,9 +133,9 @@ export default function ClaimsPage() {
       {/* Summary */}
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
         <StatCard label="Claims" value={summary?.total ?? rows.length} />
-        <StatCard label="Claimed" value={inr(Number(summary?.claimed_amount || 0))} />
+        <StatCard label="Claimed" icon={IndianRupee} value={inr(Number(summary?.claimed_amount || 0))} />
         <StatCard label="Approved" value={inr(Number(summary?.approved_amount || 0))} accent="var(--accent)" />
-        <StatCard label="Settled" value={inr(Number(summary?.settled_amount || 0))} accent="var(--green)" />
+        <StatCard label="Settled" icon={Banknote} value={inr(Number(summary?.settled_amount || 0))} accent="var(--green)" />
       </div>
 
       {/* Filters */}
@@ -188,7 +190,7 @@ export default function ClaimsPage() {
                           <Btn variant="ghost" disabled={busyId === c.id} onClick={() => reject(c)}>Reject</Btn>
                         </span>
                       ) : c.status === 'approved' ? (
-                        <Btn disabled={busyId === c.id} onClick={() => settle(c)}>Settle</Btn>
+                        <Btn disabled={busyId === c.id} onClick={() => settle(c)} icon={<InlineIcon icon={Banknote} />}>Settle</Btn>
                       ) : <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>—</span>}
                     </Td>
                   </tr>
@@ -202,7 +204,7 @@ export default function ClaimsPage() {
 
       {/* Raise a claim */}
       <Card style={{ marginTop: 22 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Raise a claim</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Receipt} size={16} style={{ color: 'var(--dim)' }} />Raise a claim</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, alignItems: 'end' }}>
           <div><div style={labelStyle}>Distributor *</div>
             <select value={form.distributor_id} onChange={(e) => setForm({ ...form, distributor_id: e.target.value })} style={inputStyle}>
@@ -214,7 +216,7 @@ export default function ClaimsPage() {
           <div><div style={labelStyle}>Title</div><input value={form.title} placeholder="Optional" onChange={(e) => setForm({ ...form, title: e.target.value })} style={inputStyle} /></div>
           <div style={{ gridColumn: 'span 4' }}><div style={labelStyle}>Description</div><input value={form.description} placeholder="Optional — supporting detail" onChange={(e) => setForm({ ...form, description: e.target.value })} style={inputStyle} /></div>
         </div>
-        {msg && <div style={{ marginTop: 10, fontSize: 12, color: msg.kind === 'ok' ? 'var(--green)' : 'var(--primary)' }}>{msg.kind === 'ok' ? '✓ ' : '✗ '}{msg.text}</div>}
+        {msg && <div style={{ marginTop: 10, fontSize: 12, color: msg.kind === 'ok' ? 'var(--green)' : 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={msg.kind === 'ok' ? CheckCircle2 : XCircle} size={14} />{msg.text}</div>}
         <div style={{ marginTop: 14 }}><Btn disabled={saving} onClick={submit}>{saving ? 'Submitting…' : 'Submit claim'}</Btn></div>
       </Card>
     </div>

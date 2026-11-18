@@ -17,6 +17,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import api, { type FormSubmissionRow, type FormSubmissionExport } from '@/lib/api';
 import { csvLine, downloadCsv } from '@/components/ffm/reports/reportUtils';
+import { Building2, Check, ClipboardList, Clock, Download, Eye, FileText, LogIn, LogOut, MapPin, Pencil, RefreshCw, RotateCcw, Store, type LucideIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '@/components/ui/PageIcon';
 
 const C = { red:'#E01E2C', green:'#00D97E', yellow:'#FFB800', blue:'#3E9EFF', gray:'#7A8BA0', grayd:'#2E445E', s2:'#131B2A', bg:'#0E1420', border:'#1E2D45', white:'#FFFFFF' };
 const LIMIT = 20;
@@ -214,11 +216,15 @@ export default function MySubmissionsPage() {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
-        <div>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800 }}>My Submissions</div>
-          <div style={{ fontSize:13, color:C.gray, marginTop:3 }}>Forms you have filled — view, edit and export each one.</div>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <PageIcon />
+          <div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800 }}>My Submissions</div>
+            <div style={{ fontSize:13, color:C.gray, marginTop:3 }}>Forms you have filled — view, edit and export each one.</div>
+          </div>
         </div>
-        <button onClick={fetchList} style={{ padding:'9px 16px', background:C.red, color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+        <button onClick={fetchList} style={{ padding:'9px 16px', background:C.red, color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'inline-flex', alignItems:'center', gap:6 }}>
+          <InlineIcon icon={RefreshCw} />
           Refresh
         </button>
       </div>
@@ -234,11 +240,12 @@ export default function MySubmissionsPage() {
           <div data-testid="my-sub-error" style={{ padding:'32px 24px', textAlign:'center', color:C.red, fontSize:14 }}>
             {error}
             <div style={{ marginTop:12 }}>
-              <button onClick={fetchList} style={{ padding:'7px 14px', background:C.s2, border:`1px solid ${C.border}`, borderRadius:9, color:C.gray, fontSize:12, cursor:'pointer' }}>Try again</button>
+              <button onClick={fetchList} style={{ padding:'7px 14px', background:C.s2, border:`1px solid ${C.border}`, borderRadius:9, color:C.gray, fontSize:12, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6 }}><InlineIcon icon={RotateCcw} size={14} />Try again</button>
             </div>
           </div>
         ) : rows.length === 0 ? (
           <div data-testid="my-sub-empty" style={{ padding:48, textAlign:'center', color:C.grayd, fontSize:14 }}>
+            <IconTile icon={FileText} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 10px' }} />
             You haven&apos;t submitted any forms yet.
           </div>
         ) : (
@@ -264,9 +271,10 @@ export default function MySubmissionsPage() {
                     <td style={{ padding:'12px 16px', whiteSpace:'nowrap' }}>
                       <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
                         <button data-testid="my-sub-view" onClick={() => openDetail(s)}
-                          style={{ fontSize:12, color:C.blue, background:'none', border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", fontWeight:700 }}>View</button>
+                          style={{ fontSize:12, color:C.blue, background:'none', border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", fontWeight:700, display:'inline-flex', alignItems:'center', gap:6 }}><InlineIcon icon={Eye} size={14} />View</button>
                         <button data-testid="my-sub-export" onClick={() => exportOne(s)} disabled={exportingId === s.id}
-                          style={{ fontSize:12, color:C.green, background:'none', border:'none', cursor: exportingId === s.id ? 'default' : 'pointer', fontFamily:"'DM Sans',sans-serif", fontWeight:700, opacity: exportingId === s.id ? 0.6 : 1 }}>
+                          style={{ fontSize:12, color:C.green, background:'none', border:'none', cursor: exportingId === s.id ? 'default' : 'pointer', fontFamily:"'DM Sans',sans-serif", fontWeight:700, opacity: exportingId === s.id ? 0.6 : 1, display:'inline-flex', alignItems:'center', gap:6 }}>
+                          <InlineIcon icon={Download} size={14} />
                           {exportingId === s.id ? 'Exporting…' : 'Export'}
                         </button>
                       </div>
@@ -302,14 +310,14 @@ export default function MySubmissionsPage() {
               </div>
               <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                 {!loadingDetail && detail && !editing && (
-                  <button data-testid="my-sub-edit" onClick={startEdit} style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, padding:'8px 14px', cursor:'pointer', color:C.blue, fontSize:13, fontWeight:700 }}>Edit</button>
+                  <button data-testid="my-sub-edit" onClick={startEdit} style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, padding:'8px 14px', cursor:'pointer', color:C.blue, fontSize:13, fontWeight:700, display:'inline-flex', alignItems:'center', gap:6 }}><InlineIcon icon={Pencil} />Edit</button>
                 )}
                 {editing && (
                   <>
                     <button onClick={() => { setEditing(false); setEditError(''); }} disabled={saving}
                       style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, padding:'8px 12px', cursor:'pointer', color:C.gray, fontSize:13, fontWeight:700 }}>Cancel</button>
                     <button data-testid="my-sub-save" onClick={saveEdits} disabled={saving}
-                      style={{ background:C.green, border:'none', borderRadius:10, padding:'8px 16px', cursor: saving ? 'default' : 'pointer', color:'#06281B', fontSize:13, fontWeight:800, opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving…' : 'Save'}</button>
+                      style={{ background:C.green, border:'none', borderRadius:10, padding:'8px 16px', cursor: saving ? 'default' : 'pointer', color:'#06281B', fontSize:13, fontWeight:800, opacity: saving ? 0.7 : 1, display:'inline-flex', alignItems:'center', gap:6 }}><InlineIcon icon={Check} />{saving ? 'Saving…' : 'Save'}</button>
                   </>
                 )}
                 <button onClick={() => setSelected(null)} aria-label="Close"
@@ -326,22 +334,22 @@ export default function MySubmissionsPage() {
                 <>
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:16, marginBottom:24 }}>
                     {([
-                      ['Submitted', fmtDate(detail.submitted_at)],
-                      ['Outlet', detail.outlet_name || '—'],
-                      ['Account', detail.crm_accounts?.name || '—'],
-                      ['Address', detail.address || '—'],
-                      ['Check-in', fmtDate(detail.check_in_at)],
-                      ['Check-out', fmtDate(detail.check_out_at)],
-                    ] as [string, string][]).map(([k, v]) => (
+                      ['Submitted', fmtDate(detail.submitted_at), Clock],
+                      ['Outlet', detail.outlet_name || '—', Store],
+                      ['Account', detail.crm_accounts?.name || '—', Building2],
+                      ['Address', detail.address || '—', MapPin],
+                      ['Check-in', fmtDate(detail.check_in_at), LogIn],
+                      ['Check-out', fmtDate(detail.check_out_at), LogOut],
+                    ] as [string, string, LucideIcon][]).map(([k, v, icon]) => (
                       <div key={k}>
-                        <div style={{ fontSize:11, color:C.gray, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>{k}</div>
+                        <div style={{ fontSize:11, color:C.gray, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={icon} size={13} />{k}</div>
                         <div style={{ fontSize:14, fontWeight:600, wordBreak:'break-word' }}>{v}</div>
                       </div>
                     ))}
                     {detail.latitude != null && detail.longitude != null && (
                       <div>
-                        <div style={{ fontSize:11, color:C.gray, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>Location</div>
-                        <a href={`https://www.google.com/maps?q=${detail.latitude},${detail.longitude}`} target="_blank" rel="noreferrer" style={{ fontSize:13, fontWeight:600, color:C.blue, textDecoration:'none' }}>📍 {detail.latitude}, {detail.longitude}</a>
+                        <div style={{ fontSize:11, color:C.gray, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={MapPin} size={13} />Location</div>
+                        <a href={`https://www.google.com/maps?q=${detail.latitude},${detail.longitude}`} target="_blank" rel="noreferrer" style={{ fontSize:13, fontWeight:600, color:C.blue, textDecoration:'none', display:'inline-flex', alignItems:'center', gap:4 }}><InlineIcon icon={MapPin} size={14} />{detail.latitude}, {detail.longitude}</a>
                       </div>
                     )}
                   </div>
@@ -360,7 +368,7 @@ export default function MySubmissionsPage() {
                   )}
 
                   <div style={{ borderTop:`1.5px solid ${C.border}`, paddingTop:20 }}>
-                    <h4 style={{ fontSize:15, fontWeight:800, marginBottom:14, color:C.blue }}>Answers</h4>
+                    <h4 style={{ fontSize:15, fontWeight:800, marginBottom:14, color:C.blue, display:'flex', alignItems:'center', gap:8 }}><InlineIcon icon={ClipboardList} size={16} />Answers</h4>
                     {editError && <div style={{ color:'#FF6B6B', fontSize:12, marginBottom:12 }}>{editError}</div>}
                     {(detail.form_responses || []).length === 0 ? (
                       <div style={{ padding:16, textAlign:'center', color:C.grayd }}>No answers recorded.</div>

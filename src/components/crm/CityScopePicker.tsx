@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { MapPin } from 'lucide-react';
 import { useCityScope } from '../../context/CityScopeContext';
 import { getStoredUser } from '../../lib/auth';
 import api from '../../lib/api';
@@ -43,11 +44,7 @@ const STYLE = {
   } as React.CSSProperties,
 };
 
-const PIN = (
-  <svg aria-hidden width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" /><circle cx="12" cy="10" r="3" />
-  </svg>
-);
+const PIN = <MapPin aria-hidden size={14} strokeWidth={1.6} />;
 
 export default function CityScopePicker() {
   const { selectedCity, setSelectedCity } = useCityScope();

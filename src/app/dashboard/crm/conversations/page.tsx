@@ -18,6 +18,12 @@ import {
 } from '../../../../lib/conversationsApi';
 import ConversationAnalyticsView from '../../../../components/crm/conversations/ConversationAnalyticsView';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import type { LucideIcon } from 'lucide-react';
+import {
+  AlertTriangle, ArrowRightCircle, BarChart3, Eye, EyeOff, FileText, Flag, GraduationCap, Handshake, Languages, ListChecks, Mic,
+  PenLine, RefreshCw, ScrollText, ShieldAlert, Smile, Swords, ThumbsUp, Timer,
+} from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 // ── Inline style tokens (mirror the Leave module's _ui.tsx) ──────────────────
 const card: React.CSSProperties = {
@@ -149,7 +155,10 @@ export default function ConversationAnalysisPage() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Call Insights</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <PageIcon />
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Call Insights</h1>
+          </div>
           <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 4 }}>
             Consented calls recorded by Consumer Champions — transcribed, diarized and analysed for intent, sentiment and coaching.
           </div>
@@ -166,8 +175,9 @@ export default function ConversationAnalysisPage() {
               background: tab === tv ? 'var(--s3)' : 'transparent',
               color: tab === tv ? 'var(--text)' : 'var(--text-dim)',
               border: 'none', padding: '8px 18px', fontSize: 13, fontWeight: tab === tv ? 800 : 600, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
             }}
-          >{tv === 'recordings' ? 'Recordings' : 'Analytics'}</button>
+          ><InlineIcon icon={tv === 'recordings' ? Mic : BarChart3} />{tv === 'recordings' ? 'Recordings' : 'Analytics'}</button>
         ))}
       </div>
 
@@ -210,7 +220,8 @@ export default function ConversationAnalysisPage() {
       ) : (
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <InlineIcon icon={Mic} size={16} style={{ color: 'var(--text-dim)' }} />
             Call Insights ({filtered.length})
             {selectedCity && <span style={{ fontWeight: 500, color: 'var(--text-dim)' }}> · {selectedCity}</span>}
           </div>
@@ -220,9 +231,9 @@ export default function ConversationAnalysisPage() {
             style={{
               background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)',
               padding: '4px 12px', borderRadius: 8, cursor: loading ? 'default' : 'pointer', fontSize: 12,
-              opacity: loading ? 0.5 : 1,
+              opacity: loading ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', gap: 6,
             }}
-          >{loading ? 'Loading…' : 'Refresh'}</button>
+          >{!loading && <InlineIcon icon={RefreshCw} size={14} />}{loading ? 'Loading…' : 'Refresh'}</button>
         </div>
 
         {error ? (
@@ -230,7 +241,8 @@ export default function ConversationAnalysisPage() {
         ) : loading && rows.length === 0 ? (
           <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: '12px 0' }}>Loading conversations…</div>
         ) : filtered.length === 0 ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: '12px 0' }}>
+          <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: '12px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <IconTile icon={Mic} size={40} iconSize={20} />
             No conversations found.
           </div>
         ) : isCompact ? (
@@ -395,9 +407,9 @@ function ConversationDrawer({ id, isCompact, onClose }: { id: string; isCompact:
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, alignItems: 'center' }}>
               <Chip text={sm.label} bg={sm.bg} fg={sm.fg} />
               {detail?.duration_seconds != null && (
-                <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>⏱ {fmtDuration(detail.duration_seconds)}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Timer} size={12} />{fmtDuration(detail.duration_seconds)}</span>
               )}
-              {detail?.language && <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>🌐 {detail.language}</span>}
+              {detail?.language && <span style={{ fontSize: 11, color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Languages} size={12} />{detail.language}</span>}
               {detail?.consent_captured != null && (
                 <Chip
                   text={detail.consent_captured ? 'Consent ✓' : 'No consent'}
@@ -515,13 +527,13 @@ function InsightsView({ insights }: { insights: ConversationInsights }) {
   return (
     <>
       {summary && (
-        <Section title="Summary">
+        <Section title="Summary" icon={FileText}>
           <p style={paraStyle}>{summary}</p>
         </Section>
       )}
 
       {(intent || sentiment) && (
-        <Section title="Intent & Sentiment">
+        <Section title="Intent & Sentiment" icon={Smile}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: intent?.signals?.length ? 10 : 0 }}>
             {intent?.stage && <Chip text={`Stage: ${intent.stage}`} bg={ic.bg} fg={ic.fg} />}
             {intent?.score != null && <Chip text={`Intent ${intent.score}`} bg={ic.bg} fg={ic.fg} />}
@@ -537,19 +549,19 @@ function InsightsView({ insights }: { insights: ConversationInsights }) {
       )}
 
       {!!positives?.length && (
-        <Section title="✅ Positives">
+        <Section title="Positives" icon={ThumbsUp}>
           <BulletList items={positives} tone="#22c55e" />
         </Section>
       )}
 
       {!!improvements?.length && (
-        <Section title="⚠️ Improvements">
+        <Section title="Improvements" icon={AlertTriangle}>
           <BulletList items={improvements} tone="#eab308" />
         </Section>
       )}
 
       {!!objections?.length && (
-        <Section title="Objections">
+        <Section title="Objections" icon={ShieldAlert}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {objections.map((o, i) => (
               <div key={i} style={{ background: 'var(--s3)', borderRadius: 8, padding: 10 }}>
@@ -571,7 +583,7 @@ function InsightsView({ insights }: { insights: ConversationInsights }) {
       )}
 
       {!!competitors?.length && (
-        <Section title="Competitors">
+        <Section title="Competitors" icon={Swords}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {competitors.map((c, i) => (
               <div key={i} style={{ fontSize: 13, color: 'var(--text)' }}>
@@ -584,13 +596,13 @@ function InsightsView({ insights }: { insights: ConversationInsights }) {
       )}
 
       {!!commitments?.length && (
-        <Section title="Commitments">
+        <Section title="Commitments" icon={Handshake}>
           <BulletList items={commitments} />
         </Section>
       )}
 
       {extracted && Object.values(extracted as Record<string, unknown>).some((v) => v != null && v !== '') && (
-        <Section title="Extracted fields">
+        <Section title="Extracted fields" icon={ListChecks}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
             {Object.entries(extracted as Record<string, unknown>)
               .filter(([, v]) => v != null && v !== '')
@@ -602,7 +614,7 @@ function InsightsView({ insights }: { insights: ConversationInsights }) {
       )}
 
       {coaching && (coaching.talk_listen_ratio != null || coaching.missed_questions?.length || coaching.tips?.length) && (
-        <Section title="Coaching">
+        <Section title="Coaching" icon={GraduationCap}>
           {coaching.talk_listen_ratio != null && (
             <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 8 }}>
               Talk / listen ratio: <strong>{String(coaching.talk_listen_ratio)}</strong>
@@ -624,7 +636,7 @@ function InsightsView({ insights }: { insights: ConversationInsights }) {
       )}
 
       {next_action && (
-        <Section title="Next action">
+        <Section title="Next action" icon={ArrowRightCircle}>
           <div style={{ background: 'rgba(224,30,44,0.08)', border: '1px solid rgba(224,30,44,0.25)', borderRadius: 8, padding: 12, fontSize: 13, color: 'var(--text)' }}>
             {next_action}
           </div>
@@ -632,7 +644,7 @@ function InsightsView({ insights }: { insights: ConversationInsights }) {
       )}
 
       {draft_followup && (
-        <Section title="Draft follow-up">
+        <Section title="Draft follow-up" icon={PenLine}>
           <div style={{ background: 'var(--s3)', borderRadius: 8, padding: 12, fontSize: 13, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
             {draft_followup}
           </div>
@@ -640,7 +652,7 @@ function InsightsView({ insights }: { insights: ConversationInsights }) {
       )}
 
       {!!risk_flags?.length && (
-        <Section title="Risk flags">
+        <Section title="Risk flags" icon={Flag}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {risk_flags.map((f, i) => (
               <Chip key={i} text={f} bg="rgba(239,68,68,0.14)" fg="#ef4444" />
@@ -667,11 +679,11 @@ function TranscriptView({ diarization, transcript }: { diarization: DiarSegment[
   };
 
   return (
-    <Section title="Transcript">
+    <Section title="Transcript" icon={ScrollText}>
       <button
         onClick={() => setOpen((v) => !v)}
-        style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, marginBottom: open ? 10 : 0 }}
-      >{open ? 'Hide transcript' : 'Show transcript'}</button>
+        style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, marginBottom: open ? 10 : 0, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      ><InlineIcon icon={open ? EyeOff : Eye} size={14} />{open ? 'Hide transcript' : 'Show transcript'}</button>
       {open && (
         hasDiar ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -697,18 +709,19 @@ function TranscriptView({ diarization, transcript }: { diarization: DiarSegment[
 }
 
 // ── Small presentational helpers ─────────────────────────────────────────────
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SectionTitle({ children, icon }: { children: React.ReactNode; icon?: LucideIcon }) {
   return (
-    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
+    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+      {icon && <InlineIcon icon={icon} size={14} />}
       {children}
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, icon }: { title: string; children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <div>
-      <SectionTitle>{title}</SectionTitle>
+      <SectionTitle icon={icon}>{title}</SectionTitle>
       {children}
     </div>
   );

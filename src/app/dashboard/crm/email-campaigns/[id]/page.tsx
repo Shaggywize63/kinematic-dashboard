@@ -15,6 +15,9 @@ import {
 } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import { downloadBlob } from '../../../../../lib/financeFormat';
+import type { LucideIcon } from 'lucide-react';
+import { Ban, BarChart3, Check, CheckCheck, Download, Eye, Inbox, MailX, MousePointerClick, Pause, Play, RotateCcw, Send, SkipForward, Users, XCircle } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -57,7 +60,7 @@ async function downloadCsv(path: string, filename: string) {
   }
 }
 
-function Stat({ label, value, color, onClick, active }: { label: string; value: number | string; color?: string; onClick?: () => void; active?: boolean }) {
+function Stat({ label, value, color, onClick, active, icon }: { label: string; value: number | string; color?: string; onClick?: () => void; active?: boolean; icon?: LucideIcon }) {
   const clickable = !!onClick;
   const accent = color || C.blue;
   return (
@@ -81,7 +84,7 @@ function Stat({ label, value, color, onClick, active }: { label: string; value: 
       }}
     >
       <div style={{ fontSize: 22, fontWeight: 800, color: color || C.white }}>{value}</div>
-      <div style={{ fontSize: 11, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.6px', marginTop: 2 }}>{label}</div>
+      <div style={{ fontSize: 11, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.6px', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>{icon && <InlineIcon icon={icon} size={12} />}{label}</div>
     </div>
   );
 }
@@ -178,16 +181,17 @@ export default function EmailCampaignDetailPage() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, margin: '8px 0 20px', flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+            <PageIcon />
             <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 23, fontWeight: 800, margin: 0 }}>{c.name}</h1>
             <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 9px', borderRadius: 6, color: STATUS_COLOR[c.status], background: 'var(--s4)', border: `1px solid ${C.border}`, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{c.status}</span>
           </div>
           <div style={{ fontSize: 13, color: C.gray }}>{c.subject}</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {c.status === 'draft' && <button onClick={() => act(() => crmEmailCampaigns.launch(id))} disabled={busy} style={{ background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: busy ? 'not-allowed' : 'pointer' }}>Send now</button>}
-          {c.status === 'sending' && <button onClick={() => act(() => crmEmailCampaigns.pause(id))} disabled={busy} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Pause</button>}
-          {c.status === 'paused' && <button onClick={() => act(() => crmEmailCampaigns.resume(id))} disabled={busy} style={{ background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>Resume</button>}
-          {c.status === 'completed' && failedCount > 0 && <button onClick={resendFailed} disabled={busy} title="Send again to only the recipients whose email failed" style={{ background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: busy ? 'not-allowed' : 'pointer' }}>↻ Resend to {failedCount.toLocaleString()} failed</button>}
+          {c.status === 'draft' && <button onClick={() => act(() => crmEmailCampaigns.launch(id))} disabled={busy} style={{ background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: busy ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Send} />Send now</button>}
+          {c.status === 'sending' && <button onClick={() => act(() => crmEmailCampaigns.pause(id))} disabled={busy} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Pause} />Pause</button>}
+          {c.status === 'paused' && <button onClick={() => act(() => crmEmailCampaigns.resume(id))} disabled={busy} style={{ background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Play} />Resume</button>}
+          {c.status === 'completed' && failedCount > 0 && <button onClick={resendFailed} disabled={busy} title="Send again to only the recipients whose email failed" style={{ background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: busy ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={RotateCcw} />Resend to {failedCount.toLocaleString()} failed</button>}
           {['sending', 'paused', 'draft'].includes(c.status) && <button onClick={() => { if (confirm('Cancel this campaign? Queued recipients will not be sent.')) act(() => crmEmailCampaigns.cancel(id)); }} disabled={busy} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>}
         </div>
       </div>
@@ -197,18 +201,18 @@ export default function EmailCampaignDetailPage() {
 
       {/* Analytics */}
       <div style={card}>
-        <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 14 }}>Performance</div>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={BarChart3} size={16} style={{ color: C.gray }} />Performance</div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Stat label="Recipients" value={(t?.recipients ?? c.total).toLocaleString()} onClick={() => applyFilter({ kind: 'none' })} active={filter.kind === 'none'} />
-          <Stat label="Sent" value={(t?.sent ?? c.sent).toLocaleString()} color={C.green} onClick={() => applyFilter({ kind: 'status', value: 'sent' })} active={isStatus('sent')} />
+          <Stat label="Recipients" icon={Users} value={(t?.recipients ?? c.total).toLocaleString()} onClick={() => applyFilter({ kind: 'none' })} active={filter.kind === 'none'} />
+          <Stat label="Sent" icon={Send} value={(t?.sent ?? c.sent).toLocaleString()} color={C.green} onClick={() => applyFilter({ kind: 'status', value: 'sent' })} active={isStatus('sent')} />
           {/* Delivered = sent − bounced; no single row status maps to it, so it stays a read-only figure. */}
-          <Stat label="Delivered" value={(t?.delivered ?? 0).toLocaleString()} color={C.green} />
-          <Stat label="Opened" value={t?.opened ?? 0} color={C.blue} onClick={() => applyFilter({ kind: 'engagement', value: 'opened' })} active={isEng('opened')} />
-          <Stat label="Clicked" value={t?.clicked ?? 0} color={C.blue} onClick={() => applyFilter({ kind: 'engagement', value: 'clicked' })} active={isEng('clicked')} />
-          <Stat label="Bounced" value={t?.bounced ?? 0} color={C.amber} onClick={() => applyFilter({ kind: 'engagement', value: 'bounced' })} active={isEng('bounced')} />
-          <Stat label="Unsub" value={t?.unsubscribed ?? 0} color={C.amber} onClick={() => applyFilter({ kind: 'engagement', value: 'unsubscribed' })} active={isEng('unsubscribed')} />
-          <Stat label="Failed" value={(t?.failed ?? c.failed).toLocaleString()} color={C.red} onClick={() => applyFilter({ kind: 'status', value: 'failed' })} active={isStatus('failed')} />
-          <Stat label="Skipped" value={(t?.skipped ?? c.skipped).toLocaleString()} color={C.gray} onClick={() => applyFilter({ kind: 'status', value: 'skipped' })} active={isStatus('skipped')} />
+          <Stat label="Delivered" icon={CheckCheck} value={(t?.delivered ?? 0).toLocaleString()} color={C.green} />
+          <Stat label="Opened" icon={Eye} value={t?.opened ?? 0} color={C.blue} onClick={() => applyFilter({ kind: 'engagement', value: 'opened' })} active={isEng('opened')} />
+          <Stat label="Clicked" icon={MousePointerClick} value={t?.clicked ?? 0} color={C.blue} onClick={() => applyFilter({ kind: 'engagement', value: 'clicked' })} active={isEng('clicked')} />
+          <Stat label="Bounced" icon={MailX} value={t?.bounced ?? 0} color={C.amber} onClick={() => applyFilter({ kind: 'engagement', value: 'bounced' })} active={isEng('bounced')} />
+          <Stat label="Unsub" icon={Ban} value={t?.unsubscribed ?? 0} color={C.amber} onClick={() => applyFilter({ kind: 'engagement', value: 'unsubscribed' })} active={isEng('unsubscribed')} />
+          <Stat label="Failed" icon={XCircle} value={(t?.failed ?? c.failed).toLocaleString()} color={C.red} onClick={() => applyFilter({ kind: 'status', value: 'failed' })} active={isStatus('failed')} />
+          <Stat label="Skipped" icon={SkipForward} value={(t?.skipped ?? c.skipped).toLocaleString()} color={C.gray} onClick={() => applyFilter({ kind: 'status', value: 'skipped' })} active={isStatus('skipped')} />
         </div>
         {analytics && (
           <div style={{ fontSize: 12, color: C.gray, marginTop: 14 }}>
@@ -221,7 +225,7 @@ export default function EmailCampaignDetailPage() {
       {/* Recipients */}
       <div ref={recipientsRef} style={{ ...card, padding: 0, overflow: 'hidden', scrollMarginTop: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px' }}>Recipients {recipients.length ? `(showing ${recipients.length})` : ''}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Users} size={14} />Recipients {recipients.length ? `(showing ${recipients.length})` : ''}</span>
           {activeFilterLabel && (
             <button onClick={() => setFilter({ kind: 'none' })} title="Clear filter"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: C.s4, color: C.white, border: `1px solid ${C.border}` }}>
@@ -229,10 +233,10 @@ export default function EmailCampaignDetailPage() {
             </button>
           )}
           <button onClick={() => downloadCsv(crmEmailCampaigns.csvPath(id, filterParams), `email-campaign-${c.name.replace(/[^a-z0-9]+/gi, '-')}.csv`)}
-            style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'transparent', color: C.gray, border: `1px solid ${C.border}` }}>↓ Export CSV</button>
+            style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'transparent', color: C.gray, border: `1px solid ${C.border}`, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} size={14} />Export CSV</button>
         </div>
         {recipients.length === 0 ? (
-          <div style={{ padding: 24, color: C.gray, fontSize: 13 }}>{filter.kind !== 'none' ? 'No recipients match this filter.' : <>No recipients yet. {c.status === 'draft' ? 'They are created when you send.' : ''}</>}</div>
+          <div style={{ padding: 24, color: C.gray, fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center' }}><IconTile icon={Inbox} size={40} iconSize={20} /><div>{filter.kind !== 'none' ? 'No recipients match this filter.' : <>No recipients yet. {c.status === 'draft' ? 'They are created when you send.' : ''}</>}</div></div>
         ) : (
           <>
             {/* Column header */}
@@ -255,10 +259,10 @@ export default function EmailCampaignDetailPage() {
                       {(r.skip_reason || r.error) && <div style={{ fontSize: 11, color: C.grayd, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.skip_reason || r.error}</div>}
                     </div>
                     <div style={{ width: 58, textAlign: 'center', flex: '0 0 auto', fontSize: 12, fontWeight: 700 }}>
-                      {r.opened ? <span style={{ color: C.blue }} title={r.opened_at ? `Opened ${new Date(r.opened_at).toLocaleString()}` : undefined}>✓ {r.open_count ?? 0}</span> : <span style={{ color: C.grayd }}>—</span>}
+                      {r.opened ? <span style={{ color: C.blue }} title={r.opened_at ? `Opened ${new Date(r.opened_at).toLocaleString()}` : undefined}><InlineIcon icon={Check} size={12} style={{ verticalAlign: '-2px', marginRight: 2 }} />{r.open_count ?? 0}</span> : <span style={{ color: C.grayd }}>—</span>}
                     </div>
                     <div style={{ width: 58, textAlign: 'center', flex: '0 0 auto', fontSize: 12, fontWeight: 700 }}>
-                      {r.clicked ? <span style={{ color: C.blue }} title={r.clicked_at ? `Clicked ${new Date(r.clicked_at).toLocaleString()}` : undefined}>✓ {r.click_count ?? 0}</span> : <span style={{ color: C.grayd }}>—</span>}
+                      {r.clicked ? <span style={{ color: C.blue }} title={r.clicked_at ? `Clicked ${new Date(r.clicked_at).toLocaleString()}` : undefined}><InlineIcon icon={Check} size={12} style={{ verticalAlign: '-2px', marginRight: 2 }} />{r.click_count ?? 0}</span> : <span style={{ color: C.grayd }}>—</span>}
                     </div>
                     <div style={{ width: 92, textAlign: 'right', flex: '0 0 auto' }}>
                       <span style={{ fontSize: 11, fontWeight: 800, color: statusColor, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{statusText}</span>

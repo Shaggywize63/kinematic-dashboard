@@ -8,6 +8,13 @@ import { getStoredProjectKey, DEFAULT_PROJECT } from '../../../lib/projects';
 import { useClient } from '../../../context/ClientContext';
 import { matchDemoMock, DEMO_USER_EMAIL } from '../../../lib/demoMocks';
 import KiniMascot from '../../../components/crm/KiniMascot';
+import {
+  AlertTriangle, AlignLeft, ArrowLeft, Building2, CalendarClock, CalendarDays, Camera, Check, CheckCircle2, CircleDot, CircleHelp,
+  ClipboardList, Clock, Copy, CreditCard, EyeOff, FileText, GitBranch, Globe, Hash, Heading, LayoutGrid, List, Mail, MapPin,
+  MousePointerClick, Paperclip, PenLine, Pencil, Phone, Plus, RotateCcw, Search, Settings2, ShieldCheck, Sparkles, SquareCheck, Star,
+  ThumbsUp, Trash2, Type, type LucideIcon,
+} from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon, type IconTone } from '../../../components/ui/PageIcon';
 import { 
   DndContext, 
   closestCenter,
@@ -116,42 +123,42 @@ async function apiFetch<T>(path:string, opts:RequestInit={}):Promise<T> {
 }
 
 /* ─── Question type config ───────────────────────────────────────────────── */
-const FIELD_GROUPS = [
+const FIELD_GROUPS: Array<{ label:string; items:Array<{ type:string; icon:LucideIcon; label:string }> }> = [
   { label:'Basic',    items:[
-    { type:'short_text',  icon:'✏️',  label:'Short Text'   },
-    { type:'long_text',   icon:'📝',  label:'Long Text'    },
-    { type:'number',      icon:'🔢',  label:'Number'       },
-    { type:'email',       icon:'📧',  label:'Email'        },
-    { type:'phone',       icon:'📱',  label:'Phone'        },
+    { type:'short_text',  icon:Type,          label:'Short Text'   },
+    { type:'long_text',   icon:AlignLeft,     label:'Long Text'    },
+    { type:'number',      icon:Hash,          label:'Number'       },
+    { type:'email',       icon:Mail,          label:'Email'        },
+    { type:'phone',       icon:Phone,         label:'Phone'        },
   ]},
   { label:'Choice',   items:[
-    { type:'radio',       icon:'⚪',  label:'Single Select'},
-    { type:'checkbox',    icon:'☑️',  label:'Multi Select' },
-    { type:'dropdown',    icon:'🔽',  label:'Dropdown'     },
-    { type:'yes_no',      icon:'👍',  label:'Yes / No'     },
-    { type:'rating',      icon:'⭐',  label:'Rating'       },
+    { type:'radio',       icon:CircleDot,     label:'Single Select'},
+    { type:'checkbox',    icon:SquareCheck,   label:'Multi Select' },
+    { type:'dropdown',    icon:List,          label:'Dropdown'     },
+    { type:'yes_no',      icon:ThumbsUp,      label:'Yes / No'     },
+    { type:'rating',      icon:Star,          label:'Rating'       },
   ]},
   { label:'Date / Time', items:[
-    { type:'date',        icon:'📅',  label:'Date'         },
-    { type:'time',        icon:'🕐',  label:'Time'         },
-    { type:'datetime',    icon:'🗓️',  label:'Date & Time'  },
+    { type:'date',        icon:CalendarDays,  label:'Date'         },
+    { type:'time',        icon:Clock,         label:'Time'         },
+    { type:'datetime',    icon:CalendarClock, label:'Date & Time'  },
   ]},
   { label:'Media',    items:[
-    { type:'image',       icon:'📷',  label:'Image Upload' },
-    { type:'file',        icon:'📎',  label:'File Upload'  },
-    { type:'signature',   icon:'✍️',  label:'Signature'    },
-    { type:'location',    icon:'📍',  label:'Location'     },
-    { type:'card_scan',   icon:'💳',  label:'Card Scan'    },
+    { type:'image',       icon:Camera,        label:'Image Upload' },
+    { type:'file',        icon:Paperclip,     label:'File Upload'  },
+    { type:'signature',   icon:PenLine,       label:'Signature'    },
+    { type:'location',    icon:MapPin,        label:'Location'     },
+    { type:'card_scan',   icon:CreditCard,    label:'Card Scan'    },
   ]},
   { label:'Advanced', items:[
-    { type:'company',     icon:'🏢',  label:'Company'      },
-    { type:'section_header', icon:'📌', label:'Section'    },
-    { type:'consent',     icon:'🔏',  label:'Consent'      },
+    { type:'company',     icon:Building2,     label:'Company'      },
+    { type:'section_header', icon:Heading,    label:'Section'    },
+    { type:'consent',     icon:ShieldCheck,   label:'Consent'      },
   ]},
 ];
 
 const ALL_TYPES = FIELD_GROUPS.flatMap(g => g.items);
-const typeInfo  = (t:string) => ALL_TYPES.find(f => f.type===t) ?? { type:t, icon:'❓', label:t };
+const typeInfo  = (t:string): { type:string; icon:LucideIcon; label:string } => ALL_TYPES.find(f => f.type===t) ?? { type:t, icon:CircleHelp, label:t };
 
 const STATUS_COLOR:Record<string,string> = {
   draft:'#7A8BA0', published:C.green, archived:C.grayd
@@ -331,8 +338,8 @@ function ActivityLinkField({ form, activities, busy, canManage, onLink, onRename
         </select>
         {canManage && current && (
           <>
-            <button type="button" title="Rename activity" aria-label="Rename activity" onClick={() => setRenaming(true)} style={iconBtn(false)}>✏️</button>
-            <button type="button" title="Delete activity" aria-label="Delete activity" onClick={() => setDeleting(true)} style={iconBtn(true)}>🗑</button>
+            <button type="button" title="Rename activity" aria-label="Rename activity" onClick={() => setRenaming(true)} style={iconBtn(false)}><InlineIcon icon={Pencil} size={14} /></button>
+            <button type="button" title="Delete activity" aria-label="Delete activity" onClick={() => setDeleting(true)} style={iconBtn(true)}><InlineIcon icon={Trash2} size={14} /></button>
           </>
         )}
       </div>
@@ -456,24 +463,28 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
       {showAIGen && <AIGenerateModal onGenerated={onOpen} onClose={() => setShowAIGen(false)} />}
       {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:24, flexWrap:'wrap', gap:12 }}>
-        <div>
-          <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:C.white, margin:0, letterSpacing:'-0.3px' }}>Form Builder</h1>
-          <p style={{ fontSize:13, color:C.gray, margin:'4px 0 0', }}>Create and manage digital forms for field operations</p>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <PageIcon />
+          <div>
+            <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:C.white, margin:0, letterSpacing:'-0.3px' }}>Form Builder</h1>
+            <p style={{ fontSize:13, color:C.gray, margin:'4px 0 0', }}>Create and manage digital forms for field operations</p>
+          </div>
         </div>
         <div style={{ display:'flex', gap:12 }}>
           <button onClick={() => setShowAIGen(true)} style={{ padding:'10px 20px', background:`linear-gradient(135deg, ${C.blue}, ${C.purple})`, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:8, boxShadow:`0 4px 18px ${C.blue}25` }}>
             <KiniMascot size={16} /> KINI Magic
           </button>
           <button onClick={onCreate} style={{ padding:'10px 20px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:8, boxShadow:`0 4px 18px ${C.redB}` }}>
-            + New Form
+            <InlineIcon icon={Plus} />New Form
           </button>
         </div>
       </div>
 
       {/* Stats */}
       <div style={{ display:'flex', gap:12, marginBottom:24 }}>
-        {[{ l:'Total Forms', v:stats.total, c:C.white }, { l:'Published', v:stats.published, c:C.green }, { l:'Drafts', v:stats.draft, c:C.yellow }].map((s,i) => (
-          <div key={i} style={{ flex:1, background:C.s2, border:`1px solid ${C.border}`, borderRadius:14, padding:'14px 18px' }}>
+        {([{ l:'Total Forms', v:stats.total, c:C.white, icon:FileText, tone:'brand' }, { l:'Published', v:stats.published, c:C.green, icon:CheckCircle2, tone:'ok' }, { l:'Drafts', v:stats.draft, c:C.yellow, icon:Clock, tone:'warn' }] as { l:string; v:number; c:string; icon:LucideIcon; tone:IconTone }[]).map((s,i) => (
+          <div key={i} style={{ flex:1, background:C.s2, border:`1px solid ${C.border}`, borderRadius:14, padding:'14px 18px', position:'relative' }}>
+            <IconTile icon={s.icon} tone={s.tone} style={{ position:'absolute', top:12, right:12 }} />
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:s.c }}>{loading?'—':s.v}</div>
             <div style={{ fontSize:11, color:C.grayd, marginTop:2 }}>{s.l}</div>
           </div>
@@ -483,7 +494,7 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
       {/* Filters */}
       <div style={{ display:'flex', gap:10, marginBottom:20, flexWrap:'wrap' }}>
         <div style={{ position:'relative', flex:1, minWidth:200 }}>
-          <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:13, color:C.grayd }}>🔍</span>
+          <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:13, color:C.grayd, display:'inline-flex' }}><InlineIcon icon={Search} size={14} /></span>
           <input placeholder="Search forms…" value={search} onChange={e => setSearch(e.target.value)} style={{ ...inpStyle, paddingLeft:30 }}/>
         </div>
         {['all','draft','published','archived'].map(s => (
@@ -511,7 +522,7 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
             </div>
 
             <div onClick={onCreate} className="kbtn" style={{ width:240, background:C.s2, border:`1px solid ${C.border}`, padding:'30px 20px', borderRadius:20, cursor:'pointer', transition:'all .2s' }}>
-              <div style={{ fontSize:32, marginBottom:16 }}>➕</div>
+              <IconTile icon={Plus} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 16px' }} />
               <div style={{ fontWeight:800, color:C.white, marginBottom:6 }}>Manual Creation</div>
               <div style={{ fontSize:11, color:C.grayd }}>Build your form field by field from scratch.</div>
             </div>
@@ -535,7 +546,7 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
                   <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:C.white, lineHeight:1.3, flex:1, minWidth:0 }}>{f.title}</div>
                   <button type="button" title="Rename form" aria-label={`Rename form ${f.title}`}
                     onClick={e => { e.stopPropagation(); setRenamingForm(f); }}
-                    style={{ flexShrink:0, background:'none', border:'none', color:C.gray, cursor:'pointer', fontSize:13, padding:'2px 4px', borderRadius:6 }}>✏️</button>
+                    style={{ flexShrink:0, background:'none', border:'none', color:C.gray, cursor:'pointer', fontSize:13, padding:'2px 4px', borderRadius:6, display:'inline-flex' }}><InlineIcon icon={Pencil} size={14} /></button>
                 </div>
                 {f.description && <div style={{ fontSize:12, color:C.gray, marginBottom:10, lineHeight:1.5, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{f.description}</div>}
                 <div style={{ fontSize:11, color:C.grayd, marginBottom:14 }}>v{f.version} · {new Date(f.created_at).toLocaleDateString('en-IN',{ day:'2-digit', month:'short', year:'numeric' })}</div>
@@ -550,12 +561,12 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
                   />
                 </div>
                 <div style={{ display:'flex', gap:8 }}>
-                  <button onClick={e => { e.stopPropagation(); onOpen(f); }} style={{ flex:1, padding:'8px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:8, color:C.white, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                    ✏️ Edit
+                  <button onClick={e => { e.stopPropagation(); onOpen(f); }} style={{ flex:1, padding:'8px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:8, color:C.white, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                    <InlineIcon icon={Pencil} size={14} />Edit
                   </button>
-                  <button onClick={e => duplicate(f, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:8, color:C.gray, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }} title="Duplicate">⧉</button>
+                  <button onClick={e => duplicate(f, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:8, color:C.gray, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'inline-flex', alignItems:'center' }} title="Duplicate"><InlineIcon icon={Copy} size={14} /></button>
                   {canDeleteForm(f, activities) && (
-                    <button onClick={e => showDeleteModal(f, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }} title="Delete form" aria-label={`Delete form ${f.title}`}>🗑</button>
+                    <button onClick={e => showDeleteModal(f, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'inline-flex', alignItems:'center' }} title="Delete form" aria-label={`Delete form ${f.title}`}><InlineIcon icon={Trash2} size={14} /></button>
                   )}
                 </div>
               </div>
@@ -708,7 +719,7 @@ function AIGenerateModal({ onGenerated, onClose }:{ onGenerated:(f:BForm)=>void;
 
             <button onClick={generate} 
               style={{ width:'100%', padding:'16px', background:`linear-gradient(135deg, ${C.blue}, ${C.purple})`, border:'none', borderRadius:14, color:'#fff', fontSize:15, fontWeight:800, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, boxShadow:`0 8px 24px ${C.blue}40` }}>
-              Generate Smart Form
+              <InlineIcon icon={Sparkles} />Generate Smart Form
             </button>
           </>
         ) : (
@@ -804,7 +815,7 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
       onCreated(f);
     } catch (e: any) { 
       console.error('Form creation failed:', e);
-      setErr(`⚠ Failed to create form: ${e.message || 'Unknown server error'}`); 
+      setErr(`Failed to create form: ${e.message || 'Unknown server error'}`); 
     }
     setSaving(false);
   };
@@ -885,11 +896,11 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
           </div>
         </div>
 
-        {err && <div style={{ fontSize:12, color:C.red, marginBottom:16, background:`${C.red}10`, padding:'8px 12px', borderRadius:10, border:`1px solid ${C.red}20` }}>⚠ {err}</div>}
+        {err && <div style={{ fontSize:12, color:C.red, marginBottom:16, background:`${C.red}10`, padding:'8px 12px', borderRadius:10, border:`1px solid ${C.red}20`, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={AlertTriangle} size={13} />{err}</div>}
         <div style={{ display:'flex', gap:12 }}>
           <button onClick={onClose} style={{ flex:1, padding:'12px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:12, color:C.gray, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
           <button onClick={create} disabled={saving} style={{ flex:1, padding:'12px', background:C.red, border:'none', borderRadius:12, color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", opacity:saving?0.6:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:`0 8px 24px ${C.redB}` }}>
-            {saving?<><Spin/>Creating…</>:'Create Form'}
+            {saving?<><Spin/>Creating…</>:<><InlineIcon icon={Plus} />Create Form</>}
           </button>
         </div>
       </div>
@@ -916,10 +927,10 @@ function PropertiesPanel({ q, allQs, onChange, onDelete }:{ q:BQuestion; allQs:B
     <div style={{ width:280, flexShrink:0, background:C.s2, borderLeft:`1px solid ${C.border}`, overflowY:'auto', display:'flex', flexDirection:'column' }}>
       <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div style={{ fontSize:13, fontWeight:700, color:C.white, display:'flex', alignItems:'center', gap:7 }}>
-          <span>{typeInfo(q.qtype).icon}</span> {typeInfo(q.qtype).label}
+          <InlineIcon icon={typeInfo(q.qtype).icon} size={14} /> {typeInfo(q.qtype).label}
         </div>
         <button onClick={onDelete} title="Delete this field" aria-label="Delete field"
-          style={{ background:`${C.red}12`, border:`1px solid ${C.red}40`, color:C.red, cursor:'pointer', fontSize:12, fontWeight:700, padding:'4px 10px', borderRadius:8, fontFamily:"'DM Sans',sans-serif" }}>🗑 Delete field</button>
+          style={{ background:`${C.red}12`, border:`1px solid ${C.red}40`, color:C.red, cursor:'pointer', fontSize:12, fontWeight:700, padding:'4px 10px', borderRadius:8, fontFamily:"'DM Sans',sans-serif", display:'inline-flex', alignItems:'center', gap:5 }}><InlineIcon icon={Trash2} size={13} />Delete field</button>
       </div>
 
       <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:14, flex:1 }}>
@@ -929,7 +940,7 @@ function PropertiesPanel({ q, allQs, onChange, onDelete }:{ q:BQuestion; allQs:B
           <label style={{ fontSize:11, color:C.gray, display:'block', marginBottom:5 }}>Field Type</label>
           <select style={{ ...inpStyle, appearance:'none' as any }} value={q.qtype}
             onChange={e => onChange({ ...q, qtype:e.target.value })}>
-            {ALL_TYPES.map(t => <option key={t.type} value={t.type}>{t.icon}  {t.label}</option>)}
+            {ALL_TYPES.map(t => <option key={t.type} value={t.type}>{t.label}</option>)}
           </select>
         </div>
         {/* Label */}
@@ -1089,7 +1100,7 @@ function QuestionCard({ q, qNumber, isSelected, onSelect, onMoveUp, onMoveDown, 
   const deleteBtn = onDelete ? (
     <button type="button" title="Delete field" aria-label={`Delete field ${q.label}`}
       onClick={e => { e.stopPropagation(); onDelete(); }}
-      style={{ background:'transparent', border:`1px solid ${isSelected ? `${C.red}60` : C.border}`, borderRadius:6, color:C.red, cursor:'pointer', fontSize:11, padding:'1px 6px', opacity:isSelected ? 1 : 0.7 }}>🗑</button>
+      style={{ background:'transparent', border:`1px solid ${isSelected ? `${C.red}60` : C.border}`, borderRadius:6, color:C.red, cursor:'pointer', fontSize:11, padding:'1px 6px', opacity:isSelected ? 1 : 0.7, display:'inline-flex', alignItems:'center' }}><InlineIcon icon={Trash2} size={12} /></button>
   ) : null;
 
   const renderPreview = () => {
@@ -1107,14 +1118,14 @@ function QuestionCard({ q, qNumber, isSelected, onSelect, onMoveUp, onMoveDown, 
       case 'date':        return <input type="date" readOnly style={{ ...previewInp, opacity:.6, pointerEvents:'none' }}/>;
       case 'time':        return <input type="time" readOnly style={{ ...previewInp, opacity:.6, pointerEvents:'none' }}/>;
       case 'datetime':    return <input type="datetime-local" readOnly style={{ ...previewInp, opacity:.6, pointerEvents:'none' }}/>;
-      case 'image':       return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'24px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', flexDirection:'column', gap:8, alignItems:'center' }}><span style={{ fontSize:24 }}>📷</span><div style={{ fontSize:13, fontWeight:600 }}>Image Upload / Camera</div><div style={{ fontSize:11, color:C.grayd }}>Max {q.media_config?.max_files||1} photos · Compression enabled</div></div>;
-      case 'file':        return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'20px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', gap:10, alignItems:'center', justifyContent:'center' }}><span style={{ fontSize:20 }}>📎</span><div style={{ fontSize:13, fontWeight:600 }}>Click to upload any file</div></div>;
-      case 'signature':   return <div style={{ border:`2px solid ${C.border}`, background:C.s4, borderRadius:12, padding:14, height:100, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', color:C.grayd, position:'relative' }}><div style={{ borderBottom:`1.5px dashed ${C.grayd}`, width:'80%', marginBottom:10 }}/><span style={{ fontSize:12 }}>Sign here</span><span style={{ position:'absolute', top:10, right:12, fontSize:16, opacity:0.3 }}>✍️</span></div>;
-      case 'location':    return <div style={{ border:`1px solid ${C.border}`, background:`${C.blue}10`, borderRadius:10, padding:'12px 14px', color:C.blue, fontSize:13, display:'flex', alignItems:'center', gap:10 }}><span style={{ fontSize:18 }}>📍</span>GPS Location (Auto-capture)</div>;
-      case 'card_scan':   return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'20px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', flexDirection:'column', gap:6, alignItems:'center' }}><span style={{ fontSize:24 }}>💳</span><div style={{ fontSize:13, fontWeight:600 }}>Scan Visiting Card</div><div style={{ fontSize:11, color:C.grayd }}>Camera · auto-fills contact fields (name, designation, phone, email, company)</div></div>;
+      case 'image':       return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'24px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', flexDirection:'column', gap:8, alignItems:'center' }}><InlineIcon icon={Camera} size={24} /><div style={{ fontSize:13, fontWeight:600 }}>Image Upload / Camera</div><div style={{ fontSize:11, color:C.grayd }}>Max {q.media_config?.max_files||1} photos · Compression enabled</div></div>;
+      case 'file':        return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'20px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', gap:10, alignItems:'center', justifyContent:'center' }}><InlineIcon icon={Paperclip} size={20} /><div style={{ fontSize:13, fontWeight:600 }}>Click to upload any file</div></div>;
+      case 'signature':   return <div style={{ border:`2px solid ${C.border}`, background:C.s4, borderRadius:12, padding:14, height:100, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', color:C.grayd, position:'relative' }}><div style={{ borderBottom:`1.5px dashed ${C.grayd}`, width:'80%', marginBottom:10 }}/><span style={{ fontSize:12 }}>Sign here</span><span style={{ position:'absolute', top:10, right:12, fontSize:16, opacity:0.3, display:'inline-flex' }}><InlineIcon icon={PenLine} size={16} /></span></div>;
+      case 'location':    return <div style={{ border:`1px solid ${C.border}`, background:`${C.blue}10`, borderRadius:10, padding:'12px 14px', color:C.blue, fontSize:13, display:'flex', alignItems:'center', gap:10 }}><InlineIcon icon={MapPin} size={18} />GPS Location (Auto-capture)</div>;
+      case 'card_scan':   return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'20px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', flexDirection:'column', gap:6, alignItems:'center' }}><InlineIcon icon={CreditCard} size={24} /><div style={{ fontSize:13, fontWeight:600 }}>Scan Visiting Card</div><div style={{ fontSize:11, color:C.grayd }}>Camera · auto-fills contact fields (name, designation, phone, email, company)</div></div>;
       case 'section_header': return null;
       case 'consent':     return <div style={{ background:`${C.blue}08`, border:`1px solid ${C.blue}20`, borderRadius:10, padding:'12px 14px', fontSize:12, color:C.gray, lineHeight:1.6, display:'flex', gap:10, alignItems:'flex-start' }}><input type="checkbox" disabled checked/><div style={{ opacity:0.8 }}>I agree to the terms and data collection consent policy.</div></div>;
-      case 'company':     return <div style={{ border:`1px solid ${C.border}`, background:`${C.purple}10`, borderRadius:10, padding:'12px 14px', color:C.purple, fontSize:13, display:'flex', alignItems:'center', gap:10 }}><span style={{ fontSize:18 }}>🏢</span>Company / account picker — links this submission to a CRM account</div>;
+      case 'company':     return <div style={{ border:`1px solid ${C.border}`, background:`${C.purple}10`, borderRadius:10, padding:'12px 14px', color:C.purple, fontSize:13, display:'flex', alignItems:'center', gap:10 }}><InlineIcon icon={Building2} size={18} />Company / account picker — links this submission to a CRM account</div>;
       default: return null;
     }
   };
@@ -1145,7 +1156,7 @@ function QuestionCard({ q, qNumber, isSelected, onSelect, onMoveUp, onMoveDown, 
         {/* Type badge */}
         <div style={{ position:'absolute', top:10, right:10, display:'flex', gap:4, alignItems:'center' }}>
           <div style={{ fontSize:10, color:C.grayd, display:'flex', alignItems:'center', gap:4 }}>
-            <span>{ti.icon}</span><span style={{ fontWeight:600, textTransform:'capitalize' }}>{ti.label}</span>
+            <InlineIcon icon={ti.icon} size={11} /><span style={{ fontWeight:600, textTransform:'capitalize' }}>{ti.label}</span>
           </div>
           {isSelected && (
             <div style={{ display:'flex', gap:2, marginLeft:8 }}>
@@ -1221,7 +1232,7 @@ function DraggableSidebarItem({ item, onAdd }: { item: any; onAdd: () => void })
       onMouseEnter={(e) => (e.currentTarget.style.background = C.s3)}
       onMouseLeave={(e) => (e.currentTarget.style.background = isDragging ? C.s3 : 'transparent')}
     >
-      <span style={{ fontSize: 14 }}>{item.icon}</span>
+      <InlineIcon icon={item.icon} size={14} />
       {item.label}
     </div>
   );
@@ -1561,7 +1572,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
     <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 80px)' }}>
       {/* Top bar */}<div style={{ background:C.s2, borderBottom:`1px solid ${C.border}`, padding:'10px 20px', display:'flex', alignItems:'center', gap:14, flexShrink:0 }}>
         <button onClick={onBack} style={{ background:C.s3, border:`1px solid ${C.border}`, borderRadius:8, color:C.gray, cursor:'pointer', fontSize:13, padding:'6px 12px', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:6 }}>
-          ← Back
+          <InlineIcon icon={ArrowLeft} size={14} />Back
         </button>
         <div style={{ flex:1 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -1569,30 +1580,32 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
               style={{ background:'transparent', border:'none', borderBottom:`1px dashed ${C.border}`, color:C.white, fontFamily:"'Syne',sans-serif", fontSize:17, fontWeight:800, outline:'none', width:'100%', caretColor:C.red }}
               value={form.title} onChange={e => setForm(p => ({...p, title:e.target.value}))}
               onBlur={saveTitle} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}/>
-            <span aria-hidden style={{ fontSize:12, opacity:.5 }}>✏️</span>
+            <span aria-hidden style={{ fontSize:12, opacity:.5, display:'inline-flex' }}><InlineIcon icon={Pencil} size={13} /></span>
           </div>
         </div>
         {/* Tabs */}
         <div style={{ display:'flex', gap:2, background:C.s3, borderRadius:9, padding:3, border:`1px solid ${C.border}` }}>
           {(['build','settings','logic'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              style={{ padding:'6px 14px', borderRadius:7, border:'none', cursor:'pointer', fontSize:12, fontWeight:700, fontFamily:"'DM Sans',sans-serif", textTransform:'capitalize', background:tab===t?C.s4:'transparent', color:tab===t?C.white:C.gray, transition:'all .13s' }}>
+              style={{ padding:'6px 14px', borderRadius:7, border:'none', cursor:'pointer', fontSize:12, fontWeight:700, fontFamily:"'DM Sans',sans-serif", textTransform:'capitalize', background:tab===t?C.s4:'transparent', color:tab===t?C.white:C.gray, transition:'all .13s', display:'inline-flex', alignItems:'center', gap:5 }}>
+              <InlineIcon icon={t === 'build' ? LayoutGrid : t === 'settings' ? Settings2 : GitBranch} size={13} />
               {t}
             </button>
           ))}
         </div>
         <Tag label={form.status} color={STATUS_COLOR[form.status]||C.gray}/>
         <button onClick={toggleStatus}
-          style={{ padding:'7px 14px', background:form.status==='published'?C.s3:C.green, border:`1px solid ${form.status==='published'?C.border:C.green}`, borderRadius:8, color:form.status==='published'?C.gray:'#000', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+          style={{ padding:'7px 14px', background:form.status==='published'?C.s3:C.green, border:`1px solid ${form.status==='published'?C.border:C.green}`, borderRadius:8, color:form.status==='published'?C.gray:'#000', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'inline-flex', alignItems:'center', gap:6 }}>
+          <InlineIcon icon={form.status==='published' ? EyeOff : Globe} size={14} />
           {form.status==='published'?'Unpublish':'Publish'}
         </button>
         <button onClick={saveForm} disabled={saving}
           style={{ padding:'7px 16px', background:C.red, border:'none', borderRadius:8, color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", opacity:saving?0.6:1, display:'flex', alignItems:'center', gap:6 }}>
-          {saving?<><Spin size={12}/>Saving…</>:saved?'✓ Saved':'Save'}
+          {saving?<><Spin size={12}/>Saving…</>:saved?<><InlineIcon icon={CheckCircle2} size={14} />Saved</>:<><InlineIcon icon={Check} size={14} />Save</>}
         </button>
         {canDeleteForm(form, activities) && (
           <button onClick={() => setDeleteFormOpen(true)} title="Delete this form" aria-label="Delete form"
-            style={{ padding:'7px 12px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>🗑 Delete form</button>
+            style={{ padding:'7px 12px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'inline-flex', alignItems:'center', gap:6 }}><InlineIcon icon={Trash2} size={14} />Delete form</button>
         )}
       </div>
 
@@ -1640,14 +1653,14 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                   </div>
                 ) : loadError ? (
                   <div style={{ border:`2px dashed ${C.red}30`, borderRadius:16, padding:'48px', textAlign:'center', color:C.red, background:`${C.red}05` }}>
-                    <div style={{ fontSize:36, marginBottom:12 }}>⚠️</div>
+                    <IconTile icon={AlertTriangle} tone="red" size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 12px' }} />
                     <div style={{ fontSize:15, fontWeight:800, color:C.white, marginBottom:8 }}>Data Loading Error</div>
                     <div style={{ fontSize:12, maxWidth:300, margin:'0 auto', lineHeight:1.6, opacity:0.8 }}>{loadError}</div>
-                    <button onClick={loadForm} style={{ marginTop:20, padding:'8px 16px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10, color:C.white, fontSize:12, fontWeight:700, cursor:'pointer' }}>Retry Loading</button>
+                    <button onClick={loadForm} style={{ marginTop:20, padding:'8px 16px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10, color:C.white, fontSize:12, fontWeight:700, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6 }}><InlineIcon icon={RotateCcw} size={14} />Retry Loading</button>
                   </div>
                 ) : currentPageQs.length === 0 ? (
                   <div style={{ border:`2px dashed ${C.border}`, borderRadius:16, padding:'48px', textAlign:'center', color:C.grayd, pointerEvents:'none' }}>
-                    <div style={{ fontSize:36, marginBottom:12 }}>📋</div>
+                    <IconTile icon={ClipboardList} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 12px' }} />
                     <div style={{ fontSize:14, fontWeight:700, color:C.gray, marginBottom:6 }}>Empty page</div>
                     <div style={{ fontSize:12 }}>Drag any field type from the left sidebar to start building</div>
                   </div>
@@ -1681,7 +1694,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
               <PropertiesPanel q={selectedQ} allQs={questions} onChange={updateQ} onDelete={() => setDeleteQModal({show:true, id:selectedQ.id, label:selectedQ.label})}/>
             ) : (
               <div style={{ width:280, flexShrink:0, background:C.s2, borderLeft:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13, textAlign:'center', padding:24 }}>
-                <div><div style={{ fontSize:32, marginBottom:10 }}>👆</div>Select a field to edit its properties</div>
+                <div><IconTile icon={MousePointerClick} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 10px' }} />Select a field to edit its properties</div>
               </div>
             )}
           </div>
@@ -1695,7 +1708,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
               <div style={{ width: activeType ? 200 : 640 }}>
                 {activeType ? (
                   <div style={{ padding:'10px 14px', background:C.s3, border:`1px solid ${C.blue}`, borderRadius:10, color:C.white, display:'flex', alignItems:'center', gap:10, boxShadow:`0 10px 40px rgba(0,0,0,.5)` }}>
-                    <span>{typeInfo(activeType).icon}</span>
+                    <InlineIcon icon={typeInfo(activeType).icon} size={14} />
                     {typeInfo(activeType).label}
                   </div>
                 ) : (() => {
@@ -1773,12 +1786,12 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                 </div>
               )}
               <button onClick={saveForm} disabled={saving} style={{ padding:'11px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-                {saving?<><Spin/>Saving…</>:saved?'✓ Saved':'Save Settings'}
+                {saving?<><Spin/>Saving…</>:saved?<><InlineIcon icon={CheckCircle2} />Saved</>:<><InlineIcon icon={Check} />Save Settings</>}
               </button>
               {canDeleteForm(form, activities) && (
                 <div style={{ marginTop:12, padding:'14px 16px', border:`1px solid ${C.redB}`, borderRadius:12, display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
                   <div><div style={{ fontSize:13, fontWeight:700, color:C.white }}>Delete this form</div><div style={{ fontSize:11, color:C.grayd, marginTop:2 }}>Removes the form with its pages, fields and submissions. This cannot be undone.</div></div>
-                  <button onClick={() => setDeleteFormOpen(true)} style={{ flexShrink:0, padding:'8px 14px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>🗑 Delete form</button>
+                  <button onClick={() => setDeleteFormOpen(true)} style={{ flexShrink:0, padding:'8px 14px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'inline-flex', alignItems:'center', gap:6 }}><InlineIcon icon={Trash2} size={14} />Delete form</button>
                 </div>
               )}
             </div>
@@ -1796,7 +1809,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
               <div key={q.id} style={{ background:C.s3, border:`1px solid ${C.border}`, borderRadius:14, padding:'14px 16px', marginBottom:10 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:q.logic?.length?12:0 }}>
                   <div style={{ fontSize:13, fontWeight:700, color:C.white }}>
-                    <span style={{ marginRight:8 }}>{typeInfo(q.qtype).icon}</span>{q.label}
+                    <InlineIcon icon={typeInfo(q.qtype).icon} size={14} style={{ marginRight:8, verticalAlign:'-2px' }} />{q.label}
                   </div>
                   <button onClick={() => updateQ({ ...q, logic:[...(q.logic||[]), { condition_q:'', condition_val:'', action:'show' }] })}
                     style={{ fontSize:11, padding:'4px 10px', background:C.blueD, border:`1px solid ${C.blue}30`, borderRadius:6, color:C.blue, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", fontWeight:700 }}>

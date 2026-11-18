@@ -7,6 +7,8 @@ import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
 import { useAuth } from '../../../../hooks/useAuth';
 import { userHasModule } from '../../../../lib/auth';
+import { CalendarClock, Check, Hash, PackageMinus, PackagePlus, Truck, XCircle } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 /**
  * Batch & Expiry (FIFO/FEFO) + Goods Receiving.
@@ -283,8 +285,8 @@ export default function BatchExpiryPage() {
                 </select>
               </label>
             )}
-            {canReceive && <Btn onClick={openReceive}>Receive (GRN)</Btn>}
-            <Btn variant="ghost" onClick={() => openConsume()}>Consume</Btn>
+            {canReceive && <Btn onClick={openReceive} icon={<InlineIcon icon={PackagePlus} />}>Receive (GRN)</Btn>}
+            <Btn variant="ghost" onClick={() => openConsume()} icon={<InlineIcon icon={PackageMinus} />}>Consume</Btn>
           </div>
         }
       />
@@ -324,15 +326,15 @@ export default function BatchExpiryPage() {
       </Card>
 
       {!distributorId ? (
-        <Card><div style={{ fontSize: 13, color: 'var(--text-dim)', textAlign: 'center', padding: '20px 0' }}>Select a distributor to view its batches.</div></Card>
+        <Card><div style={{ fontSize: 13, color: 'var(--text-dim)', textAlign: 'center', padding: '20px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}><IconTile icon={Truck} size={40} iconSize={20} />Select a distributor to view its batches.</div></Card>
       ) : (
         <>
           {/* KPI strip (from the expiry-report) */}
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
             <StatCard label="Batches" value={rows.length} />
-            <StatCard label="Near expiry" value={report.near_expiry.length} accent={report.near_expiry.length ? '#F59E0B' : undefined} hint={`within ${nearDays || '30'} days`} />
+            <StatCard label="Near expiry" icon={CalendarClock} value={report.near_expiry.length} accent={report.near_expiry.length ? '#F59E0B' : undefined} hint={`within ${nearDays || '30'} days`} />
             <StatCard label="Expired" value={report.expired.length} accent={report.expired.length ? 'var(--primary)' : undefined} />
-            <StatCard label="Qty remaining" value={totalRemaining.toLocaleString('en-IN')} />
+            <StatCard label="Qty remaining" icon={Hash} value={totalRemaining.toLocaleString('en-IN')} />
             <StatCard label="Stock value" value={inr(stockValue)} accent="var(--green)" />
           </div>
 
@@ -370,7 +372,7 @@ export default function BatchExpiryPage() {
                           <Td style={{ textAlign: 'right' }}>{b.unit_cost != null ? inr(Number(b.unit_cost)) : '—'}</Td>
                           <Td><Pill color={statusColor(b.status)}>{statusLabel(b.status)}</Pill></Td>
                           <Td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            <Btn variant="ghost" onClick={() => openConsume(b)}>Consume</Btn>
+                            <Btn variant="ghost" onClick={() => openConsume(b)} icon={<InlineIcon icon={PackageMinus} />}>Consume</Btn>
                           </Td>
                         </tr>
                       );
@@ -388,7 +390,7 @@ export default function BatchExpiryPage() {
       {showReceive && (
         <Overlay onClose={() => setShowReceive(false)}>
           <ModalCard title="Receive goods (GRN)" subtitle="Post a new stock layer for a distributor." onClose={() => setShowReceive(false)}>
-            {rcvErr && <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--primary)' }}>✗ {rcvErr}</div>}
+            {rcvErr && <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={XCircle} size={14} />{rcvErr}</div>}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={{ gridColumn: '1 / -1' }}>
                 <div style={labelStyle}>Distributor *</div>
@@ -415,7 +417,7 @@ export default function BatchExpiryPage() {
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
               <Btn variant="ghost" onClick={() => setShowReceive(false)}>Cancel</Btn>
-              <Btn disabled={rcvSaving} onClick={submitReceive}>{rcvSaving ? 'Posting…' : 'Post GRN'}</Btn>
+              <Btn disabled={rcvSaving} onClick={submitReceive} icon={<InlineIcon icon={Check} />}>{rcvSaving ? 'Posting…' : 'Post GRN'}</Btn>
             </div>
           </ModalCard>
         </Overlay>
@@ -425,7 +427,7 @@ export default function BatchExpiryPage() {
       {showConsume && (
         <Overlay onClose={() => setShowConsume(false)}>
           <ModalCard title="Consume stock" subtitle="Draw down layers by FEFO (earliest expiry) or FIFO (earliest received)." onClose={() => setShowConsume(false)}>
-            {csmErr && <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--primary)' }}>✗ {csmErr}</div>}
+            {csmErr && <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={XCircle} size={14} />{csmErr}</div>}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={{ gridColumn: '1 / -1' }}>
                 <div style={labelStyle}>Distributor *</div>
@@ -459,7 +461,7 @@ export default function BatchExpiryPage() {
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
               <Btn variant="ghost" onClick={() => setShowConsume(false)}>Cancel</Btn>
-              <Btn disabled={csmSaving} onClick={submitConsume}>{csmSaving ? 'Consuming…' : 'Consume'}</Btn>
+              <Btn disabled={csmSaving} onClick={submitConsume} icon={<InlineIcon icon={PackageMinus} />}>{csmSaving ? 'Consuming…' : 'Consume'}</Btn>
             </div>
           </ModalCard>
         </Overlay>

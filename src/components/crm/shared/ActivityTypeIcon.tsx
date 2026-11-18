@@ -3,7 +3,9 @@
 /**
  * Activity-type icon renderer.
  *
- * Most activity types map cleanly to a stock emoji (📞 ✉️ ✅ 📝 💬).
+ * Built-in activity types draw a lucide line icon (phone, mail, check, note,
+ * message); the stock emoji (📞 ✉️ ✅ 📝 💬) remain only for text-only
+ * contexts such as native <option>s. A custom type keeps its own emoji.
  * WhatsApp uses the proper brand mark via <WhatsAppLogo>.
  *
  * For meeting / task / event-style activities, the previous stock 📅
@@ -22,8 +24,10 @@
  *   - activityTypeEmoji('whatsapp') — string, for places that can ONLY
  *     accept text (e.g. native <option> tags inside <select>).
  */
+import { CalendarDays, CheckSquare, Mail, MessageSquareText, Phone, Pin, StickyNote, type LucideIcon } from 'lucide-react';
 import WhatsAppLogo from '../../icons/WhatsAppLogo';
 import { useActivityTypes } from '../../../lib/activityTypes';
+import { ICON_STROKE } from '../../../lib/labelIcons';
 
 const EMOJI_BY_TYPE: Record<string, string> = {
   call:    '📞',
@@ -36,6 +40,16 @@ const EMOJI_BY_TYPE: Record<string, string> = {
   // (native <option>s can't render SVG). NEVER a heart — that's what
   // sparked this refactor in the first place.
   whatsapp: '💬',
+};
+
+// The same built-ins drawn as line icons wherever SVG can render (everything but native <option>s).
+const LUCIDE_BY_TYPE: Record<string, LucideIcon> = {
+  call: Phone,
+  email: Mail,
+  meeting: CalendarDays,
+  task: CheckSquare,
+  note: StickyNote,
+  sms: MessageSquareText,
 };
 
 const MONTHS_SHORT = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -81,6 +95,11 @@ export function CalendarDateIcon({ date, size = 18, completed }: CalendarDatePro
   );
 }
 
+/** True when the built-in type draws a line icon (so a stock emoji from the server should not be shown instead). */
+export function hasLineIcon(type: string): boolean {
+  return !!LUCIDE_BY_TYPE[type];
+}
+
 /** Text-only emoji fallback. Use inside native <option> elements. */
 export function activityTypeEmoji(type: string, customIcon?: string | null): string {
   return EMOJI_BY_TYPE[type] || customIcon || '📌';
@@ -104,7 +123,11 @@ export function ActivityTypeIcon({
   if (date && DATE_TYPES.has(type)) {
     return <CalendarDateIcon date={date} size={size} completed={completed} />;
   }
-  return <span style={{ fontSize: size, lineHeight: 1 }}>{activityTypeEmoji(type, meta(type)?.icon)}</span>;
+  const Builtin = LUCIDE_BY_TYPE[type];
+  if (Builtin) return <Builtin aria-hidden size={size} strokeWidth={ICON_STROKE} style={{ flexShrink: 0, verticalAlign: 'middle' }} />;
+  const custom = meta(type)?.icon;
+  if (!custom) return <Pin aria-hidden size={size} strokeWidth={ICON_STROKE} style={{ flexShrink: 0, verticalAlign: 'middle' }} />;
+  return <span style={{ fontSize: size, lineHeight: 1 }}>{activityTypeEmoji(type, custom)}</span>;
 }
 
 export default ActivityTypeIcon;

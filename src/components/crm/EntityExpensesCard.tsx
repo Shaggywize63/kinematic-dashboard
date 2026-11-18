@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Receipt, RotateCcw } from 'lucide-react';
 import { Button, Card, Eyebrow, T } from '../ui';
 import { ClaimStatusBadge, money } from '../expenses/kit';
 import { crmDeals, crmLeads } from '../../lib/crmApi';
@@ -53,7 +54,7 @@ export default function EntityExpensesCard({ kind, id }: { kind: 'lead' | 'deal'
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13.5, color: T.dim }}>
           <span>Couldn’t load expenses</span>
-          <Button size="sm" variant="ghost" onClick={() => { void load(); }}>Try again</Button>
+          <Button size="sm" variant="ghost" onClick={() => { void load(); }} icon={<RotateCcw size={14} strokeWidth={1.8} />}>Try again</Button>
         </div>
       );
     }
@@ -106,7 +107,7 @@ export default function EntityExpensesCard({ kind, id }: { kind: 'lead' | 'deal'
 
   return (
     <Card padding={18} style={{ minWidth: 0 }}>
-      <Eyebrow style={{ marginBottom: 8 }}>Expenses</Eyebrow>
+      <Eyebrow style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><Receipt aria-hidden size={13} strokeWidth={2} />Expenses</Eyebrow>
       {body()}
     </Card>
   );

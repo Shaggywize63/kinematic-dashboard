@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { canViewFieldVisits } from '../../../../../lib/clientFeatures';
 import ReportRunner from '../../../../../components/crm/reports/ReportRunner';
+import { PageIcon } from '../../../../../components/ui/PageIcon';
 
 export default function FieldVisitsReportPage() {
   const { user } = useAuth();
@@ -10,7 +11,7 @@ export default function FieldVisitsReportPage() {
   if (!canViewFieldVisits(user as any)) {
     return (
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24 }}>
-        <h3 style={{ color: 'var(--text)', margin: 0 }}>Field Visits Report</h3>
+        <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}><PageIcon size={32} />Field Visits Report</h3>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 8 }}>
           This report is available for tenants running the ad-hoc Marketing Visit flow.
         </p>
@@ -23,7 +24,7 @@ export default function FieldVisitsReportPage() {
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
-          <h3 style={{ color: 'var(--text)', margin: 0 }}>Field Visits Report</h3>
+          <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}><PageIcon size={32} />Field Visits Report</h3>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, maxWidth: 560 }}>
             Per field-executive rollup of ad-hoc Marketing Visits — total, in-progress and completed
             visits, distinct areas covered, and the last visit date. Runs for the last week by default;

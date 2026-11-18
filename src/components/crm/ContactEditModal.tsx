@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { Briefcase, Check, MapPin, Pencil, ShieldCheck, SlidersHorizontal, UserRound, type LucideIcon } from 'lucide-react';
 import { crmAccounts, crmContacts, crmSettings } from '../../lib/crmApi';
 import type { Account, BusinessType, Contact } from '../../types/crm';
 import { isB2bClientActive } from '../../lib/b2bClient';
@@ -150,8 +151,8 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
   );
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit Contact"
-      footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
+    <Modal open={open} onClose={onClose} title="Edit Contact" icon={Pencil}
+      footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}><Check aria-hidden size={15} strokeWidth={2} />{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-dim)' }}>Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.</p>
       {showToggle && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
@@ -212,7 +213,9 @@ function seedCustomFields(c: Contact): Record<string, unknown> {
 }
 
 function seed(c: Contact) { return { first_name: c.first_name || '', last_name: c.last_name || '', email: c.email || '', phone: c.phone || '', mobile: c.mobile || '', title: c.title || '', department: c.department || '', is_b2c: !!c.is_b2c, date_of_birth: c.date_of_birth || '', gender: c.gender || '', address_line1: c.address_line1 || '', city: c.city || '', state: c.state || '', postal_code: c.postal_code || '', country: c.country || 'India', preferred_contact_method: c.preferred_contact_method || '', loyalty_tier: c.loyalty_tier || '', account_id: c.account_id || '', referral_source: c.referral_source || '', marketing_consent: !!c.marketing_consent, whatsapp_consent: !!c.whatsapp_consent }; }
-function SL({ children }: { children: React.ReactNode }) { return <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, margin: '14px 0 8px' }}>{children}</div>; }
+// One icon per section heading (by name).
+const SECTION_ICON: Record<string, LucideIcon> = { Details: UserRound, Personal: UserRound, Work: Briefcase, 'Customer Details': UserRound, Address: MapPin, Consent: ShieldCheck, 'Additional details': SlidersHorizontal };
+function SL({ children }: { children: React.ReactNode }) { const Icon = typeof children === 'string' ? SECTION_ICON[children] : undefined; return <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, margin: '14px 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>{Icon && <Icon aria-hidden size={13} strokeWidth={2} style={{ flexShrink: 0 }} />}{children}</div>; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; field?: string; ord?: React.CSSProperties }) { return <label data-field={p.field} style={{ display: 'flex', flexDirection: 'column', gap: 4, ...p.ord }}><span style={lbl}>{p.label}{p.required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} required={p.required} style={inp} /></label>; }
 function SF(p: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void; ord?: React.CSSProperties }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4, ...p.ord }}><span style={lbl}>{p.label}</span><select value={p.value} onChange={(e) => p.onChange(e.target.value)} style={inp}>{p.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>; }
@@ -222,5 +225,5 @@ const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textT
 const inp: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
 const btn = {
   secondary: { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 } as React.CSSProperties,
-  primary: (busy: boolean): React.CSSProperties => ({ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 700, fontSize: 13, opacity: busy ? 0.7 : 1 }),
+  primary: (busy: boolean): React.CSSProperties => ({ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 700, fontSize: 13, opacity: busy ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }),
 };

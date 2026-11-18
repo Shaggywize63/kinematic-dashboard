@@ -5,7 +5,7 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, X } from 'lucide-react';
+import { CheckCircle2, ClipboardCheck, XCircle } from 'lucide-react';
 import { Badge, Button, Input, T } from '../ui';
 import { Decision, DecisionResult, ExpenseClaim, FormRules, expensesApi } from '../../lib/expensesApi';
 import { Field, LineSummary, Panel, RemarkDialog, errText, money } from './kit';
@@ -61,7 +61,7 @@ export default function ReviewPanel({ claim, rules, onDone }: { claim: ExpenseCl
   };
 
   return (
-    <Panel title="Review" padding={20}
+    <Panel title="Review" icon={ClipboardCheck} padding={20}
       aside={<Badge tone={partial ? 'warn' : 'neutral'}>{partial ? `${rejected.length} of ${items.length} lines rejected` : `${items.length} ${items.length === 1 ? 'line' : 'lines'}`}</Badge>}>
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {items.map((it, idx) => {
@@ -72,8 +72,8 @@ export default function ReviewPanel({ claim, rules, onDone }: { claim: ExpenseCl
               <LineSummary item={{ ...it, decision: null, decision_note: null }} currency={claim.currency} rules={rules} also={items.map((x) => x.category)} />
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap', paddingBottom: 12 }}>
                 <div role="group" aria-label="Decision for this line" style={{ display: 'inline-flex', gap: 6 }}>
-                  <Button size="sm" variant={rej ? 'secondary' : 'primary'} icon={<Check size={14} strokeWidth={2} />} onClick={() => set(it.id, { decision: 'approved' })}>Approve</Button>
-                  <Button size="sm" variant={rej ? 'danger' : 'secondary'} icon={<X size={14} strokeWidth={2} />} onClick={() => set(it.id, { decision: 'rejected' })}>Reject</Button>
+                  <Button size="sm" variant={rej ? 'secondary' : 'primary'} icon={<CheckCircle2 size={14} strokeWidth={2} />} onClick={() => set(it.id, { decision: 'approved' })}>Approve</Button>
+                  <Button size="sm" variant={rej ? 'danger' : 'secondary'} icon={<XCircle size={14} strokeWidth={2} />} onClick={() => set(it.id, { decision: 'rejected' })}>Reject</Button>
                 </div>
                 {rej && (
                   <Field style={{ flex: 1, minWidth: 220 }} error={showErrors && !st.note.trim() ? 'A remark is needed to reject this line' : undefined}>
@@ -100,8 +100,8 @@ export default function ReviewPanel({ claim, rules, onDone }: { claim: ExpenseCl
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button variant="danger" disabled={busy} icon={<X size={15} strokeWidth={2} />} onClick={() => setRejecting(true)}>Reject claim</Button>
-            <Button variant="primary" disabled={busy || allRejected} icon={<Check size={15} strokeWidth={2} />} onClick={approve}>
+            <Button variant="danger" disabled={busy} icon={<XCircle size={15} strokeWidth={2} />} onClick={() => setRejecting(true)}>Reject claim</Button>
+            <Button variant="primary" disabled={busy || allRejected} icon={<CheckCircle2 size={15} strokeWidth={2} />} onClick={approve}>
               {busy ? 'Saving…' : partial ? 'Approve selected' : 'Approve claim'}
             </Button>
           </div>

@@ -2,6 +2,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { crmFlows, crmFlowSteps, type Flow, type FlowStep } from '../../lib/crmApi';
+import type { LucideIcon } from 'lucide-react';
+import { Bell, CheckSquare, ChevronDown, ChevronRight, LayoutTemplate, ListOrdered, Mail, MessageCircle, Pause, PartyPopper, Play, Plus, Repeat, Settings2, Sprout, Timer, Trash2, Workflow } from 'lucide-react';
+import { IconTile, InlineIcon } from '../ui/PageIcon';
 
 // The engine executes steps in `position` order and falls through by position
 // when edges are null — so a linear cadence is just ordered steps with no edges.
@@ -27,35 +30,35 @@ const TRIGGERS: Array<{ v: string; l: string }> = [
 ];
 const triggerLabel = (v: string) => TRIGGERS.find((t) => t.v === v)?.l || v;
 
-const STEP_TYPES = [
-  { key: 'delay', label: '⏱ Wait / delay' },
-  { key: 'create_task', label: '✅ Create task' },
-  { key: 'send_notification', label: '🔔 Notify owner' },
-  { key: 'send_email', label: '✉️ Send email (advanced)' },
-  { key: 'send_whatsapp', label: '💬 Send WhatsApp (advanced)' },
-  { key: 'custom', label: '⚙️ Custom action (JSON)' },
-] as const;
+const STEP_TYPES: ReadonlyArray<{ key: string; label: string; icon: LucideIcon }> = [
+  { key: 'delay', label: 'Wait / delay', icon: Timer },
+  { key: 'create_task', label: 'Create task', icon: CheckSquare },
+  { key: 'send_notification', label: 'Notify owner', icon: Bell },
+  { key: 'send_email', label: 'Send email (advanced)', icon: Mail },
+  { key: 'send_whatsapp', label: 'Send WhatsApp (advanced)', icon: MessageCircle },
+  { key: 'custom', label: 'Custom action (JSON)', icon: Settings2 },
+];
 
 // Per-step icon + accent, keyed by delay-kind or action_type. Drives the
 // timeline dots so a cadence reads as a sequence at a glance.
-const STEP_META: Record<string, { icon: string; color: string }> = {
-  delay:             { icon: '⏱', color: '#f59e0b' },
-  create_task:       { icon: '✅', color: '#3b82f6' },
-  send_notification: { icon: '🔔', color: '#8b5cf6' },
-  send_email:        { icon: '✉️', color: '#14b8a6' },
-  send_whatsapp:     { icon: '💬', color: '#22c55e' },
+const STEP_META: Record<string, { icon: LucideIcon; color: string }> = {
+  delay:             { icon: Timer, color: '#f59e0b' },
+  create_task:       { icon: CheckSquare, color: '#3b82f6' },
+  send_notification: { icon: Bell, color: '#8b5cf6' },
+  send_email:        { icon: Mail, color: '#14b8a6' },
+  send_whatsapp:     { icon: MessageCircle, color: '#22c55e' },
 };
 const stepMeta = (s: FlowStep) =>
-  s.kind === 'delay' ? STEP_META.delay : (STEP_META[s.action_type || ''] || { icon: '⚙️', color: 'var(--text-dim)' });
+  s.kind === 'delay' ? STEP_META.delay : (STEP_META[s.action_type || ''] || { icon: Settings2, color: 'var(--text-dim)' });
 
 // One-tap starter cadences. Each expands into a flow + ordered steps using the
 // same payload shapes the manual editor produces, so nothing new to validate.
 type TplStep =
   | { kind: 'delay'; amount: number; unit: string }
   | { kind: 'action'; action_type: string; action_config: Record<string, unknown> };
-const TEMPLATES: Array<{ id: string; icon: string; name: string; trigger: string; blurb: string; steps: TplStep[] }> = [
+const TEMPLATES: Array<{ id: string; icon: LucideIcon; name: string; trigger: string; blurb: string; steps: TplStep[] }> = [
   {
-    id: 'new-lead-5day', icon: '🌱', name: 'New-lead 5-day follow-up', trigger: 'lead_created',
+    id: 'new-lead-5day', icon: Sprout, name: 'New-lead 5-day follow-up', trigger: 'lead_created',
     blurb: 'Task → wait 2d → notify → wait 3d → proposal task',
     steps: [
       { kind: 'action', action_type: 'create_task', action_config: { subject: 'Intro call with {{lead.first_name}}', due_in_days: 0 } },
@@ -66,7 +69,7 @@ const TEMPLATES: Array<{ id: string; icon: string; name: string; trigger: string
     ],
   },
   {
-    id: 're-engage', icon: '🔁', name: 'Re-engage cold leads', trigger: 'lead_idle',
+    id: 're-engage', icon: Repeat, name: 'Re-engage cold leads', trigger: 'lead_idle',
     blurb: 'Notify owner → wait 2d → re-engagement call task',
     steps: [
       { kind: 'action', action_type: 'send_notification', action_config: { title: '{{lead.first_name}} has gone quiet — reach out' } },
@@ -75,7 +78,7 @@ const TEMPLATES: Array<{ id: string; icon: string; name: string; trigger: string
     ],
   },
   {
-    id: 'deal-won', icon: '🎉', name: 'Deal won → kickoff', trigger: 'deal_won',
+    id: 'deal-won', icon: PartyPopper, name: 'Deal won → kickoff', trigger: 'deal_won',
     blurb: 'Onboarding task → wait 1d → notify owner',
     steps: [
       { kind: 'action', action_type: 'create_task', action_config: { subject: 'Kick off onboarding for {{deal.name}}', due_in_days: 1 } },
@@ -161,7 +164,10 @@ export default function CadencesManager() {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Cadences &amp; Drips</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <InlineIcon icon={ListOrdered} size={18} style={{ color: 'var(--text-dim)' }} />
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Cadences &amp; Drips</h1>
+        </div>
         <p style={{ fontSize: 12.5, color: 'var(--text-dim)', margin: '4px 0 0', maxWidth: 640 }}>
           Multi-step follow-up sequences that fire on a trigger and run in order, with waits between touches
           (e.g. <em>on Lead created: create a task → wait 2 days → notify the owner</em>). Steps run top-to-bottom;
@@ -181,14 +187,16 @@ export default function CadencesManager() {
             {TRIGGERS.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}
           </select>
         </div>
-        <button style={{ ...btnPrimary, opacity: creating ? 0.6 : 1 }} disabled={creating} onClick={createFlow}>
-          {creating ? 'Creating…' : '+ New Cadence'}
+        <button style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6, opacity: creating ? 0.6 : 1 }} disabled={creating} onClick={createFlow}>
+          {!creating && <InlineIcon icon={Plus} />}
+          {creating ? 'Creating…' : 'New Cadence'}
         </button>
       </div>
 
       {/* Start-from-a-template shortcuts */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <InlineIcon icon={LayoutTemplate} size={14} />
           Or start from a template
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
@@ -201,12 +209,13 @@ export default function CadencesManager() {
               style={{ ...card, textAlign: 'left', cursor: applyingTpl ? 'default' : 'pointer', padding: 14, display: 'flex', flexDirection: 'column', gap: 4, opacity: applyingTpl && applyingTpl !== tpl.id ? 0.5 : 1 }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 18 }}>{tpl.icon}</span>
+                <IconTile icon={tpl.icon} tone="brand" />
                 <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>{tpl.name}</span>
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-dim)', lineHeight: 1.4 }}>{tpl.blurb}</div>
-              <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700, marginTop: 2 }}>
-                {applyingTpl === tpl.id ? 'Creating…' : `+ Use template · ${tpl.steps.length} steps`}
+              <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                {applyingTpl !== tpl.id && <InlineIcon icon={Plus} size={12} />}
+                {applyingTpl === tpl.id ? 'Creating…' : `Use template · ${tpl.steps.length} steps`}
               </div>
             </button>
           ))}
@@ -216,15 +225,18 @@ export default function CadencesManager() {
       {loading && flows.length === 0 ? (
         <div style={{ ...card, color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div>
       ) : flows.length === 0 ? (
-        <div style={{ ...card, color: 'var(--text-dim)', fontSize: 13 }}>No cadences yet. Create one above.</div>
+        <div style={{ ...card, color: 'var(--text-dim)', fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center' }}>
+          <IconTile icon={Workflow} size={40} iconSize={20} />
+          No cadences yet. Create one above.
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {flows.map((f) => (
             <div key={f.id} style={card}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 200, cursor: 'pointer' }} onClick={() => setExpandedId(expandedId === f.id ? null : f.id)}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-                    {expandedId === f.id ? '▾ ' : '▸ '}{f.name}
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <InlineIcon icon={expandedId === f.id ? ChevronDown : ChevronRight} size={14} style={{ color: 'var(--text-dim)' }} />{f.name}
                   </div>
                   <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 2 }}>
                     Trigger: {triggerLabel(f.trigger_type)}{f.run_count ? ` · ${f.run_count} runs` : ''}
@@ -234,8 +246,8 @@ export default function CadencesManager() {
                   background: f.is_active ? 'rgba(34,197,94,0.14)' : 'var(--s3)', color: f.is_active ? '#22c55e' : 'var(--text-dim)' }}>
                   {f.is_active ? 'Active' : 'Draft'}
                 </span>
-                <button style={btnGhost} onClick={() => toggleActive(f)}>{f.is_active ? 'Deactivate' : 'Activate'}</button>
-                <button style={{ ...btnGhost, color: '#ef4444', borderColor: '#ef4444' }} onClick={() => removeFlow(f)}>Delete</button>
+                <button style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => toggleActive(f)}><InlineIcon icon={f.is_active ? Pause : Play} />{f.is_active ? 'Deactivate' : 'Activate'}</button>
+                <button style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 6, color: '#ef4444', borderColor: '#ef4444' }} onClick={() => removeFlow(f)}><InlineIcon icon={Trash2} />Delete</button>
               </div>
               {expandedId === f.id && <StepEditor flowId={f.id} />}
             </div>
@@ -350,7 +362,7 @@ function StepEditor({ flowId }: { flowId: string }) {
                 {/* Timeline rail: icon dot + connector line to the next step */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 30 }}>
                   <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
-                    background: `color-mix(in srgb, ${m.color} 16%, transparent)`, border: `1.5px solid ${m.color}` }}>{m.icon}</div>
+                    background: `color-mix(in srgb, ${m.color} 16%, transparent)`, border: `1.5px solid ${m.color}`, color: m.color }}><InlineIcon icon={m.icon} size={14} /></div>
                   {!isLast && <div style={{ flex: 1, width: 2, minHeight: 14, background: 'var(--border)', margin: '2px 0' }} />}
                 </div>
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, paddingBottom: isLast ? 0 : 10 }}>
@@ -360,7 +372,7 @@ function StepEditor({ flowId }: { flowId: string }) {
                     </div>
                     {detail && <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detail}</div>}
                   </div>
-                  <button onClick={() => removeStep(s)} style={{ background: 'transparent', border: '1px solid var(--border)', color: '#ef4444', padding: '2px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>Remove</button>
+                  <button onClick={() => removeStep(s)} style={{ background: 'transparent', border: '1px solid var(--border)', color: '#ef4444', padding: '2px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Trash2} size={12} />Remove</button>
                 </div>
               </div>
             );
@@ -372,12 +384,15 @@ function StepEditor({ flowId }: { flowId: string }) {
       <div style={{ background: 'var(--s3)', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ minWidth: 200 }}>
-            <label style={label}>Add a step</label>
+            <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 6 }}>
+              {(() => { const t = STEP_TYPES.find((x) => x.key === type); return t ? <InlineIcon icon={t.icon} size={13} /> : null; })()}
+              Add a step
+            </label>
             <select value={type} onChange={(e) => setType(e.target.value)} style={input as any}>
               {STEP_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
             </select>
           </div>
-          <button style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={addStep}>{saving ? 'Adding…' : 'Add step'}</button>
+          <button style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={addStep}>{!saving && <InlineIcon icon={Plus} />}{saving ? 'Adding…' : 'Add step'}</button>
         </div>
 
         {type === 'delay' && (

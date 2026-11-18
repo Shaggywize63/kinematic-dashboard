@@ -5,6 +5,8 @@ import { Card, PageHeader, Pill, Th, Td, Btn, inr, fmtDate, statusColor } from '
 import PrefetchLink from '../../../../components/PrefetchLink';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { FileText } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 export default function InvoicesPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -51,7 +53,7 @@ export default function InvoicesPage() {
             <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="approved order UUID"
               style={{ width: '100%', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'JetBrains Mono, monospace' }} />
           </div>
-          <Btn onClick={issue} disabled={busy || !orderId}>{busy ? 'Issuing…' : 'Issue invoice'}</Btn>
+          <Btn onClick={issue} disabled={busy || !orderId} icon={<InlineIcon icon={FileText} />}>{busy ? 'Issuing…' : 'Issue invoice'}</Btn>
         </div>
         {err && <div style={{ marginTop: 10, color: 'var(--primary)', fontSize: 12 }}>{err}</div>}
       </Card>

@@ -17,7 +17,7 @@ import {
   PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
 } from 'recharts';
 import dynamic from 'next/dynamic';
-import { X, Pin, MoreVertical, AlertTriangle, Inbox, Edit3 } from 'lucide-react';
+import { X, Pin, MoreVertical, AlertTriangle, Inbox, Edit3, CheckCircle2 } from 'lucide-react';
 import { crmAnalyticsExt, type WidgetInstance } from '../../../lib/crmAnalyticsExtApi';
 import { crmLeads } from '../../../lib/crmApi';
 import { widgetByType, datasetById, type ChartType, type WidgetMeta } from '../../../lib/crm/widgetCatalog';
@@ -396,7 +396,7 @@ function WidgetBody({ widget, data, accent }: { widget: WidgetInstance; data: un
     }
     case 'leads_at_risk': {
       const rows = (data as Array<{ name: string; score: number; days_idle: number }>) ?? [];
-      if (!rows.length) return <div style={{ ...empty, color: '#10B981' }}>✅ No leads at risk</div>;
+      if (!rows.length) return <div style={{ ...empty, color: '#10B981', gap: 6 }}><CheckCircle2 aria-hidden size={15} strokeWidth={2} />No leads at risk</div>;
       return <TableView rows={rows.map(r => ({ Name: r.name, Score: r.score, 'Days idle': r.days_idle }))} />;
     }
     case 'leads_geo_heatmap': {

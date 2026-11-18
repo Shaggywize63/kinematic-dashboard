@@ -3,6 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { crmSettings } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
+import type { LucideIcon } from 'lucide-react';
+import { Award, Building2, Check, ClipboardCheck, MapPin, MessageCircle, Pencil, Phone, Plus, RefreshCw, RotateCcw, Route, SlidersHorizontal, Target, Timer, User } from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 
 // Score budgets target a strict 100 max. Source weights are treated as
 // mutually exclusive in maxScore (a lead has exactly one source), so
@@ -98,14 +101,14 @@ const LEGACY_KEYS = new Set([
 
 const GRADE_THRESHOLDS = { A: 75, B: 55, C: 35 };
 
-const FIELD_GROUPS: Array<{ title: string; desc: string; keys: string[] }> = [
-  { title: 'Profile Completeness', desc: 'Demographic / firmographic fields the rep needs before visiting or pitching.', keys: ['has_company', 'has_title', 'has_industry', 'has_phone', 'has_email', 'has_address'] },
-  { title: 'WhatsApp Engagement', desc: 'WhatsApp is the primary engagement channel. Two-way replies score higher than outbound-only.', keys: ['whatsapp_sent', 'whatsapp_replied'] },
-  { title: 'Calls & Meetings', desc: 'Connected phone calls and booked meetings — confirmed verbal contact.', keys: ['call_completed', 'meeting_booked'] },
-  { title: 'Site Visits', desc: 'Physical visits to the outlet / customer site. Repeat visits are a strong intent signal.', keys: ['site_visit_completed', 'repeat_site_visit'] },
-  { title: 'Explicit Intent', desc: 'Demos, quotes, and samples requested — the lead is comparing.', keys: ['demo_requested', 'quote_requested', 'sample_requested'] },
-  { title: 'Source Quality', desc: 'Higher-intent acquisition channels score better.', keys: ['source_referral', 'source_walk_in', 'source_event', 'source_whatsapp_inbound', 'source_cold_outbound'] },
-  { title: 'Recency / Decay', desc: 'Recent activity boosts; long silence and opt-outs penalise. Negative values reduce the score.', keys: ['recent_activity_7d', 'no_activity_30d', 'opted_out'] },
+const FIELD_GROUPS: Array<{ title: string; desc: string; keys: string[]; icon: LucideIcon }> = [
+  { title: 'Profile Completeness', icon: ClipboardCheck, desc: 'Demographic / firmographic fields the rep needs before visiting or pitching.', keys: ['has_company', 'has_title', 'has_industry', 'has_phone', 'has_email', 'has_address'] },
+  { title: 'WhatsApp Engagement', icon: MessageCircle, desc: 'WhatsApp is the primary engagement channel. Two-way replies score higher than outbound-only.', keys: ['whatsapp_sent', 'whatsapp_replied'] },
+  { title: 'Calls & Meetings', icon: Phone, desc: 'Connected phone calls and booked meetings — confirmed verbal contact.', keys: ['call_completed', 'meeting_booked'] },
+  { title: 'Site Visits', icon: MapPin, desc: 'Physical visits to the outlet / customer site. Repeat visits are a strong intent signal.', keys: ['site_visit_completed', 'repeat_site_visit'] },
+  { title: 'Explicit Intent', icon: Target, desc: 'Demos, quotes, and samples requested — the lead is comparing.', keys: ['demo_requested', 'quote_requested', 'sample_requested'] },
+  { title: 'Source Quality', icon: Route, desc: 'Higher-intent acquisition channels score better.', keys: ['source_referral', 'source_walk_in', 'source_event', 'source_whatsapp_inbound', 'source_cold_outbound'] },
+  { title: 'Recency / Decay', icon: Timer, desc: 'Recent activity boosts; long silence and opt-outs penalise. Negative values reduce the score.', keys: ['recent_activity_7d', 'no_activity_30d', 'opted_out'] },
 ];
 
 const FIELD_LABELS: Record<string, string> = {
@@ -413,10 +416,10 @@ export default function ScoringSettingsPage() {
             )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={save} disabled={saving || !loaded} style={btnPrimary}>
-                {saving ? 'Saving…' : 'Save Model'}
+                {!saving && <InlineIcon icon={Check} />}{saving ? 'Saving…' : 'Save Model'}
               </button>
-              <button onClick={reset} disabled={!loaded} style={btnGhost}>Reset {businessType.toUpperCase()}</button>
-              <button onClick={load} disabled={!loaded} style={btnGhost}>Reload</button>
+              <button onClick={reset} disabled={!loaded} style={btnGhost}><InlineIcon icon={RotateCcw} />Reset {businessType.toUpperCase()}</button>
+              <button onClick={load} disabled={!loaded} style={btnGhost}><InlineIcon icon={RefreshCw} />Reload</button>
             </div>
           </div>
         </div>
@@ -457,7 +460,7 @@ export default function ScoringSettingsPage() {
                 textAlign: 'left',
               }}
             >
-              <div>{bt === 'b2b' ? 'B2B Model' : 'B2C Model'}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={bt === 'b2b' ? Building2 : User} size={14} />{bt === 'b2b' ? 'B2B Model' : 'B2C Model'}</div>
               <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-dim)', marginTop: 2 }}>
                 {bt === 'b2b'
                   ? 'Firmographic + intent signals dominate. Used for company-attached leads.'
@@ -469,7 +472,7 @@ export default function ScoringSettingsPage() {
       </div>
 
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Grade Thresholds — {businessType.toUpperCase()}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Award} size={16} style={{ color: 'var(--text-dim)' }} />Grade Thresholds — {businessType.toUpperCase()}</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>
           Score buckets: A (hot) ≥ <strong>{active.grade_thresholds.A}</strong> · B (warm) ≥ <strong>{active.grade_thresholds.B}</strong> · C (lukewarm) ≥ <strong>{active.grade_thresholds.C}</strong> · D (cold) below.
         </div>
@@ -491,7 +494,7 @@ export default function ScoringSettingsPage() {
       </div>
 
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Custom Criteria — {businessType.toUpperCase()}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={SlidersHorizontal} size={16} style={{ color: 'var(--text-dim)' }} />Custom Criteria — {businessType.toUpperCase()}</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>Add your own scoring signals (e.g. industry-specific or campaign-specific). Negative weights penalise. Custom criteria live inside the active profile.</div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 90px auto', gap: 8, alignItems: 'end', marginBottom: 14, padding: 10, background: 'var(--s3)', borderRadius: 8 }}>
@@ -507,7 +510,7 @@ export default function ScoringSettingsPage() {
             <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Weight</span>
             <input type="number" value={newWeight} onChange={(e) => setNewWeight(e.target.value)} style={input} />
           </label>
-          <button onClick={addCustom} type="button" style={{ ...btnPrimary, padding: '8px 14px' }}>+ Add</button>
+          <button onClick={addCustom} type="button" style={{ ...btnPrimary, padding: '8px 14px' }}><InlineIcon icon={Plus} />Add</button>
         </div>
 
         {customKeys.length === 0 ? (
@@ -546,7 +549,7 @@ export default function ScoringSettingsPage() {
 
       {FIELD_GROUPS.map((grp) => (
         <div key={grp.title} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{grp.title} — {businessType.toUpperCase()}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={grp.icon} size={16} style={{ color: 'var(--text-dim)' }} />{grp.title} — {businessType.toUpperCase()}</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>{grp.desc}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
             {grp.keys.map((k) => {
@@ -578,8 +581,8 @@ export default function ScoringSettingsPage() {
 }
 
 const input: React.CSSProperties = { background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px', borderRadius: 6, fontSize: 13 };
-const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 };
-const btnGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 13 };
+const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 };
+const btnGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 };
 
 // Inline label editor — looks like a label until you hover or focus.
 // The previous styling was completely invisible (transparent border, no
@@ -598,9 +601,9 @@ function EditableLabel(p: { value: string; onChange: (v: string) => void; overri
     >
       <span
         aria-hidden
-        style={{ fontSize: 10, color: p.overridden ? 'var(--primary)' : (showBox ? 'var(--text-dim)' : 'transparent'), transition: 'color .12s ease' }}
+        style={{ fontSize: 10, display: 'inline-flex', color: p.overridden ? 'var(--primary)' : (showBox ? 'var(--text-dim)' : 'transparent'), transition: 'color .12s ease' }}
       >
-        ✏️
+        <Pencil size={11} strokeWidth={2} />
       </span>
       <input
         value={p.value}

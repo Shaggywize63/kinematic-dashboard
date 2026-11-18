@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, StatCard, Row, Th, Td, Btn } from '../../../../../components/distribution/Atoms';
+import { IndianRupee, ShoppingCart } from 'lucide-react';
 
 const inr = (v: number) => '₹' + Math.round(v || 0).toLocaleString('en-IN');
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -68,9 +69,9 @@ export default function CompanyReport() {
 
       {total && (
         <Row style={{ marginBottom: 20 }}>
-          <StatCard label="Orders (all companies)" value={inr(total.order_value)} hint={`${total.orders} orders`} />
+          <StatCard label="Orders (all companies)" icon={ShoppingCart} value={inr(total.order_value)} hint={`${total.orders} orders`} />
           <StatCard label="Invoiced" value={inr(total.invoice_value)} hint={`${total.invoices} invoices`} />
-          <StatCard label="Collected" value={inr(total.collected)} accent="var(--green)" />
+          <StatCard label="Collected" icon={IndianRupee} value={inr(total.collected)} accent="var(--green)" />
           <StatCard label="Returns" value={inr(total.return_value)} hint={`${total.returns} returns`} />
         </Row>
       )}

@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { AlertTriangle, CalendarClock, CalendarDays, CalendarOff, CheckCircle2, ListChecks, RotateCcw, type LucideIcon } from 'lucide-react';
 import { crmTasks, type MyTask, type Pagination } from '../../../../lib/crmApi';
 import { Badge, Card, EmptyState, PageHeader, Select, T, type Tone, useIsCompact } from '../../../../components/ui';
 import { formatDate, formatTime } from '../../../../lib/utils';
@@ -24,12 +25,12 @@ const STATUS_OPTIONS: Array<{ value: '' | 'open' | 'in_progress' | 'completed'; 
 // has rows (i.e. when the Completed filter is on, or a completed task
 // slips into another fetch).
 type Bucket = 'overdue' | 'today' | 'upcoming' | 'nodate' | 'completed';
-const SECTIONS: Array<{ key: Bucket; label: string; tone: Tone }> = [
-  { key: 'overdue', label: 'Overdue', tone: 'red' },
-  { key: 'today', label: 'Today', tone: 'warn' },
-  { key: 'upcoming', label: 'Upcoming', tone: 'info' },
-  { key: 'nodate', label: 'No date', tone: 'neutral' },
-  { key: 'completed', label: 'Completed', tone: 'ok' },
+const SECTIONS: Array<{ key: Bucket; label: string; tone: Tone; icon: LucideIcon }> = [
+  { key: 'overdue', label: 'Overdue', tone: 'red', icon: AlertTriangle },
+  { key: 'today', label: 'Today', tone: 'warn', icon: CalendarDays },
+  { key: 'upcoming', label: 'Upcoming', tone: 'info', icon: CalendarClock },
+  { key: 'nodate', label: 'No date', tone: 'neutral', icon: CalendarOff },
+  { key: 'completed', label: 'Completed', tone: 'ok', icon: CheckCircle2 },
 ];
 
 const startOfToday = () => {
@@ -203,8 +204,9 @@ export default function MyTasksPage() {
               data-testid="overdue-toggle"
               aria-pressed={overdueOnly}
               onClick={() => setOverdueOnly((v) => !v)}
-              style={toggleBase}
+              style={{ ...toggleBase, display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
+              <AlertTriangle aria-hidden size={14} strokeWidth={2} />
               Overdue only
             </button>
           </div>
@@ -216,14 +218,16 @@ export default function MyTasksPage() {
       ) : error ? (
         <Card>
           <EmptyState
+            icon={<AlertTriangle size={20} strokeWidth={1.8} />}
             title="Something went wrong"
             description={error}
-            action={<button type="button" onClick={fetchTasks} style={{ ...toggleBase, background: T.card, color: T.dim, border: `1px solid ${T.border}` }}>Retry</button>}
+            action={<button type="button" onClick={fetchTasks} style={{ ...toggleBase, background: T.card, color: T.dim, border: `1px solid ${T.border}`, display: 'inline-flex', alignItems: 'center', gap: 6 }}><RotateCcw aria-hidden size={14} strokeWidth={2} />Retry</button>}
           />
         </Card>
       ) : !hasAny ? (
         <Card>
           <EmptyState
+            icon={overdueOnly ? <CheckCircle2 size={20} strokeWidth={1.8} /> : <ListChecks size={20} strokeWidth={1.8} />}
             title={overdueOnly ? 'Nothing overdue' : 'You have no tasks'}
             description={overdueOnly
               ? 'You are all caught up — no overdue tasks right now.'
@@ -238,7 +242,7 @@ export default function MyTasksPage() {
             return (
               <section key={s.key} data-testid={`section-${s.key}`}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, fontFamily: T.heading, color: T.text }}>{s.label}</h2>
+                  <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, fontFamily: T.heading, color: T.text, display: 'flex', alignItems: 'center', gap: 6 }}><s.icon aria-hidden size={15} strokeWidth={2} style={{ color: T.dim, flexShrink: 0 }} />{s.label}</h2>
                   <Badge tone={s.tone}>{rows.length}</Badge>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

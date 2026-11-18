@@ -2,6 +2,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import planogramApi from '../../../lib/planogramApi';
+import { AlertTriangle, Camera, Flag, Percent, PieChart, TrendingUp, type LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../../components/ui/PageIcon';
 import { useCityScope } from '../../../context/CityScopeContext';
 import type {
   PlanogramOverview,
@@ -113,6 +115,7 @@ export default function PlanogramOverviewPage() {
       >
         <Kpi
           dot={PC.warn}
+          icon={Percent}
           label="Avg compliance"
           value={overview?.avg_compliance != null ? fmtScore(overview.avg_compliance) : '—'}
           unit="%"
@@ -120,6 +123,7 @@ export default function PlanogramOverviewPage() {
         />
         <Kpi
           dot={PC.good}
+          icon={PieChart}
           label="Own shelf-share"
           value={overview?.own_shelf_share != null ? fmtScore(overview.own_shelf_share) : '—'}
           unit="%"
@@ -127,6 +131,7 @@ export default function PlanogramOverviewPage() {
         />
         <Kpi
           dot={PC.info}
+          icon={Camera}
           label="Captures"
           value={overview?.captures_count != null ? String(overview.captures_count) : '—'}
           sub={overview?.stores_count != null ? `${overview.stores_count} stores` : undefined}
@@ -134,6 +139,7 @@ export default function PlanogramOverviewPage() {
         />
         <Kpi
           dot={PC.bad}
+          icon={Flag}
           label="Flagged"
           value={overview?.flagged_count != null ? String(overview.flagged_count) : '—'}
           sub="needs review"
@@ -149,7 +155,7 @@ export default function PlanogramOverviewPage() {
           gap: 14,
         }}
       >
-        <SectionCard title="Needs attention" caption="Lowest-scoring & flagged captures — act on these first">
+        <SectionCard title="Needs attention" icon={AlertTriangle} caption="Lowest-scoring & flagged captures — act on these first">
           {loading ? (
             <StateBlock>Loading…</StateBlock>
           ) : needsAttention.length === 0 ? (
@@ -163,7 +169,7 @@ export default function PlanogramOverviewPage() {
           )}
         </SectionCard>
 
-        <SectionCard title="Compliance trend" caption="Rolling average over the period">
+        <SectionCard title="Compliance trend" icon={TrendingUp} caption="Rolling average over the period">
           {loading ? (
             <StateBlock>Loading…</StateBlock>
           ) : trend.length === 0 ? (
@@ -175,7 +181,7 @@ export default function PlanogramOverviewPage() {
       </div>
 
       {/* Recent captures */}
-      <SectionCard title="Recent captures" caption="Latest shelf audits across stores" bodyPad={false}>
+      <SectionCard title="Recent captures" icon={Camera} caption="Latest shelf audits across stores" bodyPad={false}>
         {loading ? (
           <StateBlock>Loading…</StateBlock>
         ) : recent.length === 0 ? (
@@ -289,6 +295,7 @@ function RecentRow({ row }: { row: OverviewRecentItem }) {
 
 function Kpi({
   dot,
+  icon,
   label,
   value,
   unit,
@@ -296,6 +303,8 @@ function Kpi({
   loading,
 }: {
   dot: string;
+  /** Drawn in the card's status colour (the colour the dot used to carry). */
+  icon: LucideIcon;
   label: string;
   value: string;
   unit?: string;
@@ -313,7 +322,7 @@ function Kpi({
       }}
     >
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11.5, color: PC.muted, fontWeight: 600 }}>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot, display: 'inline-block' }} />
+        <InlineIcon icon={icon} size={14} style={{ color: dot }} />
         {label}
       </div>
       <div

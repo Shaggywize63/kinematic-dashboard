@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { Check, Pencil } from 'lucide-react';
 import { crmAccounts, crmSettings } from '../../lib/crmApi';
 import type { Account } from '../../types/crm';
 import Modal from './shared/Modal';
@@ -167,8 +168,8 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
   })();
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit Account"
-      footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
+    <Modal open={open} onClose={onClose} title="Edit Account" icon={Pencil}
+      footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}><Check aria-hidden size={15} strokeWidth={2} />{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <Grid>
         {!fields.isHidden('name') && <div data-field="name" style={{ display: 'contents' }}><Field label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} ord={fields.orderStyle('name')} /></div>}
         {industryNode}{subIndustryNode}
@@ -217,5 +218,5 @@ const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textT
 const input: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
 const btn = {
   secondary: { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 } as React.CSSProperties,
-  primary: (busy: boolean): React.CSSProperties => ({ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 700, fontSize: 13, opacity: busy ? 0.7 : 1 }),
+  primary: (busy: boolean): React.CSSProperties => ({ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 700, fontSize: 13, opacity: busy ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }),
 };

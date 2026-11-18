@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { BarChart3, PhoneCall } from 'lucide-react';
+import { metricIconFor } from '../../../lib/labelIcons';
 import { crmAnalytics } from '../../../lib/crmApi';
 import type { TelecallerPerfRow } from '../../../types/crm';
 import { getStoredUser } from '../../../lib/auth';
@@ -72,16 +74,19 @@ export default function TelecallerOverviewStrip() {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Telecaller — this month</div>
-        <Link href="/dashboard/crm/reports/telecaller-performance" style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', textDecoration: 'none' }}>Full report →</Link>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}><PhoneCall aria-hidden size={15} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Telecaller — this month</div>
+        <Link href="/dashboard/crm/reports/telecaller-performance" style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}><BarChart3 aria-hidden size={13} strokeWidth={2} />Full report →</Link>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
-        {items.map((k) => (
+        {items.map((k) => {
+          const Icon = metricIconFor(k.label);
+          return (
           <div key={k.label} style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderLeft: `3px solid ${k.accent}`, borderRadius: 10, padding: '10px 12px' }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{k.label}</div>
+            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{Icon && <Icon aria-hidden size={12} strokeWidth={2} style={{ flexShrink: 0 }} />}{k.label}</div>
             <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', marginTop: 3 }}>{loading ? '—' : k.value}</div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

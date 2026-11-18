@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Check, X } from 'lucide-react';
+import { Bookmark, CalendarClock, CalendarDays, Check, CircleDot, Gauge, MapPin, Megaphone, SlidersHorizontal, UserRound, X, type LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../ui/PageIcon';
 import api from '../../../lib/api';
 import { useCrmDateRange, type DateRangePreset } from '../../../stores/crmDateRangeStore';
 import { Button, IconButton, Input, Select, T, eyebrowStyle } from '../../ui';
@@ -27,10 +28,16 @@ const DATE_PRESETS: Array<{ value: DateRangePreset; label: string }> = [
   { value: '90d', label: '90 days' },
 ];
 
+// One icon per filter group, so the drawer scans at a glance.
+const GROUP_ICON: Record<string, LucideIcon> = {
+  Status: CircleDot, 'Score grade': Gauge, Source: Megaphone, Owner: UserRound, 'Follow-ups': CalendarClock, Location: MapPin, 'Date added': CalendarDays,
+};
+
 function Group({ title, children }: { title: string; children: ReactNode }) {
+  const Icon = GROUP_ICON[title];
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-      <div style={eyebrowStyle}>{title}</div>
+      <div style={{ ...eyebrowStyle, display: 'flex', alignItems: 'center', gap: 6 }}>{Icon && <InlineIcon icon={Icon} size={13} />}{title}</div>
       {children}
     </section>
   );
@@ -141,7 +148,7 @@ export default function LeadFilterDrawer({
         }}
       >
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: `1px solid ${T.border}` }}>
-          <div style={{ fontFamily: T.heading, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>Filters</div>
+          <div style={{ fontFamily: T.heading, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={SlidersHorizontal} size={16} style={{ color: T.dim }} />Filters</div>
           <IconButton label="Close filters" onClick={onClose}><X size={18} strokeWidth={1.6} /></IconButton>
         </header>
 
@@ -238,7 +245,7 @@ export default function LeadFilterDrawer({
           </Group>
 
           <section style={{ display: 'flex', flexDirection: 'column', gap: 10, border: `1px dashed ${T.borderStrong}`, borderRadius: T.radius.lg, padding: 14 }}>
-            <div style={eyebrowStyle}>Save as a view</div>
+            <div style={{ ...eyebrowStyle, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Bookmark} size={13} />Save as a view</div>
             <Input
               aria-label="View name"
               placeholder="e.g. Gujarat · hot call-centre leads"
@@ -258,7 +265,7 @@ export default function LeadFilterDrawer({
 
         <footer style={{ display: 'flex', gap: 10, padding: '14px 20px', borderTop: `1px solid ${T.border}`, background: T.card }}>
           <Button onClick={onReset} style={{ flex: '0 0 auto' }}>Reset</Button>
-          <Button variant="primary" onClick={onClose} style={{ flex: 1, justifyContent: 'center' }}>
+          <Button variant="primary" onClick={onClose} icon={<Check size={15} strokeWidth={2} />} style={{ flex: 1, justifyContent: 'center' }}>
             {loading ? 'Updating…' : `Show ${total.toLocaleString()} lead${total === 1 ? '' : 's'}`}
           </Button>
         </footer>

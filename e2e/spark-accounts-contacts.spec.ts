@@ -307,7 +307,7 @@ test.describe('Spark: industry on the contact form (tied to the company)', () =>
     await setupIndustry(page, writes);
     await page.goto('/dashboard/crm/contacts/new');
     await expect(page.getByRole('heading', { name: 'New Contact' })).toBeVisible({ timeout: 30_000 });
-    await page.getByRole('button', { name: '+ Not listed? Add a new company' }).click();
+    await page.getByRole('button', { name: 'Not listed? Add a new company' }).click();
     await page.getByLabel('New company name').fill('Delta Pumps');
     await pickIndustry(page, 'Automotive');
     await fillAndCreate(page);
@@ -321,7 +321,7 @@ test.describe('Spark: industry on the contact form (tied to the company)', () =>
     await setupIndustry(page, writes, { duplicate: true });
     await page.goto('/dashboard/crm/contacts/new');
     await expect(page.getByRole('heading', { name: 'New Contact' })).toBeVisible({ timeout: 30_000 });
-    await page.getByRole('button', { name: '+ Not listed? Add a new company' }).click();
+    await page.getByRole('button', { name: 'Not listed? Add a new company' }).click();
     await page.getByLabel('New company name').fill('beta castings');
     await fillAndCreate(page);
     await expect.poll(() => writes.filter((w) => w.path === '/api/v1/crm/contacts').length).toBe(1);

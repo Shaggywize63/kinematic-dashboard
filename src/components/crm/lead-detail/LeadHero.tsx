@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowRightLeft, ChevronDown, Link2, MoreHorizontal, Pencil, Phone, RotateCcw, Search, Trash2, User, UserPlus, XCircle } from 'lucide-react';
+import { ArrowRightLeft, CalendarDays, ChevronDown, Link2, Megaphone, MoreHorizontal, Pencil, Phone, RotateCcw, Search, Tag, Trash2, User, UserPlus, XCircle } from 'lucide-react';
 import { formatINRCompact } from '../../../lib/formatCurrency';
 import { isStructuredLead, leadPersonName, leadPersonTitle } from '../../../lib/leadHeader';
 import type { FieldHelpers } from '../../../lib/crmFieldOverrides';
@@ -178,12 +178,12 @@ export default function LeadHero(p: LeadHeroProps) {
                 <span data-testid="lead-value-chip" style={chip} title="Total of the requirement's product lines">{value}</span>
               )}
               {showLeadType && (
-                <span data-field="lead_type">{fields.labelFor('lead_type', LEAD_TYPE_DEFAULT_LABEL)} <span style={{ color: T.text, fontWeight: 600 }}>{leadTypeLabel(lead.lead_type)}</span></span>
+                <span data-field="lead_type" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Tag size={13} strokeWidth={1.9} aria-hidden />{fields.labelFor('lead_type', LEAD_TYPE_DEFAULT_LABEL)} <span style={{ color: T.text, fontWeight: 600 }}>{leadTypeLabel(lead.lead_type)}</span></span>
               )}
               {!fields.isHidden('source_id') && lead.source_name && (
-                <span data-field="source_id">{fields.labelFor('source_id', 'Source')} <span style={{ color: T.text, fontWeight: 600 }}>{lead.source_name}</span></span>
+                <span data-field="source_id" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Megaphone size={13} strokeWidth={1.9} aria-hidden />{fields.labelFor('source_id', 'Source')} <span style={{ color: T.text, fontWeight: 600 }}>{lead.source_name}</span></span>
               )}
-              <span title={fmtIST(lead.created_at)}>Added <span style={{ color: T.text, fontWeight: 600 }}>{fmtDate(lead.created_at)}</span></span>
+              <span title={fmtIST(lead.created_at)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><CalendarDays size={13} strokeWidth={1.9} aria-hidden />Added <span style={{ color: T.text, fontWeight: 600 }}>{fmtDate(lead.created_at)}</span></span>
             </div>
           </div>
         </div>

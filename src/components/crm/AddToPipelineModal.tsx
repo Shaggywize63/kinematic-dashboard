@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Info } from 'lucide-react';
+import { Info, Kanban } from 'lucide-react';
 import { crmPipelines, crmDeals } from '../../lib/crmApi';
 import type { Pipeline, Deal } from '../../types/crm';
 import Modal from './shared/Modal';
@@ -63,6 +63,7 @@ export default function AddToPipelineModal({ deal, pipelines, open, onClose, onU
       open={open}
       onClose={() => { if (!busy) onClose(); }}
       title={deal.pipeline_id ? 'Move pipeline' : 'Add to pipeline'}
+      icon={Kanban}
       subtitle={deal.name}
       width={520}
       footer={

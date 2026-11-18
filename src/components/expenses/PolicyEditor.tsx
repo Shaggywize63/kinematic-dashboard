@@ -6,14 +6,18 @@
 import { useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Copy, Plus, Trash2, X } from 'lucide-react';
+import {
+  AlertTriangle, Ban, Car, CheckCircle2, ClipboardList, Copy, Flag, Info, LayoutTemplate, Plus, Scale, ShieldAlert, SlidersHorizontal, Tags, Trash2,
+  UserCheck, Users, X, type LucideIcon,
+} from 'lucide-react';
 import { Badge, Button, Card, FormGrid, Input, Section, Select, Textarea, T, useIsCompact } from '../ui';
+import { InlineIcon } from '../ui/PageIcon';
 import { useConfirm, useDebounced } from '../finance/ui';
 import {
   CATEGORIES, CATEGORY_LABELS, ExpensePolicy, ItemCategory, PolicyInput, PolicyPerson, PolicyPreset, PolicyRoles, PolicyRules,
   categoryLabel, expensesApi, singleCategory,
 } from '../../lib/expensesApi';
-import { ExpensesShell, Field, errText } from './kit';
+import { ExpensesShell, Field, categoryIcon, errText } from './kit';
 import { usePageTitle } from '../../lib/pageTitle';
 
 // ── form model ──────────────────────────────────────────────────────────────
@@ -163,11 +167,16 @@ function ToggleChip({ on, onClick, children }: { on: boolean; onClick: () => voi
   );
 }
 
-function Choice({ on, onClick, title, children }: { on: boolean; onClick: () => void; title: string; children: ReactNode }) {
+/** A section eyebrow with its icon in front. */
+const eyebrow = (icon: LucideIcon, text: string) => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={icon} size={14} />{text}</span>
+);
+
+function Choice({ on, onClick, title, icon, children }: { on: boolean; onClick: () => void; title: string; icon?: LucideIcon; children: ReactNode }) {
   return (
     <button type="button" role="radio" aria-checked={on} onClick={onClick}
       style={{ flex: '1 1 240px', textAlign: 'left', padding: '12px 14px', borderRadius: T.radius.md, border: `1px solid ${on ? T.red : T.border}`, background: on ? T.redWash : T.card, cursor: 'pointer', fontFamily: 'inherit' }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: on ? T.red : T.text }}>{title}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: on ? T.red : T.text, display: 'flex', alignItems: 'center', gap: 8 }}>{icon && <InlineIcon icon={icon} size={15} />}{title}</div>
       <div style={{ fontSize: 12.5, color: T.dim, marginTop: 3, lineHeight: 1.45 }}>{children}</div>
     </button>
   );
@@ -288,7 +297,7 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
 
       {!policyId && presets.length > 0 && (
         <Card padding={20}>
-          <Section first eyebrow="Start from a template" hint="Pick one to fill in sensible numbers, then change anything you like.">
+          <Section first eyebrow={eyebrow(LayoutTemplate, 'Start from a template')} hint="Pick one to fill in sensible numbers, then change anything you like.">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
               {presets.map((p) => {
                 const on = preset === p.key;
@@ -306,7 +315,7 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
       )}
 
       <Card padding={20}>
-        <Section first eyebrow="Basics">
+        <Section first eyebrow={eyebrow(Info, 'Basics')}>
           <FormGrid narrow={!wide}>
             <Field label="Policy name" required><Input value={form.name} onChange={(e) => set({ name: e.target.value })} maxLength={80} placeholder="e.g. Field sales team" autoFocus={!policyId} /></Field>
             <Field label="Status" hint={form.is_active ? 'Active — applies to claims from now on.' : 'Off — nobody is checked against it.'}>
@@ -318,10 +327,10 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
       </Card>
 
       <Card padding={20}>
-        <Section first eyebrow="Who it applies to" hint="Anyone not covered by a more specific policy follows the one marked Everyone.">
+        <Section first eyebrow={eyebrow(Users, 'Who it applies to')} hint="Anyone not covered by a more specific policy follows the one marked Everyone.">
           <div role="radiogroup" aria-label="Audience" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Choice on={form.everyone} onClick={() => set({ everyone: true })} title="Everyone">All people in this workspace.</Choice>
-            <Choice on={!form.everyone} onClick={() => set({ everyone: false })} title="Specific roles or people">Pick roles, individuals, or both.</Choice>
+            <Choice on={form.everyone} onClick={() => set({ everyone: true })} title="Everyone" icon={Users}>All people in this workspace.</Choice>
+            <Choice on={!form.everyone} onClick={() => set({ everyone: false })} title="Specific roles or people" icon={UserCheck}>Pick roles, individuals, or both.</Choice>
           </div>
           {!form.everyone && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -341,7 +350,7 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
       </Card>
 
       <Card padding={20}>
-        <Section first eyebrow="Rules" hint="The essentials. Leave a box empty for no limit.">
+        <Section first eyebrow={eyebrow(Scale, 'Rules')} hint="The essentials. Leave a box empty for no limit.">
           <FormGrid narrow={!wide} columns={3}>
             <Field label="Mileage rate" hint="Paid per km on mileage lines."><Amount value={form.mileage_rate} onChange={(v) => set({ mileage_rate: v })} prefix="₹" suffix="/ km" label="Mileage rate" /></Field>
             <Field label="Receipt needed over" hint="Any expense above this needs a receipt."><Amount value={form.receipt_required_over} onChange={(v) => set({ receipt_required_over: v })} prefix="₹" label="Receipt needed over" /></Field>
@@ -354,7 +363,7 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
       </Card>
 
       <Card padding={20}>
-        <Section first eyebrow="Travel allowance by vehicle" hint="Optional. Add the vehicle types you pay for and the cost per km. Reps then pick a vehicle and enter the odometer reading before and after each trip — the distance and amount are worked out for them. Leave empty to keep the flat mileage rate above.">
+        <Section first eyebrow={eyebrow(Car, 'Travel allowance by vehicle')} hint="Optional. Add the vehicle types you pay for and the cost per km. Reps then pick a vehicle and enter the odometer reading before and after each trip — the distance and amount are worked out for them. Leave empty to keep the flat mileage rate above.">
           {form.vehicles.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {form.vehicles.map((v, i) => (
@@ -386,7 +395,7 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
       </Card>
 
       <Card padding={20}>
-        <Section first eyebrow="Limits by category" hint="Switch a category off if it isn’t reimbursed. Daily, per-claim and monthly caps are optional.">
+        <Section first eyebrow={eyebrow(Tags, 'Limits by category')} hint="Switch a category off if it isn’t reimbursed. Daily, per-claim and monthly caps are optional.">
           {wide && (
             <div style={{ display: 'grid', gridTemplateColumns: '120px 90px repeat(4, minmax(0, 1fr))', gap: 10, fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>
               <span>Category</span><span>Allowed</span><span>Per day</span><span>Per claim</span><span>Per month</span><span>Receipt over</span>
@@ -407,14 +416,14 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
               );
               return wide ? (
                 <div key={k} style={{ display: 'grid', gridTemplateColumns: '120px 90px repeat(4, minmax(0, 1fr))', gap: 10, alignItems: 'center' }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{CATEGORY_LABELS[k]}{shown(k)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: T.text, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={categoryIcon(k)} size={15} style={{ color: T.dim }} /><span>{CATEGORY_LABELS[k]}{shown(k)}</span></span>
                   <Switch checked={c.enabled} onChange={(v) => setCat(k, { enabled: v })} label={`${CATEGORY_LABELS[k]} allowed`} />
                   {cell('per_day_limit', 'Per day')}{cell('per_claim_limit', 'Per claim')}{cell('per_month_limit', 'Per month')}{cell('receipt_required_over', 'Receipt over', 'Policy default')}
                 </div>
               ) : (
                 <div key={k} style={{ border: `1px solid ${T.border}`, borderRadius: T.radius.md, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{CATEGORY_LABELS[k]}{shown(k)}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: T.text, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={categoryIcon(k)} size={15} style={{ color: T.dim }} /><span>{CATEGORY_LABELS[k]}{shown(k)}</span></span>
                     <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 12.5, color: T.dim }}>{c.enabled ? 'Allowed' : 'Not allowed'}<Switch checked={c.enabled} onChange={(v) => setCat(k, { enabled: v })} label={`${CATEGORY_LABELS[k]} allowed`} /></span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -428,14 +437,14 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
       </Card>
 
       <Card padding={20}>
-        <Section first eyebrow="Claim form" hint="How the claim form looks for people on this policy. Leave everything as it is to keep the standard form.">
+        <Section first eyebrow={eyebrow(ClipboardList, 'Claim form')} hint="How the claim form looks for people on this policy. Leave everything as it is to keep the standard form.">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Category names</div>
             <div style={{ fontSize: 12.5, color: T.mute, lineHeight: 1.45 }}>Call a category whatever your team calls it. Blank keeps the standard name.</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
               {CATEGORIES.map((k) => (
                 <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 12, color: T.mute }}>{CATEGORY_LABELS[k]}</span>
+                  <span style={{ fontSize: 12, color: T.mute, display: 'inline-flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={categoryIcon(k)} size={13} />{CATEGORY_LABELS[k]}</span>
                   <Input aria-label={`Display name for ${CATEGORY_LABELS[k]}`} value={form.category_labels[k]} maxLength={30} placeholder={CATEGORY_LABELS[k]}
                     onChange={(e) => setLabelFor(k, e.target.value)} />
                 </div>
@@ -479,10 +488,10 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
       </Card>
 
       <Card padding={20}>
-        <Section first eyebrow="When a claim breaks a rule">
+        <Section first eyebrow={eyebrow(ShieldAlert, 'When a claim breaks a rule')}>
           <div role="radiogroup" aria-label="Enforcement" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Choice on={form.enforcement === 'flag'} onClick={() => set({ enforcement: 'flag' })} title="Flag it for the approver">The claim goes through, with the problem highlighted. The approver decides.</Choice>
-            <Choice on={form.enforcement === 'block'} onClick={() => set({ enforcement: 'block' })} title="Stop it from being submitted">The claimant must fix the problem first. Use for hard rules.</Choice>
+            <Choice on={form.enforcement === 'flag'} onClick={() => set({ enforcement: 'flag' })} title="Flag it for the approver" icon={Flag}>The claim goes through, with the problem highlighted. The approver decides.</Choice>
+            <Choice on={form.enforcement === 'block'} onClick={() => set({ enforcement: 'block' })} title="Stop it from being submitted" icon={Ban}>The claimant must fix the problem first. Use for hard rules.</Choice>
           </div>
         </Section>
       </Card>
@@ -490,7 +499,7 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
       <Card padding={20}>
         <button type="button" onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced}
           style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, fontWeight: 600, color: T.text, display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left' }}>
-          Advanced <span style={{ fontSize: 12.5, fontWeight: 400, color: T.mute }}>priority, start and end dates, currency</span>
+          <InlineIcon icon={SlidersHorizontal} size={15} style={{ color: T.dim }} />Advanced <span style={{ fontSize: 12.5, fontWeight: 400, color: T.mute }}>priority, start and end dates, currency</span>
         </button>
         {advanced && (
           <div style={{ marginTop: 16 }}>
@@ -505,7 +514,7 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
       </Card>
 
       <div style={{ position: 'sticky', bottom: 0, zIndex: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 0', background: 'var(--canvas)', borderTop: `1px solid ${T.border}` }}>
-        <span style={{ fontSize: 13, color: problem ? T.warn : T.mute }}>{problem ?? 'Ready to save.'}</span>
+        <span style={{ fontSize: 13, color: problem ? T.warn : T.mute, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={problem ? AlertTriangle : CheckCircle2} size={14} />{problem ?? 'Ready to save.'}</span>
         <span style={{ display: 'inline-flex', gap: 8 }}>
           <Button onClick={cancel} disabled={saving}>Cancel</Button>
           <Button variant="primary" onClick={save} disabled={saving || !!problem}>{saving ? 'Saving…' : policyId ? 'Save policy' : 'Create policy'}</Button>

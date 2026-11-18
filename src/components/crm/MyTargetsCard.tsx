@@ -6,7 +6,8 @@
  */
 import { useCallback, useEffect, useId, useState } from 'react';
 import { toast } from 'sonner';
-import { IndianRupee } from 'lucide-react';
+import { IndianRupee, Target } from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 import { crmTargets } from '../../lib/crmApi';
 import { useTargetTypes } from '../../lib/useTargetTypes';
 import { MAX_RUPEES, MAX_RUPEES_LABEL, fmtRupees, groupRupeeInput, parseRupeeInput } from '../../lib/rupees';
@@ -42,7 +43,7 @@ export default function MyTargetsCard({ refreshKey = 0 }: { refreshKey?: number 
     <Card padding={16} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <Eyebrow>My targets</Eyebrow>
+          <Eyebrow style={{ display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'center' }}><InlineIcon icon={Target} size={13} />My targets</Eyebrow>
           <span style={{ fontSize: 12.5, color: T.mute }}>{month}</span>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

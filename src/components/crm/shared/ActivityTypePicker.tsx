@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityTypeIcon } from './ActivityTypeIcon';
+import { ActivityTypeIcon, hasLineIcon } from './ActivityTypeIcon';
 
 export interface ActivityTypeOption {
   value: string;
@@ -133,7 +133,8 @@ function Glyph({ opt }: { opt: ActivityTypeOption | undefined }) {
   if (opt.value === 'whatsapp') {
     return <ActivityTypeIcon type="whatsapp" size={16} />;
   }
-  if (opt.icon) {
+  // Built-ins draw the shared line icon; a custom type keeps the emoji its admin picked.
+  if (opt.icon && !hasLineIcon(opt.value)) {
     return <span style={{ fontSize: 15, lineHeight: 1 }}>{opt.icon}</span>;
   }
   return <ActivityTypeIcon type={opt.value} size={16} />;

@@ -6,6 +6,8 @@ import { getStoredUser } from '../../../lib/auth';
 import { getStoredIndustryScope } from '../../../context/IndustryScopeContext';
 import { LowBatteryAlert, LowBatteryFilter } from '../../../components/live-tracking/LowBattery';
 import { Input, Select } from '../../../components/ui';
+import { AlertTriangle, Battery, BatteryLow, ClipboardCheck, Copy, Download, LogIn, MapPin, MapPinOff, PauseCircle, RefreshCw, Route, Smartphone, Store, User, UserCog, Warehouse as WarehouseIcon } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../components/ui/PageIcon';
 import { escapeHtml, readDocumentTheme } from '../../../lib/googleMaps';
 import { usePlaceName, useSeen, getPlaceName, peekPlaceName, formatLatLng, formatLatLngShort, googleMapsUrl, type PlaceName } from '../../../lib/placeName';
 
@@ -848,7 +850,7 @@ function PlaceLine({ lat, lng }: { lat: number; lng: number }) {
   return (
     <div ref={ref} title={place ? `${place.full}\n${formatLatLng(lat, lng)}` : formatLatLng(lat, lng)}
       style={{ fontSize:10, color:C.gray, marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-      📍 {place ? place.short : (loading ? 'Locating…' : formatLatLngShort(lat, lng))}
+      <InlineIcon icon={MapPin} size={10} style={{ verticalAlign:'-1px', marginRight:3 }} />{place ? place.short : (loading ? 'Locating…' : formatLatLngShort(lat, lng))}
     </div>
   );
 }
@@ -877,7 +879,8 @@ function LocationBlock({ fe }: { fe: FELoc }) {
     <div style={{ width:'100%', background:C.s3, border:`1px solid ${C.border}`, borderRadius:12,
       padding:'10px 14px', display:'flex', gap:'8px 18px', flexWrap:'wrap', alignItems:'flex-start' }}>
       <div style={{ flex:'1 1 280px', minWidth:0 }}>
-        <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase', color:C.grayd }}>
+        <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase', color:C.grayd, display:'flex', alignItems:'center', gap:4 }}>
+          <InlineIcon icon={MapPin} size={11} />
           {fresh ? 'Current location' : 'Last known location'}
         </div>
         <div style={{ fontSize:13, fontWeight:600, color:C.white, marginTop:3, lineHeight:1.35 }}>
@@ -888,11 +891,13 @@ function LocationBlock({ fe }: { fe: FELoc }) {
           <span style={{ fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace', fontSize:12, color:C.gray, userSelect:'all' }}>{coords}</span>
           <button onClick={copy}
             style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:6, padding:'2px 8px',
-              fontSize:10, fontWeight:600, color:copied ? C.green : C.gray, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+              fontSize:10, fontWeight:600, color:copied ? C.green : C.gray, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'inline-flex', alignItems:'center', gap:4 }}>
+            <InlineIcon icon={Copy} size={11} />
             {copied ? 'Copied' : 'Copy'}
           </button>
           <a href={googleMapsUrl(fe.lat, fe.lng)} target="_blank" rel="noopener noreferrer"
-            style={{ fontSize:11, fontWeight:600, color:C.blue, textDecoration:'none' }}>
+            style={{ fontSize:11, fontWeight:600, color:C.blue, textDecoration:'none', display:'inline-flex', alignItems:'center', gap:4 }}>
+            <InlineIcon icon={MapPin} size={12} />
             Open in Google Maps ↗
           </a>
         </div>
@@ -911,17 +916,17 @@ function LocationBlock({ fe }: { fe: FELoc }) {
           </div>
         )}
         {off && (
-          <div style={{ color:C.red, fontWeight:600 }}>📍✕ {off.label}{off.since ? ` since ${off.since} ago` : ''} — last known fix, not live</div>
+          <div style={{ color:C.red, fontWeight:600 }}><InlineIcon icon={MapPinOff} size={12} style={{ verticalAlign:'-2px', marginRight:4 }} />{off.label}{off.since ? ` since ${off.since} ago` : ''} — last known fix, not live</div>
         )}
       </div>
       {note && (
-        <div style={{ flexBasis:'100%', fontSize:11, color:C.yellow, background:C.yellowD, borderRadius:8, padding:'5px 10px' }}>
-          ⚠️ {note}
+        <div style={{ flexBasis:'100%', fontSize:11, color:C.yellow, background:C.yellowD, borderRadius:8, padding:'5px 10px', display:'flex', alignItems:'center', gap:6 }}>
+          <InlineIcon icon={AlertTriangle} size={12} />{note}
         </div>
       )}
       {paused != null && (
-        <div style={{ flexBasis:'100%', fontSize:11, fontWeight:600, color:C.red, background:C.redD, borderRadius:8, padding:'5px 10px' }}>
-          ⏸ {trackingPausedText(paused, fe.battery_percentage)}
+        <div style={{ flexBasis:'100%', fontSize:11, fontWeight:600, color:C.red, background:C.redD, borderRadius:8, padding:'5px 10px', display:'flex', alignItems:'center', gap:6 }}>
+          <InlineIcon icon={PauseCircle} size={12} />{trackingPausedText(paused, fe.battery_percentage)}
         </div>
       )}
     </div>
@@ -1283,7 +1288,8 @@ export default function LiveTrackingPage() {
       <div ref={pageRef} className="lt-page" style={{ display:'flex', flexDirection:'column', height: pageH ?? 'calc(100vh - 120px)', gap:12, animation:'km-fadein .3s ease' }}>
 
         <div className="lt-head" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10, flexShrink:0 }}>
-          <div style={{ display:'flex', alignItems:'baseline', gap:12, flexWrap:'wrap', minWidth:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', minWidth:0 }}>
+            <PageIcon />
             <div className="lt-title" style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
               Live Trailing
             </div>
@@ -1305,13 +1311,13 @@ export default function LiveTrackingPage() {
                 style={{ height:32, padding:'0 12px', borderRadius:10, cursor:'pointer', fontSize:12, fontWeight:700, fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:6,
                   background: activeLayers.has('supervisor') ? tint(C.blue, 16) : C.s2, color: activeLayers.has('supervisor') ? C.blue : C.gray,
                   border: `1px solid ${activeLayers.has('supervisor') ? C.blue : C.border}` }}>
-                👔 Supervisors <span style={{ opacity:0.8 }}>{supervisors.length}</span>
+                <InlineIcon icon={UserCog} size={14} />Supervisors <span style={{ opacity:0.8 }}>{supervisors.length}</span>
               </button>
             )}
             <LowBatteryFilter active={lowBatteryFilter} onToggle={() => setLowBatteryFilter(v => !v)} count={lowBatteryCount} />
             {lastSync && <span style={{ fontSize:11, color:C.grayd }}>Last sync: {lastSync}</span>}
             <button className="lt-btn" onClick={fetchAll} style={{ padding:'7px 14px', background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, color:C.gray, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:6 }}>
-              {loading ? <Spin/> : '↺'} Refresh
+              {loading ? <Spin/> : <InlineIcon icon={RefreshCw} size={14} />} Refresh
             </button>
           </div>
         </div>
@@ -1319,7 +1325,7 @@ export default function LiveTrackingPage() {
         {error && (
           <div style={{ padding:'10px 14px', background:C.redD, border:`1px solid ${C.redB}`,
             borderRadius:10, fontSize:12, color:C.red, display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-            ⚠️ {error}
+            <InlineIcon icon={AlertTriangle} size={14} />{error}
           </div>
         )}
 
@@ -1361,7 +1367,7 @@ export default function LiveTrackingPage() {
                   <span title="Reps whose last fix looks spoofed (mock GPS or an impossible-speed jump)"
                     style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:20, fontSize:11, fontWeight:700,
                       color:C.red, background:C.redD, border:`1px solid ${C.redB}` }}>
-                    ⚠ {flaggedCount} flagged GPS
+                    <InlineIcon icon={AlertTriangle} size={12} />{flaggedCount} flagged GPS
                   </span>
                 )}
               </div>
@@ -1372,8 +1378,8 @@ export default function LiveTrackingPage() {
               {activeLayers.has('fe') && filteredFEs.length > 0 && (
                 <>
                   <div style={{ padding:'10px 14px 6px', fontSize:10, color:C.grayd, fontWeight:700,
-                    letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}` }}>
-                    👤 Field Executives ({filteredFEs.length})
+                    letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', gap:6 }}>
+                    <InlineIcon icon={User} size={13} />Field Executives ({filteredFEs.length})
                   </div>
                   {filteredFEs.map(fe => (
                     <div key={fe.id} className="lt-row"
@@ -1397,14 +1403,14 @@ export default function LiveTrackingPage() {
                             <span title={`${o.label}${o.since ? ` since ${o.since} ago` : ''} — the pin shows the last known fix, not a live position`}
                               style={{ flexShrink:0, fontSize:9, fontWeight:800, letterSpacing:'0.4px', textTransform:'uppercase',
                                 color:C.red, background:`${C.red}1f`, border:`1px solid ${C.red}55`, borderRadius:5, padding:'1px 5px' }}>
-                              📍✕ {o.label}
+                              <InlineIcon icon={MapPinOff} size={10} style={{ verticalAlign:'-1px', marginRight:3 }} />{o.label}
                             </span>
                           ) : null; })()}
                           {(fe.is_mock || fe.is_suspect) && (
                             <span title={fe.suspect_reason || (fe.is_mock ? 'Mock/simulated GPS reported by the device' : 'Impossible-speed jump vs the previous fix')}
                               style={{ flexShrink:0, fontSize:9, fontWeight:800, letterSpacing:'0.4px', textTransform:'uppercase',
                                 color:C.red, background:`${C.red}1f`, border:`1px solid ${C.red}55`, borderRadius:5, padding:'1px 5px' }}>
-                              ⚠ {fe.is_mock ? 'Mock GPS' : 'Teleport'}
+                              <InlineIcon icon={AlertTriangle} size={10} style={{ verticalAlign:'-1px', marginRight:3 }} />{fe.is_mock ? 'Mock GPS' : 'Teleport'}
                             </span>
                           )}
                         </div>
@@ -1415,7 +1421,7 @@ export default function LiveTrackingPage() {
                             : (fe.last_location_updated_at && (
                               <span title={trackingPausedMinutes(fe) != null ? trackingPausedText(trackingPausedMinutes(fe)!, fe.battery_percentage) : undefined}
                                 style={{ marginLeft:6, color: (new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
-                                • {shortSince(fe.last_location_updated_at)} ago{trackingPausedMinutes(fe) != null ? ' · ⏸ tracking paused' : ''}
+                                • {shortSince(fe.last_location_updated_at)} ago{trackingPausedMinutes(fe) != null ? <> · <InlineIcon icon={PauseCircle} size={10} style={{ verticalAlign:'-1px' }} /> tracking paused</> : ''}
                               </span>
                             )); })()}
                         </div>
@@ -1425,10 +1431,10 @@ export default function LiveTrackingPage() {
                         <Dot color={STATUS_COLOR[fe.status]||C.grayd} size={7}/>
                         {fe.battery_percentage != null && (
                           <div style={{ fontSize:10, color:fe.battery_percentage < 20 ? C.red : C.grayd, fontWeight:600, display:'flex', alignItems:'center', gap:3 }}>
-                            {fe.battery_percentage}% 🔋
+                            {fe.battery_percentage}% <InlineIcon icon={fe.battery_percentage < 20 ? BatteryLow : Battery} size={11} />
                           </div>
                         )}
-                        {fe.lat && fe.lng && <span style={{ fontSize:10, color: locationOff(fe) ? C.grayd : C.green, opacity: locationOff(fe) ? 0.6 : 1 }} title={locationOff(fe) ? 'Last known location — device location is off' : 'Live location'}>📍</span>}
+                        {fe.lat && fe.lng && <span style={{ fontSize:10, color: locationOff(fe) ? C.grayd : C.green, opacity: locationOff(fe) ? 0.6 : 1 }} title={locationOff(fe) ? 'Last known location — device location is off' : 'Live location'}><InlineIcon icon={MapPin} size={11} /></span>}
                       </div>
                     </div>
                   ))}
@@ -1438,8 +1444,8 @@ export default function LiveTrackingPage() {
               {activeLayers.has('supervisor') && filteredSups.length > 0 && (
                 <>
                   <div style={{ padding:'10px 14px 6px', fontSize:10, color:C.grayd, fontWeight:700,
-                    letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}` }}>
-                    👔 Supervisors ({filteredSups.length})
+                    letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', gap:6 }}>
+                    <InlineIcon icon={UserCog} size={13} />Supervisors ({filteredSups.length})
                   </div>
                   {filteredSups.map(s => (
                     <div key={s.id} className="lt-row"
@@ -1461,7 +1467,7 @@ export default function LiveTrackingPage() {
                             <span title={`${o.label}${o.since ? ` since ${o.since} ago` : ''} — the pin shows the last known fix, not a live position`}
                               style={{ flexShrink:0, fontSize:9, fontWeight:800, letterSpacing:'0.4px', textTransform:'uppercase',
                                 color:C.red, background:`${C.red}1f`, border:`1px solid ${C.red}55`, borderRadius:5, padding:'1px 5px' }}>
-                              📍✕ {o.label}
+                              <InlineIcon icon={MapPinOff} size={10} style={{ verticalAlign:'-1px', marginRight:3 }} />{o.label}
                             </span>
                           ) : null; })()}
                         </div>
@@ -1472,7 +1478,7 @@ export default function LiveTrackingPage() {
                             : (s.last_location_updated_at && (
                               <span title={trackingPausedMinutes(s) != null ? trackingPausedText(trackingPausedMinutes(s)!, s.battery_percentage) : undefined}
                                 style={{ marginLeft:6, color: (new Date().getTime() - new Date(s.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
-                                • {shortSince(s.last_location_updated_at)} ago{trackingPausedMinutes(s) != null ? ' · ⏸ tracking paused' : ''}
+                                • {shortSince(s.last_location_updated_at)} ago{trackingPausedMinutes(s) != null ? <> · <InlineIcon icon={PauseCircle} size={10} style={{ verticalAlign:'-1px' }} /> tracking paused</> : ''}
                               </span>
                             )); })()}
                         </div>
@@ -1481,10 +1487,10 @@ export default function LiveTrackingPage() {
                         <Dot color={STATUS_COLOR[s.status]||C.grayd} size={7}/>
                         {s.battery_percentage != null && (
                           <div style={{ fontSize:10, color:s.battery_percentage < 20 ? C.red : C.grayd, fontWeight:600, display:'flex', alignItems:'center', gap:3 }}>
-                            {s.battery_percentage}% 🔋
+                            {s.battery_percentage}% <InlineIcon icon={s.battery_percentage < 20 ? BatteryLow : Battery} size={11} />
                           </div>
                         )}
-                        {s.lat && s.lng && <span style={{ fontSize:10, color: locationOff(s) ? C.grayd : C.green, opacity: locationOff(s) ? 0.6 : 1 }} title={locationOff(s) ? 'Last known location — device location is off' : 'Live location'}>📍</span>}
+                        {s.lat && s.lng && <span style={{ fontSize:10, color: locationOff(s) ? C.grayd : C.green, opacity: locationOff(s) ? 0.6 : 1 }} title={locationOff(s) ? 'Last known location — device location is off' : 'Live location'}><InlineIcon icon={MapPin} size={11} /></span>}
                       </div>
                     </div>
                   ))}
@@ -1494,8 +1500,8 @@ export default function LiveTrackingPage() {
               {activeLayers.has('outlet') && filteredOutlets.length > 0 && (
                 <>
                   <div style={{ padding:'10px 14px 6px', fontSize:10, color:C.grayd, fontWeight:700,
-                    letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}` }}>
-                    🏪 Outlets ({filteredOutlets.length})
+                    letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', gap:6 }}>
+                    <InlineIcon icon={Store} size={13} />Outlets ({filteredOutlets.length})
                   </div>
                   {filteredOutlets.map(o => (
                     <div key={o.id} className="lt-row"
@@ -1506,14 +1512,14 @@ export default function LiveTrackingPage() {
                         borderLeft: selectedId===o.id ? `3px solid ${C.yellow}` : '3px solid transparent' }}>
                       <div style={{ width:32, height:32, borderRadius:8, flexShrink:0,
                         background:`${C.yellow}18`, border:`1px solid ${C.yellow}40`,
-                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>
-                        🏪
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, color:C.yellow }}>
+                        <InlineIcon icon={Store} size={16} />
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:12, fontWeight:700, color:C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{o.name}</div>
                         <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>{o.store_type||''} {o.zone_name?`· ${o.zone_name}`:''}</div>
                       </div>
-                      {o.lat && o.lng && <span style={{ fontSize:9, color:C.green, alignSelf:'center' }}>📍</span>}
+                      {o.lat && o.lng && <span style={{ fontSize:9, color:C.green, alignSelf:'center', display:'inline-flex' }}><InlineIcon icon={MapPin} size={11} /></span>}
                     </div>
                   ))}
                 </>
@@ -1522,8 +1528,8 @@ export default function LiveTrackingPage() {
               {activeLayers.has('warehouse') && filteredWarehouses.length > 0 && (
                 <>
                   <div style={{ padding:'10px 14px 6px', fontSize:10, color:C.grayd, fontWeight:700,
-                    letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}` }}>
-                    🏭 Warehouses ({filteredWarehouses.length})
+                    letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', gap:6 }}>
+                    <InlineIcon icon={WarehouseIcon} size={13} />Warehouses ({filteredWarehouses.length})
                   </div>
                   {filteredWarehouses.map(w => (
                     <div key={w.id} className="lt-row"
@@ -1534,14 +1540,14 @@ export default function LiveTrackingPage() {
                         borderLeft: selectedId===w.id ? `3px solid ${C.purple}` : '3px solid transparent' }}>
                       <div style={{ width:32, height:32, borderRadius:8, flexShrink:0,
                         background:`${C.purple}18`, border:`1px solid ${C.purple}40`,
-                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>
-                        🏭
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, color:C.purple }}>
+                        <InlineIcon icon={WarehouseIcon} size={16} />
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:12, fontWeight:700, color:C.white }}>{w.name}</div>
                         <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>{w.type||''} {w.city?`· ${w.city}`:''}</div>
                       </div>
-                      {w.latitude && w.longitude && <span style={{ fontSize:9, color:C.green, alignSelf:'center' }}>📍</span>}
+                      {w.latitude && w.longitude && <span style={{ fontSize:9, color:C.green, alignSelf:'center', display:'inline-flex' }}><InlineIcon icon={MapPin} size={11} /></span>}
                     </div>
                   ))}
                 </>
@@ -1550,7 +1556,7 @@ export default function LiveTrackingPage() {
               {filteredFEs.length === 0 && filteredSups.length === 0 &&
                filteredOutlets.length === 0 && filteredWarehouses.length === 0 && (
                 <div style={{ textAlign:'center', padding:'40px 16px', color:C.grayd, fontSize:12 }}>
-                  {loading ? <Spin/> : (search ? `No results for "${search}"` : 'No items to show')}
+                  {loading ? <Spin/> : <><IconTile icon={MapPinOff} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 10px' }} />{search ? `No results for "${search}"` : 'No items to show'}</>}
                 </div>
               )}
             </div>
@@ -1599,7 +1605,7 @@ export default function LiveTrackingPage() {
                       <span>{trailDate === todayISO ? "Today's trail" : `Trail · ${trailDayLabel}`} · {selectedTrail.length} pings</span>
                       <span style={{ marginLeft:4, padding:'2px 6px', borderRadius:6, background:tint(C.blue, 14), color:C.blue,
                         fontSize:10, fontWeight:700, display:'inline-flex', alignItems:'center', gap:3 }}>
-                        ↓ CSV
+                        <InlineIcon icon={Download} size={11} />CSV
                       </span>
                     </button>
                   )}
@@ -1668,7 +1674,7 @@ export default function LiveTrackingPage() {
                   background:'var(--s1)', border:`1px solid ${C.yellow}40`,
                   borderRadius:10, padding:'8px 14px', fontSize:12, color:C.yellow,
                   display:'flex', alignItems:'center', gap:7, pointerEvents:'none', whiteSpace:'nowrap' }}>
-                  ⚠️ No GPS coordinates yet — FEs need to check in with location enabled
+                  <InlineIcon icon={AlertTriangle} size={14} />No GPS coordinates yet — FEs need to check in with location enabled
                 </div>
               )}
 
@@ -1708,8 +1714,8 @@ export default function LiveTrackingPage() {
                         {selFE.status.replace('_',' ')}
                       </span>
                       {selFE.battery_percentage != null && (
-                        <span style={{ fontSize:11, fontWeight:600, color:selFE.battery_percentage < 20 ? C.red : C.gray }}>
-                          🔋 {selFE.battery_percentage}%
+                        <span style={{ fontSize:11, fontWeight:600, color:selFE.battery_percentage < 20 ? C.red : C.gray, display:'inline-flex', alignItems:'center', gap:3 }}>
+                          <InlineIcon icon={selFE.battery_percentage < 20 ? BatteryLow : Battery} size={12} />{selFE.battery_percentage}%
                         </span>
                       )}
                     </div>
@@ -1717,7 +1723,7 @@ export default function LiveTrackingPage() {
                       {selFE.employee_id ? `${selFE.employee_id} · ` : ''}{selFE.zone_name||'No zone'}
                       {(selFE.device_model || selFE.os_version) && (
                         <span style={{ color:C.grayd }}>
-                          {' · '}📱 {selFE.device_brand ? selFE.device_brand + ' ' : ''}{selFE.device_model || 'Device'}
+                          {' · '}<InlineIcon icon={Smartphone} size={11} style={{ verticalAlign:'-1px', marginRight:3 }} />{selFE.device_brand ? selFE.device_brand + ' ' : ''}{selFE.device_model || 'Device'}
                           {selFE.os_version && <> · Android {selFE.os_version}</>}
                         </span>
                       )}
@@ -1739,7 +1745,7 @@ export default function LiveTrackingPage() {
 
                 {(selFE.is_mock || selFE.is_suspect) && (
                   <div style={{ fontSize:11, color:C.red, fontWeight:600, display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
-                    ⚠ {selFE.is_mock ? 'Mock/simulated GPS on the last fix' : 'Impossible-speed jump vs the previous fix'}
+                    <InlineIcon icon={AlertTriangle} size={12} />{selFE.is_mock ? 'Mock/simulated GPS on the last fix' : 'Impossible-speed jump vs the previous fix'}
                     {selFE.suspect_reason && <span style={{ color:C.gray, fontWeight:500 }}>· {selFE.suspect_reason}</span>}
                   </div>
                 )}
@@ -1748,18 +1754,18 @@ export default function LiveTrackingPage() {
                   <>
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                       {[
-                        { l:'Check-in', v: selFE.checkin_at ? new Date(selFE.checkin_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—', c: C.white },
-                        { l: (getStoredIndustryScope() === 'insurance' ? 'Meetings Today' : 'TFF Today'), v: String(selFE.today_tff ?? '—'), c: C.green },
-                        { l:'Trail', v: selectedTrail.length > 0 ? `${selectedTrail.length} pings` : '—', c: selectedTrail.length > 0 ? '#E01E2C' : C.gray },
+                        { l:'Check-in', v: selFE.checkin_at ? new Date(selFE.checkin_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—', c: C.white, icon: LogIn },
+                        { l: (getStoredIndustryScope() === 'insurance' ? 'Meetings Today' : 'TFF Today'), v: String(selFE.today_tff ?? '—'), c: C.green, icon: ClipboardCheck },
+                        { l:'Trail', v: selectedTrail.length > 0 ? `${selectedTrail.length} pings` : '—', c: selectedTrail.length > 0 ? '#E01E2C' : C.gray, icon: Route },
                       ].map((s,i) => (
                         <div key={i} style={{ flex:'1 1 90px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10,
                           padding:'7px 10px', textAlign:'center' }}>
                           <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:s.c }}>{s.v}</div>
-                          <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>{s.l}</div>
+                          <div style={{ fontSize:10, color:C.grayd, marginTop:1, display:'flex', alignItems:'center', justifyContent:'center', gap:4 }}><InlineIcon icon={s.icon} size={11} />{s.l}</div>
                         </div>
                       ))}
                     </div>
-                    {!selFE.lat && <div style={{ fontSize:11, color:C.yellow, padding:'4px 10px', background:C.yellowD, borderRadius:8 }}>⚠️ No GPS</div>}
+                    {!selFE.lat && <div style={{ fontSize:11, color:C.yellow, padding:'4px 10px', background:C.yellowD, borderRadius:8, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={AlertTriangle} size={12} />No GPS</div>}
                     <LocationBlock fe={selFE}/>
                   </>
                 )}

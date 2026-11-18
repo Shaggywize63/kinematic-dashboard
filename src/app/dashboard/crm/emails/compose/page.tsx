@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import { crmEmails, crmEmailTemplates } from '../../../../../lib/crmApi';
 import { verifiedSendersApi, type VerifiedSender } from '../../../../../lib/emailAlertsApi';
 import type { EmailTemplate } from '../../../../../types/crm';
+import { Braces, Eye, FlaskConical, Send } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 /**
  * Compose Email — single-recipient send path.
@@ -184,13 +186,16 @@ export default function ComposeEmailPage() {
     <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 18 }} className="compose-grid">
       <form onSubmit={send} style={cardStyle}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, gap: 10, flexWrap: 'wrap' }}>
-          <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 22, fontWeight: 800 }}>Compose Email</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <PageIcon name="mail" />
+            <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 22, fontWeight: 800 }}>Compose Email</h2>
+          </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" onClick={() => router.back()} style={btnGhost}>Cancel</button>
-            <button type="button" disabled={testBusy} onClick={sendTest} style={btnSecondary}>
-              {testBusy ? 'Sending…' : 'Send Test to Self'}
+            <button type="button" disabled={testBusy} onClick={sendTest} style={{ ...btnSecondary, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {!testBusy && <InlineIcon icon={FlaskConical} />}{testBusy ? 'Sending…' : 'Send Test to Self'}
             </button>
-            <button type="submit" disabled={busy} style={btnPrimary}>{busy ? 'Sending…' : 'Send'}</button>
+            <button type="submit" disabled={busy} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}>{!busy && <InlineIcon icon={Send} />}{busy ? 'Sending…' : 'Send'}</button>
           </div>
         </div>
 
@@ -246,8 +251,8 @@ export default function ComposeEmailPage() {
         {/* Merge variables if a template's been picked + any tokens were found */}
         {Object.keys(variables).length > 0 && (
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
-              Merge variables
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={Braces} size={14} />Merge variables
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
               {Object.entries(variables).map(([k, v]) => (
@@ -269,7 +274,7 @@ export default function ComposeEmailPage() {
               style={{ ...input, fontFamily: 'ui-monospace, monospace', lineHeight: 1.55, resize: 'vertical' }} />
           </Field>
           <div>
-            <div style={labelStyle}>Preview</div>
+            <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Eye} size={14} />Preview</div>
             <div style={{
               border: '1px solid var(--border)', borderRadius: 10, background: '#fff',
               overflow: 'hidden', height: 360,

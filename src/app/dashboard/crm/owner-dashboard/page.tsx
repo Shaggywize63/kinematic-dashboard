@@ -2,6 +2,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { Brain, ClipboardList, MapPin, MapPinned, PhoneCall, Stethoscope, TrendingUp, Trophy, Users, type LucideIcon } from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../lib/labelIcons';
 import { crmDesk, crmCustomerIntel } from '../../../../lib/crmApi';
 import type { DeskDaySummary, DeskProductivity, CustomerIntelPayload, SalesTrendsPayload } from '../../../../lib/crmApi';
 import { istToday, istDate } from '../../../../lib/istTime';
@@ -43,12 +46,15 @@ export default function OwnerDashboardPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <PageIcon name="dashboard" />
+        <div>
         <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Owner Dashboard</h1>
         <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>Business at a glance · {istDate(today)} (IST)</p>
+        </div>
       </div>
 
-      <Group title="Today — Desk Calling">
+      <Group title="Today — Desk Calling" icon={PhoneCall}>
         <Kpi label="Customers Assigned" value={desk?.assigned ?? 0} loading={loading} />
         <Kpi label="Called" value={desk?.called ?? 0} loading={loading} />
         <Kpi label="Orders Taken" value={desk?.order_taken ?? 0} color="#16a34a" loading={loading} />
@@ -57,7 +63,7 @@ export default function OwnerDashboardPage() {
         <Kpi label="Order Value" value={inr(desk?.orders_value ?? 0)} color="#2563eb" loading={loading} />
       </Group>
 
-      <Group title="Customers">
+      <Group title="Customers" icon={Users}>
         <Kpi label="Total" value={s.total_customers ?? 0} loading={loading} />
         <Kpi label="Active" value={s.active ?? 0} color="#16a34a" loading={loading} />
         <Kpi label="New" value={s.new ?? 0} color="#2563eb" loading={loading} />
@@ -66,7 +72,7 @@ export default function OwnerDashboardPage() {
         <Kpi label="Churned" value={s.churned ?? 0} color="#dc2626" loading={loading} />
       </Group>
 
-      <Group title={`This Month — Sales${thisMonth ? ` (${thisMonth.month})` : ''}`}>
+      <Group title={`This Month — Sales${thisMonth ? ` (${thisMonth.month})` : ''}`} icon={TrendingUp}>
         <Kpi label="Sales" value={inr(thisMonth?.value ?? 0)} color="#16a34a" loading={loading} />
         <Kpi label="Growth" value={`${(thisMonth?.growth_pct ?? 0) > 0 ? '+' : ''}${thisMonth?.growth_pct ?? 0}%`} color={(thisMonth?.growth_pct ?? 0) < 0 ? '#dc2626' : '#16a34a'} loading={loading} />
         <Kpi label="Orders" value={thisMonth?.orders ?? 0} loading={loading} />
@@ -76,7 +82,7 @@ export default function OwnerDashboardPage() {
       </Group>
 
       <div style={card}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Top desk operators (last 30 days)</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Trophy} size={16} style={{ color: 'var(--text-dim)' }} />Top desk operators (last 30 days)</h2>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 620 }}>
             <thead><tr>{['Operator', 'Called', 'Connect %', 'Orders', 'Order Value'].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
@@ -95,18 +101,18 @@ export default function OwnerDashboardPage() {
       </div>
 
       <div style={card}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>MR field force</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={MapPinned} size={16} style={{ color: 'var(--text-dim)' }} />MR field force</h2>
         <p style={{ margin: '0 0 12px', color: '#6b7280', fontSize: 13 }}>Live GPS, beat productivity and visit activity for the medical reps.</p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {[
-            { href: '/dashboard/live-tracking', label: '📍 Live GPS Tracking' },
-            { href: '/dashboard/beat-productivity', label: '📈 Beat Productivity' },
-            { href: '/dashboard/field-executives', label: '🧑‍⚕️ MR Performance' },
-            { href: '/dashboard/visit-logs', label: '📝 Visit Logs' },
-            { href: '/dashboard/crm/calling-desk/reports', label: '☎️ Desk Reports' },
-            { href: '/dashboard/crm/customer-intelligence', label: '🧠 Customer Intelligence' },
+            { href: '/dashboard/live-tracking', label: 'Live GPS Tracking', icon: MapPin },
+            { href: '/dashboard/beat-productivity', label: 'Beat Productivity', icon: TrendingUp },
+            { href: '/dashboard/field-executives', label: 'MR Performance', icon: Stethoscope },
+            { href: '/dashboard/visit-logs', label: 'Visit Logs', icon: ClipboardList },
+            { href: '/dashboard/crm/calling-desk/reports', label: 'Desk Reports', icon: PhoneCall },
+            { href: '/dashboard/crm/customer-intelligence', label: 'Customer Intelligence', icon: Brain },
           ].map((l) => (
-            <Link key={l.href} href={l.href} style={{ ...tile }}>{l.label}</Link>
+            <Link key={l.href} href={l.href} style={{ ...tile, display: 'inline-flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={l.icon} size={15} style={{ color: 'var(--primary)' }} />{l.label}</Link>
           ))}
         </div>
       </div>
@@ -114,18 +120,19 @@ export default function OwnerDashboardPage() {
   );
 }
 
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
+function Group({ title, children, icon }: { title: string; children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <div>
-      <h2 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 8px', color: '#374151' }}>{title}</h2>
+      <h2 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 8px', color: '#374151', display: 'flex', alignItems: 'center', gap: 8 }}>{icon && <InlineIcon icon={icon} size={16} style={{ color: 'var(--text-dim)' }} />}{title}</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>{children}</div>
     </div>
   );
 }
 function Kpi({ label, value, color, loading }: { label: string; value: React.ReactNode; color?: string; loading?: boolean }) {
+  const Icon = metricIconFor(label);
   return (
     <div style={card}>
-      <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>{Icon && <InlineIcon icon={Icon} size={13} />}{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color: color || '#111827', opacity: loading ? 0.4 : 1 }}>{value}</div>
     </div>
   );

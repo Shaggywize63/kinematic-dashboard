@@ -6,8 +6,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Camera, Eye, FileText, MapPin, Plus, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
+import {
+  AlertTriangle, Building2, CalendarDays, Camera, Check, Eye, FileText, Handshake, IndianRupee, MapPin, Paperclip, Percent, Plus, Receipt, RefreshCw,
+  Route, ScrollText, ShieldCheck, Trash2, Upload, UserCheck, UserPlus, X, Zap, type LucideIcon,
+} from 'lucide-react';
 import { Badge, Button, Card, FormGrid, IconButton, Input, Select, T, Textarea, useIsCompact } from '../ui';
+import { IconTile, InlineIcon } from '../ui/PageIcon';
 import {
   CATEGORIES, ClaimItem, ClaimItemInput, ClaimCheck, ExpenseClaim, ItemCategory, LinkableSubmission, MyPolicy, ReceiptFields,
   VehicleRate, categoryLabel, enabledCategories, expensesApi, gpsDistanceOn, lineVehicle, odometerCameraOnly, policyVehicles, routeFieldsOn, singleCategory,
@@ -15,7 +19,7 @@ import {
 } from '../../lib/expensesApi';
 import {
   ExpensesShell, Field, Panel, PolicyFindings, ReceiptViewer, RejectionBanner, RECEIPT_ACCEPT, RECEIPT_MAX_BYTES,
-  errText, fmtDate, money, prepareReceipt, todayIso,
+  categoryIcon, errText, fmtDate, money, prepareReceipt, todayIso,
 } from './kit';
 import { isB2bClientActive } from '../../lib/b2bClient';
 import { formRefTitle } from '../../lib/formRef';
@@ -568,7 +572,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   const summary = (
     <Card padding={20} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
-        <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>Claim total</div>
+        <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Receipt} size={14} style={{ color: T.dim }} />Claim total</div>
         <div style={{ fontSize: 28, fontWeight: 700, fontFamily: T.heading, fontVariantNumeric: 'tabular-nums', color: T.text, marginTop: 2 }}>{money(total, currency)}</div>
         <div style={{ fontSize: 12.5, color: T.mute }}>{filled.length} {filled.length === 1 ? 'expense' : 'expenses'}</div>
       </div>
@@ -580,8 +584,8 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: T.ok }}><ShieldCheck size={16} strokeWidth={1.8} />Within policy{check.would_auto_approve ? ' — will be approved automatically' : ''}.</div>
           ) : (
             <>
-              <div style={{ fontSize: 13, fontWeight: 600, color: blocking ? T.red : T.warn }}>
-                {blocking ? 'Fix these before you can submit' : `${check.violations.length} ${check.violations.length === 1 ? 'thing' : 'things'} the approver will notice`}
+              <div style={{ fontSize: 13, fontWeight: 600, color: blocking ? T.red : T.warn, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <InlineIcon icon={AlertTriangle} size={15} />{blocking ? 'Fix these before you can submit' : `${check.violations.length} ${check.violations.length === 1 ? 'thing' : 'things'} the approver will notice`}
               </div>
               <PolicyFindings flags={check.violations} compact />
             </>
@@ -594,7 +598,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
           <Button variant="primary" disabled={!!busy || blocking} onClick={saveDraft}>{busy === 'save' ? 'Saving…' : 'Save changes'}</Button>
         ) : (
           <>
-            <Button variant="primary" disabled={!!busy || blocking} onClick={submit}>{busy === 'submit' ? 'Submitting…' : status === 'rejected' ? 'Resubmit for approval' : 'Submit for approval'}</Button>
+            <Button variant="primary" disabled={!!busy || blocking} onClick={submit} icon={<Check size={15} strokeWidth={2} />}>{busy === 'submit' ? 'Submitting…' : status === 'rejected' ? 'Resubmit for approval' : 'Submit for approval'}</Button>
             <Button disabled={!!busy} onClick={saveDraft}>{busy === 'save' ? 'Saving…' : 'Save as draft'}</Button>
           </>
         )}
@@ -623,7 +627,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
               <Field label="Linked company" hint="The CRM account this expense is against.">
                 {accountId ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>🏢 {accountName || 'Linked company'}</span>
+                    <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Building2} size={15} style={{ color: T.dim }} />{accountName || 'Linked company'}</span>
                     <Button size="sm" variant="ghost" onClick={() => { setAccountId(''); setAccountName(''); setAccountQuery(''); }}>Change</Button>
                   </div>
                 ) : (
@@ -644,11 +648,11 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
                 )}
               </Field>
               <Field label="Lead" hint="The CRM lead this expense was spent on.">
-                <LinkPicker ariaLabel="Lead" icon="👤" placeholder="Search leads by name or phone…" selectedId={leadId} selectedLabel={leadName} fallbackLabel="Linked lead"
+                <LinkPicker ariaLabel="Lead" icon={UserPlus} placeholder="Search leads by name or phone…" selectedId={leadId} selectedLabel={leadName} fallbackLabel="Linked lead"
                   load={loadLeads} onPick={pickLead} onClear={clearLead} />
               </Field>
               <Field label="Deal" hint={leadId ? 'Only this lead’s deals are listed.' : 'The deal it was spent to win — picking one fills in its lead.'}>
-                <LinkPicker ariaLabel="Deal" icon="💼" placeholder={leadId ? 'Search this lead’s deals…' : 'Search deals…'} selectedId={dealId} selectedLabel={dealName} fallbackLabel="Linked deal"
+                <LinkPicker ariaLabel="Deal" icon={Handshake} placeholder={leadId ? 'Search this lead’s deals…' : 'Search deals…'} selectedId={dealId} selectedLabel={dealName} fallbackLabel="Linked deal"
                   load={loadDeals} reloadKey={leadId} onPick={pickDeal} onClear={() => { setDealId(''); setDealName(''); setDealLeadId(''); }} />
               </Field>
               <Field label="Linked form entry" hint={submissionOptions.length ? 'The filled form this expense relates to — its reference and date show wherever the link appears.' : 'No filled forms with a reference yet — fill a form first.'}>
@@ -720,6 +724,7 @@ function LineCard({ index, line: l, policy, currency, removable, lastReading, fi
     <Card padding={0} style={{ borderColor: findings.length ? worst : undefined, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: T.mute, minWidth: 18 }}>{index + 1}</span>
+        <IconTile icon={categoryIcon(l.category)} tone="brand" size={30} />
         {onlyCat && l.category === onlyCat
           ? <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{categoryLabel(rules, l.category)}</span>
           : (
@@ -752,9 +757,9 @@ function LineCard({ index, line: l, policy, currency, removable, lastReading, fi
             <div><Button size="sm" icon={<MapPin size={14} strokeWidth={1.7} />} disabled={l.suggesting} onClick={onFillRoute}>{l.suggesting ? 'Reading your route…' : 'Fill from my GPS route for this date'}</Button></div>
             {l.gpsNote && <div style={{ fontSize: 12.5, color: T.info }}>{l.gpsNote}</div>}
             <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '10px 14px', background: T.panel, border: `1px solid ${T.border}`, borderRadius: T.radius.md, fontVariantNumeric: 'tabular-nums' }}>
-              <div><div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>Distance</div>
+              <div><div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Route} size={14} style={{ color: T.dim }} />Distance</div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{km != null ? `${km} km` : '—'}</div></div>
-              <div><div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>Amount</div>
+              <div><div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={IndianRupee} size={14} style={{ color: T.dim }} />Amount</div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{km != null && perKm != null ? money(round2(km * perKm), currency) : '—'}</div></div>
               <div style={{ fontSize: 12.5, color: T.mute, alignSelf: 'center' }}>Measured from your GPS route — distance × the vehicle’s rate. No odometer needed.</div>
             </div>
@@ -783,9 +788,9 @@ function LineCard({ index, line: l, policy, currency, removable, lastReading, fi
                 onPick={(f) => onAttachOdo('end', f)} onClear={() => onClearOdo('end')} onView={onView} />
             </FormGrid>
             <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '10px 14px', background: T.panel, border: `1px solid ${T.border}`, borderRadius: T.radius.md, fontVariantNumeric: 'tabular-nums' }}>
-              <div><div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>Distance</div>
+              <div><div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Route} size={14} style={{ color: T.dim }} />Distance</div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{km != null ? `${km} km` : '—'}</div></div>
-              <div><div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>Amount</div>
+              <div><div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={IndianRupee} size={14} style={{ color: T.dim }} />Amount</div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{km != null && perKm != null ? money(round2(km * perKm), currency) : '—'}</div></div>
               <div style={{ fontSize: 12.5, color: T.mute, alignSelf: 'center' }}>Worked out from the readings — distance × the vehicle’s rate.</div>
             </div>
@@ -847,7 +852,7 @@ function OdometerSlot({ title, value, onValue, hint, note, url, view, uploading,
           </div>
           <span style={{ fontSize: 13, color: T.text, flex: 1 }}>Photo attached</span>
           {view && <Button size="sm" icon={<Eye size={14} strokeWidth={1.7} />} onClick={() => onView(view)}>View</Button>}
-          <Button size="sm" onClick={() => input.current?.click()}>Replace</Button>
+          <Button size="sm" icon={<RefreshCw size={14} strokeWidth={1.7} />} onClick={() => input.current?.click()}>Replace</Button>
           <IconButton label="Remove photo" onClick={onClear}><X size={16} strokeWidth={1.6} /></IconButton>
         </div>
       ) : (
@@ -881,7 +886,7 @@ function ReceiptSlot({ line: l, onAttach, onClear, onView }: { line: Line; onAtt
           <div style={{ fontSize: 12, color: T.mute }}>Receipt attached</div>
         </div>
         {l.receipt_view && <Button size="sm" icon={<Eye size={14} strokeWidth={1.7} />} onClick={() => onView(l.receipt_view!)}>View</Button>}
-        <Button size="sm" onClick={() => input.current?.click()}>Replace</Button>
+        <Button size="sm" icon={<RefreshCw size={14} strokeWidth={1.7} />} onClick={() => input.current?.click()}>Replace</Button>
         <IconButton label="Remove receipt" onClick={onClear}><X size={16} strokeWidth={1.6} /></IconButton>
         {hidden}
       </div>
@@ -897,7 +902,7 @@ function ReceiptSlot({ line: l, onAttach, onClear, onView }: { line: Line; onAtt
         <div style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>Attach the receipt</div>
         <div style={{ fontSize: 12.5, color: T.mute }}>Drop a photo or PDF here. We read the amount and merchant for you.</div>
       </div>
-      <Button size="sm" onClick={() => input.current?.click()}>Choose file</Button>
+      <Button size="sm" icon={<Paperclip size={14} strokeWidth={1.7} />} onClick={() => input.current?.click()}>Choose file</Button>
       {hidden}
     </div>
   );
@@ -910,25 +915,25 @@ function PolicyCard({ policy, currency }: { policy: MyPolicy | null; currency: s
   const caps = cats ? CATEGORIES.filter((c) => cats[c]?.enabled !== false && cats[c]?.per_day_limit != null) : [];
   // With a single allowed category the others aren't "not reimbursed" so much as not part of this form — say nothing.
   const off = cats && !singleCategory(rules) ? CATEGORIES.filter((c) => cats[c]?.enabled === false) : [];
-  const row = (k: string, v: string) => (
+  const row = (k: string, v: string, icon: LucideIcon) => (
     <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-      <span style={{ color: T.dim }}>{k}</span><span style={{ color: T.text, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{v}</span>
+      <span style={{ color: T.dim, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={icon} size={14} />{k}</span><span style={{ color: T.text, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{v}</span>
     </div>
   );
   return (
-    <Panel title="Your policy" aside={policy.name ? <Badge>{policy.name}</Badge> : undefined} padding={18}>
+    <Panel title="Your policy" icon={ScrollText} aside={policy.name ? <Badge>{policy.name}</Badge> : undefined} padding={18}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {policy.rules?.vehicle_rates?.length
-          ? policy.rules.vehicle_rates.map((v) => row(`${v.label} travel`, `${money(v.rate_per_km, currency)} / km`))
-          : policy.mileage_rate > 0 && row('Mileage', `${money(policy.mileage_rate, currency)} / km`)}
-        {policy.require_receipt_over >= 0 && row('Receipt needed over', money(policy.require_receipt_over, currency))}
-        {policy.auto_approve_under > 0 && row('Auto-approved up to', money(policy.auto_approve_under, currency))}
-        {policy.escalate_over != null && row('Needs a second approver over', money(policy.escalate_over, currency))}
-        {policy.rules?.max_claim_amount != null && row('Largest claim', money(policy.rules.max_claim_amount, currency))}
+          ? policy.rules.vehicle_rates.map((v) => row(`${v.label} travel`, `${money(v.rate_per_km, currency)} / km`, categoryIcon('mileage')))
+          : policy.mileage_rate > 0 && row('Mileage', `${money(policy.mileage_rate, currency)} / km`, categoryIcon('mileage'))}
+        {policy.require_receipt_over >= 0 && row('Receipt needed over', money(policy.require_receipt_over, currency), Receipt)}
+        {policy.auto_approve_under > 0 && row('Auto-approved up to', money(policy.auto_approve_under, currency), Zap)}
+        {policy.escalate_over != null && row('Needs a second approver over', money(policy.escalate_over, currency), UserCheck)}
+        {policy.rules?.max_claim_amount != null && row('Largest claim', money(policy.rules.max_claim_amount, currency), IndianRupee)}
         {caps.length > 0 && (
           <div style={{ marginTop: 6, paddingTop: 10, borderTop: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>Daily limits</div>
-            {caps.map((c) => row(categoryLabel(rules, c, off), money(cats![c].per_day_limit, currency)))}
+            <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={CalendarDays} size={14} style={{ color: T.dim }} />Daily limits</div>
+            {caps.map((c) => row(categoryLabel(rules, c, off), money(cats![c].per_day_limit, currency), categoryIcon(c)))}
           </div>
         )}
         {off.length > 0 && <div style={{ fontSize: 12.5, color: T.mute, marginTop: 4 }}>Not reimbursed: {off.map((c) => categoryLabel(rules, c, caps)).join(', ')}.</div>}
@@ -947,7 +952,7 @@ function GstDetails({ line: l, currency, onChange }: { line: Line; currency: str
   return (
     <details open={has || undefined} style={{ border: `1px solid ${T.border}`, borderRadius: T.radius.md, padding: '8px 12px', background: T.panel }}>
       <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: T.dim }}>
-        GST details {has ? '' : '(optional) '}— for input tax credit
+        <InlineIcon icon={Percent} size={14} style={{ verticalAlign: '-2px', marginRight: 6 }} />GST details {has ? '' : '(optional) '}— for input tax credit
       </summary>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
         <FormGrid narrow>
