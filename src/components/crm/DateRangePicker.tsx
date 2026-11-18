@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { CalendarDays, Check, ChevronDown } from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 import { useCrmDateRange, type DateRangePreset } from '../../stores/crmDateRangeStore';
 
 const PRESETS: { value: DateRangePreset; label: string }[] = [
@@ -89,9 +91,9 @@ export default function DateRangePicker() {
           gap: 8,
         }}
       >
-        <span style={{ fontSize: 14 }}>📅</span>
+        <InlineIcon icon={CalendarDays} size={14} />
         {label}
-        <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>▾</span>
+        <InlineIcon icon={ChevronDown} size={13} style={{ color: 'var(--text-dim)' }} />
       </button>
       {open && (
         <div
@@ -163,8 +165,13 @@ export default function DateRangePicker() {
                   width: '100%',
                   marginTop: 8,
                   opacity: !draftFrom || !draftTo ? 0.5 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
                 }}
               >
+                <InlineIcon icon={Check} size={14} />
                 Apply
               </button>
             </div>

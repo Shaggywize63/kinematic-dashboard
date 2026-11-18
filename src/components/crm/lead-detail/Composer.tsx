@@ -3,7 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { CalendarClock, CheckSquare, Phone, Sparkles, X } from 'lucide-react';
+import { CalendarClock, CheckSquare, ClipboardList, Phone, Plus, Send, Sparkles, X } from 'lucide-react';
 import { crmAi, type LeadUpdate } from '../../../lib/crmApi';
 import type { UpdateSuggestion } from '../../../types/crm';
 import MentionInput from '../../messaging/MentionInput';
@@ -152,16 +152,16 @@ function SuggestionPanel({
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {s.activity && (
           <button type="button" style={chip} onClick={onActivity} title={s.activity.body || ''}>
-            Log {typeLabel(s.activity.type)}: {s.activity.subject}
+            <ClipboardList size={14} strokeWidth={1.8} aria-hidden />Log {typeLabel(s.activity.type)}: {s.activity.subject}
           </button>
         )}
         {s.followup && (
           <button type="button" style={chip} onClick={onFollowup} title={s.followup.message}>
-            Draft {typeLabel(s.followup.channel)} follow-up
+            <Send size={14} strokeWidth={1.8} aria-hidden />Draft {typeLabel(s.followup.channel)} follow-up
           </button>
         )}
         {s.next_actions.map((a, i) => (
-          <button type="button" key={i} style={chip} onClick={() => onNextAction(a)} title="Create as a task">+ {a}</button>
+          <button type="button" key={i} style={chip} onClick={() => onNextAction(a)} title="Create as a task"><Plus size={14} strokeWidth={1.8} aria-hidden />{a}</button>
         ))}
       </div>
     </div>

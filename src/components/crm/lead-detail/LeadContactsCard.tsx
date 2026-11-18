@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
+import { Users } from 'lucide-react';
 import type { Contact } from '../../../types/crm';
 import type { FieldHelpers } from '../../../lib/crmFieldOverrides';
 import { T } from '../../ui';
@@ -28,7 +29,7 @@ export default function LeadContactsCard({ contacts, fields }: { contacts: Conta
   const showPhone = !fields.isHidden('phone');
   const showEmail = !fields.isHidden('email');
   return (
-    <SectionCard title={fields.labelFor('contacts', 'Contacts & requirements')} count={contacts.length}>
+    <SectionCard title={fields.labelFor('contacts', 'Contacts & requirements')} icon={Users} count={contacts.length}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {contacts.map((c) => {
           const name = c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email || c.phone || 'Contact';

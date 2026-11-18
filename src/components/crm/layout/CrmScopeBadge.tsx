@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { useClient } from '@/context/ClientContext';
 import api from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
+import { Building2, Globe } from 'lucide-react';
+import { InlineIcon } from '../../ui/PageIcon';
 
 interface Client { id: string; name: string }
 
@@ -37,7 +39,7 @@ export default function CrmScopeBadge() {
   if (!selectedClientId) {
     return (
       <div style={badgeBase('#6366f1')}>
-        <span>🌐</span>
+        <InlineIcon icon={Globe} size={14} />
         <span>Org-level view <span style={{ opacity: 0.7 }}>· settings here are defaults visible to all clients</span></span>
       </div>
     );
@@ -46,7 +48,7 @@ export default function CrmScopeBadge() {
   const selected = clients.find((c) => c.id === selectedClientId);
   return (
     <div style={badgeBase('#3E9EFF')}>
-      <span>🔵</span>
+      <InlineIcon icon={Building2} size={14} />
       <span>Configuring for: <strong>{selected?.name || selectedClientId.slice(0, 8) + '…'}</strong></span>
     </div>
   );

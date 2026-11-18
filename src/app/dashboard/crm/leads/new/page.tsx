@@ -32,7 +32,11 @@ import {
 import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
 import { Button, Eyebrow, Field, FormGrid, Input, PageHeader, Section as FormSection, Segmented, Select, T, Textarea, cardStyle, requiredMark, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
-import { Check, CheckCircle2, Info, LocateFixed, MapPin, Target } from 'lucide-react';
+import {
+  Building2, CalendarClock, Check, CheckCircle2, CheckSquare, Contact as ContactIcon, Info, LocateFixed, MapPin, Package, Plus, ShieldCheck,
+  Target, UserPlus, UserRound, Users, type LucideIcon,
+} from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 
 type UserOpt = UserOption;
 
@@ -1149,7 +1153,7 @@ export default function NewLeadPage() {
                   onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--s3)'; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                 >
-                  <span aria-hidden>🏢</span>
+                  <InlineIcon icon={Building2} size={14} style={{ color: T.dim }} />
                   <span style={{ fontWeight: 600 }}>{a.name}</span>
                   <span style={{ marginLeft: 'auto', fontSize: 11.5, color: T.dim }}>Existing account</span>
                 </button>
@@ -1380,7 +1384,8 @@ export default function NewLeadPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 10px', border: `1px solid ${T.border}`, borderRadius: 8, background: 'var(--s2)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text }}>
                         <CheckCircle2 size={15} strokeWidth={2} style={{ color: T.ok, flexShrink: 0 }} />
-                        <span style={{ fontWeight: 600 }}>👤 {[form.first_name, form.last_name].filter(Boolean).join(' ') || 'Linked contact'}</span>
+                        <InlineIcon icon={UserRound} size={14} style={{ color: T.dim }} />
+                        <span style={{ fontWeight: 600 }}>{[form.first_name, form.last_name].filter(Boolean).join(' ') || 'Linked contact'}</span>
                         {form.title && <span style={{ color: T.dim }}>· {form.title}</span>}
                         <button type="button" onClick={() => { setPersonContactId(''); setPersonQuery(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: T.dim, cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
                       </div>
@@ -1404,7 +1409,7 @@ export default function NewLeadPage() {
                               style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13.5, color: T.text }}
                               onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--s3)'; }}
                               onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
-                              <span aria-hidden>👤</span>
+                              <InlineIcon icon={UserRound} size={14} style={{ color: T.dim }} />
                               <span style={{ fontWeight: 600 }}>{[c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Unnamed contact'}</span>
                               {(c.title || c.phone) && <span style={{ marginLeft: 'auto', fontSize: 11.5, color: T.dim }}>{c.title || c.phone}</span>}
                             </button>
@@ -1548,9 +1553,9 @@ export default function NewLeadPage() {
               <button
                 type="button"
                 onClick={() => setOtherContacts((rows) => [...rows, newOtherContact()])}
-                style={{ alignSelf: 'flex-start', background: 'transparent', border: `1px dashed ${T.border}`, color: T.text, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                style={{ alignSelf: 'flex-start', background: 'transparent', border: `1px dashed ${T.border}`, color: T.text, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                + Add a person
+                <InlineIcon icon={Plus} size={14} />Add a person
               </button>
             </div>
           </Section>
@@ -1560,9 +1565,9 @@ export default function NewLeadPage() {
             <button
               type="button"
               onClick={() => { setShowOtherPeople(true); setOtherContacts([newOtherContact()]); }}
-              style={{ alignSelf: 'flex-start', background: 'transparent', border: `1px dashed ${T.border}`, color: T.text, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+              style={{ alignSelf: 'flex-start', background: 'transparent', border: `1px dashed ${T.border}`, color: T.text, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              + Add other people on this lead (GM / DGM / procurement…)
+              <InlineIcon icon={Plus} size={14} />Add other people on this lead (GM / DGM / procurement…)
             </button>
           </div>
         ))}
@@ -1582,8 +1587,8 @@ export default function NewLeadPage() {
                     <Input list="spark-group-list" value={form.group} onChange={(e) => setForm({ ...form, group: e.target.value })} placeholder="e.g. Tata Steel Limited" />
                   </Field>
                 ) : (
-                  <button type="button" onClick={() => setShowGroup(true)} style={{ alignSelf: 'end', justifySelf: 'start', background: 'transparent', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, padding: '0 0 10px', textDecoration: 'underline' }}>
-                    + Add parent group
+                  <button type="button" onClick={() => setShowGroup(true)} style={{ alignSelf: 'end', justifySelf: 'start', background: 'transparent', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, padding: '0 0 10px', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <InlineIcon icon={Plus} size={13} />Add parent group
                   </button>
                 ))}
                 {b2bAccounts ? companyField() : text('company', 'Company', { required: true })}
@@ -1657,8 +1662,8 @@ export default function NewLeadPage() {
                     </div>
                   ))}
                   <div>
-                    <Button type="button" onClick={() => setProductLines((rows) => [...rows, newProductLine()])}>
-                      + Add product line
+                    <Button type="button" onClick={() => setProductLines((rows) => [...rows, newProductLine()])} icon={<Plus size={15} strokeWidth={2} />}>
+                      Add product line
                     </Button>
                   </div>
                 </div>
@@ -1668,9 +1673,9 @@ export default function NewLeadPage() {
                   <button
                     type="button"
                     onClick={() => setShowProductDetails(true)}
-                    style={{ marginTop: 10, alignSelf: 'flex-start', background: 'transparent', border: `1px dashed ${T.border}`, color: T.text, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                    style={{ marginTop: 10, alignSelf: 'flex-start', background: 'transparent', border: `1px dashed ${T.border}`, color: T.text, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
-                    + Add product / make / quantity details
+                    <InlineIcon icon={Plus} size={14} />Add product / make / quantity details
                   </button>
                 )}
               </Section>
@@ -1855,13 +1860,25 @@ function Grid({ narrow, children }: { narrow: boolean; children: React.ReactNode
 
 // `flatRow` (ordered mode only): a block that keeps its own heading — it becomes one full-width grid item at that
 // order. Without it the section dissolves into the grid. Inside such a block the layout is the normal one again.
+// One icon per form section (by its heading), so the long form scans at a glance.
+const SECTION_ICON: Record<string, LucideIcon> = {
+  Contact: ContactIcon, Person: UserRound, Assignment: UserPlus, 'Other people on this lead': Users, Company: Building2,
+  'Company & plant': Building2, 'Requirement & products': Package, Location: MapPin, Customer: UserRound, Address: MapPin,
+  Consent: ShieldCheck, 'Pin location': LocateFixed, Activity: CheckSquare, 'Schedule visit': CalendarClock,
+};
+
+function sectionHeading(title: string) {
+  const Icon = SECTION_ICON[title];
+  return Icon ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Icon} size={13} />{title}</span> : title;
+}
+
 function Section({ title, hint, first, flatRow, children }: { title: string; hint?: string; first?: boolean; flatRow?: React.CSSProperties; children: React.ReactNode }) {
   const flat = useContext(FlatCtx);
-  if (!flat) return <FormSection eyebrow={title} hint={hint} first={first}>{children}</FormSection>;
+  if (!flat) return <FormSection eyebrow={sectionHeading(title)} hint={hint} first={first}>{children}</FormSection>;
   if (!flatRow) return <div style={{ display: 'contents' }}>{children}</div>;
   return (
     <FlatCtx.Provider value={false}>
-      <FormSection eyebrow={title} hint={hint} style={{ padding: 0, borderTop: 0, gridColumn: '1 / -1', ...flatRow }}>{children}</FormSection>
+      <FormSection eyebrow={sectionHeading(title)} hint={hint} style={{ padding: 0, borderTop: 0, gridColumn: '1 / -1', ...flatRow }}>{children}</FormSection>
     </FlatCtx.Provider>
   );
 }
@@ -1899,7 +1916,8 @@ function OtherContactRow({ row, onChange, onRemove, narrow }: {
         <Field label="Contact">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text, padding: '8px 10px', border: `1px solid ${T.border}`, borderRadius: 8, background: T.card }}>
             <CheckCircle2 size={15} strokeWidth={2} style={{ color: T.ok, flexShrink: 0 }} />
-            <span style={{ fontWeight: 600 }}>👤 {row.name || 'Linked contact'}</span>
+            <InlineIcon icon={UserRound} size={14} style={{ color: T.dim }} />
+            <span style={{ fontWeight: 600 }}>{row.name || 'Linked contact'}</span>
             {row.title && <span style={{ color: T.dim }}>· {row.title}</span>}
             <button type="button" onClick={() => { onChange({ ...row, contactId: '', name: '', title: '' }); setQuery(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: T.dim, cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
           </div>
@@ -1916,7 +1934,7 @@ function OtherContactRow({ row, onChange, onRemove, narrow }: {
                     style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13.5, color: T.text }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--s3)'; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
-                    <span aria-hidden>👤</span>
+                    <InlineIcon icon={UserRound} size={14} style={{ color: T.dim }} />
                     <span style={{ fontWeight: 600 }}>{nameOf(c)}</span>
                     {(c.title || c.phone) && <span style={{ marginLeft: 'auto', fontSize: 11.5, color: T.dim }}>{c.title || c.phone}</span>}
                   </button>
@@ -1968,7 +1986,8 @@ function ContactRow({ row, index, onChange, onRemove, canRemove, narrow }: {
       {row.contactId ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text }}>
           <CheckCircle2 size={15} strokeWidth={2} style={{ color: T.ok, flexShrink: 0 }} />
-          <span style={{ fontWeight: 600 }}>👤 {[row.firstName, row.lastName].filter(Boolean).join(' ') || 'Linked contact'}</span>
+          <InlineIcon icon={UserRound} size={14} style={{ color: T.dim }} />
+          <span style={{ fontWeight: 600 }}>{[row.firstName, row.lastName].filter(Boolean).join(' ') || 'Linked contact'}</span>
           {row.title && <span style={{ color: T.dim }}>· {row.title}</span>}
           <button
             type="button"
@@ -2000,7 +2019,7 @@ function ContactRow({ row, index, onChange, onRemove, canRemove, narrow }: {
                       onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--s3)'; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                     >
-                      <span aria-hidden>👤</span>
+                      <InlineIcon icon={UserRound} size={14} style={{ color: T.dim }} />
                       <span style={{ fontWeight: 600 }}>{nameOf(c)}</span>
                       {(c.title || c.phone) && <span style={{ marginLeft: 'auto', fontSize: 11.5, color: T.dim }}>{c.title || c.phone}</span>}
                     </button>

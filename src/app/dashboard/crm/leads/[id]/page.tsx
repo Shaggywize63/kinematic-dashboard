@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Handshake, History, LayoutDashboard, Mic, SearchX } from 'lucide-react';
 import { crmLeads, crmAi, crmSettings } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import { conversationsApi, type ConversationRow } from '../../../../../lib/conversationsApi';
@@ -325,7 +326,7 @@ export default function LeadDetailPage() {
   };
 
   if (loading && !lead) return <DetailSkeleton narrow={narrow} />;
-  if (!lead) return <EmptyState title="Lead not found" description="It may have been deleted, or you may not have access to it." action={<Button href="/dashboard/crm/leads">Back to leads</Button>} />;
+  if (!lead) return <EmptyState icon={<SearchX size={20} strokeWidth={1.8} />} title="Lead not found" description="It may have been deleted, or you may not have access to it." action={<Button href="/dashboard/crm/leads">Back to leads</Button>} />;
 
   // Structured (Spark & Ray) leads are titled by their computed name — the same one the list
   // row shows (`Account · Plant · Department — Requirement`); everyone else by the person.
@@ -394,10 +395,10 @@ export default function LeadDetailPage() {
   const showScore = !isChampion && !isTataActive && !fields.isHidden('score');
   const hasInsights = !hideConversations && conversations.length > 0;
   const tabs: TabDef[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'timeline', label: 'Timeline', count: updates.items.length + activities.length },
-    { id: 'deals', label: 'Deals', count: deals.length },
-    ...(hasInsights ? [{ id: 'insights' as const, label: 'Call insights', count: conversations.length }] : []),
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'timeline', label: 'Timeline', count: updates.items.length + activities.length, icon: History },
+    { id: 'deals', label: 'Deals', count: deals.length, icon: Handshake },
+    ...(hasInsights ? [{ id: 'insights' as const, label: 'Call insights', count: conversations.length, icon: Mic }] : []),
   ];
   const activeTab: LeadTab = tabs.some((t) => t.id === tab) ? tab : 'overview';
 

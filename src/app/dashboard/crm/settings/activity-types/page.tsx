@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { invalidateActivityTypes } from '../../../../../lib/activityTypes';
 import { useClient } from '../../../../../context/ClientContext';
+import { Check, CheckCircle2, ListChecks, Plus, Trash2 } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 // Settings → Activity Types — manage the dropdown choices on
 // /crm/activities/new. Built-ins (call/meeting/task/note/email/sms/whatsapp)
@@ -29,6 +31,7 @@ const inputStyle: React.CSSProperties = {
 const btn: React.CSSProperties = {
   background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px',
   borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', gap: 6,
 };
 const btnSec: React.CSSProperties = { ...btn, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)' };
 
@@ -74,12 +77,12 @@ export default function ActivityTypesSettingsPage() {
     <div style={{ color: 'var(--text)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Activity Types</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Activity Types</h2>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
             What shows up in the type dropdown when someone logs an activity. Seven built-ins are always available; add your own (e.g. "Site Visit", "Demo", "Survey") for this client.
           </div>
         </div>
-        <button style={btn} onClick={() => setShowAdd(true)}>+ Add Type</button>
+        <button style={btn} onClick={() => setShowAdd(true)}><InlineIcon icon={Plus} />Add Type</button>
       </div>
 
       <div style={{ marginTop: 16, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
@@ -89,7 +92,7 @@ export default function ActivityTypesSettingsPage() {
         {loading && rows.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>Loading…</div>
         ) : rows.length === 0 ? (
-          <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>No types yet.</div>
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}><IconTile icon={ListChecks} size={40} iconSize={20} />No types yet.</div>
         ) : rows.map((r) => (
           <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '60px 1.4fr 1fr 80px 100px 80px', padding: '12px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, alignItems: 'center', opacity: r.is_active ? 1 : 0.55 }}>
             <div style={{ fontSize: 20 }}>{r.icon || '•'}</div>
@@ -100,14 +103,14 @@ export default function ActivityTypesSettingsPage() {
               {r.is_system ? (
                 <span style={{ fontSize: 11, color: '#10b981' }}>Active</span>
               ) : (
-                <button onClick={() => toggleActive(r)} style={{ background: 'transparent', border: '1px solid var(--border)', color: r.is_active ? '#10b981' : 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                  {r.is_active ? '✓ Active' : 'Inactive'}
+                <button onClick={() => toggleActive(r)} style={{ background: 'transparent', border: '1px solid var(--border)', color: r.is_active ? '#10b981' : 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  {r.is_active && <InlineIcon icon={CheckCircle2} size={12} />}{r.is_active ? 'Active' : 'Inactive'}
                 </button>
               )}
             </div>
             <div style={{ textAlign: 'right' }}>
               {!r.is_system && (
-                <button onClick={() => remove(r)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14 }} title="Delete">✕</button>
+                <button onClick={() => remove(r)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14, display: 'inline-flex' }} title="Delete"><InlineIcon icon={Trash2} size={14} /></button>
               )}
             </div>
           </div>
@@ -152,7 +155,7 @@ function AddTypeModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 22, width: 460, maxWidth: '100%' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <strong style={{ fontSize: 16 }}>Add activity type</strong>
+          <strong style={{ fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Plus} size={18} style={{ color: 'var(--text-dim)' }} />Add activity type</strong>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 20 }}>×</button>
         </div>
         <Field label="Name"><input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Site Visit" autoFocus /></Field>
@@ -163,7 +166,7 @@ function AddTypeModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button style={btnSec} onClick={onClose}>Cancel</button>
-          <button style={btn} onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+          <button style={btn} onClick={save} disabled={saving}>{!saving && <InlineIcon icon={Check} />}{saving ? 'Saving…' : 'Save'}</button>
         </div>
       </div>
     </div>

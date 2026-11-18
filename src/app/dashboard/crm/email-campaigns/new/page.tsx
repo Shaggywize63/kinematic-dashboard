@@ -17,6 +17,8 @@ import {
   type EmailTemplate, type EmailAudience, type EmailCampaignPreview,
 } from '../../../../../lib/crmApi';
 import type { Lead } from '../../../../../types/crm';
+import { Braces, Database, Link2, Mail, Save, Send, Upload, Users } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 type PickContact = { id: string; name: string; email: string };
 
@@ -224,13 +226,16 @@ export default function NewEmailCampaignPage() {
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.white, paddingBottom: 60, maxWidth: 820 }}>
       <Link href="/dashboard/crm/email-campaigns" style={{ color: C.gray, fontSize: 12, textDecoration: 'none' }}>← Email Campaigns</Link>
-      <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: '6px 0 18px' }}>New email campaign</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '6px 0 18px' }}>
+        <PageIcon />
+        <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: 0 }}>New email campaign</h1>
+      </div>
 
       {err && <div style={{ ...card, marginBottom: 16, borderColor: 'rgba(224,30,44,0.3)', color: C.red, fontSize: 13, padding: 14 }}>{err}</div>}
 
       {/* 1 · Basics + template */}
       <div style={card}>
-        <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 14 }}>1 · Message</div>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Mail} size={16} style={{ color: C.gray }} />1 · Message</div>
         <div style={{ marginBottom: 14 }}>
           <span style={label}>Campaign name</span>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Kinematic × Claude announcement" style={input} />
@@ -256,7 +261,7 @@ export default function NewEmailCampaignPage() {
 
         {/* Available merge variables — auto-filled per recipient from their lead record. */}
         <div style={{ marginTop: 16, background: 'var(--s4)', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
-          <div style={{ ...label, marginBottom: 8 }}>Available variables</div>
+          <div style={{ ...label, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Braces} size={13} />Available variables</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
             {VARIABLES.map((v) => (
               <button key={v.token} type="button"
@@ -277,17 +282,17 @@ export default function NewEmailCampaignPage() {
 
       {/* 2 · Audience */}
       <div style={card}>
-        <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 4 }}>2 · Audience</div>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Users} size={16} style={{ color: C.gray }} />2 · Audience</div>
         <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>
           Contacts with an email address. Unsubscribed and previously-bounced addresses are always skipped.
         </div>
 
         {/* Recipient source: existing CRM leads, or an uploaded CSV list. */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: 'var(--s4)', border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, width: 'fit-content' }}>
-          {([{ k: 'leads', t: 'From CRM leads' }, { k: 'csv', t: 'Upload a list (CSV)' }] as const).map((m) => (
+          {([{ k: 'leads', t: 'From CRM leads', icon: Database }, { k: 'csv', t: 'Upload a list (CSV)', icon: Upload }] as const).map((m) => (
             <button key={m.k} type="button" onClick={() => { setMode(m.k); setPreview(null); setErr(''); }}
-              style={{ background: mode === m.k ? C.red : 'transparent', color: mode === m.k ? '#fff' : C.gray, border: 'none', padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-              {m.t}
+              style={{ background: mode === m.k ? C.red : 'transparent', color: mode === m.k ? '#fff' : C.gray, border: 'none', padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={m.icon} size={14} />{m.t}
             </button>
           ))}
         </div>
@@ -331,8 +336,8 @@ export default function NewEmailCampaignPage() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {(!gStatus?.connected || !gStatus?.has_contacts_scope) && (
-                <button type="button" onClick={connectGoogle} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 14px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                  {gStatus?.connected ? 'Reconnect Google' : 'Connect Google'}
+                <button type="button" onClick={connectGoogle} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 14px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <InlineIcon icon={Link2} />{gStatus?.connected ? 'Reconnect Google' : 'Connect Google'}
                 </button>
               )}
               {/* Google Contacts → leads import removed (it flooded the CRM
@@ -413,8 +418,8 @@ export default function NewEmailCampaignPage() {
           </div>
         )}
         <div style={{ marginTop: 16 }}>
-          <button onClick={runPreview} disabled={previewing || !templateId} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: previewing || !templateId ? 'not-allowed' : 'pointer', opacity: previewing || !templateId ? 0.6 : 1 }}>
-            {previewing ? 'Resolving…' : 'Preview audience'}
+          <button onClick={runPreview} disabled={previewing || !templateId} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: previewing || !templateId ? 'not-allowed' : 'pointer', opacity: previewing || !templateId ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {!previewing && <InlineIcon icon={Users} />}{previewing ? 'Resolving…' : 'Preview audience'}
           </button>
         </div>
 
@@ -442,15 +447,15 @@ export default function NewEmailCampaignPage() {
 
       {/* 3 · Pacing + send */}
       <div style={card}>
-        <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 14 }}>3 · Send</div>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Send} size={16} style={{ color: C.gray }} />3 · Send</div>
         <div style={{ maxWidth: 240, marginBottom: 18 }}>
           <span style={label}>Pace (emails per minute)</span>
           <input type="number" min={1} max={500} value={throttle} onChange={(e) => setThrottle(Math.max(1, Math.min(500, Number(e.target.value) || 1)))} style={input} />
           <div style={{ fontSize: 11, color: C.grayd, marginTop: 6 }}>Protects your sender reputation. 60/min is a safe default.</div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button onClick={() => save(false)} disabled={saving} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '11px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>Save draft</button>
-          <button onClick={() => save(true)} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '11px 22px', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Working…' : 'Create & Send'}</button>
+          <button onClick={() => save(false)} disabled={saving} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '11px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Save} />Save draft</button>
+          <button onClick={() => save(true)} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '11px 22px', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>{!saving && <InlineIcon icon={Send} />}{saving ? 'Working…' : 'Create & Send'}</button>
         </div>
       </div>
     </div>

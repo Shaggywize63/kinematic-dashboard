@@ -2,6 +2,8 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
+import { CalendarPlus, Check, ClipboardList, Link2, type LucideIcon } from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmActivities, crmLeads, crmContacts, crmDeals, crmAccounts } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import { getStoredUser } from '../../../../../lib/auth';
@@ -477,12 +479,12 @@ function NewActivityPageInner() {
 
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 680 }}>
-      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>Log Activity</h2>
+      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Log Activity</h2>
       <p style={{ margin: '-4px 0 18px', fontSize: 13, color: 'var(--text-dim)' }}>
         Record a call, meeting, task, note, or message. Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.
       </p>
 
-      <Section title="Activity Details">
+      <Section title="Activity Details" icon={ClipboardList}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <Field label="Type *">
             {/* Single activity field. Type and Subject used to be separate
@@ -599,9 +601,10 @@ function NewActivityPageInner() {
                   marginTop: 12, background: 'transparent', border: 'none',
                   color: 'var(--primary)', fontSize: 13, fontWeight: 600,
                   cursor: 'pointer', padding: 0, textDecoration: 'underline',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
                 }}
               >
-                + Also schedule next visit
+                <InlineIcon icon={CalendarPlus} size={14} />Also schedule next visit
               </button>
             ) : (
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(208,30,44,0.18)' }}>
@@ -688,7 +691,7 @@ function NewActivityPageInner() {
         )}
       </Section>
 
-      <Section title="Link to Entity (optional)">
+      <Section title="Link to Entity (optional)" icon={Link2}>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
           Optionally attach this activity to a lead, deal, contact, or account.
         </div>
@@ -712,7 +715,7 @@ function NewActivityPageInner() {
                   autoComplete="off"
                 />
                 {entityId && (
-                  <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>✓</div>
+                  <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--primary)', fontWeight: 700, display: 'flex' }}><InlineIcon icon={Check} size={14} /></div>
                 )}
                 {showEntityDropdown && (
                   <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 200, overflowY: 'auto', zIndex: 50, marginTop: 2 }}>
@@ -741,16 +744,16 @@ function NewActivityPageInner() {
 
       <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
         <button type="button" onClick={() => router.back()} style={btnGhost}>Cancel</button>
-        <button type="submit" disabled={busy} style={btnPrimary}>{busy ? 'Saving…' : 'Log Activity'}</button>
+        <button type="submit" disabled={busy} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Check} />{busy ? 'Saving…' : 'Log Activity'}</button>
       </div>
     </form>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, icon }: { title: string; children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <div style={{ marginTop: 20 }}>
-      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 }}>{title}</div>
+      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>{icon && <InlineIcon icon={icon} size={14} />}{title}</div>
       {children}
     </div>
   );

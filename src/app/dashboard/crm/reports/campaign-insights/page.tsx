@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { CampaignBlock, CampaignInsightsPayload } from '../../../../../types/crm';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
+import { PageIcon } from '../../../../../components/ui/PageIcon';
 
 /**
  * Campaign Insights — per-campaign (General Calls / App & DigiGold /
@@ -55,7 +56,7 @@ export default function CampaignInsightsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <Link href="/dashboard/crm/reports" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none' }}>← All reports</Link>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px' }}>Campaign Insights</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Campaign Insights</h1>
           <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
             DigiGold enrolment, app ratings and after-sales satisfaction per calling campaign.
           </p>

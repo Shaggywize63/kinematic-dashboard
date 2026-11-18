@@ -20,6 +20,9 @@ import {
   ChartCard, ChartTooltip, ChartEmpty, GradientDefs, grad, CHART,
 } from '../../../lib/chartTheme';
 import { conversationsApi, type ConversationAnalytics } from '../../../lib/conversationsApi';
+import type { LucideIcon } from 'lucide-react';
+import { AlertTriangle, Percent, Phone, Target, UserPlus, Users } from 'lucide-react';
+import { InlineIcon } from '../../ui/PageIcon';
 
 // Single-hue accents for magnitude (identity is on the axis, so no palette cycle).
 const ACCENT = '#6366F1';   // intent journey + timeline
@@ -132,12 +135,12 @@ export default function ConversationAnalyticsView({ championId, city, compact }:
 
       {/* KPI row */}
       <div style={{ display: 'grid', gridTemplateColumns: compact ? 'repeat(2, 1fr)' : 'repeat(6, 1fr)', gap: 10 }}>
-        <StatTile label="Analyzed calls" value={t ? String(t.analyzed) : '—'} />
-        <StatTile label="Avg intent" value={t?.avg_intent_score != null ? `${t.avg_intent_score}` : '—'} sub="/ 100" accent={ACCENT} />
-        <StatTile label="Rep talk-share" value={t?.avg_talk_pct != null ? `${t.avg_talk_pct}%` : '—'} sub="of call time" />
-        <StatTile label="Leads touched" value={t ? String(t.leads) : '—'} />
-        <StatTile label="Reps active" value={t ? String(t.reps) : '—'} />
-        <StatTile label="Risk-flag calls" value={t ? String(t.risk_calls) : '—'} accent={t && t.risk_calls > 0 ? BAD : undefined} />
+        <StatTile label="Analyzed calls" icon={Phone} value={t ? String(t.analyzed) : '—'} />
+        <StatTile label="Avg intent" icon={Target} value={t?.avg_intent_score != null ? `${t.avg_intent_score}` : '—'} sub="/ 100" accent={ACCENT} />
+        <StatTile label="Rep talk-share" icon={Percent} value={t?.avg_talk_pct != null ? `${t.avg_talk_pct}%` : '—'} sub="of call time" />
+        <StatTile label="Leads touched" icon={UserPlus} value={t ? String(t.leads) : '—'} />
+        <StatTile label="Reps active" icon={Users} value={t ? String(t.reps) : '—'} />
+        <StatTile label="Risk-flag calls" icon={AlertTriangle} value={t ? String(t.risk_calls) : '—'} accent={t && t.risk_calls > 0 ? BAD : undefined} />
       </div>
 
       {/* Charts grid */}
@@ -289,13 +292,13 @@ export default function ConversationAnalyticsView({ championId, city, compact }:
 
 const thTd: React.CSSProperties = { padding: '8px 10px', whiteSpace: 'nowrap' };
 
-function StatTile({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
+function StatTile({ label, value, sub, accent, icon }: { label: string; value: string; sub?: string; accent?: string; icon?: LucideIcon }) {
   return (
     <div style={{
       background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px',
       display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0,
     }}>
-      <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>{icon && <InlineIcon icon={icon} size={13} />}{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: accent || 'var(--text)', lineHeight: 1.05 }}>{value}</div>
         {sub && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{sub}</div>}

@@ -4,6 +4,11 @@ import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
+import {
+  AlertTriangle, CalendarClock, CalendarDays, CalendarOff, CheckCircle2, CheckSquare, CircleDashed, Clock, Download, Filter, FilterX,
+  Link2, List, Pencil, Play, PlayCircle, Plus, RotateCcw, Search, ShieldCheck, Upload, UserRound, X, XCircle, type LucideIcon,
+} from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import { crmAccounts, crmActivities, crmLeads, type Pagination, type ActivityView, type ActivitySummary } from '../../../../lib/crmApi';
 import api, { EXPORT_TIMEOUT_MS } from '../../../../lib/api';
 import { downloadBlob } from '../../../../lib/financeFormat';
@@ -430,11 +435,11 @@ function ActivitiesPageInner() {
             //   overdue  = past-due + uncompleted
             //   upcoming = future-due + uncompleted
             //   undated  = no due_at AND no completed_at
-            { key: 'all',       label: 'Total',     value: summary?.total     ?? pagination.total, color: 'var(--primary)' },
-            { key: 'overdue',   label: 'Overdue',   value: summary?.overdue   ?? overdue.length,   color: '#ef4444' },
-            { key: 'upcoming',  label: 'Upcoming',  value: summary?.upcoming  ?? upcoming.length,  color: '#f59e0b' },
-            { key: 'undated',   label: 'No Date',   value: summary?.undated   ?? 0,                color: '#8b5cf6' },
-          ] as Array<{ key: ActivityView; label: string; value: number; color: string }>).map(({ key, label, value, color }) => {
+            { key: 'all',       label: 'Total',     value: summary?.total     ?? pagination.total, color: 'var(--primary)', icon: CheckSquare },
+            { key: 'overdue',   label: 'Overdue',   value: summary?.overdue   ?? overdue.length,   color: '#ef4444',        icon: AlertTriangle },
+            { key: 'upcoming',  label: 'Upcoming',  value: summary?.upcoming  ?? upcoming.length,  color: '#f59e0b',        icon: CalendarClock },
+            { key: 'undated',   label: 'No Date',   value: summary?.undated   ?? 0,                color: '#8b5cf6',        icon: CalendarOff },
+          ] as Array<{ key: ActivityView; label: string; value: number; color: string; icon: LucideIcon }>).map(({ key, label, value, color, icon }) => {
             const active = view === key;
             // Every tile is now a server-wide head count under the
             // current filters, so the sub-label is the same for all.
@@ -458,7 +463,8 @@ function ActivitiesPageInner() {
                 <div style={{ fontSize: 20, fontWeight: 800, color: active ? '#fff' : color }}>
                   {value.toLocaleString()}
                 </div>
-                <div style={{ fontSize: 11, color: active ? '#fff' : 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                <div style={{ fontSize: 11, color: active ? '#fff' : 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                  <InlineIcon icon={icon} size={12} />
                   {label}
                 </div>
                 <div style={{ fontSize: 9, color: active ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)', marginTop: 2 }}>
@@ -476,10 +482,11 @@ function ActivitiesPageInner() {
                 color: 'var(--text-dim)', padding: '6px 12px',
                 borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
                 alignSelf: 'center',
+                display: 'inline-flex', alignItems: 'center', gap: 4,
               }}
               title="Clear the tile filter — show all activities again"
             >
-              ✕ Clear filter
+              <InlineIcon icon={X} size={12} />Clear filter
             </button>
           )}
         </div>
@@ -497,12 +504,12 @@ function ActivitiesPageInner() {
             // OR status NOT IN (canonical set)". So clicking the tile
             // surfaces rows whose status was never set / has a legacy
             // value — reps can then edit them.
-            { key: 'open',        label: 'Pending',   value: summary.by_status.open,        color: '#6366f1' },
-            { key: 'in_progress', label: 'Ongoing',   value: summary.by_status.in_progress, color: '#f59e0b' },
-            { key: 'completed',   label: 'Completed', value: summary.by_status.completed,   color: '#10b981' },
-            { key: 'cancelled',   label: 'Cancelled', value: summary.by_status.cancelled,   color: '#9ca3af' },
-            { key: 'unset',       label: 'Unset',     value: summary.by_status.unset,       color: '#ef4444' },
-          ] as Array<{ key: string; label: string; value: number; color: string }>).map(({ key, label, value, color }) => {
+            { key: 'open',        label: 'Pending',   value: summary.by_status.open,        color: '#6366f1', icon: Clock },
+            { key: 'in_progress', label: 'Ongoing',   value: summary.by_status.in_progress, color: '#f59e0b', icon: PlayCircle },
+            { key: 'completed',   label: 'Completed', value: summary.by_status.completed,   color: '#10b981', icon: CheckCircle2 },
+            { key: 'cancelled',   label: 'Cancelled', value: summary.by_status.cancelled,   color: '#9ca3af', icon: XCircle },
+            { key: 'unset',       label: 'Unset',     value: summary.by_status.unset,       color: '#ef4444', icon: CircleDashed },
+          ] as Array<{ key: string; label: string; value: number; color: string; icon: LucideIcon }>).map(({ key, label, value, color, icon }) => {
             const active = statusFilter === key;
             return (
               <button
@@ -523,7 +530,8 @@ function ActivitiesPageInner() {
                 <div style={{ fontSize: 20, fontWeight: 800, color: active ? '#fff' : color }}>
                   {value.toLocaleString()}
                 </div>
-                <div style={{ fontSize: 11, color: active ? '#fff' : 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                <div style={{ fontSize: 11, color: active ? '#fff' : 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                  <InlineIcon icon={icon} size={12} />
                   {label}
                 </div>
                 <div style={{ fontSize: 9, color: active ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)', marginTop: 2 }}>
@@ -540,7 +548,7 @@ function ActivitiesPageInner() {
         <div data-testid="activity-filters" style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {showAssigneeFilter && (
             <>
-              <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Filters</span>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, display: 'inline-flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={Filter} size={13} />Filters</span>
               <div style={{ minWidth: 220 }}>
                 <UserSearchSelect
                   options={users}
@@ -569,9 +577,9 @@ function ActivitiesPageInner() {
               {filtersActive && (
                 <button
                   onClick={() => { setPage(1); setFeFilter(''); setAccountFilterId(''); setAccountFilterLabel(''); }}
-                  style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
+                  style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: 6, fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                   title={spark ? 'Clear the user and account filters' : 'Clear FE filter (state/city is in the header filter)'}
-                >{spark ? 'Clear filters' : 'Clear FE'}</button>
+                ><InlineIcon icon={FilterX} size={12} />{spark ? 'Clear filters' : 'Clear FE'}</button>
               )}
             </>
           )}
@@ -584,7 +592,7 @@ function ActivitiesPageInner() {
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Native <select> options can't render React components — emoji-only
               for the filter labels. activityTypeEmoji uses the WhatsApp green
               circle 🟢 so the option at least colour-signals the brand even
@@ -629,7 +637,8 @@ function ActivitiesPageInner() {
             <option value="due_desc">Due latest</option>
           </select>
           {isAdmin && (
-            <span style={{ fontSize: 11, color: 'var(--primary)', background: 'var(--s3)', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+            <span style={{ fontSize: 11, color: 'var(--primary)', background: 'var(--s3)', padding: '3px 8px', borderRadius: 6, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <InlineIcon icon={ShieldCheck} size={12} />
               Admin — org-wide view
             </span>
           )}
@@ -655,8 +664,10 @@ function ActivitiesPageInner() {
                   fontWeight: 700,
                   cursor: 'pointer',
                   textTransform: 'capitalize',
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
                 }}
               >
+                <InlineIcon icon={m === 'list' ? List : CalendarDays} size={13} />
                 {m}
               </button>
             ))}
@@ -675,12 +686,13 @@ function ActivitiesPageInner() {
             onClick={handleExport}
             disabled={exporting}
             title="Download activities as CSV (current filters apply)"
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: exporting ? 'not-allowed' : 'pointer', opacity: exporting ? 0.6 : 1 }}
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: exporting ? 'not-allowed' : 'pointer', opacity: exporting ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            {exporting ? 'Exporting…' : '⬇ Export CSV'}
+            <InlineIcon icon={Download} />
+            {exporting ? 'Exporting…' : 'Export CSV'}
           </button>
-          <Link href="/dashboard/crm/activities/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>⬆ Import</Link>
-          <Link href="/dashboard/crm/activities/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ Log Activity</Link>
+          <Link href="/dashboard/crm/activities/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Upload} />Import</Link>
+          <Link href="/dashboard/crm/activities/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />Log Activity</Link>
         </div>
       </div>
 
@@ -699,6 +711,7 @@ function ActivitiesPageInner() {
         </>
       ) : filtered.length === 0 ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 20, textAlign: 'center' }}>
+          <IconTile icon={CheckSquare} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 8px' }} />
           {pagination && pagination.total > 0
             ? <>No activities on this page. <button onClick={() => setPage(1)} style={{ color: 'var(--primary)', background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Go to page 1</button></>
             : <>No activities found. <Link href="/dashboard/crm/activities/new" style={{ color: 'var(--primary)' }}>Log one now →</Link></>}
@@ -765,14 +778,15 @@ function ActivitiesPageInner() {
                           <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '1px 6px', borderRadius: 4, background: 'var(--s3)', color: 'var(--text-dim)' }}>{activityTypes.labelFor(a.type)}</span>
                         )}
                         {!cardHidden.has('due_date') && a.due_at && (
-                          <span style={{ fontSize: 11, color: isOverdue ? '#ef4444' : 'var(--text-dim)' }}>
-                            {isOverdue ? '⚠ Overdue · ' : ''}
+                          <span style={{ fontSize: 11, color: isOverdue ? '#ef4444' : 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <InlineIcon icon={isOverdue ? AlertTriangle : CalendarClock} size={12} />
+                            {isOverdue ? 'Overdue · ' : ''}
                             {a.completed_at ? 'Scheduled' : 'Due'}: {fmtFull(a.due_at)}
                           </span>
                         )}
                         {!cardHidden.has('completed') && a.completed_at && (
-                          <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>
-                            ✓ Completed: {fmtFull(a.completed_at)}
+                          <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <InlineIcon icon={CheckCircle2} size={12} />Completed: {fmtFull(a.completed_at)}
                           </span>
                         )}
                       </div>
@@ -792,8 +806,9 @@ function ActivitiesPageInner() {
                     paddingRight: 28,
                   }}>
                     {!cardHidden.has('owner') && ((a as any).assigned_to_name || a.owner_name) ? (
-                      <span style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        👤 {(a as any).assigned_to_name || a.owner_name}
+                      <span style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <InlineIcon icon={UserRound} size={12} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{(a as any).assigned_to_name || a.owner_name}</span>
                       </span>
                     ) : null}
                     {!cardHidden.has('linked') && linkedEntity && linkedId && (
@@ -816,10 +831,12 @@ function ActivitiesPageInner() {
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
                         }}
                         title={linkedName ? `${linkedEntity}: ${linkedName} — click to open` : `Open this ${linkedEntity}`}
                       >
-                        🔗 {linkedName || linkedEntity} →
+                        <InlineIcon icon={Link2} size={12} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{linkedName || linkedEntity} →</span>
                       </Link>
                     )}
                     {!cardHidden.has('created') && <span>{new Date(a.created_at).toLocaleDateString()}</span>}
@@ -830,28 +847,28 @@ function ActivitiesPageInner() {
                 <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
                   {!a.completed_at && (
                     <button onClick={() => updateStatus(a, 'completed')} disabled={busyId === a.id} style={btnGreen}>
-                      ✓ Mark Complete
+                      <InlineIcon icon={CheckCircle2} size={12} />Mark Complete
                     </button>
                   )}
                   {(a as any).status !== 'in_progress' && !a.completed_at && (
                     <button onClick={() => updateStatus(a, 'in_progress')} disabled={busyId === a.id} style={btnAmber}>
-                      ▶ In Progress
+                      <InlineIcon icon={Play} size={12} />In Progress
                     </button>
                   )}
                   {a.completed_at && (
                     <button onClick={() => updateStatus(a, 'open')} disabled={busyId === a.id} style={btnGhost}>
-                      ↺ Reopen
+                      <InlineIcon icon={RotateCcw} size={12} />Reopen
                     </button>
                   )}
                   {/* Edit is available regardless of status — reps need to fix
                       typos, update notes, push out the due_at, etc., on both
                       planned and completed/reopened rows. */}
                   <button onClick={() => setEditing(a)} disabled={busyId === a.id} style={btnGhost}>
-                    ✎ Edit
+                    <InlineIcon icon={Pencil} size={12} />Edit
                   </button>
                   {(a as any).status !== 'cancelled' && !a.completed_at && (
                     <button onClick={() => updateStatus(a, 'cancelled')} disabled={busyId === a.id} style={btnGray}>
-                      ✕ Cancel
+                      <InlineIcon icon={XCircle} size={12} />Cancel
                     </button>
                   )}
                 </div>
@@ -867,7 +884,7 @@ function ActivitiesPageInner() {
                   aria-label="Delete activity"
                   style={btnDelete}
                 >
-                  ✕
+                  <InlineIcon icon={X} size={13} />
                 </button>
               </div>
             );
@@ -969,7 +986,7 @@ function PaginationBar({
   );
 }
 
-const btnBase: React.CSSProperties = { padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'transparent' };
+const btnBase: React.CSSProperties = { padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'transparent', display: 'inline-flex', alignItems: 'center', gap: 5 };
 const btnGreen: React.CSSProperties = { ...btnBase, border: '1px solid #10b981', color: '#10b981' };
 const btnAmber: React.CSSProperties = { ...btnBase, border: '1px solid #f59e0b', color: '#f59e0b' };
 const btnGhost: React.CSSProperties = { ...btnBase, border: '1px solid var(--border)', color: 'var(--text-dim)' };
@@ -1319,7 +1336,7 @@ function FilterPicker({
           display: 'inline-flex', alignItems: 'center', gap: 6,
         }}
       >
-        🔍 {value ? label : `Search by ${noun}`}
+        <InlineIcon icon={Search} size={14} />{value ? label : `Search by ${noun}`}
         {value && (
           <span
             role="button"

@@ -1,5 +1,5 @@
 'use client';
-import { X } from 'lucide-react';
+import { Bookmark, X } from 'lucide-react';
 import { Eyebrow, T } from '../../ui';
 
 export interface QuickViewChip {
@@ -22,7 +22,7 @@ export default function LeadQuickViews({ chips }: { chips: QuickViewChip[] }) {
   if (chips.length === 0) return null;
   return (
     <div role="group" aria-label="Views" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <Eyebrow style={{ marginRight: 2 }}>Views</Eyebrow>
+      <Eyebrow style={{ marginRight: 2, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Bookmark aria-hidden size={12} strokeWidth={2} />Views</Eyebrow>
       {chips.map((c) => (
         <span key={c.id} style={{ position: 'relative', display: 'inline-flex' }}>
           <button

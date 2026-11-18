@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { LayoutGrid, X } from 'lucide-react';
+import { BarChart3, CalendarClock, Filter, Gauge, LayoutGrid, LineChart, Map as MapIcon, Timer, TrendingUp, Trophy, Users, X, type LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../lib/labelIcons';
 import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
 import { fmtValue, fmtValueCompact, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
@@ -84,15 +86,21 @@ const ALL_WIDGETS: WidgetId[] = [...STAT_WIDGETS, ...CHART_WIDGETS].map((w) => w
  * The value uses clamp() so a long Indian-grouped amount still fits the
  * tile on narrow viewports instead of overflowing.
  */
-function StatTile({ label, value, hint, valueTitle, loading, tone, hintWrap }: {
+function StatTile({ label, value, hint, valueTitle, loading, tone, hintWrap, icon }: {
   label: string; value: string | number; hint?: string; valueTitle?: string; loading?: boolean; tone?: 'ok' | 'warn' | 'red' | 'info';
   /** Let a long hint wrap instead of being cut off with an ellipsis. */
   hintWrap?: boolean;
+  /** The tile's icon; left out, the shared one for the label (lib/labelIcons.ts). */
+  icon?: LucideIcon;
 }) {
   const toneColor = tone === 'ok' ? T.ok : tone === 'warn' ? T.warn : tone === 'red' ? T.red : tone === 'info' ? T.info : T.text;
+  const Icon = icon ?? metricIconFor(label);
   return (
     <Card padding={16} style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
-      <Eyebrow style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</Eyebrow>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+        <Eyebrow style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</Eyebrow>
+        {Icon && <IconTile icon={Icon} tone={tone ?? 'brand'} />}
+      </div>
       <div title={valueTitle} style={{
         fontFamily: T.heading, fontSize: 'clamp(20px, 2.2vw, 26px)', fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1,
         color: loading ? T.mute : toneColor, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -360,7 +368,7 @@ export default function CrmDashboardPage() {
       {bmwActive && (
         <Card padding={16}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
-            <Eyebrow>Follow-ups due{followupCount ? ` · ${followupCount}` : ''}</Eyebrow>
+            <Eyebrow style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={CalendarClock} size={13} />Follow-ups due{followupCount ? ` · ${followupCount}` : ''}</Eyebrow>
             <Link href="/dashboard/crm/leads?followup_due=true" style={{ color: T.red, fontSize: 12.5, fontWeight: 600, textDecoration: 'none' }}>View all</Link>
           </div>
           {followupLeads.length === 0 ? (
@@ -409,12 +417,12 @@ export default function CrmDashboardPage() {
           {isVisible('stat_won') && !bmwActive && <StatTile label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} valueTitle={fmtMoneyFull(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} tone="ok" loading={loading} />}
           {isVisible('stat_win_rate') && !bmwActive && <StatTile label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />}
           {isVisible('stat_avg_deal') && !bmwActive && <StatTile label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} valueTitle={fmtMoneyFull(summary?.avg_deal_size)} loading={loading} />}
-          {isVisible('stat_sales_cycle') && <StatTile label="Sales Cycle" value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} />}
+          {isVisible('stat_sales_cycle') && <StatTile label="Sales Cycle" icon={Timer} value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} />}
           {isVisible('stat_new_leads') && <StatTile label="New Leads" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />}
           {/* Clients that named their lead types ("Dealers" / "Farmers") also get the total split by type.
               Only when the API sent the split, and once the names are known so it never flashes "B2Bs". */}
           {isVisible('stat_new_leads') && leadFormLoaded && summary?.leads_by_segment && (
-            <StatTile label="Total leads" value={(summary.total_leads || 0).toLocaleString('en-IN')} loading={loading} hintWrap
+            <StatTile label="Total leads" icon={Users} value={(summary.total_leads || 0).toLocaleString('en-IN')} loading={loading} hintWrap
               hint={`${segmentPlural(leadForm, 'b2b')} ${(summary.leads_by_segment.b2b || 0).toLocaleString('en-IN')} · ${segmentPlural(leadForm, 'b2c')} ${(summary.leads_by_segment.b2c || 0).toLocaleString('en-IN')}`} />
           )}
           {isVisible('stat_activities') && <StatTile label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} />}
@@ -435,7 +443,7 @@ export default function CrmDashboardPage() {
                 {mapIndustryRows.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </Select>
             </label>
-          ) : undefined}
+          ) : <IconTile icon={MapIcon} />}
         >
           {geoLeads.length === 0 ? emptyChart : <LeadsGeoMap leads={geoLeads} colorBy={sparkActive ? 'industry' : 'status'} />}
         </ChartCard>
@@ -453,32 +461,32 @@ export default function CrmDashboardPage() {
       {visibleChartCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 12 }}>
           {isVisible('chart_funnel') && !bmwActive && (
-            <ChartCard title="Pipeline Funnel">
+            <ChartCard title="Pipeline Funnel" right={<IconTile icon={Filter} />}>
               {funnel.length ? <PipelineFunnelChart data={funnel} /> : emptyChart}
             </ChartCard>
           )}
           {isVisible('chart_pipeline_value') && !bmwActive && (
-            <ChartCard title={unit === 'weight' ? 'Pipeline Volume by Stage' : 'Pipeline Value by Stage'}>
+            <ChartCard title={unit === 'weight' ? 'Pipeline Volume by Stage' : 'Pipeline Value by Stage'} right={<IconTile icon={BarChart3} />}>
               {pipelineValue.length ? <PipelineValueByStageChart data={pipelineValue} unit={unit} /> : emptyChart}
             </ChartCard>
           )}
           {isVisible('chart_win_rate') && !bmwActive && (
-            <ChartCard title="Win Rate by Rep">
+            <ChartCard title="Win Rate by Rep" right={<IconTile icon={Trophy} />}>
               {winRate.length ? <WinRateByRepChart data={winRate} /> : emptyChart}
             </ChartCard>
           )}
           {isVisible('chart_forecast') && (
-            <ChartCard title="Forecast">
+            <ChartCard title="Forecast" right={<IconTile icon={LineChart} />}>
               {forecast.length ? <ForecastChart data={forecast} unit={unit} /> : emptyChart}
             </ChartCard>
           )}
           {isVisible('chart_score_dist') && (
-            <ChartCard title="Lead Score Distribution">
+            <ChartCard title="Lead Score Distribution" right={<IconTile icon={Gauge} />}>
               {scoreDist.length ? <LeadScoreDistributionChart data={scoreDist} /> : emptyChart}
             </ChartCard>
           )}
           {isVisible('chart_revenue') && (
-            <ChartCard title={unit === 'weight' ? 'Volume Trend' : 'Revenue Trend'}>
+            <ChartCard title={unit === 'weight' ? 'Volume Trend' : 'Revenue Trend'} right={<IconTile icon={TrendingUp} />}>
               {revenueTrend.length ? <RevenueTrendChart data={revenueTrend} unit={unit} /> : emptyChart}
             </ChartCard>
           )}

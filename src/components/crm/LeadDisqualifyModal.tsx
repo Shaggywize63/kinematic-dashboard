@@ -9,6 +9,7 @@
  */
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Ban, XCircle } from 'lucide-react';
 import { crmLeads, crmSettings } from '../../lib/crmApi';
 import { extractLostReasons, type LostReasonOption } from '../../lib/crmLostReasons';
 
@@ -102,7 +103,8 @@ export default function LeadDisqualifyModal({
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
     >
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, maxWidth: 460, width: '100%' }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {outcome === 'lost' ? <XCircle aria-hidden size={18} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} /> : <Ban aria-hidden size={18} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />}
           {outcome === 'lost' ? 'Mark Lead as Lost' : 'Disqualify Lead'}
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
@@ -118,8 +120,9 @@ export default function LeadDisqualifyModal({
               border: outcome === 'unqualified' ? '2px solid #f59e0b' : '1px solid var(--border)',
               background: outcome === 'unqualified' ? 'rgba(245,158,11,0.12)' : 'var(--s3)',
               color: outcome === 'unqualified' ? '#f59e0b' : 'var(--text)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}>
-            Unqualified
+            <Ban aria-hidden size={15} strokeWidth={2} />Unqualified
           </button>
           <button type="button" onClick={() => { setOutcome('lost'); setReason(''); }}
             style={{
@@ -127,8 +130,9 @@ export default function LeadDisqualifyModal({
               border: outcome === 'lost' ? '2px solid #ef4444' : '1px solid var(--border)',
               background: outcome === 'lost' ? 'rgba(239,68,68,0.10)' : 'var(--s3)',
               color: outcome === 'lost' ? '#ef4444' : 'var(--text)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}>
-            Lost
+            <XCircle aria-hidden size={15} strokeWidth={2} />Lost
           </button>
         </div>
 
@@ -156,7 +160,9 @@ export default function LeadDisqualifyModal({
               padding: '8px 18px', borderRadius: 8, fontWeight: 700,
               cursor: busy ? 'not-allowed' : 'pointer', fontSize: 13,
               opacity: busy ? 0.7 : 1,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
             }}>
+            {outcome === 'lost' ? <XCircle aria-hidden size={15} strokeWidth={2} /> : <Ban aria-hidden size={15} strokeWidth={2} />}
             {busy ? 'Saving…' : (outcome === 'lost' ? 'Mark Lost' : 'Mark Unqualified')}
           </button>
         </div>

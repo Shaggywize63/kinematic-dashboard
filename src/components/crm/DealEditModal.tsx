@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { Check, Package, Pencil } from 'lucide-react';
 import { crmDeals, crmSettings, crmPipelines, crmAccounts, crmContacts, crmLineItems, crmProducts } from '../../lib/crmApi';
 import type { Deal, DealLineItem, Stage, Pipeline, Account, Contact, Product } from '../../types/crm';
 import CustomFieldsSection from './CustomFieldsSection';
@@ -276,8 +277,8 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
   const ordered = fields.orderStyle('name') !== undefined;
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit Deal"
-      footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
+    <Modal open={open} onClose={onClose} title="Edit Deal" icon={Pencil}
+      footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}><Check aria-hidden size={15} strokeWidth={2} />{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <Grid>
         {!fields.isHidden('name') && <div data-field="name" style={{ display: 'contents' }}><F label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} ord={fields.orderStyle('name')} /></div>}
         {/* Amount is never typed directly. On a closed deal it's fixed at
@@ -375,7 +376,7 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
             fields={fields}
             quotationExtra={linesReady ? (
               <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>Products</div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}><Package aria-hidden size={13} strokeWidth={2} />Products</div>
                 <DealItemsEditor lines={lines} onChange={setLines} products={catalogue} narrow />
               </div>
             ) : undefined}
@@ -457,5 +458,5 @@ const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textT
 const inp: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
 const btn = {
   secondary: { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 } as React.CSSProperties,
-  primary: (busy: boolean): React.CSSProperties => ({ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 700, fontSize: 13, opacity: busy ? 0.7 : 1 }),
+  primary: (busy: boolean): React.CSSProperties => ({ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 700, fontSize: 13, opacity: busy ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }),
 };

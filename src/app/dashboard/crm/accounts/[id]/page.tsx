@@ -3,6 +3,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import {
+  ArrowLeft, Ban, BarChart3, Building2, Camera, CheckCircle2, CheckSquare, Contact as ContactIcon, Factory, FileText, Handshake,
+  History, IndianRupee, Info, Mail, MapPin, MessageSquareText, Network, Package, Pencil, Phone, Plus, StickyNote, Tag, Trash2,
+  UserPlus, UserRound, Users, type LucideIcon,
+} from 'lucide-react';
+import { IconTile, InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../../lib/labelIcons';
 import { crmAccounts, crmSites, type AccountTimeline, type AccountSite } from '../../../../../lib/crmApi';
 import type { Account, Contact, Deal, Activity, Note, Lead } from '../../../../../types/crm';
 import AccountSummaryCard from '../../../../../components/crm/AccountSummaryCard';
@@ -249,10 +256,13 @@ export default function AccountDetailPage() {
       <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'minmax(0, 1fr)' : 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-            <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ minWidth: 0, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <PageIcon />
+              <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', overflowWrap: 'anywhere' }}>{a.name}</div>
               {fieldsLoaded && !fields.isHidden('website') && a.website && <a href={safeHref(a.website)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--accent, var(--primary))', overflowWrap: 'anywhere' }}>{a.website}</a>}
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {spark && (
@@ -272,31 +282,31 @@ export default function AccountDetailPage() {
                   onClick={promoteToGroup}
                   disabled={promoting}
                   title="Mark this account as a parent company, so other accounts can sit under it as its plants."
-                  style={{ background: 'transparent', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: promoting ? 'wait' : 'pointer', opacity: promoting ? 0.6 : 1 }}
-                >{promoting ? 'Making parent…' : 'Make this a parent account'}</button>
+                  style={{ background: 'transparent', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: promoting ? 'wait' : 'pointer', opacity: promoting ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                ><InlineIcon icon={Network} />{promoting ? 'Making parent…' : 'Make this a parent account'}</button>
               )}
               {spark && a.is_group && (
-                <span data-testid="is-parent-badge" title="Other accounts can be parented under this one." style={{ display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, color: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)' }}>Parent account</span>
+                <span data-testid="is-parent-badge" title="Other accounts can be parented under this one." style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, color: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)' }}><InlineIcon icon={Network} size={13} />Parent account</span>
               )}
-              <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
-              <button onClick={handleDeactivate} disabled={deactivating} style={{ background: 'transparent', border: '1px solid var(--text-dim)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: 8, cursor: deactivating ? 'not-allowed' : 'pointer', opacity: deactivating ? 0.6 : 1 }}>{deactivating ? 'Deactivating...' : 'Deactivate'}</button>
-              <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}>{deleting ? 'Deleting...' : 'Delete'}</button>
-              <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
+              <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Pencil} />Edit</button>
+              <button onClick={handleDeactivate} disabled={deactivating} style={{ background: 'transparent', border: '1px solid var(--text-dim)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: 8, cursor: deactivating ? 'not-allowed' : 'pointer', opacity: deactivating ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Ban} />{deactivating ? 'Deactivating...' : 'Deactivate'}</button>
+              <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Trash2} />{deleting ? 'Deleting...' : 'Delete'}</button>
+              <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ArrowLeft} />Back</button>
             </div>
           </div>
           {fieldsLoaded && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: 14, fontSize: 13 }} data-testid="account-key-facts">
-              {!fields.isHidden('industry') && <Field label={fields.labelFor('industry', 'Industry')} value={a.industry} />}
+              {!fields.isHidden('industry') && <Field label={fields.labelFor('industry', 'Industry')} icon={Factory} value={a.industry} />}
               {!fields.isHidden('phone') && <PhoneField label={fields.labelFor('phone', 'Phone')} phone={a.phone} accountId={a.id} accountName={a.name} />}
-              {!fields.isHidden('email') && a.email && <Field label={fields.labelFor('email', 'Email')} value={a.email} />}
-              {!fields.isHidden('owner_id') && <Field label={fields.labelFor('owner_id', 'Owner')} value={a.owner_name || 'Unassigned'} />}
-              {!fields.isHidden('annual_revenue') && a.annual_revenue != null && <Field label={fields.labelFor('annual_revenue', 'Annual revenue')} value={Number(a.annual_revenue).toLocaleString('en-IN')} />}
-              {!fields.isHidden('employees') && a.employees != null && <Field label={fields.labelFor('employees', 'Employees')} value={Number(a.employees).toLocaleString('en-IN')} />}
+              {!fields.isHidden('email') && a.email && <Field label={fields.labelFor('email', 'Email')} icon={Mail} value={a.email} />}
+              {!fields.isHidden('owner_id') && <Field label={fields.labelFor('owner_id', 'Owner')} icon={UserRound} value={a.owner_name || 'Unassigned'} />}
+              {!fields.isHidden('annual_revenue') && a.annual_revenue != null && <Field label={fields.labelFor('annual_revenue', 'Annual revenue')} icon={IndianRupee} value={Number(a.annual_revenue).toLocaleString('en-IN')} />}
+              {!fields.isHidden('employees') && a.employees != null && <Field label={fields.labelFor('employees', 'Employees')} icon={Users} value={Number(a.employees).toLocaleString('en-IN')} />}
             </div>
           )}
           {fieldsLoaded && hasLocation && (
             <div data-testid="account-location" style={{ marginTop: 14, fontSize: 13 }}>
-              <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('address_line1', 'Address')}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={MapPin} size={12} />{fields.labelFor('address_line1', 'Address')}</div>
               {loc.street && <div data-testid="account-location-street" style={{ color: 'var(--text)', marginTop: 2, overflowWrap: 'anywhere' }}>{loc.street}</div>}
               {loc.place && <div data-testid="account-location-place" style={{ color: 'var(--text)', marginTop: 2 }}>{loc.place}</div>}
               {loc.country && <div data-testid="account-location-country" style={{ color: 'var(--text-dim)', marginTop: 2 }}>{loc.country}</div>}
@@ -312,7 +322,7 @@ export default function AccountDetailPage() {
         </div>
 
         {spark && (
-          <Card title="Recent updates">
+          <Card title="Recent updates" icon={MessageSquareText}>
             <AccountUpdatesCard accountId={a.id} contacts={contacts} />
           </Card>
         )}
@@ -321,7 +331,7 @@ export default function AccountDetailPage() {
 
         <TimelineCard data={timeline} />
 
-        {a.description && (<Card title="About"><div style={{ fontSize: 13, color: 'var(--text)' }}>{a.description}</div></Card>)}
+        {a.description && (<Card title="About" icon={Info}><div style={{ fontSize: 13, color: 'var(--text)' }}>{a.description}</div></Card>)}
 
         {/* Read-only admin-defined custom fields — renders nothing when
             the account has no stored values. */}
@@ -330,11 +340,12 @@ export default function AccountDetailPage() {
         <Card
           anchor="contacts"
           title={`Contacts (${contacts.length})`}
+          icon={ContactIcon}
           action={spark ? (
             <Link
               href={`/dashboard/crm/contacts/new?account_id=${a.id}&account_name=${encodeURIComponent(a.name || '')}`}
-              style={{ background: 'var(--primary)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}
-            >+ Add contact</Link>
+              style={{ background: 'var(--primary)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            ><InlineIcon icon={Plus} size={14} />Add contact</Link>
           ) : undefined}
         >
           {contacts.length === 0 ? (
@@ -359,7 +370,7 @@ export default function AccountDetailPage() {
 
         {spark && <AccountStructureGaps gaps={structureGaps} onFix={goFixGap} />}
 
-        <Card anchor="leads" title={`Leads (${totalLeadCount})`}>
+        <Card anchor="leads" title={`Leads (${totalLeadCount})`} icon={UserPlus}>
           {leadsError ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Could not load leads.</div>
           ) : totalLeadCount === 0 ? (
@@ -398,7 +409,7 @@ export default function AccountDetailPage() {
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {/* Root: the company itself, so the tree reads top-down from the account. */}
-                  <TreeNode level={0} icon="🏢" label={a.name || 'Company'} count={totalLeadCount} strong />
+                  <TreeNode level={0} icon={Building2} label={a.name || 'Company'} count={totalLeadCount} strong />
                   {branches.map((br, bi) => {
                     const byDept = new Map<string, Lead[]>();
                     for (const l of br.leads) {
@@ -409,12 +420,12 @@ export default function AccountDetailPage() {
                       x[0] === NO_DEPT ? 1 : y[0] === NO_DEPT ? -1 : x[0].localeCompare(y[0]));
                     return (
                       <div key={br.key}>
-                        <TreeNode level={1} icon="📍" label={br.label} href={br.href} count={br.leads.length} muted={br.muted} last={bi === branches.length - 1} />
+                        <TreeNode level={1} icon={MapPin} label={br.label} href={br.href} count={br.leads.length} muted={br.muted} last={bi === branches.length - 1} />
                         {br.leads.length === 0 ? (
                           <div style={{ fontSize: 11.5, color: 'var(--text-dim)', fontStyle: 'italic', margin: '2px 0 8px', paddingLeft: TREE_INDENT * 2 + 12 }}>No leads yet</div>
                         ) : depts.map(([dk, dleads], di) => (
                           <div key={dk}>
-                            <TreeNode level={2} icon="🏷" label={dk === NO_DEPT ? 'Department not set' : dk} count={dleads.length} muted={dk === NO_DEPT} last={di === depts.length - 1} />
+                            <TreeNode level={2} icon={Tag} label={dk === NO_DEPT ? 'Department not set' : dk} count={dleads.length} muted={dk === NO_DEPT} last={di === depts.length - 1} />
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '4px 0 10px', paddingLeft: TREE_INDENT * 3 }}>
                               {dleads.map(leadRow)}
                             </div>
@@ -433,7 +444,7 @@ export default function AccountDetailPage() {
           )}
         </Card>
 
-        <Card anchor="deals" title={`Deals (${deals.length})`}>
+        <Card anchor="deals" title={`Deals (${deals.length})`} icon={Handshake}>
           {deals.length === 0 ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No deals.</div>
           ) : (
@@ -469,7 +480,7 @@ export default function AccountDetailPage() {
           )}
         </Card>
 
-        <Card title={`Products${products.length > 0 ? ` (${products.length})` : ''}`}>
+        <Card title={`Products${products.length > 0 ? ` (${products.length})` : ''}`} icon={Package}>
           {products.length === 0 ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No product lines on this account&apos;s deals yet.</div>
           ) : (
@@ -484,10 +495,10 @@ export default function AccountDetailPage() {
           )}
         </Card>
 
-        <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} onEdit={setEditingActivity} addHref={`/dashboard/crm/activities/new?account_id=${id}`} /></Card>
+        <Card title={`Activities (${activities.length})`} icon={CheckSquare}><ActivityTimeline activities={activities} onEdit={setEditingActivity} addHref={`/dashboard/crm/activities/new?account_id=${id}`} /></Card>
 
         {notes.length > 0 && (
-          <Card title={`Notes (${notes.length})`}>
+          <Card title={`Notes (${notes.length})`} icon={StickyNote}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {notes.map((n) => (
                 <div key={n.id} style={{ padding: 12, background: 'var(--s3)', borderRadius: 8, fontSize: 13, color: 'var(--text)' }}>
@@ -501,11 +512,11 @@ export default function AccountDetailPage() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <Card title="Account Stats">
+        <Card title="Account Stats" icon={BarChart3}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
             <Stat label="Contacts" value={String(contacts.length)} />
             <Stat label="Open Deals" value={String(deals.filter((d) => d.status === 'open').length)} />
-            <Stat label="Total" value={formatINR(totalValue)} />
+            <Stat label="Total" icon={IndianRupee} value={formatINR(totalValue)} />
             <Stat label="Open Pipeline" value={formatINR(openDealValue)} />
             <Stat label="Won" value={formatINR(wonValue)} />
           </div>
@@ -538,12 +549,12 @@ function TimelineCard({ data }: { data: AccountTimeline | null }) {
   if (!data) return null;
   const { summary, timeline } = data;
   if (!timeline?.length) {
-    return <Card title="Timeline"><div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No visits or forms captured yet.</div></Card>;
+    return <Card title="Timeline" icon={History}><div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No visits or forms captured yet.</div></Card>;
   }
   const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
-  const icon = (k: string) => (k === 'visit' ? '🏭' : k === 'submission' ? '📝' : '✅');
+  const icon = (k: string): LucideIcon => (k === 'visit' ? MapPin : k === 'submission' ? FileText : CheckCircle2);
   return (
-    <Card title={`Timeline (${timeline.length})`}>
+    <Card title={`Timeline (${timeline.length})`} icon={History}>
       {/* Who visited — the per-FE rollup. */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', alignSelf: 'center' }}>
@@ -571,7 +582,7 @@ function TimelineCard({ data }: { data: AccountTimeline | null }) {
           <div key={`${e.kind}-${e.id}`} style={{ padding: 12, background: 'var(--s3)', borderRadius: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
               <div style={{ color: 'var(--text)', fontWeight: 600, fontSize: 13 }}>
-                <span style={{ marginRight: 6 }}>{icon(e.kind)}</span>{e.title}
+                <InlineIcon icon={icon(e.kind)} size={14} style={{ marginRight: 6, verticalAlign: '-2px', color: 'var(--text-dim)' }} />{e.title}
                 {e.status ? <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 8, textTransform: 'uppercase' }}>{e.status}</span> : null}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{when(e.at)}</div>
@@ -585,7 +596,7 @@ function TimelineCard({ data }: { data: AccountTimeline | null }) {
                   <div key={i} style={{ fontSize: 12, display: 'flex', gap: 8 }}>
                     <span style={{ color: 'var(--text-dim)', minWidth: 120 }}>{ans.label}</span>
                     {ans.photo_url
-                      ? <a href={safeHref(ans.photo_url)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent, var(--primary))' }}>📷 Photo</a>
+                      ? <a href={safeHref(ans.photo_url)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent, var(--primary))', display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Camera} size={13} />Photo</a>
                       : <span style={{ color: 'var(--text)' }}>{ans.value || '—'}</span>}
                   </div>
                 ))}
@@ -604,9 +615,12 @@ function TimelineCard({ data }: { data: AccountTimeline | null }) {
  * of the sticky header when it does. The title is a real <h2> rather than a styled div, so the page
  * has an outline.
  */
-function Card({ title, action, children, anchor }: { title: string; action?: React.ReactNode; children: React.ReactNode; anchor?: string }) {
+function Card({ title, action, children, anchor, icon }: { title: string; action?: React.ReactNode; children: React.ReactNode; anchor?: string; icon?: LucideIcon }) {
   const heading = (
-    <h2 id={anchor ? `${anchor}-heading` : undefined} style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{title}</h2>
+    <h2 id={anchor ? `${anchor}-heading` : undefined} style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+      {icon && <InlineIcon icon={icon} size={16} style={{ color: 'var(--text-dim)' }} />}
+      {title}
+    </h2>
   );
   return (
     <div
@@ -627,10 +641,10 @@ function Card({ title, action, children, anchor }: { title: string; action?: Rea
   );
 }
 
-function Field({ label, value }: { label: string; value?: string | null }) {
+function Field({ label, value, icon }: { label: string; value?: string | null; icon?: LucideIcon }) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>{icon && <InlineIcon icon={icon} size={12} />}{label}</div>
       <div style={{ color: 'var(--text)', marginTop: 2 }}>{value || '—'}</div>
     </div>
   );
@@ -639,7 +653,7 @@ function Field({ label, value }: { label: string; value?: string | null }) {
 function PhoneField({ label = 'Phone', phone, accountId, accountName }: { label?: string; phone?: string | null; accountId: string; accountName?: string | null }) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={Phone} size={12} />{label}</div>
       <div style={{ color: 'var(--text)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span>{phone || '—'}</span>
         <CallButton phone={phone} prefillSubject={`Call with ${accountName || 'account'}`} accountId={accountId} size="sm" />
@@ -648,10 +662,11 @@ function PhoneField({ label = 'Phone', phone, accountId, accountName }: { label?
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, icon }: { label: string; value: string; icon?: LucideIcon }) {
+  const Icon = icon ?? metricIconFor(label);
   return (
     <div style={{ background: 'var(--s3)', borderRadius: 8, padding: '10px 12px' }}>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>{Icon && <InlineIcon icon={Icon} size={12} />}{label}</div>
       <div style={{ color: 'var(--text)', fontSize: 16, fontWeight: 800, marginTop: 2 }}>{value}</div>
     </div>
   );
@@ -713,7 +728,7 @@ const TREE_INDENT = 18;
  * readable at a glance; `muted` marks a "not set" bucket so a gap in the data looks like a gap.
  */
 function TreeNode({ level, icon, label, count, strong, muted, last, href }: {
-  level: number; icon: string; label: string; count: number;
+  level: number; icon: LucideIcon; label: string; count: number;
   strong?: boolean; muted?: boolean; last?: boolean;
   /** A plant that is its own account links through to it. */
   href?: string;
@@ -734,7 +749,7 @@ function TreeNode({ level, icon, label, count, strong, muted, last, href }: {
           {last ? '└─' : '├─'}
         </span>
       )}
-      <span aria-hidden style={{ flexShrink: 0 }}>{icon}</span>
+      <InlineIcon icon={icon} size={14} style={{ color: muted ? 'var(--text-dim)' : 'var(--primary)' }} />
       {href ? <Link href={href} className="km-entity-link" style={{ minWidth: 0, textDecoration: 'none' }}>{text}</Link> : text}
       <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>({count})</span>
     </div>

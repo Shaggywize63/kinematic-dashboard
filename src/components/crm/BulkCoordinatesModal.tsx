@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { AlertTriangle, CheckCircle2, FileUp, MapPin, SkipForward, Upload } from 'lucide-react';
 import { crmLeads } from '../../lib/crmApi';
 
 /**
@@ -126,7 +127,7 @@ export default function BulkCoordinatesModal({ open, onClose, onDone }: {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, width: 560, maxWidth: '100%', maxHeight: '90vh', overflow: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Upload coordinates for old leads</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}><MapPin aria-hidden size={17} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Upload coordinates for old leads</h2>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 0 }}>
@@ -140,8 +141,8 @@ export default function BulkCoordinatesModal({ open, onClose, onDone }: {
         </p>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '10px 0' }}>
-          <label style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            Choose CSV file
+          <label style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <FileUp aria-hidden size={15} strokeWidth={2} />Choose CSV file
             <input type="file" accept=".csv,text/csv" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f); }} />
           </label>
           <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>or paste below</span>
@@ -157,9 +158,9 @@ export default function BulkCoordinatesModal({ open, onClose, onDone }: {
 
         {result && (
           <div style={{ marginTop: 12, fontSize: 13, color: 'var(--text)', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
-            <div>✅ Geotagged: <strong>{result.updated}</strong></div>
-            <div>⏭️ Skipped (no match): <strong>{result.skipped}</strong></div>
-            {parseSkipped > 0 && <div>⚠️ Rows ignored (missing coords/match in file): <strong>{parseSkipped}</strong></div>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><CheckCircle2 aria-hidden size={14} strokeWidth={2} style={{ color: 'var(--ok)' }} />Geotagged: <strong>{result.updated}</strong></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SkipForward aria-hidden size={14} strokeWidth={2} style={{ color: 'var(--text-dim)' }} />Skipped (no match): <strong>{result.skipped}</strong></div>
+            {parseSkipped > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><AlertTriangle aria-hidden size={14} strokeWidth={2} style={{ color: 'var(--warn)' }} />Rows ignored (missing coords/match in file): <strong>{parseSkipped}</strong></div>}
             {result.errors.length > 0 && (
               <details style={{ marginTop: 6 }}>
                 <summary style={{ cursor: 'pointer', color: 'var(--text-dim)' }}>{result.errors.length} unmatched row{result.errors.length === 1 ? '' : 's'}</summary>
@@ -173,7 +174,8 @@ export default function BulkCoordinatesModal({ open, onClose, onDone }: {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button onClick={onClose} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '9px 16px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>Close</button>
-          <button onClick={submit} disabled={busy || !text.trim()} style={{ background: 'var(--accent, #E01E2C)', border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy || !text.trim() ? 0.6 : 1 }}>
+          <button onClick={submit} disabled={busy || !text.trim()} style={{ background: 'var(--accent, #E01E2C)', border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy || !text.trim() ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Upload aria-hidden size={15} strokeWidth={2} />
             {busy ? 'Uploading…' : 'Upload'}
           </button>
         </div>

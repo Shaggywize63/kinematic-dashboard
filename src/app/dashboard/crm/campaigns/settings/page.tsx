@@ -8,6 +8,13 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { crmBroadcasts, type BroadcastSettings, type BroadcastSuppression } from '../../../../../lib/crmApi';
 import { getStoredUser } from '../../../../../lib/auth';
+import type { LucideIcon } from 'lucide-react';
+import { Ban, Check, Gauge, IndianRupee, MessageCircle, Moon, Plus } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+
+function SectionTitle({ icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
+  return <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, color: C.blue, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={icon} size={16} />{children}</div>;
+}
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -100,13 +107,16 @@ export default function CampaignSettingsPage() {
     <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.white, paddingBottom: 60, maxWidth: 760 }}>
       <div style={{ marginBottom: 20 }}>
         <Link href="/dashboard/crm/campaigns" style={{ color: C.gray, fontSize: 12, textDecoration: 'none' }}>← Campaigns</Link>
-        <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: '6px 0 0' }}>Campaign settings</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
+          <PageIcon />
+          <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: 0 }}>Campaign settings</h1>
+        </div>
       </div>
 
       {loading ? <div style={{ ...card, color: C.gray, fontSize: 13 }}>Loading…</div> : (
         <>
           <div style={card}>
-            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, color: C.blue }}>Frequency cap</div>
+            <SectionTitle icon={Gauge}>Frequency cap</SectionTitle>
             <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>Suppress a lead who has already received this many broadcasts within the window. Leave blank for no cap.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div><span style={label}>Max sends / lead</span><input value={f.frequency_cap_max} onChange={(e) => setF({ ...f, frequency_cap_max: e.target.value })} placeholder="e.g. 2" style={input} /></div>
@@ -115,7 +125,7 @@ export default function CampaignSettingsPage() {
           </div>
 
           <div style={card}>
-            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, color: C.blue }}>Quiet hours</div>
+            <SectionTitle icon={Moon}>Quiet hours</SectionTitle>
             <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>Only send inside this window (24h clock, in the timezone below). Sends outside it are held, not dropped. Leave blank to send any time.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
               <div><span style={label}>Open hour (0–23)</span><input value={f.quiet_hours_start} onChange={(e) => setF({ ...f, quiet_hours_start: e.target.value })} placeholder="9" style={input} /></div>
@@ -125,7 +135,7 @@ export default function CampaignSettingsPage() {
           </div>
 
           <div style={card}>
-            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, color: C.blue }}>Replies</div>
+            <SectionTitle icon={MessageCircle}>Replies</SectionTitle>
             <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>Keywords that withdraw consent (and suppress the lead) when they reply. Blank = built-in defaults (STOP, UNSUBSCRIBE, …).</div>
             <input value={f.opt_out_keywords} onChange={(e) => setF({ ...f, opt_out_keywords: e.target.value })} placeholder="stop, unsubscribe, cancel" style={input} />
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.gray, cursor: 'pointer', marginTop: 14 }}>
@@ -135,11 +145,11 @@ export default function CampaignSettingsPage() {
           </div>
 
           <div style={card}>
-            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, color: C.blue }}>Suppression list</div>
+            <SectionTitle icon={Ban}>Suppression list</SectionTitle>
             <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>Numbers here are never messaged by any campaign, on top of consent checks. Opt-outs land here automatically. Paste numbers (comma / space / newline separated).</div>
             <textarea value={newNumbers} onChange={(e) => setNewNumbers(e.target.value)} placeholder="+919876543210, +919812345678" rows={2} style={{ ...input, resize: 'vertical' }} />
             <div style={{ marginTop: 10, marginBottom: 12 }}>
-              <button onClick={addNumbers} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Add to list</button>
+              <button onClick={addNumbers} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />Add to list</button>
             </div>
             {supp.length === 0 ? (
               <div style={{ fontSize: 12, color: C.grayd }}>No suppressed numbers.</div>
@@ -156,7 +166,7 @@ export default function CampaignSettingsPage() {
           </div>
 
           <div style={card}>
-            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, color: C.blue }}>Cost rates (India, per message)</div>
+            <SectionTitle icon={IndianRupee}>Cost rates (India, per message)</SectionTitle>
             <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>Used for the pre-send cost estimate and billed-so-far. Enter your negotiated per-message rates in ₹. Leave blank to use indicative defaults.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
               <div><span style={label}>Marketing</span><input value={f.rate_marketing_in} onChange={(e) => setF({ ...f, rate_marketing_in: e.target.value })} placeholder="0.78" style={input} /></div>
@@ -168,7 +178,7 @@ export default function CampaignSettingsPage() {
           {msg && <div style={{ ...card, padding: '12px 16px', background: msg.ok ? 'rgba(0,217,126,0.10)' : 'rgba(224,30,44,0.10)', borderColor: msg.ok ? 'rgba(0,217,126,0.3)' : 'rgba(224,30,44,0.3)', color: msg.ok ? C.green : C.red, fontSize: 13 }}>{msg.text}</div>}
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button onClick={save} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>{saving ? 'Saving…' : 'Save settings'}</button>
+            <button onClick={save} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>{!saving && <InlineIcon icon={Check} />}{saving ? 'Saving…' : 'Save settings'}</button>
             {isSuper && <Link href="/dashboard/settings/whatsapp-campaigns" style={{ color: C.blue, fontSize: 13, textDecoration: 'none' }}>Manage access (super-admin) →</Link>}
           </div>
         </>

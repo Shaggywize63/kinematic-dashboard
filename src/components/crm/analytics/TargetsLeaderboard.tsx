@@ -9,7 +9,7 @@
  * is role-gated server-side and tenant-scoped via the active client.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Trophy, TrendingDown, Users, Target, RefreshCw } from 'lucide-react';
+import { Trophy, TrendingDown, Users, Target, RefreshCw, Medal } from 'lucide-react';
 import { crmTargets, type Leaderboard, type LeaderboardPeriod } from '../../../lib/crmApi';
 import { useClient } from '../../../context/ClientContext';
 
@@ -24,7 +24,8 @@ const PERIODS: { key: LeaderboardPeriod; label: string }[] = [
   { key: 'month', label: 'This month' },
 ];
 
-const MEDALS = ['🥇', '🥈', '🥉'];
+// Gold / silver / bronze for the top three, as tinted medal icons (theme tokens, not emoji).
+const MEDAL_COLORS = ['var(--warn)', 'var(--text-mute)', 'color-mix(in srgb, var(--warn) 55%, var(--red))'];
 
 export default function TargetsLeaderboard({ embedded = false }: { embedded?: boolean }) {
   const [period, setPeriod] = useState<LeaderboardPeriod>('today');
@@ -98,7 +99,7 @@ export default function TargetsLeaderboard({ embedded = false }: { embedded?: bo
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Targets</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>Leaderboard</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}><Trophy aria-hidden size={16} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Leaderboard</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
             Who entered the most leads, who&apos;s behind, and how the team tracks against target.
           </div>
@@ -185,7 +186,7 @@ export default function TargetsLeaderboard({ embedded = false }: { embedded?: bo
             return (
               <div key={e.user_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ width: 28, textAlign: 'center', fontSize: 15, fontWeight: 800, color: 'var(--text-dim)' }}>
-                  {i < 3 ? MEDALS[i] : i + 1}
+                  {i < 3 ? <Medal aria-label={`Rank ${i + 1}`} size={18} strokeWidth={2} style={{ color: MEDAL_COLORS[i], verticalAlign: 'middle' }} /> : i + 1}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</div>

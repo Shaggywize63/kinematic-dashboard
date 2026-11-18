@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { crmPipelines } from '../../../../../lib/crmApi';
 import type { Pipeline } from '../../../../../types/crm';
+import { Ban, GitBranch, Plus, Star, Trash2 } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 export default function PipelinesSettings() {
   const [items, setItems] = useState<Pipeline[]>([]);
@@ -73,14 +75,15 @@ export default function PipelinesSettings() {
           onKeyDown={(e) => e.key === 'Enter' && create()}
           style={{ flex: 1, background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
         />
-        <button onClick={create} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Add</button>
+        <button onClick={create} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />Add</button>
       </div>
       {loading ? <div style={{ color: 'var(--text-dim)' }}>Loading...</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {items.length === 0 && <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No pipelines yet.</div>}
+          {items.length === 0 && <div style={{ color: 'var(--text-dim)', fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '8px 0' }}><IconTile icon={GitBranch} size={40} iconSize={20} />No pipelines yet.</div>}
           {items.map((p) => (
             <div key={p.id} style={{ padding: '10px 12px', background: 'var(--s3)', borderRadius: 8, fontSize: 13, color: 'var(--text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                <InlineIcon icon={GitBranch} size={14} style={{ color: 'var(--text-dim)' }} />
                 <span style={{ fontWeight: 600 }}>{p.name}</span>
                 {p.is_default && <span style={{ fontSize: 10, color: '#10b981', textTransform: 'uppercase', fontWeight: 700, background: 'rgba(16,185,129,0.12)', padding: '2px 7px', borderRadius: 4 }}>Default</span>}
                 {(p as any).is_active === false && <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, background: 'var(--s2)', padding: '2px 7px', borderRadius: 4 }}>Inactive</span>}
@@ -90,24 +93,24 @@ export default function PipelinesSettings() {
                 {!p.is_default && (
                   <button
                     onClick={() => handleSetDefault(p)}
-                    style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
+                    style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
-                    Set default
+                    <InlineIcon icon={Star} size={12} />Set default
                   </button>
                 )}
                 <button
                   onClick={() => handleDeactivate(p)}
                   disabled={!!busy[p.id + '_deact']}
-                  style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', opacity: busy[p.id + '_deact'] ? 0.6 : 1 }}
+                  style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', opacity: busy[p.id + '_deact'] ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                 >
-                  {busy[p.id + '_deact'] ? '...' : 'Deactivate'}
+                  {!busy[p.id + '_deact'] && <InlineIcon icon={Ban} size={12} />}{busy[p.id + '_deact'] ? '...' : 'Deactivate'}
                 </button>
                 <button
                   onClick={() => handleDelete(p)}
                   disabled={!!busy[p.id + '_del'] || p.is_default}
-                  style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: p.is_default ? 'not-allowed' : 'pointer', opacity: (busy[p.id + '_del'] || p.is_default) ? 0.4 : 1 }}
+                  style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: p.is_default ? 'not-allowed' : 'pointer', opacity: (busy[p.id + '_del'] || p.is_default) ? 0.4 : 1, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                 >
-                  {busy[p.id + '_del'] ? '...' : 'Delete'}
+                  {!busy[p.id + '_del'] && <InlineIcon icon={Trash2} size={12} />}{busy[p.id + '_del'] ? '...' : 'Delete'}
                 </button>
               </div>
             </div>

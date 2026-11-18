@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, KanbanSquare, Plus, X } from 'lucide-react';
 import { crmPipelines, crmStages } from '../../lib/crmApi';
 import Modal from './shared/Modal';
 import { Button, Field, IconButton, Input, Select, T, eyebrowStyle, labelStyle, requiredMark, type Tone } from '../ui';
@@ -123,6 +123,7 @@ export default function PipelineCreateModal({ open, onClose, onCreated, isFirstP
       open={open}
       onClose={() => { if (!saving) onClose(); }}
       title="New pipeline"
+      icon={KanbanSquare}
       subtitle="Define the name and its stages in one go."
       width={760}
       footer={

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { Package, Plus, Trash2 } from 'lucide-react';
 import { crmProducts } from '../../lib/crmApi';
 import type { Product } from '../../types/crm';
 import { useAuth } from '../../hooks/useAuth';
@@ -196,7 +197,7 @@ export default function ProductLinesSection({ values, onChange }: Props) {
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, marginBottom: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Products of Interest</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><Package aria-hidden size={16} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Products of Interest</div>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
             Pick a product and quantity; the estimated amount calculates automatically from {weightPricing ? 'price ÷ weight × quantity' : 'price × quantity'}.
           </div>
@@ -300,8 +301,9 @@ export default function ProductLinesSection({ values, onChange }: Props) {
               style={{
                 background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)',
                 padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, marginTop: 4,
+                display: 'inline-flex', alignItems: 'center', gap: 5,
               }}
-            >Remove product</button>
+            ><Trash2 aria-hidden size={13} strokeWidth={2} />Remove product</button>
           )}
         </div>
       ))}
@@ -313,9 +315,10 @@ export default function ProductLinesSection({ values, onChange }: Props) {
           background: 'var(--s3)', border: '1px dashed var(--border)', color: 'var(--text)',
           padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
           cursor: 'pointer', marginTop: 10,
+          display: 'inline-flex', alignItems: 'center', gap: 6,
         }}
       >
-        + Add another product
+        <Plus aria-hidden size={14} strokeWidth={2} />Add another product
       </button>
     </div>
   );

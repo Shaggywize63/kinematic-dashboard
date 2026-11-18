@@ -1,5 +1,6 @@
 'use client';
 import React, { useState } from 'react';
+import { Check, Pencil, X } from 'lucide-react';
 
 interface Props {
   /** Current value shown when idle and (unless `editValue` is set) seeded into the input on edit. */
@@ -71,8 +72,8 @@ export default function InlineEditText({
           disabled={busy}
           style={{ background: 'var(--s3)', border: '1px solid var(--primary)', color: 'var(--text)', padding: '4px 8px', borderRadius: 6, font: 'inherit', minWidth: 120, ...inputStyle }}
         />
-        <button type="button" onClick={commit} disabled={busy} title="Save (Enter)" aria-label="Save" style={iconBtn('var(--primary)')}>✓</button>
-        <button type="button" onClick={cancel} disabled={busy} title="Cancel (Esc)" aria-label="Cancel" style={iconBtn('var(--text-dim)')}>✕</button>
+        <button type="button" onClick={commit} disabled={busy} title="Save (Enter)" aria-label="Save" style={iconBtn('var(--primary)')}><Check aria-hidden size={16} strokeWidth={2.2} /></button>
+        <button type="button" onClick={cancel} disabled={busy} title="Cancel (Esc)" aria-label="Cancel" style={iconBtn('var(--text-dim)')}><X aria-hidden size={16} strokeWidth={2.2} /></button>
       </span>
     );
   }
@@ -94,7 +95,7 @@ export default function InlineEditText({
         title={ariaLabel || 'Edit'}
         style={{ background: 'transparent', border: 'none', padding: 2, cursor: 'pointer', color: 'var(--primary)', lineHeight: 0, flexShrink: 0, opacity: 0.75 }}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+        <Pencil aria-hidden size={14} strokeWidth={2} />
       </button>
     </span>
   );

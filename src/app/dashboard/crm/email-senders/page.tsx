@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import { verifiedSendersApi, type VerifiedSender } from '../../../../lib/emailAlertsApi';
 import { API_BASE_URL } from '../../../../lib/api';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { CheckCircle2, Hourglass, MailCheck, MailPlus, RotateCcw, Send, Star, Trash2 } from 'lucide-react';
+import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 /**
  * Verified sender addresses for outbound email.
@@ -141,14 +143,17 @@ export default function EmailSendersPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Verified sender addresses</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <PageIcon />
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Verified sender addresses</h1>
+        </div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
           Only verified addresses can be used as the From on email alerts. Add an address, then click the verification link sent to its inbox.
         </div>
       </div>
 
       <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, background: 'var(--s2)' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Add address</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={MailPlus} size={14} />Add address</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'end' }}>
           <input
             type="email" placeholder="hello@yourdomain.com" value={email}
@@ -165,7 +170,8 @@ export default function EmailSendersPage() {
             background: 'var(--primary)', border: 'none', color: '#fff',
             cursor: adding || !email.trim() ? 'not-allowed' : 'pointer',
             opacity: adding || !email.trim() ? 0.5 : 1, whiteSpace: 'nowrap',
-          }}>{adding ? 'Sending…' : 'Send verification'}</button>
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          }}>{!adding && <InlineIcon icon={Send} />}{adding ? 'Sending…' : 'Send verification'}</button>
         </div>
       </div>
 
@@ -173,7 +179,8 @@ export default function EmailSendersPage() {
         <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>Loading…</div>
       ) : rows.length === 0 ? (
         <div style={{ padding: 24, textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 10, color: 'var(--text-dim)', fontSize: 13 }}>
-          No sender addresses yet. Add one above to start sending email alerts.
+          <IconTile icon={MailCheck} size={40} iconSize={20} style={{ marginBottom: 10 }} />
+          <div>No sender addresses yet. Add one above to start sending email alerts.</div>
         </div>
       ) : (
         <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
@@ -196,21 +203,21 @@ export default function EmailSendersPage() {
                   </Td>
                   <Td>{r.display_name || <span style={{ color: 'var(--text-dim)' }}>—</span>}</Td>
                   <Td>{r.verified_at ? (
-                    <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Verified</span>
+                    <span style={{ color: '#22c55e', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={CheckCircle2} size={13} />Verified</span>
                   ) : (
-                    <span style={{ color: '#F59E0B', fontWeight: 700 }}>⏳ Pending</span>
+                    <span style={{ color: '#F59E0B', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Hourglass} size={13} />Pending</span>
                   )}</Td>
                   <Td style={{ color: 'var(--text-dim)', fontSize: 12 }}>{new Date(r.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</Td>
                   <Td style={{ textAlign: 'right' }}>
                     {!r.verified_at && (
                       <button onClick={() => resendVerification(r)} disabled={resendingId === r.id} style={{ ...btnGhost, opacity: resendingId === r.id ? 0.5 : 1, cursor: resendingId === r.id ? 'wait' : 'pointer' }}>
-                        {resendingId === r.id ? 'Sending…' : 'Resend'}
+                        {resendingId !== r.id && <InlineIcon icon={RotateCcw} size={12} />}{resendingId === r.id ? 'Sending…' : 'Resend'}
                       </button>
                     )}
                     {r.verified_at && !r.is_default && (
-                      <button onClick={() => setDefault(r.id)} style={btnGhost}>Set default</button>
+                      <button onClick={() => setDefault(r.id)} style={btnGhost}><InlineIcon icon={Star} size={12} />Set default</button>
                     )}
-                    <button onClick={() => remove(r.id, r.email)} style={{ ...btnGhost, color: 'var(--primary)', marginLeft: 4 }}>Remove</button>
+                    <button onClick={() => remove(r.id, r.email)} style={{ ...btnGhost, color: 'var(--primary)', marginLeft: 4 }}><InlineIcon icon={Trash2} size={12} />Remove</button>
                   </Td>
                 </tr>
               ))}
@@ -225,7 +232,7 @@ export default function EmailSendersPage() {
 const btnGhost: React.CSSProperties = {
   padding: '5px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6,
   background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)',
-  cursor: 'pointer',
+  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle',
 };
 function Th({ children }: { children: React.ReactNode }) {
   return <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1 }}>{children}</th>;

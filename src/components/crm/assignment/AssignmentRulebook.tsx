@@ -17,6 +17,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { Check, Pause, Pencil, Play, Plus, Trash2, Workflow, X } from 'lucide-react';
 import { crmAssignmentRules, crmPipelines } from '../../../lib/crmApi';
 import api from '../../../lib/api';
 import type { AssignmentRule, Pipeline } from '../../../types/crm';
@@ -210,12 +211,12 @@ export default function AssignmentRulebook() {
       <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ ...card, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 750, color: 'var(--text)' }}>Assignment rulebook</div>
+            <div style={{ fontSize: 14, fontWeight: 750, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><Workflow aria-hidden size={16} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Assignment rulebook</div>
             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 3 }}>
               New leads are matched <b>top to bottom</b> — the first rule that fits wins. Use ▲▼ to change the order.
             </div>
           </div>
-          <button onClick={() => setDraft(emptyDraft())} style={btnPrimary}>＋ New rule</button>
+          <button onClick={() => setDraft(emptyDraft())} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Plus aria-hidden size={15} strokeWidth={2} />New rule</button>
         </div>
 
         {loading ? (
@@ -223,7 +224,7 @@ export default function AssignmentRulebook() {
         ) : sorted.length === 0 ? (
           <div style={{ ...card, color: 'var(--text-dim)', fontSize: 13, textAlign: 'center', padding: 28 }}>
             No routing rules yet. Every new lead stays with whoever created it.<br />
-            <button onClick={() => setDraft(emptyDraft())} style={{ ...btnPrimary, marginTop: 12 }}>＋ Add your first rule</button>
+            <button onClick={() => setDraft(emptyDraft())} style={{ ...btnPrimary, marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Plus aria-hidden size={15} strokeWidth={2} />Add your first rule</button>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -253,9 +254,9 @@ export default function AssignmentRulebook() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={(e) => e.stopPropagation()}>
-                    <button onClick={() => setDraft(fromRule(r))} style={btnSmallGhost}>Edit</button>
-                    <button onClick={() => toggleActive(r)} disabled={!!busy[r.id + 't']} style={btnSmallGhost}>{r.is_active ? 'Pause' : 'Activate'}</button>
-                    <button onClick={() => remove(r)} disabled={!!busy[r.id + 'd']} style={btnSmallDanger}>{busy[r.id + 'd'] ? '…' : 'Delete'}</button>
+                    <button onClick={() => setDraft(fromRule(r))} style={{ ...btnSmallGhost, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Pencil aria-hidden size={12} strokeWidth={2} />Edit</button>
+                    <button onClick={() => toggleActive(r)} disabled={!!busy[r.id + 't']} style={{ ...btnSmallGhost, display: 'inline-flex', alignItems: 'center', gap: 4 }}>{r.is_active ? <Pause aria-hidden size={12} strokeWidth={2} /> : <Play aria-hidden size={12} strokeWidth={2} />}{r.is_active ? 'Pause' : 'Activate'}</button>
+                    <button onClick={() => remove(r)} disabled={!!busy[r.id + 'd']} style={{ ...btnSmallDanger, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Trash2 aria-hidden size={12} strokeWidth={2} />{busy[r.id + 'd'] ? '…' : 'Delete'}</button>
                   </div>
                 </div>
               );
@@ -277,7 +278,7 @@ export default function AssignmentRulebook() {
       <aside style={{ ...card, padding: 0, position: 'sticky', top: 12, overflow: 'hidden' }}>
         {!draft ? (
           <div style={{ padding: 22, color: 'var(--text-dim)', fontSize: 13, lineHeight: 1.6 }}>
-            Select a rule to edit it, or <b style={{ color: 'var(--text)' }}>＋ New rule</b> to add one.
+            Select a rule to edit it, or <b style={{ color: 'var(--text)' }}>New rule</b> to add one.
             <div style={{ marginTop: 12, fontSize: 12 }}>A rule says <b style={{ color: 'var(--text)' }}>“when a lead looks like this → give it to this person / team.”</b></div>
           </div>
         ) : (
@@ -302,10 +303,10 @@ export default function AssignmentRulebook() {
                       {CRITERIA_FIELDS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
                     </select>
                     <input value={c.value} onChange={(e) => setCrit(i, { value: e.target.value })} placeholder={c.field === 'score_gte' ? 'e.g. 70' : 'value'} style={{ ...input, flex: 1, minWidth: 0 }} />
-                    <button onClick={() => patchDraft({ crit: draft.crit.filter((_, idx) => idx !== i) })} style={btnSmallGhost}>✕</button>
+                    <button onClick={() => patchDraft({ crit: draft.crit.filter((_, idx) => idx !== i) })} style={{ ...btnSmallGhost, display: 'inline-flex', alignItems: 'center' }} aria-label="Remove criterion"><X aria-hidden size={13} strokeWidth={2} /></button>
                   </div>
                 ))}
-                <button onClick={() => patchDraft({ crit: [...draft.crit, { field: 'city', value: '' }] })} style={{ ...btnDashed, alignSelf: 'flex-start' }}>＋ Add criterion</button>
+                <button onClick={() => patchDraft({ crit: [...draft.crit, { field: 'city', value: '' }] })} style={{ ...btnDashed, alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Plus aria-hidden size={13} strokeWidth={2} />Add criterion</button>
               </div>
 
               <Label><Glyph name="user" size={12} /> Assign to</Label>
@@ -323,7 +324,7 @@ export default function AssignmentRulebook() {
                       {draft.round_robin_pool.map((id) => (
                         <span key={id} style={chip}>
                           {userName(id)}
-                          <button onClick={() => patchDraft({ round_robin_pool: draft.round_robin_pool.filter((x) => x !== id) })} style={chipX}>✕</button>
+                          <button onClick={() => patchDraft({ round_robin_pool: draft.round_robin_pool.filter((x) => x !== id) })} style={{ ...chipX, display: 'inline-flex', alignItems: 'center' }} aria-label="Remove from pool"><X aria-hidden size={12} strokeWidth={2} /></button>
                         </span>
                       ))}
                     </div>
@@ -340,7 +341,7 @@ export default function AssignmentRulebook() {
               <div style={summaryBox}>{summary}</div>
 
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={save} disabled={saving} style={{ ...btnPrimary, flex: 1 }}>{saving ? 'Saving…' : draft.id ? 'Update rule' : '＋ Add rule'}</button>
+                <button onClick={save} disabled={saving} style={{ ...btnPrimary, flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>{draft.id ? <Check aria-hidden size={15} strokeWidth={2} /> : <Plus aria-hidden size={15} strokeWidth={2} />}{saving ? 'Saving…' : draft.id ? 'Update rule' : 'Add rule'}</button>
                 <button onClick={() => setDraft(null)} style={btnGhost}>Cancel</button>
               </div>
             </div>

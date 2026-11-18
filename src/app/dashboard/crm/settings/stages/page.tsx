@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { crmStages, crmPipelines } from '../../../../../lib/crmApi';
 import type { Stage, Pipeline } from '../../../../../types/crm';
+import { Layers, Plus, Trash2 } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 const STAGE_TYPES = [
   { value: 'open', label: 'Open' },
@@ -80,7 +82,7 @@ export default function StagesSettings() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Create form */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Add Stage to Pipeline</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Plus} size={16} style={{ color: 'var(--text-dim)' }} />Add Stage to Pipeline</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginBottom: 8 }}>
           <label style={fieldWrap}>
             <span style={fieldLabel}>Pipeline</span>
@@ -112,15 +114,15 @@ export default function StagesSettings() {
             </div>
           </label>
         </div>
-        <button onClick={create} disabled={creating || !pipelineId || !name.trim()} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (!pipelineId || !name.trim()) ? 0.5 : 1 }}>
-          {creating ? 'Adding…' : '+ Add Stage'}
+        <button onClick={create} disabled={creating || !pipelineId || !name.trim()} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (!pipelineId || !name.trim()) ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {!creating && <InlineIcon icon={Plus} />}{creating ? 'Adding…' : 'Add Stage'}
         </button>
       </div>
 
       {/* Stage list */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Stages</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Layers} size={16} style={{ color: 'var(--text-dim)' }} />Stages</div>
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap' }}>
             {pipelines.map((p) => (
               <button key={p.id} onClick={() => setPipelineId(p.id)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, border: '1px solid var(--border)', cursor: 'pointer', background: pipelineId === p.id ? 'var(--primary)' : 'transparent', color: pipelineId === p.id ? '#fff' : 'var(--text-dim)' }}>
@@ -130,7 +132,7 @@ export default function StagesSettings() {
           </div>
         </div>
         {loading ? <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div> : selectedPipelineStages.length === 0 ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No stages yet for this pipeline. Add one above.</div>
+          <div style={{ color: 'var(--text-dim)', fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '8px 0', textAlign: 'center' }}><IconTile icon={Layers} size={40} iconSize={20} />No stages yet for this pipeline. Add one above.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {selectedPipelineStages
@@ -143,8 +145,8 @@ export default function StagesSettings() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{s.probability ?? (s as any).default_probability ?? 0}%</span>
-                    <button onClick={() => remove(s)} disabled={!!busy[s.id]} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '3px 9px', borderRadius: 6, fontSize: 11, cursor: 'pointer', opacity: busy[s.id] ? 0.5 : 1 }}>
-                      {busy[s.id] ? '…' : 'Delete'}
+                    <button onClick={() => remove(s)} disabled={!!busy[s.id]} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '3px 9px', borderRadius: 6, fontSize: 11, cursor: 'pointer', opacity: busy[s.id] ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      {!busy[s.id] && <InlineIcon icon={Trash2} size={12} />}{busy[s.id] ? '…' : 'Delete'}
                     </button>
                   </div>
                 </div>

@@ -10,6 +10,9 @@ import {
   type ReportRange,
 } from './ReportFilters';
 import ReportCharts from './ReportCharts';
+import { Download, FileSearch, Play, Rows3 } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../ui/PageIcon';
+import { metricIconFor } from '../../../lib/labelIcons';
 
 type RunData = { columns: string[]; rows: Array<Array<string | number | null>>; count: number };
 
@@ -151,9 +154,10 @@ export default function ReportRunner({
             padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, border: 'none',
             cursor: running ? 'default' : 'pointer',
             background: running ? 'var(--s3)' : 'var(--primary)', color: running ? 'var(--text-dim)' : '#fff',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
           }}
         >
-          {running ? 'Running…' : '▶ Run Report'}
+          {!running && <InlineIcon icon={Play} />}{running ? 'Running…' : 'Run Report'}
         </button>
         <button
           onClick={download}
@@ -162,9 +166,10 @@ export default function ReportRunner({
             padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700,
             border: '1px solid var(--border)', cursor: downloading ? 'default' : 'pointer',
             background: 'var(--s3)', color: downloading ? 'var(--text-dim)' : 'var(--text)',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
           }}
         >
-          {downloading ? 'Preparing…' : '⬇ Download CSV'}
+          {!downloading && <InlineIcon icon={Download} />}{downloading ? 'Preparing…' : 'Download CSV'}
         </button>
       </div>
 
@@ -189,7 +194,8 @@ export default function ReportRunner({
       {running && !data ? (
         <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>Running the report…</div>
       ) : data && data.rows.length === 0 ? (
-        <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>
+        <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <IconTile icon={FileSearch} size={40} iconSize={20} />
           No data for this period. Try a wider date range.
         </div>
       ) : data ? (
@@ -236,12 +242,13 @@ export default function ReportRunner({
 }
 
 function SummaryTile({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  const Icon = highlight ? Rows3 : metricIconFor(label);
   return (
     <div style={{
       background: highlight ? 'var(--primary)' : 'var(--s3)',
       border: '1px solid var(--border)', borderRadius: 10, padding: '8px 14px', minWidth: 96,
     }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: highlight ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)' }}>{label}</div>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: highlight ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>{Icon && <InlineIcon icon={Icon} size={12} />}{label}</div>
       <div style={{ fontSize: 16, fontWeight: 800, color: highlight ? '#fff' : 'var(--text)', marginTop: 2 }}>{value}</div>
     </div>
   );

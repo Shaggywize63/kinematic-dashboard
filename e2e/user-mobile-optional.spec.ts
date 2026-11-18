@@ -29,7 +29,7 @@ test.describe('Create user without a mobile number', () => {
       },
     });
     await page.goto('/dashboard/crm/settings/users');
-    await page.getByRole('button', { name: '+ Add User' }).click();
+    await page.getByRole('button', { name: 'Add User' }).click();
     await expect(page.getByText('New User')).toBeVisible();
   }
 

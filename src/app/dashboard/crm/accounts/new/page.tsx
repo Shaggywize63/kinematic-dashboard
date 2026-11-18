@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { AlertTriangle, Check } from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmAccounts, crmSettings } from '../../../../../lib/crmApi';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import IndustrySelect from '../../../../../components/crm/spark/IndustrySelect';
@@ -237,9 +239,10 @@ export default function NewAccountPage() {
 
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 720 }}>
-      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Account</h2>
+      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />New Account</h2>
       {dup && (
         <div data-testid="account-duplicate" role="alert" style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid #ef4444', fontSize: 13, color: 'var(--text)' }}>
+          <InlineIcon icon={AlertTriangle} size={14} style={{ color: 'var(--red)', verticalAlign: '-2px', marginRight: 6 }} />
           An account named &quot;{dup.name || form.name.trim()}&quot; already exists.{' '}
           <Link href={`/dashboard/crm/accounts/${dup.id}`} style={{ color: 'var(--accent, var(--primary))', fontWeight: 700 }}>Open it</Link>
           {' '}instead, or rename this one.
@@ -259,7 +262,7 @@ export default function NewAccountPage() {
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end' }}>
         <button type="button" onClick={() => router.back()} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
-        <button type="submit" disabled={busy} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>{busy ? 'Saving...' : 'Create'}</button>
+        <button type="submit" disabled={busy} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Check} />{busy ? 'Saving...' : 'Create'}</button>
       </div>
     </form>
   );

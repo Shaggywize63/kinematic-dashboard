@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
+import { Columns3, LayoutGrid, LayoutTemplate, List, Settings2 } from 'lucide-react';
 import type { ViewMode } from '../../../lib/crmViewPrefs';
+import { InlineIcon } from '../../ui/PageIcon';
 
 export interface ColumnDef {
   key: string;
@@ -51,9 +53,12 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
           fontWeight: 600,
           cursor: 'pointer',
           whiteSpace: 'nowrap',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
         }}
       >
-        ⚙ <span className="crm-view-customizer-trigger-label">Customize</span> ({visibleCount}/{columns.length})
+        <InlineIcon icon={Settings2} /> <span className="crm-view-customizer-trigger-label">Customize</span> ({visibleCount}/{columns.length})
       </button>
       {open && (
         <>
@@ -79,7 +84,7 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>Layout</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={LayoutTemplate} size={13} />Layout</div>
             <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 2, marginBottom: 14 }}>
               {(['table', 'cards'] as const).map((m) => (
                 <button
@@ -96,14 +101,18 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
                     fontWeight: 700,
                     cursor: 'pointer',
                     textTransform: 'capitalize',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
                   }}
                 >
-                  {m === 'table' ? '☰ Table' : '▦ Cards'}
+                  <InlineIcon icon={m === 'table' ? List : LayoutGrid} size={14} />
+                  {m === 'table' ? 'Table' : 'Cards'}
                 </button>
               ))}
             </div>
 
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>Columns</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Columns3} size={13} />Columns</div>
             <div className="crm-view-customizer-list" style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto' }}>
               {columns.map((col) => {
                 const visible = !hiddenSet.has(col.key);

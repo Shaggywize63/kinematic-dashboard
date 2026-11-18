@@ -1,9 +1,11 @@
 'use client';
 import { useRef } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { T } from '../../ui';
+import { InlineIcon } from '../../ui/PageIcon';
 import type { LeadTab } from './types';
 
-export interface TabDef { id: LeadTab; label: string; count?: number }
+export interface TabDef { id: LeadTab; label: string; count?: number; icon?: LucideIcon }
 
 /** Accessible tab strip (roving tabindex, arrow keys, Home / End). Panels are rendered by the page. */
 export default function LeadTabs({ tabs, active, onChange }: { tabs: TabDef[]; active: LeadTab; onChange: (t: LeadTab) => void }) {
@@ -44,6 +46,7 @@ export default function LeadTabs({ tabs, active, onChange }: { tabs: TabDef[]; a
               borderBottom: `2px solid ${on ? T.red : 'transparent'}`, marginBottom: -1, transition: 'color .12s ease, border-color .12s ease',
             }}
           >
+            {t.icon && <InlineIcon icon={t.icon} size={15} />}
             {t.label}
             {typeof t.count === 'number' && t.count > 0 && (
               <span style={{ minWidth: 20, height: 18, padding: '0 6px', borderRadius: 999, background: on ? T.redWash : 'var(--s3)', color: on ? T.red : T.mute, fontSize: 11, fontWeight: 700, fontFamily: T.mono, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{t.count}</span>

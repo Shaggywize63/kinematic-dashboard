@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { ArrowLeft, Blocks, Check, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { crmCustomObjects, crmCustomFields, type CustomObject, type CustomRecord } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
 
@@ -51,9 +53,9 @@ export default function CustomObjectRecordsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Link href="/dashboard/crm/settings/custom-objects" style={{ ...btnSmallGhost, textDecoration: 'none' }}>← Objects</Link>
-        <span style={{ fontSize: 22 }}>{obj?.icon || '🧩'}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <Link href="/dashboard/crm/settings/custom-objects" style={{ ...btnSmallGhost, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ArrowLeft} size={13} />Objects</Link>
+        {obj?.icon ? <span style={{ fontSize: 22 }}>{obj.icon}</span> : <InlineIcon icon={Blocks} size={22} style={{ color: 'var(--primary)' }} />}
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>
             {obj?.label_plural || key}
@@ -61,11 +63,11 @@ export default function CustomObjectRecordsPage() {
           </div>
           {obj?.description && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{obj.description}</div>}
         </div>
-        <button onClick={() => { setEditing(null); setShowForm(true); }} style={btnPrimary}>+ New {obj?.label || 'record'}</button>
+        <button onClick={() => { setEditing(null); setShowForm(true); }} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />New {obj?.label || 'record'}</button>
       </div>
 
       <div style={{ position: 'relative', maxWidth: 320 }}>
-        <span aria-hidden style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, pointerEvents: 'none', opacity: 0.7 }}>🔍</span>
+        <InlineIcon icon={Search} size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-dim)' }} />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${obj?.label_plural || 'records'}…`} style={{ ...input, paddingLeft: 30 }} />
       </div>
 
@@ -83,14 +85,14 @@ export default function CustomObjectRecordsPage() {
       <div style={card}>
         {loading ? <div style={dim}>Loading…</div> : records.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '28px 16px' }}>
-            <div style={{ fontSize: 34 }}>{obj?.icon || '🧩'}</div>
+            {obj?.icon ? <div style={{ fontSize: 34 }}>{obj.icon}</div> : <InlineIcon icon={Blocks} size={34} style={{ color: 'var(--text-dim)' }} />}
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 8 }}>
               {q ? `No ${obj?.label_plural || 'records'} match “${q}”` : `No ${obj?.label_plural || 'records'} yet`}
             </div>
             {!q && (
               <>
                 <div style={{ ...dim, marginTop: 4 }}>Add your first {obj?.label || 'record'} to get started.</div>
-                <button onClick={() => { setEditing(null); setShowForm(true); }} style={{ ...btnPrimary, marginTop: 12 }}>+ New {obj?.label || 'record'}</button>
+                <button onClick={() => { setEditing(null); setShowForm(true); }} style={{ ...btnPrimary, marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />New {obj?.label || 'record'}</button>
               </>
             )}
           </div>
@@ -112,8 +114,8 @@ export default function CustomObjectRecordsPage() {
                     })}
                   </div>
                 </div>
-                <button onClick={() => { setEditing(rec); setShowForm(false); }} style={btnSmallGhost}>Edit</button>
-                <button onClick={() => remove(rec)} style={btnSmallDanger}>Delete</button>
+                <button onClick={() => { setEditing(rec); setShowForm(false); }} style={{ ...btnSmallGhost, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Pencil} size={12} />Edit</button>
+                <button onClick={() => remove(rec)} style={{ ...btnSmallDanger, display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Trash2} size={12} />Delete</button>
               </div>
             ))}
           </div>
@@ -167,7 +169,7 @@ function RecordForm({
         ))}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-        <button onClick={save} disabled={saving} style={btnPrimary}>{saving ? 'Saving…' : (editing ? 'Save' : 'Create')}</button>
+        <button onClick={save} disabled={saving} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Check} />{saving ? 'Saving…' : (editing ? 'Save' : 'Create')}</button>
         <button onClick={onCancel} style={btnGhost}>Cancel</button>
       </div>
     </div>

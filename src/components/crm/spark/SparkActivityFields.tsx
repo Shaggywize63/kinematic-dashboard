@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { CheckCircle2, X } from 'lucide-react';
 import Link from 'next/link';
 import { crmActivities, crmProducts } from '../../../lib/crmApi';
 import { isB2bClientActive } from '../../../lib/b2bClient';
@@ -224,12 +224,12 @@ export function CompleteActivityDialog({ activity, onClose, onDone }: { activity
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 110 }}>
       <div role="dialog" aria-label="Complete activity" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>Complete activity</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><CheckCircle2 aria-hidden size={17} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Complete activity</div>
         {activity.subject && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{activity.subject}</div>}
         <OutcomeField value={outcome} onChange={(v) => { setOutcome(v); setError(null); }} required error={error} />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button type="button" onClick={onClose} disabled={busy} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer' }}>Cancel</button>
-          <button type="button" onClick={save} disabled={busy} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: '#10b981', border: 'none', color: '#fff', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Mark complete'}</button>
+          <button type="button" onClick={save} disabled={busy} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: '#10b981', border: 'none', color: '#fff', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><CheckCircle2 aria-hidden size={14} strokeWidth={2} />{busy ? 'Saving…' : 'Mark complete'}</button>
         </div>
       </div>
     </div>

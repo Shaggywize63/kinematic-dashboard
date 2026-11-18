@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { crmAi, crmEmailTemplates } from '../../lib/crmApi';
 import AiBadge from './shared/AiBadge';
+import { MailPlus, Plus, Sparkles } from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 
 export default function AiDraftReplyPanel({ leadId, dealId }: { leadId?: string; dealId?: string }) {
   const [thread, setThread] = useState('');
@@ -51,7 +53,7 @@ export default function AiDraftReplyPanel({ leadId, dealId }: { leadId?: string;
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Draft Reply</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={MailPlus} size={16} style={{ color: 'var(--text-dim)' }} />Draft Reply</div>
         <AiBadge />
       </div>
       <textarea value={thread} onChange={(e) => setThread(e.target.value)} placeholder="Paste recent thread or context here..." rows={4} style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: 10, fontSize: 13, fontFamily: 'inherit', marginBottom: 8 }} />
@@ -62,8 +64,8 @@ export default function AiDraftReplyPanel({ leadId, dealId }: { leadId?: string;
           <option value="concise">Concise</option>
         </select>
         <input value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Goal" style={{ ...selectCss, flex: 1 }} />
-        <button onClick={generate} disabled={busy} style={{ background: 'var(--primary)', border: 'none', color: '#fff', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontWeight: 700 }}>
-          {busy ? '...' : 'Generate'}
+        <button onClick={generate} disabled={busy} style={{ background: 'var(--primary)', border: 'none', color: '#fff', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {!busy && <InlineIcon icon={Sparkles} />}{busy ? '...' : 'Generate'}
         </button>
       </div>
       {draft && (
@@ -71,8 +73,8 @@ export default function AiDraftReplyPanel({ leadId, dealId }: { leadId?: string;
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{draft.subject}</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'pre-wrap' }}>{draft.body_text}</div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-            <button onClick={saveAsTemplate} disabled={saving} style={{ background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '6px 12px', cursor: saving ? 'wait' : 'pointer', fontWeight: 700, fontSize: 12 }}>
-              {saving ? 'Saving…' : '+ Add to templates'}
+            <button onClick={saveAsTemplate} disabled={saving} style={{ background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '6px 12px', cursor: saving ? 'wait' : 'pointer', fontWeight: 700, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {!saving && <InlineIcon icon={Plus} size={14} />}{saving ? 'Saving…' : 'Add to templates'}
             </button>
           </div>
         </div>

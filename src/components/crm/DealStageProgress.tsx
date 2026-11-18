@@ -1,5 +1,6 @@
 'use client';
 import React, { useMemo } from 'react';
+import { AlertTriangle, CalendarClock, Check, CheckCircle2, X } from 'lucide-react';
 import type { Stage } from '../../types/crm';
 
 interface Props {
@@ -89,8 +90,8 @@ export default function DealStageProgress({
             )}
           </span>
         ) : (
-          <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 700 }}>
-            ⚠ Current stage is not in this pipeline — pick a valid stage below.
+          <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <AlertTriangle aria-hidden size={13} strokeWidth={2} />Current stage is not in this pipeline — pick a valid stage below.
           </span>
         )}
       </div>
@@ -148,8 +149,8 @@ export default function DealStageProgress({
                   gap: 5,
                   lineHeight: 1.1,
                 }}>
-                {reached && !isLost && <span style={{ fontSize: 10 }}>✓</span>}
-                {isLost && reached && <span style={{ fontSize: 10 }}>✗</span>}
+                {reached && !isLost && <Check aria-hidden size={11} strokeWidth={2.5} />}
+                {isLost && reached && <X aria-hidden size={11} strokeWidth={2.5} />}
                 <span>{s.name || `Stage ${i + 1}`}</span>
               </button>
               {!isLast && (
@@ -178,7 +179,9 @@ export default function DealStageProgress({
               color: daysToClose < 0 ? '#ef4444' : daysToClose < 7 ? '#f59e0b' : 'var(--text-dim)',
               border: `1px solid ${daysToClose < 0 ? '#ef4444' : daysToClose < 7 ? '#f59e0b' : 'var(--border)'}`,
               whiteSpace: 'nowrap',
+              display: 'inline-flex', alignItems: 'center', gap: 4,
             }}>
+              {daysToClose < 0 ? <AlertTriangle aria-hidden size={12} strokeWidth={2} /> : <CalendarClock aria-hidden size={12} strokeWidth={2} />}
               {daysToClose < 0 ? `${Math.abs(daysToClose)}d overdue` : daysToClose === 0 ? 'closes today' : `${daysToClose}d to close`}
             </div>
           )}
@@ -190,8 +193,9 @@ export default function DealStageProgress({
                 padding: '5px 12px', borderRadius: 999, fontSize: 11, fontWeight: 800,
                 cursor: 'pointer', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap',
                 boxShadow: '0 4px 12px rgba(62,158,255,0.28)',
+                display: 'inline-flex', alignItems: 'center', gap: 5,
               }}>
-              ✓ Mark Complete → {sorted[nextOpenIdx].name}
+              <CheckCircle2 aria-hidden size={13} strokeWidth={2} />Mark Complete → {sorted[nextOpenIdx].name}
             </button>
           )}
         </div>

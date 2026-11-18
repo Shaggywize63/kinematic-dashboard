@@ -25,7 +25,7 @@ const cells = async (loc: ReturnType<Page['locator']>) => {
   await loc.locator('td').first().waitFor();
   return (await loc.locator('td').allInnerTexts()).map(clean);
 };
-const csvOf = async (page: Page, button: string | RegExp = /Download CSV|⬇ CSV/) => {   // the older pages say "⬇ CSV"
+const csvOf = async (page: Page, button: string | RegExp = /Download CSV|^CSV$/) => {   // the older pages say just "CSV" (with a download icon)
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: button }).click()]);
   return parseCsv(await readDownload(download));
 };

@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Activity, Moon, TrendingDown, TrendingUp, UserPlus, Users, UserX, X } from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../components/ui/PageIcon';
 import { crmCustomerIntel } from '../../../../lib/crmApi';
 import type { CustomerIntelPayload, SalesTrendsPayload, CustomerLifecycle } from '../../../../lib/crmApi';
 import { istDate } from '../../../../lib/istTime';
@@ -46,25 +48,28 @@ export default function CustomerIntelligencePage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <PageIcon name="analytics" />
+        <div>
         <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Customer Intelligence</h1>
         <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>
           Ordering patterns, retention &amp; at-risk customers{intel ? ` · as of ${istDate(intel.today)} (IST)` : ''}
         </p>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
         {[
-          { key: '', label: 'All', value: s.total_customers ?? 0, color: '#111827' },
-          { key: 'new', label: 'New', value: s.new ?? 0, color: LIFECYCLE_META.new.color },
-          { key: 'active', label: 'Active', value: s.active ?? 0, color: LIFECYCLE_META.active.color },
-          { key: 'declining', label: 'Declining', value: s.declining ?? 0, color: LIFECYCLE_META.declining.color },
-          { key: 'dormant', label: 'Dormant', value: s.dormant ?? 0, color: LIFECYCLE_META.dormant.color },
-          { key: 'churned', label: 'Churned', value: s.churned ?? 0, color: LIFECYCLE_META.churned.color },
+          { key: '', label: 'All', value: s.total_customers ?? 0, color: '#111827', icon: Users },
+          { key: 'new', label: 'New', value: s.new ?? 0, color: LIFECYCLE_META.new.color, icon: UserPlus },
+          { key: 'active', label: 'Active', value: s.active ?? 0, color: LIFECYCLE_META.active.color, icon: Activity },
+          { key: 'declining', label: 'Declining', value: s.declining ?? 0, color: LIFECYCLE_META.declining.color, icon: TrendingDown },
+          { key: 'dormant', label: 'Dormant', value: s.dormant ?? 0, color: LIFECYCLE_META.dormant.color, icon: Moon },
+          { key: 'churned', label: 'Churned', value: s.churned ?? 0, color: LIFECYCLE_META.churned.color, icon: UserX },
         ].map((c) => (
           <button key={c.label} onClick={() => setLifecycle(c.key as any)}
             style={{ ...card, textAlign: 'left', cursor: 'pointer', outline: lifecycle === c.key ? `2px solid ${c.color}` : 'none' }}>
-            <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>{c.label}</div>
+            <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={c.icon} size={13} style={{ color: c.color }} />{c.label}</div>
             <div style={{ fontSize: 22, fontWeight: 800, color: c.color, opacity: loading ? 0.4 : 1 }}>{c.value}</div>
           </button>
         ))}
@@ -72,11 +77,11 @@ export default function CustomerIntelligencePage() {
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <input placeholder="Search customer…" value={q} onChange={(e) => setQ(e.target.value)} style={{ ...input, minWidth: 240 }} />
-        {lifecycle && <button onClick={() => setLifecycle('')} style={{ ...input, cursor: 'pointer' }}>Clear filter ({LIFECYCLE_META[lifecycle].label})</button>}
+        {lifecycle && <button onClick={() => setLifecycle('')} style={{ ...input, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={X} size={14} />Clear filter ({LIFECYCLE_META[lifecycle].label})</button>}
       </div>
 
       <div style={card}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Customers</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Users} size={16} style={{ color: 'var(--text-dim)' }} />Customers</h2>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 920 }}>
             <thead><tr>{['Customer', 'Status', 'Orders', 'Total Value', 'Avg Order', 'Orders/Mo', 'Last Order', 'Days Since', 'Trend'].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
@@ -109,7 +114,7 @@ export default function CustomerIntelligencePage() {
       </div>
 
       <div style={card}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Monthly sales &amp; retention</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={TrendingUp} size={16} style={{ color: 'var(--text-dim)' }} />Monthly sales &amp; retention</h2>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 720 }}>
             <thead><tr>{['Month', 'Sales', 'Growth', 'Orders', 'Active', 'New', 'Repeat', 'Retention'].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>

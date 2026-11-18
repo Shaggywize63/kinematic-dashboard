@@ -9,6 +9,8 @@ import { useReportCityKey } from '../../../../../components/crm/reports/ReportFi
 import { PlusDataTable, usePlusTable } from '../../../../../components/crm/analytics/PlusReport';
 import { fmtInt, fmtPct, type Column } from '../../../../../lib/crm/plusFormat';
 import { weekdayRows, type DayRow } from '../../../../../lib/crm/heatmapRollup';
+import { Download } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 export default function ActivityHeatmapPage() {
   const [data, setData] = useState<ActivityHeatPoint[]>([]);
@@ -34,20 +36,20 @@ export default function ActivityHeatmapPage() {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <h3 style={{ color: 'var(--text)', margin: 0 }}>Activity Heatmap (last 31 days)</h3>
+        <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}><PageIcon size={32} />Activity Heatmap (last 31 days)</h3>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
             onClick={() => downloadCsv('activity-heatmap', data as any, ['date', 'hour', 'count'])}
             disabled={loading || data.length === 0}
             aria-label="Download CSV"
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700 }}
-          >⬇ CSV</button>
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          ><InlineIcon icon={Download} size={14} />CSV</button>
           <button
             onClick={() => downloadCsv('activity-by-weekday', tbl.csvRows())}
             disabled={loading || !hasActivity}
             aria-label="Download weekday CSV"
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700 }}
-          >⬇ Weekday CSV</button>
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          ><InlineIcon icon={Download} size={14} />Weekday CSV</button>
         </div>
       </div>
       {loading ? <div style={{ color: 'var(--text-dim)' }}>Loading...</div> : (

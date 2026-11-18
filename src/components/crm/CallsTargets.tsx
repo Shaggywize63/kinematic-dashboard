@@ -11,6 +11,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { Network, Target, UserRound } from 'lucide-react';
 import { crmTargets } from '../../lib/crmApi';
 
 export interface TargetUser { id: string; name: string; role: string; city: string | null; org_role_id: string | null }
@@ -19,7 +20,7 @@ export interface TargetLevel { id: string; name: string }
 const MAX_CALLS = 100000;
 
 const card: React.CSSProperties = { background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 16 };
-const h2: React.CSSProperties = { fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 };
+const h2: React.CSSProperties = { fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 };
 const hint: React.CSSProperties = { fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' };
 const inputStyle: React.CSSProperties = { width: 72, background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, textAlign: 'center' };
 const selStyle: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, width: '100%' };
@@ -112,7 +113,7 @@ export default function CallsTargets({ users, levels, baseLoading, narrow }: {
     <>
       {/* Per-hierarchy-level calls targets */}
       <div style={card}>
-        <div style={h2}>Calls target by hierarchy level</div>
+        <div style={h2}><Network aria-hidden size={15} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Calls target by hierarchy level</div>
         <p style={hint}>The number of calls each person at a level should log per day. Telecallers see this against today&apos;s logged calls.</p>
         {busy ? (
           <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: 12 }}>Loading…</div>
@@ -147,7 +148,7 @@ export default function CallsTargets({ users, levels, baseLoading, narrow }: {
 
       {/* Individual overrides */}
       <div style={card}>
-        <div style={h2}>Individual overrides <span style={{ fontWeight: 500, color: 'var(--text-dim)' }}>(optional)</span></div>
+        <div style={h2}><UserRound aria-hidden size={15} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Individual overrides <span style={{ fontWeight: 500, color: 'var(--text-dim)' }}>(optional)</span></div>
         <p style={hint}>Pick a level (and optional city) to list its people and override specific individuals. Blank uses their level target.</p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
           <select value={pickLevel} onChange={(e) => setPickLevel(e.target.value)} style={{ ...selStyle, flex: '1 1 200px', minWidth: 0 }}>
@@ -195,7 +196,7 @@ export default function CallsTargets({ users, levels, baseLoading, narrow }: {
 
       {/* Fallback default */}
       <div style={{ ...card, marginBottom: 0 }}>
-        <div style={h2}>Fallback default</div>
+        <div style={h2}><Target aria-hidden size={15} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Fallback default</div>
         <p style={hint}>Used only for people with no hierarchy level and no individual calls target.</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <input type="number" min={0} max={MAX_CALLS} value={defaultTarget} onChange={(e) => setDefaultTarget(clampCalls(e.target.value))} style={inputStyle} />

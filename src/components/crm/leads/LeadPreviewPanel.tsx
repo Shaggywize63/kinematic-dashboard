@@ -3,7 +3,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowRight, ExternalLink, Mail, Pencil, Phone, Sparkles, X } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, Briefcase, CalendarDays, MapPinned, ExternalLink, Gauge, Hash, Mail, Megaphone, MessageSquareText, Pencil, Phone, Sparkles, Tag, UserRound, Users, X, type LucideIcon } from 'lucide-react';
+import { InlineIcon } from '../../ui/PageIcon';
 import type { Lead, NextBestAction } from '../../../types/crm';
 import type { LeadStatusOption } from '../../../lib/crmLeadStatuses';
 import type { FieldHelpers } from '../../../lib/crmFieldOverrides';
@@ -58,11 +59,16 @@ const tileStyle: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
 };
 
-function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
+// The detail grid's field icons (by detail key).
+const DETAIL_ICON: Record<string, LucideIcon> = {
+  ref_no: Hash, phone: Phone, email: Mail, owner_id: UserRound, source_id: Megaphone, lead_type: Tag, title: Briefcase, state: MapPinned, created: CalendarDays,
+};
+
+function Section({ title, aside, children, icon }: { title: string; aside?: ReactNode; children: ReactNode; icon?: LucideIcon }) {
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={eyebrowStyle}>{title}</span>
+        <span style={{ ...eyebrowStyle, display: 'inline-flex', alignItems: 'center', gap: 6 }}>{icon && <InlineIcon icon={icon} size={13} />}{title}</span>
         {aside}
       </div>
       {children}
@@ -249,7 +255,7 @@ export default function LeadPreviewPanel({
         )}
       </div>
 
-      <Section title="Next step">
+      <Section title="Next step" icon={Sparkles}>
         {nba ? (
           <div style={{ border: `1px solid ${T.border}`, background: T.redWash, borderRadius: T.radius.md, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 3 }}>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -270,7 +276,7 @@ export default function LeadPreviewPanel({
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: T.border, border: `1px solid ${T.border}`, borderRadius: T.radius.md, overflow: 'hidden' }}>
           {orderedDetails.map((d) => (
             <div key={d.k} style={{ background: T.card, padding: '9px 11px', minWidth: 0, gridColumn: d.wide ? '1 / -1' : undefined }}>
-              <div style={{ ...eyebrowStyle, fontSize: 9.5 }}>{d.label}</div>
+              <div style={{ ...eyebrowStyle, fontSize: 9.5, display: 'flex', alignItems: 'center', gap: 4 }}>{DETAIL_ICON[d.k] && <InlineIcon icon={DETAIL_ICON[d.k]} size={11} />}{d.label}</div>
               <div style={{ marginTop: 2, fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: d.k === 'phone' ? T.mono : 'inherit' }} title={d.value.length > 24 ? d.value : undefined}>{d.value}</div>
             </div>
           ))}
@@ -278,11 +284,11 @@ export default function LeadPreviewPanel({
       )}
 
       {people.length > 0 && (
-        <Section title="People on this lead">
+        <Section title="People on this lead" icon={Users}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {people.map((p) => (
               <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: T.text }}>
-                <span aria-hidden>👤</span>
+                <InlineIcon icon={UserRound} size={14} style={{ color: T.dim }} />
                 <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                 {p.title && <span style={{ color: T.dim, fontSize: 12 }}>· {p.title}</span>}
                 {p.role && <span style={{ color: T.dim, fontSize: 12 }}>· {p.role}</span>}
@@ -296,6 +302,7 @@ export default function LeadPreviewPanel({
       {!hid('score') && (
         <Section
           title="Why this score"
+          icon={Gauge}
           aside={<button type="button" onClick={() => onOpenScore(lead)} style={{ background: 'transparent', border: 0, padding: 0, color: T.red, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>All factors</button>}
         >
           {factors.length === 0 ? (
@@ -319,7 +326,7 @@ export default function LeadPreviewPanel({
         </Section>
       )}
 
-      <Section title="Latest updates">
+      <Section title="Latest updates" icon={MessageSquareText}>
         {updates === null ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <i className="km-skel" style={{ height: 11, width: '80%' }} />
@@ -351,7 +358,7 @@ export default function LeadPreviewPanel({
 
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
         <Button variant="primary" href={`/dashboard/crm/leads/${lead.id}`} icon={<ArrowRight size={15} strokeWidth={2} />} style={{ width: '100%' }}>Open full lead</Button>
-        {canConvert && <Button href={`/dashboard/crm/leads/${lead.id}?convert=1`} style={{ width: '100%' }}>Convert to deal</Button>}
+        {canConvert && <Button href={`/dashboard/crm/leads/${lead.id}?convert=1`} icon={<ArrowLeftRight size={15} strokeWidth={1.8} />} style={{ width: '100%' }}>Convert to deal</Button>}
       </div>
     </aside>
   );

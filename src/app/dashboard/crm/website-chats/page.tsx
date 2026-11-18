@@ -13,6 +13,8 @@ import {
   type WebChatDetail,
 } from '../../../../lib/webChatsApi';
 import KiniMascot from '../../../../components/crm/KiniMascot';
+import { Building2, CalendarClock, Mail, MapPin, MessageSquareText, Phone, RefreshCw, Users } from 'lucide-react';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 
 // Inline style tokens (mirror the CRM Conversations page).
 const card: React.CSSProperties = {
@@ -141,7 +143,7 @@ function WebsiteChatsPageInner() {
             display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
           }}
         >
-          <span style={{ display: 'inline-block', transform: loading ? 'rotate(360deg)' : 'none', transition: 'transform .6s' }}>↻</span>
+          <span style={{ display: 'inline-flex', transform: loading ? 'rotate(360deg)' : 'none', transition: 'transform .6s' }}><InlineIcon icon={RefreshCw} /></span>
           Refresh
         </button>
       </div>
@@ -204,7 +206,8 @@ function WebsiteChatsPageInner() {
         {/* Detail */}
         <div style={{ ...card, flex: 1, width: isCompact ? '100%' : 'auto', minHeight: 300, alignSelf: 'stretch' }}>
           {!selectedId && (
-            <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 24, textAlign: 'center' }}>
+            <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 24, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <IconTile icon={MessageSquareText} size={40} iconSize={20} />
               Select a conversation to read the full transcript.
             </div>
           )}
@@ -218,12 +221,12 @@ function WebsiteChatsPageInner() {
                 <div>
                   <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>{displayName(detail)}</div>
                   <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {detail.visitor_email && <span>✉ {detail.visitor_email}</span>}
-                    {detail.visitor_phone && <span>☎ {detail.visitor_phone}</span>}
-                    {detail.visitor_company && <span>🏢 {detail.visitor_company}</span>}
-                    {detail.team_size && <span>👥 {detail.team_size}</span>}
-                    {detail.city && <span>📍 {detail.city}</span>}
-                    {detail.preferred_time && <span>🗓 {detail.preferred_time}</span>}
+                    {detail.visitor_email && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Mail} size={13} />{detail.visitor_email}</span>}
+                    {detail.visitor_phone && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Phone} size={13} />{detail.visitor_phone}</span>}
+                    {detail.visitor_company && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Building2} size={13} />{detail.visitor_company}</span>}
+                    {detail.team_size && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={Users} size={13} />{detail.team_size}</span>}
+                    {detail.city && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={MapPin} size={13} />{detail.city}</span>}
+                    {detail.preferred_time && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><InlineIcon icon={CalendarClock} size={13} />{detail.preferred_time}</span>}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>

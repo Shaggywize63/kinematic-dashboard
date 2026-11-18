@@ -2,6 +2,8 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
+import { ArrowLeftRight, Check } from 'lucide-react';
+import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmDeals, crmPipelines, crmProducts, crmAccounts, crmContacts, crmLeads, crmSettings } from '../../../../../lib/crmApi';
 import type { Account, Contact, Lead, Pipeline, Product } from '../../../../../types/crm';
 import ClientScopeField from '../../../../../components/ClientScopeField';
@@ -315,7 +317,7 @@ function NewDealPageInner() {
 
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 760 }}>
-      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>{convertMode ? 'Convert Lead to Deal' : 'New Deal'}</h2>
+      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />{convertMode ? 'Convert Lead to Deal' : 'New Deal'}</h2>
       {convertMode && (
         <div data-testid="convert-banner" role="status" style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 10, background: 'var(--s3)', border: '1px solid var(--primary)', color: 'var(--text)', fontSize: 13 }}>
           {leadLoadFailed
@@ -498,7 +500,7 @@ function NewDealPageInner() {
       )}
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end' }}>
         <button type="button" onClick={() => router.back()} style={btnGhost}>Cancel</button>
-        <button type="submit" disabled={busy || (convertMode && !sourceLead && !leadLoadFailed)} style={btnPrimary}>{busy ? 'Saving...' : convertMode ? 'Convert & create deal' : 'Create'}</button>
+        <button type="submit" disabled={busy || (convertMode && !sourceLead && !leadLoadFailed)} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={convertMode ? ArrowLeftRight : Check} />{busy ? 'Saving...' : convertMode ? 'Convert & create deal' : 'Create'}</button>
       </div>
     </form>
   );

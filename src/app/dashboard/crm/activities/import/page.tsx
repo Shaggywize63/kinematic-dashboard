@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { AlertTriangle, ArrowLeftRight, CheckCircle2, Download, Eye, FileText, FileUp, Info, RotateCcw, SkipForward, Upload, XCircle, type LucideIcon } from 'lucide-react';
+import { IconTile, InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmActivityImport } from '../../../../../lib/crmApi';
 import type { ImportJob } from '../../../../../types/crm';
 
@@ -114,22 +116,22 @@ export default function ActivityImportPage() {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 980 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 18 }}>Import Activities</h2>
-        <button onClick={downloadTemplate} style={btnGhost}>
-          ⬇ Download Template CSV
+        <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 18, display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Import Activities</h2>
+        <button onClick={downloadTemplate} style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <InlineIcon icon={Download} size={14} />Download Template CSV
         </button>
       </div>
 
       {/* Stepper */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
         {[
-          { s: 1, label: 'Upload' },
-          { s: 2, label: 'Map Columns' },
-          { s: 3, label: 'Review' },
-          { s: 4, label: 'Summary' },
-        ].map(({ s, label }) => (
-          <div key={s} style={{ flex: 1, padding: 10, borderRadius: 8, background: step >= (s as 1|2|3|4) ? 'var(--primary)' : 'var(--s3)', color: step >= (s as 1|2|3|4) ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>
-            Step {s}: {label}
+          { s: 1, label: 'Upload', icon: Upload },
+          { s: 2, label: 'Map Columns', icon: ArrowLeftRight },
+          { s: 3, label: 'Review', icon: Eye },
+          { s: 4, label: 'Summary', icon: CheckCircle2 },
+        ].map(({ s, label, icon }) => (
+          <div key={s} style={{ flex: 1, padding: 10, borderRadius: 8, background: step >= (s as 1|2|3|4) ? 'var(--primary)' : 'var(--s3)', color: step >= (s as 1|2|3|4) ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <InlineIcon icon={icon} size={14} />Step {s}: {label}
           </div>
         ))}
       </div>
@@ -142,15 +144,15 @@ export default function ActivityImportPage() {
             onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) upload(f); }}
             style={{ border: '2px dashed var(--border-l)', borderRadius: 12, padding: 50, textAlign: 'center', color: 'var(--text-dim)' }}
           >
-            <div style={{ fontSize: 28, marginBottom: 10 }}>⬇</div>
+            <IconTile icon={Upload} size={48} iconSize={24} style={{ marginBottom: 10 }} />
             <div style={{ marginBottom: 12 }}>Drop a CSV or XLSX file here, or</div>
-            <label style={{ background: 'var(--primary)', color: '#fff', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
-              Choose File
+            <label style={{ background: 'var(--primary)', color: '#fff', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={FileUp} />Choose File
               <input type="file" accept=".csv,.xlsx" hidden disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
             </label>
           </div>
           <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-dim)', background: 'var(--s3)', border: '1px dashed var(--border)', borderRadius: 8, padding: 12 }}>
-            <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>What goes in the file</div>
+            <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Info} size={14} />What goes in the file</div>
             <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
               <li><strong>type</strong> (required) — one of: call, email, meeting, task, note, sms, whatsapp</li>
               <li><strong>subject</strong> — short title shown in the activity timeline</li>
@@ -199,7 +201,7 @@ export default function ActivityImportPage() {
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
             <button onClick={() => setStep(1)} style={btnGhost}>Back</button>
-            <button onClick={preview} disabled={busy} style={btnPrimary}>{busy ? '...' : 'Preview'}</button>
+            <button onClick={preview} disabled={busy} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Eye} />{busy ? '...' : 'Preview'}</button>
           </div>
         </div>
       )}
@@ -224,7 +226,7 @@ export default function ActivityImportPage() {
               border: '1px solid rgba(245, 158, 11, 0.3)',
               borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 12, color: 'var(--text)',
             }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>Sample warnings (out of first 25 rows)</div>
+              <div style={{ fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={AlertTriangle} size={14} style={{ color: 'var(--warn)' }} />Sample warnings (out of first 25 rows)</div>
               <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--text-dim)' }}>
                 {warnings.slice(0, 8).map((w, i) => (
                   <li key={i}>Sample row {w.row + 1}: {w.reason}</li>
@@ -249,7 +251,8 @@ export default function ActivityImportPage() {
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
             <button onClick={() => setStep(2)} style={btnGhost}>Back</button>
-            <button onClick={commit} disabled={busy} style={btnPrimary}>
+            <button onClick={commit} disabled={busy} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={Upload} />
               {busy ? 'Committing...' : `Commit ${job.total_rows || sample.length} Rows`}
             </button>
           </div>
@@ -260,7 +263,7 @@ export default function ActivityImportPage() {
       {step === 4 && summary && (
         <div>
           <div style={{ textAlign: 'center', padding: '20px 0 24px' }}>
-            <div style={{ fontSize: 38, marginBottom: 6 }}>{summary.created > 0 ? '✅' : '⚠️'}</div>
+            <IconTile icon={summary.created > 0 ? CheckCircle2 : AlertTriangle} tone={summary.created > 0 ? 'ok' : 'warn'} size={56} iconSize={30} style={{ marginBottom: 8 }} />
             <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>
               {summary.created > 0 ? 'Import complete' : 'Nothing imported'}
             </div>
@@ -285,7 +288,8 @@ export default function ActivityImportPage() {
               background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)',
               borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)', marginBottom: 12,
             }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <InlineIcon icon={XCircle} size={14} style={{ color: 'var(--red)' }} />
                 {summary.error_count} row{summary.error_count === 1 ? '' : 's'} skipped or errored
               </div>
               <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--text-dim)' }}>
@@ -302,11 +306,11 @@ export default function ActivityImportPage() {
           )}
 
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={() => { setStep(1); setJob(null); setHeaders([]); setMapping({}); setSample([]); setWarnings([]); setSummary(null); }} style={btnGhost}>
-              Import another file
+            <button onClick={() => { setStep(1); setJob(null); setHeaders([]); setMapping({}); setSample([]); setWarnings([]); setSummary(null); }} style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={RotateCcw} size={14} />Import another file
             </button>
-            <button onClick={() => router.push('/dashboard/crm/activities')} style={btnPrimary}>
-              View activities →
+            <button onClick={() => router.push('/dashboard/crm/activities')} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={Eye} />View activities →
             </button>
           </div>
         </div>
@@ -315,10 +319,13 @@ export default function ActivityImportPage() {
   );
 }
 
+const SUMMARY_ICON: Record<string, LucideIcon> = { Processed: FileText, Created: CheckCircle2, Skipped: SkipForward, Errors: XCircle };
+
 function SummaryCard({ label, value, tint }: { label: string; value: number; tint: string }) {
+  const Icon = SUMMARY_ICON[label];
   return (
     <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>{Icon && <InlineIcon icon={Icon} size={13} style={{ color: tint }} />}{label}</div>
       <div style={{ fontSize: 24, fontWeight: 800, color: tint, marginTop: 4 }}>{value.toLocaleString()}</div>
     </div>
   );

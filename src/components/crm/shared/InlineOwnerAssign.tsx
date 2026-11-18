@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { UserMinus } from 'lucide-react';
 import api from '../../../lib/api';
 import OwnerAvatar from './OwnerAvatar';
 
@@ -123,9 +124,9 @@ export default function InlineOwnerAssign({ currentOwnerId, currentOwnerName, on
                 <button
                   onClick={() => assign(null)}
                   disabled={busy}
-                  style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: '#ef4444', textAlign: 'left', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                  style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: '#ef4444', textAlign: 'left', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  ✕ Unassign
+                  <UserMinus aria-hidden size={14} strokeWidth={2} />Unassign
                 </button>
               )}
               {loading && <div style={{ padding: '14px 18px', fontSize: 12, color: 'var(--text-dim)' }}>Loading users…</div>}

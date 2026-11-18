@@ -7,6 +7,9 @@ import { crmDeals, crmLeads, crmTargets } from '../../../../../../lib/crmApi';
 import api from '../../../../../../lib/api';
 import type { Deal, Lead, SalespersonDetail } from '../../../../../../types/crm';
 import { useReportCityKey } from '../../../../../../components/crm/reports/ReportFilters';
+import { BarChart3, Building2, CalendarDays, CalendarRange, Target, Trophy, UserPlus } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../../components/ui/PageIcon';
+import { metricIconFor } from '../../../../../../lib/labelIcons';
 
 // Per-salesperson drill-down. Management clicks a rep on the Rep Leaderboard /
 // Team Performance and lands here:
@@ -133,7 +136,7 @@ export default function SalespersonPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <Link href="/dashboard/crm/reports/rep-leaderboard" style={{ color: 'var(--text-dim)', fontSize: 13, textDecoration: 'none' }}>← Rep Leaderboard</Link>
-        <h2 style={{ color: 'var(--text)', margin: 0, fontSize: 20 }}>{name}</h2>
+        <h2 style={{ color: 'var(--text)', margin: 0, fontSize: 20, display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />{name}</h2>
         <Link href={`/dashboard/crm/leads?owner=${encodeURIComponent(userId)}`} style={{ marginLeft: 'auto', color: 'var(--accent, #6366f1)', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
           View in Leads →
         </Link>
@@ -141,7 +144,7 @@ export default function SalespersonPage() {
 
       {/* Sales summary — won deals */}
       <section style={card}>
-        <h3 style={h3}>Sales (won deals)</h3>
+        <h3 style={h3}><InlineIcon icon={Trophy} size={16} style={{ color: 'var(--text-dim)' }} />Sales (won deals)</h3>
         {loading && !summary ? <Muted>Loading…</Muted> : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
             <Kpi label="Revenue" value={inr(summary?.revenue || 0)} strong />
@@ -157,7 +160,7 @@ export default function SalespersonPage() {
       <section style={card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <h3 style={{ ...h3, marginBottom: 0 }}>Monthly sales target</h3>
+            <h3 style={{ ...h3, marginBottom: 0 }}><InlineIcon icon={Target} size={16} style={{ color: 'var(--text-dim)' }} />Monthly sales target</h3>
             {d && <BasisBadge basis={d.basis} />}
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-dim)', fontSize: 12 }}>
@@ -194,7 +197,7 @@ export default function SalespersonPage() {
         <>
           {/* Customer-wise orders contributing this month */}
           <section style={card}>
-            <h3 style={h3}>Customers this month ({d.customers.length})</h3>
+            <h3 style={h3}><InlineIcon icon={Building2} size={16} style={{ color: 'var(--text-dim)' }} />Customers this month ({d.customers.length})</h3>
             {d.customers.length === 0 ? <Muted>No sales recorded in this month.</Muted> : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={tableStyle}>
@@ -224,7 +227,7 @@ export default function SalespersonPage() {
           {/* Daily & weekly progress */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
             <section style={card}>
-              <h3 style={h3}>Daily progress</h3>
+              <h3 style={h3}><InlineIcon icon={CalendarDays} size={16} style={{ color: 'var(--text-dim)' }} />Daily progress</h3>
               <ProgressList
                 rows={d.daily.map((x) => ({ key: x.date, label: fmtDay(x.date), value: x.value, count: x.count }))}
                 countLabel={countLabel}
@@ -232,7 +235,7 @@ export default function SalespersonPage() {
               />
             </section>
             <section style={card}>
-              <h3 style={h3}>Weekly progress</h3>
+              <h3 style={h3}><InlineIcon icon={CalendarRange} size={16} style={{ color: 'var(--text-dim)' }} />Weekly progress</h3>
               <ProgressList
                 rows={d.weekly.map((x) => ({ key: x.week_start, label: `Week of ${fmtDay(x.week_start)}`, value: x.value, count: x.count }))}
                 countLabel={countLabel}
@@ -243,7 +246,7 @@ export default function SalespersonPage() {
 
           {/* Historical target vs achieved — last 6 months */}
           <section style={card}>
-            <h3 style={h3}>Target vs achieved — last 6 months</h3>
+            <h3 style={h3}><InlineIcon icon={BarChart3} size={16} style={{ color: 'var(--text-dim)' }} />Target vs achieved — last 6 months</h3>
             <div style={{ overflowX: 'auto' }}>
               <table style={tableStyle}>
                 <thead>
@@ -275,7 +278,7 @@ export default function SalespersonPage() {
       {/* Leads assigned to this salesperson */}
       <section style={card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-          <h3 style={{ ...h3, marginBottom: 0 }}>Leads ({shownLeads.length})</h3>
+          <h3 style={{ ...h3, marginBottom: 0 }}><InlineIcon icon={UserPlus} size={16} style={{ color: 'var(--text-dim)' }} />Leads ({shownLeads.length})</h3>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={sel}>
             <option value="">All statuses</option>
             {leadStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -323,7 +326,7 @@ export default function SalespersonPage() {
 function Kpi({ label, value, strong }: { label: string; value: string | number; strong?: boolean }) {
   return (
     <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{(() => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; })()}{label}</div>
       <div style={{ fontSize: strong ? 20 : 18, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>
   );
@@ -414,7 +417,7 @@ function inr(n: number): string {
 }
 
 const card: React.CSSProperties = { background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 };
-const h3: React.CSSProperties = { color: 'var(--text)', margin: '0 0 12px' };
+const h3: React.CSSProperties = { color: 'var(--text)', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 };
 const sel: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px', borderRadius: 8, fontSize: 13 };
 const tableStyle: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
 const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, borderBottom: '1px solid var(--border)' };

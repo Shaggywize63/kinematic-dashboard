@@ -1,5 +1,7 @@
 'use client';
 import type { CSSProperties } from 'react';
+import { Package } from 'lucide-react';
+import { InlineIcon } from '../../ui/PageIcon';
 import type { DealLineItem } from '../../../types/crm';
 import { arr } from '../../../lib/sparkAccounts';
 import { formatINR } from '../../../lib/formatCurrency';
@@ -35,7 +37,7 @@ export function DealLinesCard({ items, error }: { items: DealLineItem[] | null; 
   const totals = lineTotals(list);
   return (
     <div data-testid="deal-lines-card" style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{`Products${list.length ? ` (${list.length})` : ''}`}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Package} size={16} style={{ color: 'var(--text-dim)' }} />{`Products${list.length ? ` (${list.length})` : ''}`}</div>
       {error ? (
         <div style={{ fontSize: 12, color: T.red }}>Could not load the product lines.</div>
       ) : items === null ? (

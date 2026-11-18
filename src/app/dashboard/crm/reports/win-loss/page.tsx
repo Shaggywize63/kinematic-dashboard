@@ -14,6 +14,8 @@ import {
 import { useLeadFieldGate } from '../../../../../lib/crm/useLeadFieldGate';
 import { fmtInr, fmtInt, fmtPct, type Column, cellText, columnsToCsvRows } from '../../../../../lib/crm/plusFormat';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
+import { Download } from 'lucide-react';
+import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
 
 // The API now also returns the value behind each rate (INR) and the open deals not
 // yet counted in it. Optional so an older backend / demo data still renders.
@@ -84,7 +86,7 @@ export default function WinLossReportPage() {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <h3 style={{ color: 'var(--text)', margin: 0 }}>Win Rate</h3>
+        <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}><PageIcon size={32} />Win Rate</h3>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <ReportRangePicker range={range} onChange={setRange} />
           <select aria-label="Group by" value={by} onChange={(e) => setBy(e.target.value as By)} style={sel}>
@@ -96,8 +98,8 @@ export default function WinLossReportPage() {
             onClick={() => downloadCsv(`win-rate-by-${by}`, columnsToCsvRows(columns, exportRows))}
             disabled={loading || data.length === 0}
             aria-label="Download CSV"
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, height: 36 }}
-          >⬇ CSV</button>
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, height: 36, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          ><InlineIcon icon={Download} size={14} />CSV</button>
         </div>
       </div>
       {loading ? <div style={{ color: 'var(--text-dim)' }}>Loading...</div> : (

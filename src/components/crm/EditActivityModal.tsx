@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Check, Pencil, Trash2 } from 'lucide-react';
 import api from '../../lib/api';
 import { crmActivities } from '../../lib/crmApi';
 import type { Activity } from '../../types/crm';
@@ -151,7 +152,7 @@ export default function EditActivityModal({ activity, onClose, onSaved }: { acti
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' as const }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 16, fontWeight: 800 }}>Edit activity</div>
+          <div style={{ fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}><Pencil aria-hidden size={17} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Edit activity</div>
           <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 22 }}>×</button>
         </div>
         <Field label="Type">
@@ -226,12 +227,14 @@ export default function EditActivityModal({ activity, onClose, onSaved }: { acti
             background: 'transparent', border: '1px solid rgba(224,30,44,0.4)',
             color: 'var(--primary)', cursor: deleting ? 'not-allowed' : 'pointer',
             opacity: deleting ? 0.5 : 1,
+            display: 'inline-flex', alignItems: 'center', gap: 6,
           }}>
-            {deleting ? 'Deleting…' : '🗑 Delete'}
+            <Trash2 aria-hidden size={14} strokeWidth={2} />
+            {deleting ? 'Deleting…' : 'Delete'}
           </button>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={onClose} disabled={deleting || saving} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer' }}>Cancel</button>
-            <button onClick={submit} disabled={saving || deleting} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'var(--primary)', border: 'none', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? 'Saving…' : 'Save changes'}</button>
+            <button onClick={submit} disabled={saving || deleting} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'var(--primary)', border: 'none', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Check aria-hidden size={14} strokeWidth={2} />{saving ? 'Saving…' : 'Save changes'}</button>
           </div>
         </div>
       </div>

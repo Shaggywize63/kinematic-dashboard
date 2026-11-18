@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ChevronRight, KanbanSquare, Plus, SlidersHorizontal, Star, Trash2 } from 'lucide-react';
+import { ChevronRight, KanbanSquare, Milestone, Plus, SlidersHorizontal, Star, Trash2 } from 'lucide-react';
 import { crmPipelines, crmDeals } from '../../../../lib/crmApi';
 import type { Pipeline, Deal } from '../../../../types/crm';
 import PipelineCreateModal from '../../../../components/crm/PipelineCreateModal';
@@ -105,7 +105,7 @@ export default function PipelinePage() {
       ) : (
         <Card padding={0} style={{ overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '14px 16px', borderBottom: `1px solid ${T.border}` }}>
-            <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, color: T.text }}>All pipelines</div>
+            <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, color: T.text, display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'center' }}><KanbanSquare aria-hidden size={16} strokeWidth={2} style={{ color: T.dim, flexShrink: 0 }} />All pipelines</div>
             <span style={{ fontFamily: T.mono, fontSize: 11, color: T.mute }}>{pipelines.length}</span>
           </div>
           {/*
@@ -176,7 +176,7 @@ export default function PipelinePage() {
                       </div>
                     ) : (
                       <>
-                        <Eyebrow style={{ marginBottom: 10 }}>Stages</Eyebrow>
+                        <Eyebrow style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}><Milestone aria-hidden size={13} strokeWidth={2} />Stages</Eyebrow>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 8 }}>
                           {stages.map((s, si) => {
                             const count = dealsHere.filter((d) => (d as any).stage_id === s.id).length;

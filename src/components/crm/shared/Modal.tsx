@@ -1,6 +1,6 @@
 'use client';
 import { useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, type LucideIcon } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -10,9 +10,11 @@ interface Props {
   children: React.ReactNode;
   footer?: React.ReactNode;
   width?: number;
+  /** A dim icon before the title. */
+  icon?: LucideIcon;
 }
 
-export default function Modal({ open, onClose, title, subtitle, children, footer, width = 720 }: Props) {
+export default function Modal({ open, onClose, title, subtitle, children, footer, width = 720, icon: Icon }: Props) {
   useEffect(() => {
     if (!open) return;
     const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -27,7 +29,10 @@ export default function Modal({ open, onClose, title, subtitle, children, footer
       <div role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, width: '100%', maxWidth: width, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 80px)', boxShadow: 'var(--shadow-pop)' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text)' }}>{title}</div>
+            <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              {Icon && <Icon aria-hidden size={18} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />}
+              {title}
+            </div>
             {subtitle && <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 2 }}>{subtitle}</div>}
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="km-iconbtn" style={{ width: 32, height: 32, borderRadius: 6, background: 'transparent', border: '1px solid transparent', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><X size={18} strokeWidth={1.6} /></button>

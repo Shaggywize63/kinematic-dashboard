@@ -1,5 +1,5 @@
 'use client';
-import { ArrowRight, X } from 'lucide-react';
+import { ArrowRight, Gauge, X } from 'lucide-react';
 import type { Lead } from '../../../types/crm';
 import { breakdownFactors, llmAdjustmentOf } from '../../../lib/crm/scoreFactors';
 import { Button, Eyebrow, IconButton, T } from '../../ui';
@@ -30,7 +30,7 @@ export default function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onC
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: '16px 20px', borderBottom: `1px solid ${T.border}` }}>
           <div style={{ minWidth: 0 }}>
-            <Eyebrow>Lead score</Eyebrow>
+            <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Gauge aria-hidden size={13} strokeWidth={2} />Lead score</Eyebrow>
             <div style={{ fontFamily: T.heading, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, marginTop: 4 }}>{lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Lead'}</div>
           </div>
           <IconButton label="Close" onClick={onClose}><X size={18} strokeWidth={1.6} /></IconButton>

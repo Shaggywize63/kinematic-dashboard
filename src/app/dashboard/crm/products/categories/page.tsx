@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { ArrowLeft, Check, FolderTree, Pencil, Plus, Trash2 } from 'lucide-react';
+import { IconTile, InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmProductCategories } from '../../../../../lib/crmApi';
 import type { ProductCategory } from '../../../../../types/crm';
 
@@ -99,19 +101,22 @@ export default function ProductCategoriesPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <PageIcon name="tags" />
+          <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Product Categories</h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-dim)', maxWidth: 640 }}>Group products into a category tree. Used in the products list and on deal line items.</p>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Link href="/dashboard/crm/products" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none' }}>← Back to Products</Link>
-          <button onClick={() => { resetAdd(); setShowAdd(true); }} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ New Category</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Link href="/dashboard/crm/products" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ArrowLeft} />Back to Products</Link>
+          <button onClick={() => { resetAdd(); setShowAdd(true); }} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />New Category</button>
         </div>
       </div>
 
       {showAdd && (
         <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>New Category</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={FolderTree} size={15} style={{ color: 'var(--text-dim)' }} />New Category</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
             <Field label="Name *"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. TMT Bars" style={input} /></Field>
             <Field label="Parent (optional)">
@@ -126,7 +131,7 @@ export default function ProductCategoriesPage() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
             <button onClick={resetAdd} style={btnGhost}>Cancel</button>
-            <button onClick={create} style={btnPrimary}>Create</button>
+            <button onClick={create} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Check} size={14} />Create</button>
           </div>
         </div>
       )}
@@ -145,7 +150,7 @@ export default function ProductCategoriesPage() {
           </thead>
           <tbody>
             {loading && <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading…</td></tr>}
-            {!loading && items.length === 0 && <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No categories yet — click <strong style={{ color: 'var(--text)' }}>+ New Category</strong> to add one.</td></tr>}
+            {!loading && items.length === 0 && <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}><IconTile icon={FolderTree} size={40} iconSize={20} style={{ display: 'flex', margin: '8px auto' }} />No categories yet — click <strong style={{ color: 'var(--text)' }}>New Category</strong> to add one.</td></tr>}
             {items.map((c) => editingId === c.id ? (
               <tr key={c.id} style={{ background: 'var(--s3)' }}>
                 <td style={td}><input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} style={input} /></td>
@@ -159,7 +164,7 @@ export default function ProductCategoriesPage() {
                 <td style={td}><input type="color" value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} style={{ ...input, padding: 4, height: 32, width: 56 }} /></td>
                 <td style={td}><input value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} style={input} /></td>
                 <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button onClick={saveEdit} disabled={busyId === c.id} style={btnPrimary}>Save</button>{' '}
+                  <button onClick={saveEdit} disabled={busyId === c.id} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Check} size={13} />Save</button>{' '}
                   <button onClick={() => setEditingId(null)} style={btnGhost}>Cancel</button>
                 </td>
               </tr>
@@ -176,8 +181,8 @@ export default function ProductCategoriesPage() {
                 <td style={td}><span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c.color ?? '—'}</span></td>
                 <td style={td}>{c.description || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
                 <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button onClick={() => startEdit(c)} style={btnGhost}>Edit</button>{' '}
-                  <button onClick={() => remove(c)} disabled={busyId === c.id} style={btnDanger}>Delete</button>
+                  <button onClick={() => startEdit(c)} style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Pencil} size={13} />Edit</button>{' '}
+                  <button onClick={() => remove(c)} disabled={busyId === c.id} style={{ ...btnDanger, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Trash2} size={13} />Delete</button>
                 </td>
               </tr>
             ))}

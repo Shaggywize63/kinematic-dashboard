@@ -570,7 +570,7 @@ test.describe('Won flow: confirm the ordered value', () => {
     const calls = await setup(page, { lines: NO_ORDERS });
     await openClose(page);
     await expect(page.getByText('Confirm the ordered value')).toBeVisible();
-    await page.getByRole('button', { name: '✗ Lost' }).click();
+    await page.getByRole('button', { name: 'Lost', exact: true }).click();
     await expect(page.getByText('Confirm the ordered value')).toHaveCount(0);
     await page.locator('select:has(option[value="Lost to competitor"])').selectOption('Lost to competitor');
     await page.getByRole('button', { name: 'Close as Lost' }).click();

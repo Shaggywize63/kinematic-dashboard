@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { Sparkles } from 'lucide-react';
 
 export default function AiBadge({ label = 'AI', tone = 'blue' }: { label?: string; tone?: 'blue' | 'green' | 'red' }) {
   const colorMap: Record<string, string> = {
@@ -25,7 +26,7 @@ export default function AiBadge({ label = 'AI', tone = 'blue' }: { label?: strin
         border: `1px solid ${color}33`,
       }}
     >
-      ✨ {label}
+      <Sparkles aria-hidden size={11} strokeWidth={2.2} style={{ flexShrink: 0 }} />{label}
     </span>
   );
 }

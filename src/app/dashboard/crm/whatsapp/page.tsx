@@ -6,6 +6,8 @@ import { crmContacts, crmLeads, crmActivities, crmWhatsappTemplates } from '../.
 import { waLink, isValidWaPhone } from '../../../../lib/whatsapp';
 import type { Contact, Lead, WhatsappTemplate } from '../../../../types/crm';
 import WhatsAppLogo from '../../../../components/icons/WhatsAppLogo';
+import { CheckCircle2, CheckSquare, Copy } from 'lucide-react';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 
 // Built-in fall-backs surfaced when the org has no saved templates yet. As
 // soon as the user creates a template in /dashboard/crm/templates it shows
@@ -294,9 +296,9 @@ export default function WhatsAppPage() {
             type="button"
             onClick={copyMessage}
             disabled={!message.trim()}
-            style={{ padding: '11px 16px', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: message.trim() ? 'pointer' : 'not-allowed', opacity: message.trim() ? 1 : 0.5 }}
+            style={{ padding: '11px 16px', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: message.trim() ? 'pointer' : 'not-allowed', opacity: message.trim() ? 1 : 0.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            Copy Message
+            <InlineIcon icon={Copy} />Copy Message
           </button>
           {previewLink && (
             <a href={previewLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--primary)', textDecoration: 'underline' }}>
@@ -308,8 +310,8 @@ export default function WhatsAppPage() {
 
       {opened && (
         <div style={{ background: 'var(--s2)', border: '1px solid #25D36655', borderRadius: 14, padding: 18 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
-            ✓ WhatsApp opened in a new tab
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <InlineIcon icon={CheckCircle2} size={16} style={{ color: 'var(--ok)' }} />WhatsApp opened in a new tab
           </div>
           <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 12px' }}>
             {entityRef
@@ -321,9 +323,9 @@ export default function WhatsAppPage() {
               type="button"
               onClick={logActivity}
               disabled={logging}
-              style={{ padding: '9px 16px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: logging ? 'wait' : 'pointer', opacity: logging ? 0.6 : 1 }}
+              style={{ padding: '9px 16px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: logging ? 'wait' : 'pointer', opacity: logging ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              {logging ? 'Logging…' : 'Log Follow-up Activity'}
+              {!logging && <InlineIcon icon={CheckSquare} />}{logging ? 'Logging…' : 'Log Follow-up Activity'}
             </button>
           ) : (
             <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>

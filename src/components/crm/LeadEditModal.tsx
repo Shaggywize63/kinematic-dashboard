@@ -22,7 +22,11 @@ import { isKinematicTenant, STEEL_DEALER_CLIENT_IDS } from '../../lib/clientFeat
 import { useAuth } from '../../hooks/useAuth';
 import { useLeadOwnerAccess } from '../../lib/leadOwnerAccess';
 import { LEAD_TYPE_DEFAULT_LABEL, LEAD_TYPE_OPTIONS, leadTypeForApi } from '../../lib/leadType';
-import { LocateFixed, CheckCircle2 } from 'lucide-react';
+import {
+  Building2, CalendarClock, CheckCircle2, CheckSquare, Contact as ContactIcon, LocateFixed, MapPin, Package, Pencil, Plus, ShieldCheck,
+  SlidersHorizontal, StickyNote, UserPlus, UserRound, type LucideIcon,
+} from 'lucide-react';
+import { InlineIcon } from '../ui/PageIcon';
 import { Button, Field, Input, Segmented, Select, Textarea, eyebrowStyle, labelStyle, requiredMark } from '../ui';
 
 interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (updated: Lead) => void; }
@@ -541,7 +545,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const showToggle = businessType === 'both' && !isTata;
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit lead" width={760}
+    <Modal open={open} onClose={onClose} title="Edit lead" icon={Pencil} width={760}
       footer={<><Button type="button" onClick={onClose}>Cancel</Button><Button type="button" variant="primary" disabled={busy} onClick={() => submit()}>{busy ? 'Saving…' : 'Save changes'}</Button></>}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 4 }}>
         <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-dim)' }}>Fields marked {requiredMark} are required.</p>
@@ -613,7 +617,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--s2)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
                       <CheckCircle2 size={15} strokeWidth={2} style={{ color: 'var(--ok, #16a34a)', flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600 }}>👤 {[form.first_name, form.last_name].filter(Boolean).join(' ') || 'Linked contact'}</span>
+                      <InlineIcon icon={UserRound} size={14} style={{ color: 'var(--text-dim)' }} />
+                      <span style={{ fontWeight: 600 }}>{[form.first_name, form.last_name].filter(Boolean).join(' ') || 'Linked contact'}</span>
                       {form.title && <span style={{ color: 'var(--text-dim)' }}>· {form.title}</span>}
                       <button type="button" onClick={() => { setPersonContactId(''); setPersonQuery(''); }} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
                     </div>
@@ -632,7 +637,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                           <button key={c.id} type="button" role="option"
                             onClick={() => { setForm((f) => ({ ...f, first_name: c.first_name || '', last_name: c.last_name || '', title: c.title || f.title, phone: c.phone || f.phone, email: c.email || f.email, department: (c.department as string) || f.department })); setPersonContactId(c.id); adoptContactCompany(c); setPersonResults([]); setPersonQuery([c.first_name, c.last_name].filter(Boolean).join(' ')); }}
                             style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13.5 }}>
-                            <span aria-hidden>👤</span>
+                            <InlineIcon icon={UserRound} size={14} style={{ color: 'var(--text-dim)' }} />
                             <span style={{ fontWeight: 600 }}>{[c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Unnamed contact'}</span>
                             {(c.title || c.phone) && <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-dim)' }}>{c.title || c.phone}</span>}
                           </button>
@@ -775,7 +780,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                               onClick={() => { setForm((f) => ({ ...f, company: a.name, account_id: a.id, industry: (a.industry || '').trim() || f.industry })); setAccountResults([]); }}
                               style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}
                             >
-                              <span aria-hidden>🏢</span>
+                              <InlineIcon icon={Building2} size={14} style={{ color: 'var(--text-dim)' }} />
                               <span style={{ fontWeight: 600 }}>{a.name}</span>
                               <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>Existing account</span>
                             </button>
@@ -784,7 +789,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                       )}
                       {form.account_id && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12.5, color: 'var(--ok)' }}>
-                          <span>✓ Linked to existing account</span>
+                          <CheckCircle2 aria-hidden size={14} strokeWidth={2} style={{ flexShrink: 0 }} />
+                          <span>Linked to existing account</span>
                           <button type="button" onClick={() => setForm((f) => ({ ...f, account_id: '' }))} style={{ marginLeft: 4, background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', padding: 0 }}>Change</button>
                         </div>
                       )}
@@ -848,7 +854,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                     <Button type="button" onClick={() => setProductLines((rows) => (rows.length > 1 ? rows.filter((r) => r.key !== row.key) : [newProductLine()]))} aria-label="Remove product line">×</Button>
                   </div>
                 ))}
-                <div><Button type="button" onClick={() => setProductLines((rows) => [...rows, newProductLine()])}>+ Add product line</Button></div>
+                <div><Button type="button" onClick={() => setProductLines((rows) => [...rows, newProductLine()])} icon={<Plus size={15} strokeWidth={2} />}>Add product line</Button></div>
               </div>
             </div></FlatBlock>
           )}
@@ -1072,13 +1078,22 @@ const SECTION_HINTS: Record<string, string> = {
 // Section header — a prominent full-contrast title + hairline divider (above
 // every section but the first) + the keyed hint, so the edit modal groups
 // fields into clear sections the same way the create form does.
+// One icon per section heading (by name) — the same ones the create form uses.
+const SECTION_ICON: Record<string, LucideIcon> = {
+  Contact: ContactIcon, Person: UserRound, 'Company & plant': Building2, 'Requirement & products': Package, Assignment: UserPlus,
+  Company: Building2, Location: MapPin, Customer: UserRound, Address: MapPin, Consent: ShieldCheck, 'Additional details': SlidersHorizontal,
+  Activity: CheckSquare, 'Notes & tags': StickyNote, 'Pin location': LocateFixed, 'Schedule visit': CalendarClock,
+};
 function SL({ children, first }: { children: React.ReactNode; first?: boolean }) {
   // Ordered mode: the field sections are flattened into one grid, so their headings dissolve (see FlatRegion).
   if (useContext(FlatCtx)) return null;
   const hint = typeof children === 'string' ? SECTION_HINTS[children] : undefined;
   return (
     <div style={{ margin: first ? '2px 0 12px' : '22px 0 12px', paddingTop: first ? 0 : 18, borderTop: first ? 0 : '1px solid var(--border)' }}>
-      <div style={{ ...eyebrowStyle, fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{children}</div>
+      <div style={{ ...eyebrowStyle, fontSize: 12, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+        {typeof children === 'string' && SECTION_ICON[children] && <InlineIcon icon={SECTION_ICON[children]} size={14} style={{ color: 'var(--text-dim)' }} />}
+        {children}
+      </div>
       {hint && <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 4 }}>{hint}</div>}
     </div>
   );
