@@ -90,6 +90,17 @@ export interface LeadContactLink {
   name: string; title?: string | null; phone?: string | null; email?: string | null;
 }
 
+// A co-owner (additional owner) of a lead / account / contact / deal. The record keeps its single
+// primary owner; co-owners are peers who also see it in their lists and reports.
+export interface CoOwner { user_id: string; name: string | null; }
+export type CoOwnerEntity = 'leads' | 'accounts' | 'contacts' | 'deals';
+export const crmCoOwners = {
+  list: (entity: CoOwnerEntity, id: string) => api.get<Wrapped<CoOwner[]>>(`${BASE}/${entity}/${id}/co-owners`),
+  // Replace the whole co-owner set; the server validates org membership and drops the primary owner.
+  set: (entity: CoOwnerEntity, id: string, userIds: string[]) =>
+    api.put<Wrapped<CoOwner[]>>(`${BASE}/${entity}/${id}/co-owners`, { user_ids: userIds }),
+};
+
 export const crmLeads = {
   ...crud<Lead>(`${BASE}/leads`),
   // The make/product/qty lines captured under this lead's requirement (Spark & Ray).
