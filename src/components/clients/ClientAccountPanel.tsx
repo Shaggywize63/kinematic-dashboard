@@ -15,10 +15,14 @@ import { financeApi, type DocRow } from '../../lib/financeApi';
  * /send-payment-reminder.
  */
 
-interface NextPayment { invoice_id: string; number: string; due_date: string | null; total: number; balance: number; status: string; share_token: string | null }
+interface NextPayment {
+  invoice_id: string | null; number: string | null; due_date: string | null; total: number | null; balance: number | null;
+  status: string; share_token: string | null; scheduled: boolean;
+}
 interface Account {
   name: string; contact_person: string | null; contact_email: string | null; allocated: number | null; active: number;
   finance_customer_id: string | null; next_payment: NextPayment | null; price_per_user: number | null;
+  detected_price_per_user: number | null;
 }
 interface Customer { id: string; display_name: string; email?: string | null; company_name?: string | null; gstin?: string | null }
 interface SeatCharge {
@@ -109,13 +113,14 @@ export default function ClientAccountPanel({ clientId }: { clientId: string }) {
     finally { setBusy(''); }
   };
 
-  const savePrice = async () => {
+  const savePriceValue = async (raw: string) => {
     setBusy('price'); setErr(''); setNote('');
     try {
-      const trimmed = priceDraft.trim();
+      const trimmed = raw.trim();
       const price = trimmed === '' ? null : Number(trimmed);
       if (price != null && (!Number.isFinite(price) || price <= 0)) { setErr('Enter a positive price, or clear it to turn pro-rated billing off.'); return; }
       await api.put(`/api/v1/clients/${clientId}/seat-price`, { price_per_user: price });
+      setPriceDraft(price != null ? String(price) : '');
       load();
       setNote(price == null ? 'Pro-rated seat billing turned off.' : `Price per seat set to ${inr(price)} — new or reactivated seats will now be pro-rated.`);
     } catch (e: any) { setErr(e?.response?.data?.error || e?.message || 'Could not save the price'); }
@@ -185,10 +190,12 @@ export default function ClientAccountPanel({ clientId }: { clientId: string }) {
         {tile('Users active', acct.active,
           acct.allocated == null ? 'Currently active' : `${Math.max(0, acct.allocated - acct.active)} seat${acct.allocated - acct.active === 1 ? '' : 's'} left`,
           acct.allocated != null && acct.active >= acct.allocated ? '#E01E2C' : undefined)}
-        {tile('Next payment',
+        {tile(np?.scheduled ? 'Next payment (scheduled)' : 'Next payment',
           np ? fmtDate(np.due_date) : '—',
-          np ? <>Invoice {np.number} · {inr(np.balance)} due{overdue ? ' · overdue' : ''}</> : (acct.finance_customer_id ? 'No unpaid invoice' : 'Link a customer'),
-          np ? (overdue ? '#E01E2C' : undefined) : undefined)}
+          np
+            ? (np.scheduled ? 'Not yet invoiced — recurring invoice due around this date' : <>Invoice {np.number} · {inr(np.balance)} due{overdue ? ' · overdue' : ''}</>)
+            : (acct.finance_customer_id ? 'No unpaid or recurring invoice' : 'Link a customer'),
+          np ? (!np.scheduled && overdue ? '#E01E2C' : undefined) : undefined)}
       </div>
 
       {/* Billing link */}
@@ -244,9 +251,18 @@ export default function ClientAccountPanel({ clientId }: { clientId: string }) {
               value={priceDraft} onChange={(e) => setPriceDraft(e.target.value)} placeholder="e.g. 500" inputMode="decimal"
               style={{ width: 110, padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--text)', fontSize: 13 }}
             />
-            {btn('Save', savePrice, { primary: true })}
+            {btn('Save', () => savePriceValue(priceDraft), { primary: true })}
           </div>
         </div>
+        {acct.detected_price_per_user != null && acct.detected_price_per_user !== acct.price_per_user && (
+          <div style={{ fontSize: 11.5, color: 'var(--textTert)', marginTop: 6 }}>
+            Detected {inr(acct.detected_price_per_user)}/seat from this client's own invoice.{' '}
+            <button
+              type="button" onClick={() => savePriceValue(String(acct.detected_price_per_user))}
+              style={{ fontSize: 11.5, fontWeight: 700, color: ACCENT, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            >Use this</button>
+          </div>
+        )}
 
         {charges.length > 0 && (
           <div style={{ marginTop: 12 }}>
