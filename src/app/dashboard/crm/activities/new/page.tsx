@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { CalendarPlus, Check, ClipboardList, Link2, type LucideIcon } from 'lucide-react';
 import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmActivities, crmLeads, crmContacts, crmDeals, crmAccounts } from '../../../../../lib/crmApi';
+import { leadOptionLabel } from '../../../../../lib/leadLabel';
 import api from '../../../../../lib/api';
 import { getStoredUser } from '../../../../../lib/auth';
 import { isFirstVisitTenant } from '../../../../../lib/clientFeatures';
@@ -222,7 +223,7 @@ function NewActivityPageInner() {
         if (initialEntityType === 'lead') {
           const r = await crmLeads.get(initialEntityId);
           const x = r.data as any;
-          if (x) label = [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Lead';
+          if (x) label = leadOptionLabel(x);
         } else if (initialEntityType === 'contact') {
           const r = await crmContacts.get(initialEntityId);
           const x = r.data as any;
@@ -254,12 +255,10 @@ function NewActivityPageInner() {
       let data: any[] = [];
       if (entityType === 'lead') {
         const r = await crmLeads.list(q ? { q } : undefined);
-        data = (r.data || []).map((x: Lead) => {
-          const name = [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Lead';
-          // Show the contact number alongside the name so the FE can pick the
-          // right lead while logging an activity.
-          return { id: x.id, label: x.phone ? `${name} · ${x.phone}` : name };
-        });
+        // Show the name with the requirement (Spark & Ray) — one person can have
+        // several leads/requirements — else the contact number, so the rep can
+        // pick the right lead while logging an activity.
+        data = (r.data || []).map((x: Lead) => ({ id: x.id, label: leadOptionLabel(x) }));
       } else if (entityType === 'contact') {
         const r = await crmContacts.list(q ? { q } : undefined);
         data = (r.data || []).map((x: any) => ({
