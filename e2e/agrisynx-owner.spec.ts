@@ -311,6 +311,7 @@ test.describe('Admin-only lead owner — leads list', () => {
     await expect(page.getByRole('button', { name: /Assign to…/ })).toBeVisible();
 
     await page.getByRole('button', { name: 'Assign to me' }).click();
+    await page.getByTestId('confirm-dialog-confirm').click();
     await expect.poll(() => writes(seen, 'POST', '/api/v1/crm/leads/bulk-assign')[0]?.body).toBeTruthy();
     expect(writes(seen, 'POST', '/api/v1/crm/leads/bulk-assign')[0].body).toMatchObject({ lead_ids: ['lead-1'], owner_id: SEED_USER.id });
   });
