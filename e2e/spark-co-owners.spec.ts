@@ -58,6 +58,14 @@ test.describe('Lead co-owners card', () => {
     await expect(page.getByText('Ravi Kumar').first()).toBeVisible();
   });
 
+  test('an admin gets an owner-reassign control on the card (not a static chip)', async ({ page }) => {
+    await setup(page);
+    await open(page);
+    // With owner change enabled on leads, the primary owner is a reassign trigger (a button), not plain text.
+    await expect(page.getByRole('button', { name: /Asha Menon/ })).toBeVisible();
+    await expect(page.getByText('PRIMARY', { exact: true })).toBeVisible();
+  });
+
   test('an admin can add a co-owner (PUT carries the full id set)', async ({ page }) => {
     const seen = await setup(page);
     await open(page);

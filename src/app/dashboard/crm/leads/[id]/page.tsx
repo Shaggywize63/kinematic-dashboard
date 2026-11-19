@@ -542,8 +542,8 @@ export default function LeadDetailPage() {
         <aside aria-label="Lead intelligence" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Connected-B2B (Spark & Ray): the customer people on this lead, with "Make primary" to change the nodal contact. */}
           <LeadPeopleCard leadId={id} />
-          {/* Primary owner + co-owners (peers who also see this lead). */}
-          <CoOwnersCard entity="leads" id={id} primaryOwnerId={lead.owner_id} primaryOwnerName={lead.owner_name} />
+          {/* Primary owner (reassignable here) + co-owners (peers who also see this lead). */}
+          <CoOwnersCard entity="leads" id={id} primaryOwnerId={lead.owner_id} primaryOwnerName={lead.owner_name} allowOwnerChange />
           {/* Connected-B2B: what was spent on this lead (claims linked to it) vs. the deal value. Renders nothing for other clients. */}
           <EntityExpensesCard kind="lead" id={id} />
           {/* Score + boost suggestions are hidden for Consumer Champion reps AND for the Tata Tiscon tenant —
