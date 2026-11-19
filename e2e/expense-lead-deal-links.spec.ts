@@ -351,7 +351,12 @@ for (const kind of ['lead', 'deal'] as const) {
     async function linkSetup(page: Page) {
       const linkBodies: Array<{ url: string; body: Record<string, unknown> }> = [];
       await crmSetup(page, (route) => ok(route, EMPTY_EXPENSES));
-      // Layered after the shared mock, so these run first.
+      // Layered after the shared mock, so these run first. The card asks the admin claim list first (managers
+      // can link anyone's claim) and falls back to the caller's own list — mock both.
+      await page.route('**/api/v1/expenses/claims/all**', (route) =>
+        route.request().method() === 'GET'
+          ? route.fulfill({ json: { success: true, data: MY_CLAIMS, pagination: { total: MY_CLAIMS.length, page: 1, limit: 100 } } })
+          : route.fallback());
       await page.route('**/api/v1/expenses/claims', (route) =>
         route.request().method() === 'GET' ? route.fulfill({ json: { success: true, data: MY_CLAIMS } }) : route.fallback());
       await page.route('**/api/v1/expenses/claims/*/link', (route) => {
@@ -385,7 +390,11 @@ for (const kind of ['lead', 'deal'] as const) {
     test('shows a calm empty state when I have no other expenses to link', async ({ page }) => {
       await scopeToSpark(page);
       await crmSetup(page, (route) => ok(route, EMPTY_EXPENSES));
-      // Only a claim already on this record exists, so nothing is linkable.
+      // Only a claim already on this record exists, so nothing is linkable (mock both claim sources).
+      await page.route('**/api/v1/expenses/claims/all**', (route) =>
+        route.request().method() === 'GET'
+          ? route.fulfill({ json: { success: true, data: [MY_CLAIMS[2]], pagination: { total: 1, page: 1, limit: 100 } } })
+          : route.fallback());
       await page.route('**/api/v1/expenses/claims', (route) =>
         route.request().method() === 'GET' ? route.fulfill({ json: { success: true, data: [MY_CLAIMS[2]] } }) : route.fallback());
       await page.goto(url);

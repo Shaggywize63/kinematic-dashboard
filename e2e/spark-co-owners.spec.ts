@@ -18,12 +18,13 @@ const USERS = [{ id: 'u-asha', name: 'Asha Menon' }, { id: 'u-ravi', name: 'Ravi
 
 interface Seen { method: string; path: string; body: any }
 
-async function setup(page: Page, o: { overrides?: Record<string, unknown>; coOwners?: unknown[] } = {}) {
+async function setup(page: Page, o: { overrides?: Record<string, unknown>; coOwners?: unknown[]; role?: string } = {}) {
   const seen: Seen[] = [];
-  await seedSession(page, SEED_USER);
+  const user = o.role ? { ...SEED_USER, role: o.role } : SEED_USER;
+  await seedSession(page, user);
   await mockApi(page, {
     settings: { success: true, data: { business_type: 'both', config: { field_overrides: o.overrides ?? {} } } },
-    me: { success: true, data: SEED_USER },
+    me: { success: true, data: user },
     onRequest: async (route, url, method) => {
       const path = url.split('?')[0].replace(/^https?:\/\/[^/]+/, '');
       let body: any = null;
@@ -57,6 +58,14 @@ test.describe('Lead co-owners card', () => {
     await expect(page.getByText('Ravi Kumar').first()).toBeVisible();
   });
 
+  test('an admin gets an owner-reassign control on the card (not a static chip)', async ({ page }) => {
+    await setup(page);
+    await open(page);
+    // With owner change enabled on leads, the primary owner is a reassign trigger (a button), not plain text.
+    await expect(page.getByRole('button', { name: /Asha Menon/ })).toBeVisible();
+    await expect(page.getByText('PRIMARY', { exact: true })).toBeVisible();
+  });
+
   test('an admin can add a co-owner (PUT carries the full id set)', async ({ page }) => {
     const seen = await setup(page);
     await open(page);
@@ -77,11 +86,20 @@ test.describe('Lead co-owners card', () => {
     expect(put?.body.user_ids).toEqual([]);
   });
 
-  test('the card is withheld when the admin hides the owner field', async ({ page }) => {
+  test('an admin keeps the Owners card even when the owner field is hidden', async ({ page }) => {
+    // Owner is hidden for reps, but an admin keeps the card (so they can still manage co-owners), mirroring the
+    // Change-owner control that stays for admins when owner_id is hidden.
     await setup(page, { overrides: { 'lead.owner_id': { hidden: true } } });
+    await open(page); // waits for the "Owners" card to render for the admin
+    await expect(page.getByText('PRIMARY', { exact: true })).toBeVisible();
+    await expect(page.getByText('Ravi Kumar').first()).toBeVisible();
+  });
+
+  test('a field rep does not see the Owners card when the owner field is hidden', async ({ page }) => {
+    await setup(page, { overrides: { 'lead.owner_id': { hidden: true } }, role: 'executive' });
     await page.goto('/dashboard/crm/leads/lead-1');
-    // The page loads (some other text appears) but the Owners card never renders.
     await expect(page.getByText('Priya Nair').first()).toBeVisible({ timeout: 30_000 });
+    await page.waitForLoadState('networkidle'); // let the gated card resolve before asserting it's absent
     await expect(page.getByText('Owners', { exact: true })).toHaveCount(0);
   });
 });

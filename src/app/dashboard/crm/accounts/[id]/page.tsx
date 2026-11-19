@@ -323,7 +323,7 @@ export default function AccountDetailPage() {
         </div>
 
         {/* Primary owner + co-owners (peers who also see this account). */}
-        <CoOwnersCard entity="accounts" id={a.id} primaryOwnerId={a.owner_id} primaryOwnerName={a.owner_name} />
+        <CoOwnersCard entity="accounts" id={a.id} primaryOwnerId={a.owner_id} primaryOwnerName={a.owner_name} allowOwnerChange />
 
         {spark && (
           <Card title="Recent updates" icon={MessageSquareText}>
