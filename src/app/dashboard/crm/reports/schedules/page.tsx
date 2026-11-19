@@ -16,6 +16,7 @@ import {
 } from '../../../../../lib/crmApi';
 import { CalendarClock, Check, Mail, Pause, Pencil, Play, Plus, Send, Trash2 } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -40,6 +41,7 @@ function parseEmails(raw: string): string[] {
 }
 
 export default function ReportSchedulesPage() {
+  const confirm = useConfirm();
   const [items, setItems] = useState<ReportSchedule[]>([]);
   const [catalog, setCatalog] = useState<Array<{ key: string; label: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -122,7 +124,13 @@ export default function ReportSchedulesPage() {
   }
 
   async function remove(s: ReportSchedule) {
-    if (!confirm(`Delete digest “${s.name}”?`)) return;
+    const ok = await confirm({
+      title: 'Delete this digest?',
+      message: 'This stops the scheduled email and removes it from the list.',
+      itemName: s.name,
+      confirmLabel: 'Delete digest',
+    });
+    if (!ok) return;
     setBusy((b) => ({ ...b, [s.id]: true }));
     try { await crmReportSchedules.remove(s.id); toast.success('Deleted'); reload(); }
     catch (e: any) { toast.error(e?.message || 'Delete failed'); }

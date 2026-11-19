@@ -4,6 +4,7 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 // Type-aware column sorting for the returns table (raw values per key).
 const returnVal = (r: any, key: string): unknown => {
@@ -22,6 +23,7 @@ const returnVal = (r: any, key: string): unknown => {
 };
 
 export default function ReturnsPage() {
+  const confirm = useConfirm();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
@@ -37,7 +39,18 @@ export default function ReturnsPage() {
   };
   useEffect(() => { load(); }, [status]);
 
-  const approve = async (id: string) => { if (!confirm('Approve this return? A credit-note ledger entry will post.')) return; try { await api.approveDistReturn(id); await load(); } catch (e: any) { alert(e.message); } };
+  const approve = async (id: string) => {
+    const ok = await confirm({
+      title: 'Approve this return?',
+      message: 'A credit-note ledger entry will post.',
+      confirmLabel: 'Approve',
+      confirmingLabel: 'Approving…',
+      tone: 'default',
+      irreversible: false,
+    });
+    if (!ok) return;
+    try { await api.approveDistReturn(id); await load(); } catch (e: any) { alert(e.message); }
+  };
   const reject = async (id: string) => { const r = prompt('Rejection reason?'); if (r === null) return; try { await api.rejectDistReturn(id, r); await load(); } catch (e: any) { alert(e.message); } };
 
   return (

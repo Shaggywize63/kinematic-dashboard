@@ -11,6 +11,7 @@ import type { Product, ProductCategory } from '../../../../types/crm';
 import ProductImportModal from '../../../../components/crm/ProductImportModal';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 export default function ProductsListPage() {
   const [items, setItems] = useState<Product[]>([]);
@@ -24,6 +25,7 @@ export default function ProductsListPage() {
   const [b2b, setB2b] = useState<boolean | null>(null);
   useEffect(() => { setB2b(isB2bClientActive()); }, []);
   const [importing, setImporting] = useState(false);
+  const confirm = useConfirm();
 
   const reload = async () => {
     if (b2b === null) return;
@@ -45,7 +47,13 @@ export default function ProductsListPage() {
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [q, catFilter, showInactive, b2b]);
 
   const handleDelete = async (p: Product) => {
-    if (!confirm(`Delete product "${p.name}"? It will be removed from the list.`)) return;
+    const ok = await confirm({
+      title: 'Delete this product?',
+      message: 'It will be removed from the list.',
+      itemName: p.name,
+      confirmLabel: 'Delete product',
+    });
+    if (!ok) return;
     try {
       await crmProducts.remove(p.id);
       toast.success('Product deleted');

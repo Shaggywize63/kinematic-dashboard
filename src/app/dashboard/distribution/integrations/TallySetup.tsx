@@ -9,6 +9,7 @@ import {
   Send, Settings2, ShoppingCart, Upload, XCircle,
 } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 const BASE = '/api/v1/distribution/integrations';
 
@@ -278,6 +279,7 @@ export function SetupModal({ integration, onClose, onChanged }: { integration: T
 
 // ── Review & import ─────────────────────────────────────────────────────────
 function MastersModal({ integrationId, onClose }: { integrationId: string; onClose: () => void }) {
+  const confirm = useConfirm();
   const [kind, setKind] = useState<'stock_item' | 'party'>('stock_item');
   const [status, setStatus] = useState<'new' | 'matched' | 'imported' | 'ignored'>('new');
   const [q, setQ] = useState('');
@@ -359,7 +361,17 @@ function MastersModal({ integrationId, onClose }: { integrationId: string; onClo
           <button style={{ ...ghostBtn, ...iconBtn }} disabled={working || sel.size === 0} onClick={() => run('ignore', { ids: [...sel] })}><InlineIcon icon={EyeOff} size={14} />Ignore selected</button>
           <button style={{ ...primaryBtn, ...iconBtn }} disabled={working || sel.size === 0} onClick={() => run('import', { ids: [...sel] })}><InlineIcon icon={Upload} size={14} />Import selected ({sel.size})</button>
           {status === 'new' && <button style={{ ...primaryBtn, ...iconBtn }} disabled={working || total === 0}
-            onClick={() => { if (confirm(`Create all ${total} unmatched ${kind === 'party' ? 'dealers' : 'products'} in Kinematic?`)) run('import', { all_new: true }); }}><InlineIcon icon={Upload} size={14} />Import all new ({total})</button>}
+            onClick={async () => {
+              const ok = await confirm({
+                title: `Create all ${total} unmatched ${kind === 'party' ? 'dealers' : 'products'}?`,
+                message: `This creates all ${total} of them in Kinematic`,
+                confirmLabel: 'Import all',
+                confirmingLabel: 'Importing…',
+                tone: 'default',
+                irreversible: false,
+              });
+              if (ok) run('import', { all_new: true });
+            }}><InlineIcon icon={Upload} size={14} />Import all new ({total})</button>}
         </>}
         <button style={ghostBtn} onClick={onClose}>Done</button>
       </div>

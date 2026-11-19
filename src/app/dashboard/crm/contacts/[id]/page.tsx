@@ -22,10 +22,12 @@ import { formatINR } from '../../../../../lib/formatCurrency';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import ContactAccountModal from '../../../../../components/crm/spark/ContactAccountModal';
 import CoOwnersCard from '../../../../../components/crm/CoOwnersCard';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const confirm = useConfirm();
   const [deleting, setDeleting] = useState(false);
   const [c, setC] = useState<Contact | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -100,7 +102,14 @@ export default function ContactDetailPage() {
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Pencil} />Edit</button>
               <button
                 onClick={async () => {
-                  if (!window.confirm(`Delete ${fullName}? This removes the contact from your CRM and cannot be undone from here.`)) return;
+                  if (!(await confirm({
+                    title: 'Delete this contact?',
+                    message: 'This removes the contact from your CRM and cannot be undone from here',
+                    itemName: fullName,
+                    confirmLabel: 'Delete contact',
+                    confirmingLabel: 'Deleting…',
+                    tone: 'danger',
+                  }))) return;
                   setDeleting(true);
                   try {
                     await crmContacts.remove(c.id);

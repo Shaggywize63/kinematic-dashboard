@@ -61,13 +61,12 @@ test.describe('Email campaign: resend to failed recipients', () => {
     const button = page.getByRole('button', { name: /Resend to 2 failed/ });
     await expect(button).toBeVisible();
 
-    let confirmText = '';
-    page.once('dialog', (d) => { confirmText = d.message(); void d.accept(); });
     await button.click();
+    await expect(page.getByTestId('confirm-dialog')).toContainText('2 recipients it failed to reach');
+    await expect(page.getByTestId('confirm-dialog')).toContainText('already received it, bounced or unsubscribed will not be sent again');
+    await page.getByTestId('confirm-dialog-confirm').click();
 
     await expect.poll(() => posts.length).toBe(1);
-    expect(confirmText).toMatch(/2 recipients it failed to reach/);
-    expect(confirmText).toMatch(/already received it, bounced or unsubscribed will not be sent again/);
     // the campaign is sending again: the notice shows, Pause replaces the resend button
     await expect(page.getByRole('status')).toContainText('Resending to 2 failed recipients');
     await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
@@ -77,8 +76,8 @@ test.describe('Email campaign: resend to failed recipients', () => {
   test('declining the confirmation sends nothing', async ({ page }) => {
     const posts: string[] = [];
     await open(page, { campaign: campaign(), failed: 2 }, posts);
-    page.once('dialog', (d) => void d.dismiss());
     await page.getByRole('button', { name: /Resend to 2 failed/ }).click();
+    await page.getByTestId('confirm-dialog-cancel').click();
     await page.waitForTimeout(300);
     expect(posts).toHaveLength(0);
   });
@@ -98,8 +97,8 @@ test.describe('Email campaign: resend to failed recipients', () => {
     await open(page, { campaign: campaign(), failed: 2 }, [], [], {
       status: 400, json: { success: false, error: { code: 'NO_FAILED_RECIPIENTS', message: 'There are no failed recipients to resend' } },
     });
-    page.once('dialog', (d) => void d.accept());
     await page.getByRole('button', { name: /Resend to 2 failed/ }).click();
+    await page.getByTestId('confirm-dialog-confirm').click();
     await expect(page.getByText('There are no failed recipients to resend')).toBeVisible();
     await expect(page.getByRole('button', { name: /Resend to 2 failed/ })).toBeVisible();
   });

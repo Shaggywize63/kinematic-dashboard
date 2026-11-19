@@ -7,6 +7,7 @@ import { crmSettings } from '../../../../lib/crmApi';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 import { useClient } from '@/context/ClientContext';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS } from '../../../../lib/modules';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 const PRESET_COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
 
@@ -20,6 +21,7 @@ const HIDDEN_MODULE_IDS: string[] = ALL_MODULES.filter((m) => HIDDEN_MODULE_GROU
 const keepHidden = (perms: string[]): string[] => perms.filter((p) => HIDDEN_MODULE_IDS.includes(p));
 
 export default function RolesPage() {
+  const confirm = useConfirm();
   const [tree, setTree] = useState<OrgRoleNode[]>([]);
   const [flat, setFlat] = useState<OrgRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -225,7 +227,13 @@ export default function RolesPage() {
       toast.error("You can't remove yourself from your own role — ask another admin.");
       return;
     }
-    if (!window.confirm(`Remove ${user.name || user.email || 'this user'} from this role? They will have no hierarchy role until reassigned.`)) return;
+    if (!(await confirm({
+      title: `Remove ${user.name || user.email || 'this user'} from this role?`,
+      message: 'They will have no hierarchy role until reassigned',
+      confirmLabel: 'Remove from role',
+      confirmingLabel: 'Removing…',
+      tone: 'danger',
+    }))) return;
     try {
       await rolesApi.setUserRole(user.id, null);
       toast.success('User removed from role');
@@ -301,7 +309,14 @@ export default function RolesPage() {
       toast.error("You can't delete the role you're currently assigned to — reassign yourself first.");
       return;
     }
-    if (!window.confirm(`Delete role "${role.name}"? Any direct children will be moved up to "${role.parent_id ? flat.find((r) => r.id === role.parent_id)?.name || 'parent' : 'top level'}".`)) return;
+    if (!(await confirm({
+      title: 'Delete this role?',
+      message: `Any direct children will be moved up to "${role.parent_id ? flat.find((r) => r.id === role.parent_id)?.name || 'parent' : 'top level'}"`,
+      itemName: role.name,
+      confirmLabel: 'Delete role',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     try {
       await rolesApi.remove(role.id);
       toast.success('Role deleted');

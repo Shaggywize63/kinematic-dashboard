@@ -205,10 +205,11 @@ test.describe('Settings -> Industries page', () => {
     await page.goto('/dashboard/crm/settings/industries');
     await expect(rowsOf(page)).toHaveCount(7, { timeout: 30_000 });
 
-    // Delete (confirm) "Other" and "Power & Energy".
-    page.on('dialog', (d) => d.accept());
+    // Delete (confirm) "Other" and "Power & Energy" through the confirmation dialog.
     await page.getByRole('button', { name: 'Delete Other', exact: true }).click();
+    await page.getByTestId('confirm-dialog-confirm').click();
     await page.getByRole('button', { name: 'Delete Power & Energy', exact: true }).click();
+    await page.getByTestId('confirm-dialog-confirm').click();
     await expect(rowsOf(page)).toHaveCount(5);
 
     // Rename the first, recolour via the hex field.
@@ -278,10 +279,9 @@ test.describe('Settings -> Industries page', () => {
     await setupSettings(page, store);
     await page.goto('/dashboard/crm/settings/industries');
     await expect(rowsOf(page)).toHaveCount(7, { timeout: 30_000 });
-    let msg = '';
-    page.once('dialog', (d) => { msg = d.message(); void d.dismiss(); });
     await page.getByRole('button', { name: 'Delete Automotive', exact: true }).click();
-    await expect.poll(() => msg).toContain('Automotive');
+    await expect(page.getByTestId('confirm-dialog')).toContainText('Automotive');
+    await page.getByTestId('confirm-dialog-cancel').click();
     await expect(rowsOf(page)).toHaveCount(7);
   });
 
@@ -308,8 +308,10 @@ test.describe('Settings -> Industries page', () => {
     expect(store.patches).toHaveLength(0);
 
     // Deleting every row is not savable either.
-    page.on('dialog', (d) => d.accept());
-    for (let i = 0; i < 7; i++) await rowsOf(page).first().getByRole('button', { name: /^Delete / }).click();
+    for (let i = 0; i < 7; i++) {
+      await rowsOf(page).first().getByRole('button', { name: /^Delete / }).click();
+      await page.getByTestId('confirm-dialog-confirm').click();
+    }
     await expect(rowsOf(page)).toHaveCount(0);
     await saveBtn(page).click();
     await expect(page.getByTestId('industries-errors')).toContainText('at least one industry');
@@ -335,8 +337,8 @@ test.describe('Settings -> Industries page', () => {
     await setupSettings(page, store);
     await page.goto('/dashboard/crm/settings/industries');
     await expect(rowsOf(page)).toHaveCount(3, { timeout: 30_000 });
-    page.once('dialog', (d) => void d.accept());
     await page.getByRole('button', { name: 'Reset to defaults' }).click();
+    await page.getByTestId('confirm-dialog-confirm').click();
     await expect.poll(() => store.patches.length).toBe(1);
     expect(store.patches[0]).toEqual({ config: { industries: null } });
     await expect(rowsOf(page)).toHaveCount(7);

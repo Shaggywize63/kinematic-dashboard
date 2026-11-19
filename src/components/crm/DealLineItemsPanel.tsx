@@ -4,8 +4,10 @@ import { toast } from 'sonner';
 import { crmDeals, crmLineItems, crmProducts } from '../../lib/crmApi';
 import { formatINR } from '../../lib/formatCurrency';
 import type { DealLineItem, Product } from '../../types/crm';
+import { useConfirm } from '../ConfirmProvider';
 
 export default function DealLineItemsPanel({ dealId, onChange }: { dealId: string; onChange?: () => void }) {
+  const confirm = useConfirm();
   const [items, setItems] = useState<DealLineItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +60,12 @@ export default function DealLineItemsPanel({ dealId, onChange }: { dealId: strin
   };
 
   const remove = async (id: string) => {
-    if (!confirm('Remove this line item?')) return;
+    const ok = await confirm({
+      title: 'Remove this line item?',
+      message: 'It will be removed from the deal.',
+      confirmLabel: 'Remove item',
+    });
+    if (!ok) return;
     try { await crmLineItems.remove(id); reload(); onChange?.(); }
     catch (err: any) { toast.error(err.message || 'Failed'); }
   };

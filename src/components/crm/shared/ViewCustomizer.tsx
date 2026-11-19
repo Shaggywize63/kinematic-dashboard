@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Columns3, Kanban, LayoutGrid, LayoutTemplate, List, Settings2 } from 'lucide-react';
+import { Columns3, Kanban, LayoutGrid, List, Settings2 } from 'lucide-react';
 import type { ViewMode } from '../../../lib/crmViewPrefs';
 import { InlineIcon } from '../../ui/PageIcon';
 
@@ -17,17 +17,16 @@ interface Props {
   hidden: string[];
   mode: ViewMode;
   onToggle: (key: string) => void;
-  onSetMode: (mode: ViewMode) => void;
   onReset: () => void;
-  /** Modes offered in the Layout toggle. Defaults to table/cards; pass ['table','cards','kanban'] to also offer a board view. */
-  modes?: ViewMode[];
 }
 
 /**
  * Customize-view trigger + popover. Lets the user pick which columns
- * appear on the list and switch between a dense table view and a card
- * stack. Per-entity, per-client; persisted to localStorage via the
- * `useViewPrefs` hook.
+ * appear on the list. Per-entity, per-client; persisted to localStorage
+ * via the `useViewPrefs` hook. The table/cards/kanban layout choice lives
+ * next to this, as its own icon toggle — see `LayoutModeToggle` below —
+ * not inside this popover, so it's visible and one click away instead of
+ * buried behind "Customize".
  *
  * Responsive: on phones (≤640px, via a media query in globals.css) the
  * popover snaps to a full-width bottom sheet so it never clips off the
@@ -39,7 +38,42 @@ const MODE_META: Record<ViewMode, { label: string; icon: typeof List }> = {
   kanban: { label: 'Kanban', icon: Kanban },
 };
 
-export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onToggle, onSetMode, onReset, modes = ['table', 'cards'] }: Props) {
+/** Icon-only Table / Cards / Kanban toggle. Defaults to table/cards; pass ['table','cards','kanban'] to also offer a board view. */
+export function LayoutModeToggle({ mode, onSetMode, modes = ['table', 'cards'] }: { mode: ViewMode; onSetMode: (mode: ViewMode) => void; modes?: ViewMode[] }) {
+  return (
+    <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 2, flexShrink: 0 }}>
+      {modes.map((m) => {
+        const active = mode === m;
+        return (
+          <button
+            key={m}
+            type="button"
+            onClick={() => onSetMode(m)}
+            title={MODE_META[m].label}
+            aria-label={MODE_META[m].label}
+            aria-pressed={active}
+            style={{
+              width: 32,
+              height: 32,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 6,
+              border: 'none',
+              background: active ? 'var(--primary)' : 'transparent',
+              color: active ? '#fff' : 'var(--text-dim)',
+              cursor: 'pointer',
+            }}
+          >
+            <InlineIcon icon={MODE_META[m].icon} size={16} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onToggle, onReset }: Props) {
   const [open, setOpen] = useState(false);
   const hiddenSet = new Set(hidden);
   const visibleCount = columns.filter((c) => !hiddenSet.has(c.key)).length;
@@ -49,7 +83,7 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        title={`Customize columns and layout for ${entityLabel}`}
+        title={`Customize columns for ${entityLabel}`}
         className="crm-view-customizer-trigger"
         style={{
           background: 'var(--s3)',
@@ -92,33 +126,6 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={LayoutTemplate} size={13} />Layout</div>
-            <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 2, marginBottom: 14 }}>
-              {modes.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => onSetMode(m)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: 6,
-                    border: 'none',
-                    background: mode === m ? 'var(--primary)' : 'transparent',
-                    color: mode === m ? '#fff' : 'var(--text-dim)',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <InlineIcon icon={MODE_META[m].icon} size={14} />
-                  {MODE_META[m].label}
-                </button>
-              ))}
-            </div>
-
             {mode !== 'kanban' && (
             <>
             <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Columns3} size={13} />Columns</div>

@@ -61,15 +61,22 @@ export function deriveCrumbs(pathname: string, groups: NavGroupLike[]): Crumb[] 
 
 // ── Page-set override (last crumb) ────────────────────────────────────────
 let override: string | null = null;
+// Optional one-line description shown as a hover (i) icon beside the
+// breadcrumb title — lets a page fold its heading's description into the
+// header instead of giving it its own row in the body.
+let overrideInfo: string | null = null;
 const listeners = new Set<() => void>();
 function emit() { listeners.forEach((l) => l()); }
 function subscribe(l: () => void) { listeners.add(l); return () => { listeners.delete(l); }; }
 function getSnapshot() { return override; }
+function getInfoSnapshot() { return overrideInfo; }
 function getServerSnapshot() { return null; }
 
-export function setPageTitle(title: string | null) {
-  if (override === title) return;
+export function setPageTitle(title: string | null, info?: string | null) {
+  const nextInfo = info ?? null;
+  if (override === title && overrideInfo === nextInfo) return;
   override = title;
+  overrideInfo = nextInfo;
   emit();
 }
 
@@ -77,11 +84,20 @@ export function usePageTitleOverride(): string | null {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-/** Call from a page to name the current screen in the header breadcrumb. */
-export function usePageTitle(title: string | null | undefined) {
+export function usePageTitleInfo(): string | null {
+  return useSyncExternalStore(subscribe, getInfoSnapshot, getServerSnapshot);
+}
+
+/**
+ * Call from a page to name the current screen in the header breadcrumb.
+ * An optional `info` string renders as a hover (i) icon beside the title in
+ * the header — e.g. the page's one-line description, so it doesn't need its
+ * own heading row in the body.
+ */
+export function usePageTitle(title: string | null | undefined, info?: string | null) {
   useEffect(() => {
     if (!title) return;
-    setPageTitle(title);
-    return () => setPageTitle(null);
-  }, [title]);
+    setPageTitle(title, info);
+    return () => setPageTitle(null, null);
+  }, [title, info]);
 }

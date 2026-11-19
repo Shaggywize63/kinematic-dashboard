@@ -23,7 +23,7 @@ import LeadEditModal from '../../../../components/crm/LeadEditModal';
 import { STATUS_OPTIONS, type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../lib/crmLeadStatuses';
 import SmartFilterBar from '../../../../components/crm/SmartFilterBar';
-import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/shared/ViewCustomizer';
 import LeadKanban from '../../../../components/crm/LeadKanban';
 import LeadsPipeline, { type PipelineTab } from '../../../../components/crm/leads/LeadsPipeline';
 import LeadQuickViews, { type QuickViewChip } from '../../../../components/crm/leads/LeadQuickViews';
@@ -38,7 +38,8 @@ import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
 import { LEAD_TYPE_DEFAULT_LABEL } from '../../../../lib/leadType';
 import { usePageTitle } from '../../../../lib/pageTitle';
-import { Badge, Button, Card, IconButton, Input, PageHeader, Segmented, Select, T, buttonStyle, useIsCompact } from '../../../../components/ui';
+import { useConfirm } from '../../../../components/ConfirmProvider';
+import { Badge, Button, Card, IconButton, Input, Segmented, Select, T, buttonStyle, useIsCompact } from '../../../../components/ui';
 
 type UserOption = { id: string; name: string };
 
@@ -54,7 +55,8 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function LeadsListPage() {
-  usePageTitle('Leads');
+  usePageTitle('Leads', 'Track and qualify prospects, then convert the best ones to contacts, accounts and deals.');
+  const confirm = useConfirm();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [filters, setFilters] = useState<LeadFiltersValue>({});
@@ -223,7 +225,11 @@ export default function LeadsListPage() {
   const narrow = useIsCompact(900);
   // Below this width the preview panel slides over the list instead of docking beside it.
   const overlayPreview = useIsCompact(1440);
-  const useStack = isCompact || view.prefs.mode === 'cards';
+  // Phone-only: the dedicated single-column LeadCardStack layout. The explicit
+  // desktop/tablet "Cards" choice no longer forces this — it renders LeadsTable
+  // with viewMode="cards" instead, the same square card-grid Accounts/Deals/
+  // Contacts use, rather than the phone stack (which was never a grid to begin with).
+  const useStack = isCompact;
   const datePreset = useCrmDateRange((s) => s.preset);
   const setDatePreset = useCrmDateRange((s) => s.setPreset);
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
@@ -541,9 +547,18 @@ export default function LeadsListPage() {
     const parsed = userRaw ? (() => { try { return JSON.parse(userRaw); } catch { return null; } })() : null;
     const userId = parsed?.id || parsed?.user_id || parsed?.userId;
     if (!userId) return toast.error('Could not determine your user ID');
+    const n = selected.size;
+    if (!(await confirm({
+      title: `Assign ${n} lead${n > 1 ? 's' : ''} to you?`,
+      message: `This reassigns the selected lead${n > 1 ? 's' : ''} and removes them from their current owner's queue`,
+      confirmLabel: 'Assign to me',
+      confirmingLabel: 'Assigning…',
+      tone: 'default',
+      irreversible: false,
+    }))) return;
     try {
       await crmLeads.bulkAssign({ lead_ids: Array.from(selected), owner_id: userId });
-      toast.success(`Assigned ${selected.size} leads to you`);
+      toast.success(`Assigned ${n} leads to you`);
       setSelected(new Set());
       reload();
     } catch (e: any) { toast.error(e.message || 'Bulk assign failed'); }
@@ -564,9 +579,18 @@ export default function LeadsListPage() {
 
   const bulkAssignTo = async (userId: string, userName: string) => {
     if (!ownerAccess.canAssign) return;
+    const n = selected.size;
+    if (!(await confirm({
+      title: `Assign ${n} lead${n > 1 ? 's' : ''} to ${userName}?`,
+      message: `This reassigns the selected lead${n > 1 ? 's' : ''} and removes them from their current owner's queue`,
+      confirmLabel: `Assign to ${userName}`,
+      confirmingLabel: 'Assigning…',
+      tone: 'default',
+      irreversible: false,
+    }))) return;
     try {
       await crmLeads.bulkAssign({ lead_ids: Array.from(selected), owner_id: userId });
-      toast.success(`Assigned ${selected.size} leads to ${userName}`);
+      toast.success(`Assigned ${n} leads to ${userName}`);
       setSelected(new Set());
       reload();
     } catch (e: any) { toast.error(e.message || 'Bulk assign failed'); }
@@ -580,9 +604,15 @@ export default function LeadsListPage() {
   // are surfaced honestly in the toast.
   const bulkDelete = async () => {
     if (selected.size === 0) return;
-    if (!window.confirm(
-      `Delete ${selected.size} lead${selected.size > 1 ? 's' : ''}? This soft-deletes them — rows can be restored from the database if needed.`,
-    )) return;
+    const n = selected.size;
+    if (!(await confirm({
+      title: `Delete ${n} lead${n > 1 ? 's' : ''}?`,
+      message: 'This soft-deletes them — rows can be restored from the database if needed',
+      confirmLabel: `Delete ${n > 1 ? `${n} leads` : 'lead'}`,
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     setBulkBusy(true);
     let ok = 0, failed = 0;
     for (const id of Array.from(selected)) {
@@ -656,7 +686,7 @@ export default function LeadsListPage() {
     );
 
   const previewLead = useMemo(() => (previewId ? leads.find((l) => l.id === previewId) ?? null : null), [previewId, leads]);
-  const showPreview = !!previewLead && !useStack;
+  const showPreview = !!previewLead && !useStack && view.prefs.mode !== 'cards';
   const dockPreview = showPreview && !overlayPreview;
   const nFilters = activeFilterCount(filters);
 
@@ -708,17 +738,16 @@ export default function LeadsListPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <PageHeader
-        title={
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            Leads
-            <Badge mono style={{ fontSize: 11.5 }}>{totalCount.toLocaleString()} leads</Badge>
-          </span>
-        }
-        description="Track and qualify prospects, then convert the best ones to contacts, accounts and deals."
-        actions={headerActions}
-        compact={narrow}
-      />
+      {/* Title + description now live in the TopBar breadcrumb (see
+          usePageTitle above, hover the (i) icon for the description) — this
+          slim row just carries the live count and the page's actions, in
+          place of the old full-height PageHeader block. */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: narrow ? 'wrap' : 'nowrap' }}>
+        <Badge mono style={{ fontSize: 11.5 }}>{totalCount.toLocaleString()} leads</Badge>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {headerActions}
+        </div>
+      </div>
 
       {campaignSections && (
         /* Telecaller phase 3 — campaign sections. Each is a view of the same
@@ -748,20 +777,12 @@ export default function LeadsListPage() {
 
       <LeadQuickViews chips={viewChips} />
 
-      {/* Toolbar — one wrapping row: KINI smart filter, free-text search, the
-          Filters drawer trigger, the approval toggle, the sort order and the
-          column customiser. The smart-filter chips / "Interpreted as" line sit
-          under the KINI box. */}
+      {/* Toolbar — search-first row (free-text search, the Filters drawer
+          trigger, the approval toggle, the sort order and the column
+          customiser), then the KINI smart filter gets its own full-width row
+          below so it reads as the standout feature rather than competing with
+          the other controls for space. */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        <SmartFilterBar
-          query={smartQuery}
-          setQuery={setSmartQuery}
-          onRun={runSmartFilter}
-          onClear={clearSmartFilter}
-          loading={smartLoading}
-          explanation={smartExplain}
-          params={smartParams}
-        />
         <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 180 }}>
           <Search size={15} strokeWidth={1.8} aria-hidden style={{ position: 'absolute', left: 11, top: 10.5, color: T.mute, pointerEvents: 'none' }} />
           <Input
@@ -818,17 +839,28 @@ export default function LeadsListPage() {
             <option value="status:asc">Sort: Status</option>
           </Select>
         </div>
-        <ViewCustomizer
-          entityLabel="Leads"
-          columns={LEAD_COLUMNS.filter((c) => !(isBmw && c.key === 'score') && !(settingsLoaded && fieldHelpers.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
-          hidden={view.prefs.hidden}
-          mode={view.prefs.mode}
-          onToggle={view.toggleHidden}
-          onSetMode={view.setMode}
-          onReset={view.reset}
-          modes={['table', 'cards', 'kanban']}
-        />
+        <LayoutModeToggle mode={view.prefs.mode} onSetMode={view.setMode} modes={['table', 'cards', 'kanban']} />
+        {view.prefs.mode !== 'kanban' && (
+          <ViewCustomizer
+            entityLabel="Leads"
+            columns={LEAD_COLUMNS.filter((c) => !(isBmw && c.key === 'score') && !(settingsLoaded && fieldHelpers.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
+            hidden={view.prefs.hidden}
+            mode={view.prefs.mode}
+            onToggle={view.toggleHidden}
+            onReset={view.reset}
+          />
+        )}
       </div>
+
+      <SmartFilterBar
+        query={smartQuery}
+        setQuery={setSmartQuery}
+        onRun={runSmartFilter}
+        onClear={clearSmartFilter}
+        loading={smartLoading}
+        explanation={smartExplain}
+        params={smartParams}
+      />
 
       <LeadFilterChips chips={appliedChips} onClearAll={clearAll} />
 
@@ -861,6 +893,7 @@ export default function LeadsListPage() {
                 isB2C={isB2C}
                 hiddenColumns={hiddenSet}
                 statusOptions={leadStatuses}
+                viewMode={view.prefs.mode === 'cards' ? 'cards' : 'table'}
                 sort={sort}
                 // Header click: switch to this column asc, or flip asc↔desc if it's
                 // already the active sort. Feeds the same server-side `sort` state the

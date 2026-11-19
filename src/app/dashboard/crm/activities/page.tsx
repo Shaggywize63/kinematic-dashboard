@@ -18,7 +18,7 @@ import { useLeadOwnerAccess } from '../../../../lib/leadOwnerAccess';
 import UserSearchSelect, { type UserOption } from '../../../../components/crm/shared/UserSearchSelect';
 import { ActivityTypeIcon, activityTypeEmoji } from '../../../../components/crm/shared/ActivityTypeIcon';
 import GoogleCalendarBanner from '../../../../components/crm/GoogleCalendarBanner';
-import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
@@ -26,6 +26,7 @@ import { prettifySlug, useActivityTypes } from '../../../../lib/activityTypes';
 import { CompleteActivityDialog, SparkActivityCompany, SparkActivityMeta, SparkActivityOutcome } from '../../../../components/crm/spark/SparkActivityFields';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
 import EditActivityModal from '../../../../components/crm/EditActivityModal';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 // Activity cards are not a table, so the customizer toggles which
 // optional sections appear in each card. Subject + status are locked.
@@ -65,6 +66,7 @@ export default function ActivitiesPage() {
 }
 
 function ActivitiesPageInner() {
+  const confirm = useConfirm();
   const searchParams = useSearchParams();
   const initialType = searchParams.get('type') ?? '';
   const initialStatus = searchParams.get('status') ?? '';
@@ -393,7 +395,14 @@ function ActivitiesPageInner() {
   // crud.softDelete so rows are recoverable from the DB if needed. Confirm
   // guards against accidental clicks on the small ✕ button.
   const removeActivity = async (a: Activity) => {
-    if (!confirm('Delete this activity?')) return;
+    if (!(await confirm({
+      title: 'Delete this activity?',
+      message: 'This soft-deletes it — it can be restored from the database if needed',
+      confirmLabel: 'Delete activity',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     setBusyId(a.id);
     try {
       await crmActivities.remove(a.id);
@@ -672,13 +681,13 @@ function ActivitiesPageInner() {
               </button>
             ))}
           </div>
+          <LayoutModeToggle mode={cardView.prefs.mode} onSetMode={cardView.setMode} />
           <ViewCustomizer
             entityLabel="Activities"
             columns={ACTIVITY_CARD_FIELDS as unknown as { key: string; label: string; locked?: boolean }[]}
             hidden={cardView.prefs.hidden}
             mode={cardView.prefs.mode}
             onToggle={cardView.toggleHidden}
-            onSetMode={cardView.setMode}
             onReset={cardView.reset}
           />
           <button
@@ -748,6 +757,10 @@ function ActivitiesPageInner() {
                 borderRadius: 10, padding: '12px 14px',
                 borderLeft: `4px solid ${isOverdue ? '#ef4444' : statusColor}`,
                 position: 'relative',
+                // Square card in grid mode, matching the Leads/Deals/Accounts/Contacts cards view —
+                // the grid's columns are already equal-width, so height = width keeps every card
+                // in a row the same size; content taller than the square scrolls inside it.
+                ...(cardsMode ? { aspectRatio: '1 / 1', overflowY: 'auto' } : {}),
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1 }}>

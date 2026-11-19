@@ -9,6 +9,7 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { userHasModule } from '../../../../lib/auth';
 import { CalendarClock, Check, Hash, PackageMinus, PackagePlus, Truck, XCircle } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 /**
  * Batch & Expiry (FIFO/FEFO) + Goods Receiving.
@@ -94,6 +95,7 @@ const CONSUME_MODES: Array<{ value: string; label: string }> = [
 ];
 
 export default function BatchExpiryPage() {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const canReceive = userHasModule(user, 'distribution_receiving');
   const isAdmin = ADMIN_ROLES.includes(String((user as { role?: string } | null)?.role || '').toLowerCase());
@@ -152,7 +154,14 @@ export default function BatchExpiryPage() {
 
   const saveConsumeMode = async (value: string) => {
     // 'enforce' actually decrements stock on every future invoice — confirm it.
-    if (value === 'enforce' && !window.confirm('Enforce mode will DRAW DOWN batch stock (FEFO) on every invoice issued for batch-tracked SKUs. Enable for the whole org?')) return;
+    if (value === 'enforce' && !(await confirm({
+      title: 'Enable enforce mode for the whole org?',
+      message: 'Enforce mode will DRAW DOWN batch stock (FEFO) on every invoice issued for batch-tracked SKUs',
+      confirmLabel: 'Enable enforce mode',
+      confirmingLabel: 'Enabling…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     const prev = consumeMode;
     setConsumeMode(value); setModeSaving(true);
     try {

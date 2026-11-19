@@ -5,6 +5,7 @@ import { crmStages, crmPipelines } from '../../../../../lib/crmApi';
 import type { Stage, Pipeline } from '../../../../../types/crm';
 import { Layers, Plus, Trash2 } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 const STAGE_TYPES = [
   { value: 'open', label: 'Open' },
@@ -15,6 +16,7 @@ const STAGE_TYPES = [
 const COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316'];
 
 export default function StagesSettings() {
+  const confirm = useConfirm();
   const [stages, setStages] = useState<Stage[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +68,14 @@ export default function StagesSettings() {
   };
 
   const remove = async (s: Stage) => {
-    if (!window.confirm(`Delete stage "${s.name}"? Deals in this stage will lose their stage assignment.`)) return;
+    if (!(await confirm({
+      title: 'Delete this stage?',
+      itemName: s.name,
+      message: 'Deals in this stage will lose their stage assignment',
+      confirmLabel: 'Delete stage',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setBusy((b) => ({ ...b, [s.id]: true }));
     try {
       await crmStages.remove(s.id);

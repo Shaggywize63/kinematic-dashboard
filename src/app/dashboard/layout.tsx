@@ -13,6 +13,7 @@ import { getStoredProjectKey } from '../../lib/projects';
 import { isMasterAdmin, BMW_CLIENT_ID } from '../../lib/clientFeatures';
 import { canUseHrms } from '../../lib/hrms/access';
 import { ClientProvider } from '../../context/ClientContext';
+import { ConfirmProvider } from '../../components/ConfirmProvider';
 import { CityScopeProvider } from '../../context/CityScopeContext';
 import { IndustryScopeProvider } from '../../context/IndustryScopeContext';
 import { useNavPrefs, applyNavOrder } from '../../lib/navPrefs';
@@ -878,6 +879,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <ClientProvider>
       <CityScopeProvider>
       <IndustryScopeProvider>
+      <ConfirmProvider>
       {impersonate && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, height: impBannerH,
@@ -1024,6 +1026,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           />
         )}
       </div>
+      </ConfirmProvider>
       </IndustryScopeProvider>
       </CityScopeProvider>
     </ClientProvider>

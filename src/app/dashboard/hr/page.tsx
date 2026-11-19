@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
 import { safeHref } from '../../../lib/safeUrl';
+import { useConfirm } from '../../../components/ConfirmProvider';
 
 const C = {
   bg: 'var(--bg)', 
@@ -1376,6 +1377,7 @@ function TeamSection({ users, zones, loading, error, onRefresh }:{
    TRAINING SECTION
 ══════════════════════════════════════════════════ */
 function TrainingSection({ token }:{ token:string }) {
+  const confirm = useConfirm();
   const [materials, setMaterials] = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
   const [showUpload, setShowUpload] = useState(false);
@@ -1447,7 +1449,13 @@ function TrainingSection({ token }:{ token:string }) {
   };
 
   const doDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this material?')) return;
+    if (!(await confirm({
+      title: 'Delete this material?',
+      message: 'This removes it from the training library',
+      confirmLabel: 'Delete material',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/learning/${id}`, {
         method:'DELETE',

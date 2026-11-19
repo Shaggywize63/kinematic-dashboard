@@ -22,6 +22,7 @@ import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/c
 import { DEFAULT_LEAD_FORM, extractLeadForm, segmentName, type LeadFormConfig } from '../../../../../lib/crmLeadForm';
 import { Button, Card, EmptyState, T, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 import LeadHero from '../../../../../components/crm/lead-detail/LeadHero';
 import JourneyStepper from '../../../../../components/crm/lead-detail/JourneyStepper';
 import KpiStrip from '../../../../../components/crm/lead-detail/KpiStrip';
@@ -96,6 +97,7 @@ export default function LeadDetailPage() {
   // accounts are covered too, not just the client-pinned reps.
   const hideConversations = isTataActive || isHorizonOrg((user as any)?.org_id);
   const [tataConverting, setTataConverting] = useState(false);
+  const confirm = useConfirm();
   const id = params?.id as string;
   const [lead, setLead] = useState<LifecycleLead | null>(null);
   const narrow = useIsCompact(960);
@@ -269,7 +271,13 @@ export default function LeadDetailPage() {
 
   const handleDelete = async () => {
     if (!lead) return;
-    if (!window.confirm('Delete this lead? This action cannot be undone.')) return;
+    if (!(await confirm({
+      title: 'Delete this lead?',
+      message: 'This permanently removes the lead and its activity history',
+      confirmLabel: 'Delete lead',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setDeleting(true);
     try {
       await crmLeads.remove(lead.id);
@@ -289,7 +297,14 @@ export default function LeadDetailPage() {
 
   const handleReopen = async () => {
     if (!lead) return;
-    if (!window.confirm('Re-open this lead? It will go back to working state.')) return;
+    if (!(await confirm({
+      title: 'Re-open this lead?',
+      message: 'It will go back to working state',
+      confirmLabel: 'Re-open lead',
+      confirmingLabel: 'Re-opening…',
+      tone: 'default',
+      irreversible: false,
+    }))) return;
     setReopening(true);
     try {
       await crmLeads.reopen(lead.id);

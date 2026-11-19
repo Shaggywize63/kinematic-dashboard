@@ -6,8 +6,10 @@ import { Card, PageHeader, Pill, Btn, fmtDate } from '../../../../../components/
 import SchemeBuilder, { fromScheme, schemeToText, targetingToText, SCHEME_TYPE_LABEL, SchemeType } from '../../../../../components/distribution/SchemeBuilder';
 import { Archive, CalendarRange, FlaskConical, Gift, Plus, Trash2, Users } from 'lucide-react';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 export default function SchemeDetail() {
+  const confirm = useConfirm();
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string;
@@ -43,7 +45,15 @@ export default function SchemeDetail() {
   }, [id]);
 
   const deactivate = async () => {
-    if (!confirm('Retire this scheme version? It will stop applying to new orders.')) return;
+    const ok = await confirm({
+      title: 'Retire this scheme version?',
+      message: 'It will stop applying to new orders.',
+      confirmLabel: 'Retire',
+      confirmingLabel: 'Retiring…',
+      tone: 'default',
+      irreversible: false,
+    });
+    if (!ok) return;
     try {
       const r = await fetch(`/api/v1/distribution/schemes/${id}/deactivate`, {
         method: 'POST',

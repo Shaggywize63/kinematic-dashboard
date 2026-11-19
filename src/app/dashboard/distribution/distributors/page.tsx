@@ -8,6 +8,7 @@ import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
 import { AlertTriangle, CheckCircle2, RotateCcw, Upload, XCircle } from 'lucide-react';
 import { InlineIcon } from '../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 interface DistForm {
   name: string;
@@ -52,6 +53,7 @@ const csvCell = (v: string) => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` :
 interface ImportResult { created: number; skipped: number; total: number; errors: Array<{ row?: number; code?: string; reason: string }> }
 
 export default function DistributorsPage() {
+  const confirm = useConfirm();
   const [items, setItems] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,7 +177,16 @@ export default function DistributorsPage() {
   // Soft-delete via PATCH is_active=false; preserves outlets, orders, ledger entries
   // that already reference this distributor. Hard-delete intentionally not exposed.
   const remove = async (id: string, name: string) => {
-    if (!confirm(`Deactivate distributor "${name}"?\n\nOpen orders and ledger history are preserved. New orders cannot be placed against this distributor.`)) return;
+    const ok = await confirm({
+      title: 'Deactivate this distributor?',
+      message: 'Open orders and ledger history are preserved. New orders cannot be placed against this distributor.',
+      itemName: name,
+      confirmLabel: 'Deactivate',
+      confirmingLabel: 'Deactivating…',
+      tone: 'danger',
+      irreversible: false,
+    });
+    if (!ok) return;
     try {
       await api.updateDistributor(id, { is_active: false });
       await load();
@@ -183,7 +194,15 @@ export default function DistributorsPage() {
   };
 
   const reactivate = async (id: string, name: string) => {
-    if (!confirm(`Reactivate "${name}"?`)) return;
+    const ok = await confirm({
+      title: 'Reactivate this distributor?',
+      message: 'New orders can be placed against it again.',
+      itemName: name,
+      confirmLabel: 'Reactivate',
+      confirmingLabel: 'Reactivating…',
+      tone: 'default',
+    });
+    if (!ok) return;
     try {
       await api.updateDistributor(id, { is_active: true });
       await load();

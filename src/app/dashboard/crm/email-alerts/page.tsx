@@ -9,6 +9,7 @@ import HtmlEmailEditor from '../../../../components/crm/email/HtmlEmailEditor';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { BellRing, CalendarClock, Check, Mail, MailPlus, Plus, Send } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 /**
  * Email alerts inbox — list every planned/sent email, with a composer
@@ -21,6 +22,7 @@ import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIc
  *   4. Set a "Send" mode — Now or Schedule for a future datetime.
  */
 export default function EmailAlertsPage() {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<EmailAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [composing, setComposing] = useState(false);
@@ -43,7 +45,14 @@ export default function EmailAlertsPage() {
   }, [load]);
 
   const cancel = async (id: string) => {
-    if (!confirm('Cancel this scheduled alert?')) return;
+    const ok = await confirm({
+      title: 'Cancel this scheduled alert?',
+      message: 'It will not be sent.',
+      confirmLabel: 'Cancel alert',
+      confirmingLabel: 'Cancelling…',
+      tone: 'default',
+    });
+    if (!ok) return;
     try { await emailAlertsApi.cancel(id); load(); }
     catch (e: any) { toast.error(e?.message || 'Failed to cancel'); }
   };

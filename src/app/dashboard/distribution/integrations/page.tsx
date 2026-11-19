@@ -7,6 +7,7 @@ import { Modal, Field, input, primaryBtn, ghostBtn, ghostBtnDanger, miniBtn, cod
 import { PairingPanel, SetupModal } from './TallySetup';
 import { AlertTriangle, BookOpen, CheckCircle2, Copy, Download, Eye, History, Lightbulb, Link2, Plug, Plus, Settings2, Unplug } from 'lucide-react';
 import { IconTile, InlineIcon, PageIcon } from '../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 interface Integration {
   id: string;
@@ -83,6 +84,7 @@ function formatLastSeen(when: string | null): string {
 const BASE = '/api/v1/distribution/integrations';
 
 export default function DistributionIntegrationsPage() {
+  const confirm = useConfirm();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loaded, setLoaded]             = useState(false);
   const [pickingProvider, setPickingProvider] = useState(false);
@@ -103,7 +105,16 @@ export default function DistributionIntegrationsPage() {
   useEffect(() => { load(); }, []);
 
   const disconnect = async (i: Integration) => {
-    if (!confirm(`Disconnect "${i.label}"? Pending sync jobs will be discarded. Tally vouchers already pushed remain in Tally.`)) return;
+    const ok = await confirm({
+      title: 'Disconnect this integration?',
+      message: 'Pending sync jobs will be discarded. Tally vouchers already pushed remain in Tally.',
+      itemName: i.label,
+      confirmLabel: 'Disconnect',
+      confirmingLabel: 'Disconnecting…',
+      tone: 'danger',
+      irreversible: false,
+    });
+    if (!ok) return;
     try {
       await api.delete(`${BASE}/${i.id}`);
       toast.success(`${i.label} disconnected`);

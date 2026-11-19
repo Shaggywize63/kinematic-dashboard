@@ -34,6 +34,7 @@ import { accountLocationLines } from '../../../../../lib/accountLocation';
 import { apiErrorText, dealRollup } from '../../../../../lib/sparkAccounts';
 import { BrandChips } from '../../../../../components/crm/spark/BrandChips';
 import CoOwnersCard from '../../../../../components/crm/CoOwnersCard';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 // Built-in order of the main-column and sidebar cards. A card gated on a condition (spark-only, a
 // description, notes present, …) that isn't eligible to render for the current account just drops
@@ -47,6 +48,7 @@ const ACCOUNT_SIDEBAR_DEFAULT_ORDER = ['stats', 'ai_summary'];
 export default function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const confirm = useConfirm();
   const [a, setA] = useState<Account | null>(null);
   // Per-user order of the main-column and sidebar cards (synced via /crm/panel-prefs). Must stay above
   // the loading/"not found" early returns below, like every other hook in this component.
@@ -137,7 +139,14 @@ export default function AccountDetailPage() {
 
   const handleDelete = async () => {
     if (!a) return;
-    if (!window.confirm(`Delete account "${a.name}"? This action cannot be undone.`)) return;
+    if (!(await confirm({
+      title: 'Delete this account?',
+      message: 'This permanently removes the account',
+      itemName: a.name,
+      confirmLabel: 'Delete account',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setDeleting(true);
     try {
       await crmAccounts.remove(a.id);
@@ -152,7 +161,15 @@ export default function AccountDetailPage() {
 
   const handleDeactivate = async () => {
     if (!a) return;
-    if (!window.confirm(`Deactivate account "${a.name}"? It will be hidden from active views.`)) return;
+    if (!(await confirm({
+      title: 'Deactivate this account?',
+      message: 'It will be hidden from active views',
+      itemName: a.name,
+      confirmLabel: 'Deactivate account',
+      confirmingLabel: 'Deactivating…',
+      tone: 'default',
+      irreversible: false,
+    }))) return;
     setDeactivating(true);
     try {
       await crmAccounts.update(a.id, { is_active: false } as any);

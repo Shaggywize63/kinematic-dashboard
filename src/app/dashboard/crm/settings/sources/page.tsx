@@ -5,8 +5,10 @@ import { crmLeadSources } from '../../../../../lib/crmApi';
 import type { LeadSource } from '../../../../../types/crm';
 import { Check, Pause, Pencil, Play, Plus, Target, Trash2 } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 export default function SourcesSettings() {
+  const confirm = useConfirm();
   const [items, setItems] = useState<LeadSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
@@ -61,7 +63,14 @@ export default function SourcesSettings() {
   };
 
   const remove = async (s: LeadSource) => {
-    if (!window.confirm(`Delete source "${s.name}"? Existing leads tagged with this source will keep the value but you won't be able to assign new ones.`)) return;
+    if (!(await confirm({
+      title: 'Delete this source?',
+      message: "Existing leads tagged with this source will keep the value but you won't be able to assign new ones",
+      itemName: s.name,
+      confirmLabel: 'Delete source',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setBusy((b) => ({ ...b, [s.id + '_d']: true }));
     try {
       await crmLeadSources.remove(s.id);

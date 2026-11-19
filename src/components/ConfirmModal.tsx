@@ -20,6 +20,17 @@ interface ConfirmModalProps {
   message: string;
   itemName?: string;
   loading?: boolean;
+  /** Button / spinner copy. Defaults preserve the original delete-only wording. */
+  confirmLabel?: string;
+  confirmingLabel?: string;
+  /** 'danger' (default) is the original red delete styling; 'default' is a
+   *  neutral blue tone for high-impact-but-not-destructive actions (bulk
+   *  reassign, status changes, etc.). */
+  tone?: 'danger' | 'default';
+  /** Appends "This action cannot be undone." — on by default (matches the
+   *  original behaviour). Set false for reversible-but-still-major actions. */
+  irreversible?: boolean;
+  icon?: React.ReactNode;
 }
 
 const Spinner = () => (
@@ -33,8 +44,13 @@ const Spinner = () => (
   }} />
 );
 
-export default function ConfirmModal({ show, onClose, onConfirm, title, message, itemName, loading }: ConfirmModalProps) {
+export default function ConfirmModal({
+  show, onClose, onConfirm, title, message, itemName, loading,
+  confirmLabel, confirmingLabel, tone = 'danger', irreversible = true, icon,
+}: ConfirmModalProps) {
   if (!show) return null;
+  const accent = tone === 'danger' ? C.red : 'var(--info)';
+  const accentWash = tone === 'danger' ? 'rgba(224,30,44,0.1)' : 'color-mix(in srgb, var(--info) 14%, transparent)';
 
   return (
     <div 
@@ -52,7 +68,8 @@ export default function ConfirmModal({ show, onClose, onConfirm, title, message,
       }}
     >
       <style>{`@keyframes kspin{to{transform:rotate(360deg)}}`}</style>
-      <div 
+      <div
+        data-testid="confirm-dialog"
         style={{
           background: C.s2,
           border: `1px solid ${C.border}`,
@@ -94,28 +111,32 @@ export default function ConfirmModal({ show, onClose, onConfirm, title, message,
           width: 52,
           height: 52,
           borderRadius: 16,
-          background: 'rgba(224,30,44,0.1)',
+          background: accentWash,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: C.red,
+          color: accent,
           marginBottom: 24
         }}>
-          <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-          </svg>
+          {icon ?? (
+            <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+            </svg>
+          )}
         </div>
 
         {/* Content */}
         <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 8, color: C.white }}>{title}</div>
         <div style={{ fontSize: 14, color: C.gray, lineHeight: 1.5, marginBottom: 32 }}>
-          {message} {itemName && <span style={{ fontWeight: 700, color: C.white }}>&quot;{itemName}&quot;</span>}? This action cannot be undone.
+          {message} {itemName && <span style={{ fontWeight: 700, color: C.white }}>&quot;{itemName}&quot;</span>}
+          {irreversible ? '? This action cannot be undone.' : '?'}
         </div>
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 12 }}>
-          <button 
+          <button
             onClick={onClose}
+            data-testid="confirm-dialog-cancel"
             style={{
               flex: 1,
               padding: '14px',
@@ -131,15 +152,16 @@ export default function ConfirmModal({ show, onClose, onConfirm, title, message,
           >
             Cancel
           </button>
-          <button 
+          <button
             onClick={onConfirm}
             disabled={loading}
+            data-testid="confirm-dialog-confirm"
             style={{
               flex: 1,
               padding: '14px',
               border: 'none',
               borderRadius: 14,
-              background: C.red,
+              background: accent,
               color: '#fff',
               fontSize: 14,
               fontWeight: 700,
@@ -152,7 +174,7 @@ export default function ConfirmModal({ show, onClose, onConfirm, title, message,
               opacity: loading ? 0.7 : 1
             }}
           >
-            {loading ? <><Spinner /> Deleting...</> : 'Delete Forever'}
+            {loading ? <><Spinner /> {confirmingLabel ?? 'Deleting...'}</> : (confirmLabel ?? 'Delete Forever')}
           </button>
         </div>
       </div>

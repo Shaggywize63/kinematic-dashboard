@@ -23,6 +23,7 @@ import type { Automation, AutomationCondition, Pipeline, EmailTemplate, Whatsapp
 import UserSearchSelect, { type UserOption } from '../shared/UserSearchSelect';
 import { Check, Minus, MousePointerClick, Plus, Trash2 } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../ui/PageIcon';
+import { useConfirm } from '../../ConfirmProvider';
 
 // ── Trigger / action catalogues (must match automations.service.ts) ──
 const TRIGGER_GROUPS: Array<{ group: string; items: Array<{ value: string; label: string; entity: 'lead' | 'deal' | 'activity'; timed?: boolean }> }> = [
@@ -198,6 +199,7 @@ const bezV = (a: { x: number; y: number }, b: { x: number; y: number }) => {
 };
 
 export default function AutomationCanvas() {
+  const confirm = useConfirm();
   const [flows, setFlows] = useState<Flow[]>([]);
   const [curIdx, setCurIdx] = useState(0);
   const [node, setNode] = useState<NodeSel>({ kind: 'trigger' });
@@ -448,7 +450,14 @@ export default function AutomationCanvas() {
 
   const deleteFlow = async () => {
     if (!cur) return;
-    if (!window.confirm(`Delete flow "${cur.name}"? This removes its ${cur.actions.length} action(s).`)) return;
+    if (!(await confirm({
+      title: 'Delete this flow?',
+      message: `This removes its ${cur.actions.length} action${cur.actions.length === 1 ? '' : 's'}`,
+      itemName: cur.name,
+      confirmLabel: 'Delete flow',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setBusy(true);
     const wasPersisted = cur.source === 'flows' ? !!cur.flow_id : cur._rowIds.length > 0;
     try {

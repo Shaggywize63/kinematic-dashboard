@@ -6,15 +6,17 @@ import { crmContacts, crmSettings } from '../../../../lib/crmApi';
 import type { Contact } from '../../../../types/crm';
 import ContactsTable, { CONTACT_COLUMNS } from '../../../../components/crm/ContactsTable';
 import { usePagination } from '../../../../components/shared/Pagination';
-import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { Badge, Button, Input, PageHeader, T, useIsCompact } from '../../../../components/ui';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
 import ContactAccountModal from '../../../../components/crm/spark/ContactAccountModal';
 import { useFieldHelpers } from '../../../../lib/crm/useFieldHelpers';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 export default function ContactsListPage() {
+  const confirm = useConfirm();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
@@ -59,6 +61,7 @@ export default function ContactsListPage() {
 
   const actions = (
     <>
+      <LayoutModeToggle mode={view.prefs.mode} onSetMode={view.setMode} />
       <ViewCustomizer
         entityLabel="Contacts"
         columns={(CONTACT_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[])
@@ -67,7 +70,6 @@ export default function ContactsListPage() {
         hidden={view.prefs.hidden}
         mode={view.prefs.mode}
         onToggle={view.toggleHidden}
-        onSetMode={view.setMode}
         onReset={view.reset}
       />
       <Button href="/dashboard/crm/contacts/import" icon={<Upload size={16} strokeWidth={1.8} />}>Import</Button>
@@ -118,7 +120,14 @@ export default function ContactsListPage() {
         onChangeAccount={spark ? setAccountFor : undefined}
         onDelete={async (c) => {
           const label = c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email || 'this contact';
-          if (!window.confirm(`Delete ${label}? This removes the contact from your CRM.`)) return;
+          if (!(await confirm({
+            title: 'Delete this contact?',
+            message: 'This removes the contact from your CRM',
+            itemName: label,
+            confirmLabel: 'Delete contact',
+            confirmingLabel: 'Deleting…',
+            tone: 'danger',
+          }))) return;
           try {
             await crmContacts.remove(c.id);
             toast.success('Contact deleted');

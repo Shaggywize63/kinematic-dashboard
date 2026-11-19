@@ -9,6 +9,7 @@ import {
 } from '../../../lib/sparkAccounts';
 import Modal from '../shared/Modal';
 import GoogleAddressAutocomplete, { type PlaceResult } from '../GoogleAddressAutocomplete';
+import { useConfirm } from '../../ConfirmProvider';
 
 /**
  * Spark & Ray "Addresses" card on an account: every address (site) of the company with its label, full address and a
@@ -25,6 +26,7 @@ export default function AccountAddresses({ accountId, openNewSignal = 0 }: {
    */
   openNewSignal?: number;
 }) {
+  const confirm = useConfirm();
   const [sites, setSites] = useState<AccountSite[]>([]);
   const [loading, setLoading] = useState(true);
   // null = closed; 'new' = adding; a site = editing it.
@@ -46,7 +48,14 @@ export default function AccountAddresses({ accountId, openNewSignal = 0 }: {
   useEffect(() => { if (openNewSignal > 0) setEditing('new'); }, [openNewSignal]);
 
   const remove = async (s: AccountSite) => {
-    if (!window.confirm(`Delete the address "${s.name}"?`)) return;
+    if (!(await confirm({
+      title: 'Delete this address?',
+      message: 'This permanently removes the address',
+      itemName: s.name,
+      confirmLabel: 'Delete address',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setBusyId(s.id);
     try {
       await crmSites.remove(s.id);

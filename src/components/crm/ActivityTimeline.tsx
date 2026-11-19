@@ -12,6 +12,7 @@ import { prettifySlug } from '../../lib/activityTypes';
 import { ActivityTypeIcon } from './shared/ActivityTypeIcon';
 import { CompleteActivityDialog, SparkActivityCompany, SparkActivityMeta, SparkActivityOutcome } from './spark/SparkActivityFields';
 import { isB2bClientActive } from '../../lib/b2bClient';
+import { useConfirm } from '../ConfirmProvider';
 import { canCompleteActivities } from '../../lib/activityPermissions';
 
 // Date + time in user-readable form. Falls back to '' on bad input so
@@ -91,6 +92,7 @@ function activityCampaign(a: Activity, leadCampaign?: string | null): string | n
 }
 
 export default function ActivityTimeline({ activities, onChange, onEdit, addHref, leadCampaign }: Props) {
+  const confirm = useConfirm();
   const [busyId, setBusyId] = useState<string | null>(null);
   // Spark: marking an activity complete first asks for its Outcome (required).
   const [completing, setCompleting] = useState<Activity | null>(null);
@@ -122,9 +124,15 @@ export default function ActivityTimeline({ activities, onChange, onEdit, addHref
 
   // Hard-delete affordance — backend wires DELETE /api/v1/crm/activities/:id
   // to crud.softDelete so the row is recoverable from the DB if needed. Guard
-  // with a confirm() so an accidental click on the small ✕ doesn't nuke data.
+  // with a confirm dialog so an accidental click on the small ✕ doesn't nuke data.
   const removeActivity = async (a: Activity) => {
-    if (!confirm('Delete this activity?')) return;
+    const ok = await confirm({
+      title: 'Delete this activity?',
+      message: 'It will no longer appear in lists or analytics.',
+      confirmLabel: 'Delete activity',
+      irreversible: false,
+    });
+    if (!ok) return;
     setBusyId(a.id);
     try {
       await crmActivities.remove(a.id);
