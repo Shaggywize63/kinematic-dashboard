@@ -13,8 +13,10 @@ import {
   card, input, label, btnPrimary, btnGhost, btnSmallDanger,
   StatusChip, PageHeader, LeaveTabs, Modal, useLeaveRoles, fmtDate,
 } from './_ui';
+import { useConfirm } from '../../../components/ConfirmProvider';
 
 export default function MyLeavePage() {
+  const confirm = useConfirm();
   const { canManage, canAdmin } = useLeaveRoles();
   const year = new Date().getFullYear();
 
@@ -47,7 +49,14 @@ export default function MyLeavePage() {
   useEffect(() => { load(); }, [load]);
 
   const cancel = async (req: LeaveRequest) => {
-    if (!window.confirm('Cancel this leave request?')) return;
+    if (!(await confirm({
+      title: 'Cancel this leave request?',
+      message: 'You can apply again later if you change your mind',
+      confirmLabel: 'Cancel request',
+      confirmingLabel: 'Cancelling…',
+      tone: 'default',
+      irreversible: false,
+    }))) return;
     setBusy((s) => ({ ...s, [req.id]: true }));
     try {
       await leaveApi.cancelRequest(req.id);

@@ -14,6 +14,7 @@ import { resetDb } from '../../../lib/hrms/db';
 import { resetAllAreaStores } from '../../../lib/hrms/areaStore';
 import { hydrate, initSource, setSource, useLiveStatus, type LiveStatus, type Source } from '../../../lib/hrms/live/store';
 import { Button, Card, EmptyState, Modal, Note, T } from '../../../components/hrms/ui';
+import { useConfirm } from '../../../components/ConfirmProvider';
 
 const allowed = (): boolean => canUseHrms(getStoredUser());
 
@@ -189,6 +190,7 @@ function LiveGate({ live, children }: { live: LiveStatus; children: React.ReactN
 
 export default function HrmsLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const live = useLiveStatus();
   const [state, setState] = useState<'checking' | 'allowed' | 'denied'>('checking');
   const [askLive, setAskLive] = useState(false);
@@ -224,7 +226,18 @@ export default function HrmsLayout({ children }: { children: React.ReactNode }) 
           )}
           <Button size="sm" variant="ghost" data-testid="hrms-reset" disabled={isLive}
             title={isLive ? 'Reset is for sample data only. It never touches the server.' : undefined}
-            onClick={() => { if (window.confirm('Reset the sample data to its starting state? Your changes in this browser will be lost.')) { resetAllAreaStores(); resetDb(); } }}>Reset sample data</Button>
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'Reset the sample data to its starting state?',
+                message: 'Your changes in this browser will be lost',
+                confirmLabel: 'Reset sample data',
+                confirmingLabel: 'Resetting…',
+                tone: 'default',
+                irreversible: false,
+              });
+              if (!ok) return;
+              resetAllAreaStores(); resetDb();
+            }}>Reset sample data</Button>
           {isLive && <span data-testid="hrms-reset-reason" style={{ fontSize: 12 }}>Reset is for sample data only. It never touches the server.</span>}
         </div>
       </div>

@@ -13,6 +13,7 @@ import {
 } from '../../../../../lib/leadStages';
 import LeadNumbersPanel from '../../../../../components/crm/spark/LeadNumbersPanel';
 import { Badge, Button, Card, EmptyState, Eyebrow, Input, PageHeader, Select, T } from '../../../../../components/ui';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 // Settings -> Lead Stages (connected-B2B / Spark & Ray): the stages a lead moves through (crm_settings.config.lead_statuses),
 // the one-click "combined" Spark list, and the panel that numbers the leads that predate lead numbers. Every lead screen
@@ -35,6 +36,7 @@ const NEW_COLORS = ['#DB2777', '#0D9488', '#9333EA', '#EA580C', '#4F46E5', '#65A
 
 export default function LeadStagesSettingsPage() {
   usePageTitle('Lead stages');
+  const confirm = useConfirm();
   // Read after mount: the gate looks at localStorage.
   const [spark, setSpark] = useState<boolean | null>(null);
   useEffect(() => { setSpark(isB2bClientActive()); }, []);
@@ -141,8 +143,15 @@ export default function LeadStagesSettingsPage() {
     } finally { setSaving(false); }
   };
 
-  const discard = () => {
-    if (!window.confirm('Discard your unsaved changes to the lead stages?')) return;
+  const discard = async () => {
+    if (!(await confirm({
+      title: 'Discard your unsaved changes to the lead stages?',
+      message: 'Your edits since the last save will be lost',
+      confirmLabel: 'Discard changes',
+      confirmingLabel: 'Discarding…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     crmSettings.get()
       .then((s) => { const r = resolveStages(s?.data); const rr = toRows(r.stages); setRows(rr); setSavedSnap(stagesSnapshot(strip(rr))); setCustom(r.custom); touch(); })
       .catch((e) => toast.error(apiErrorText(e, 'Could not reload')));

@@ -22,6 +22,7 @@ import { crmAssignmentRules, crmPipelines } from '../../../lib/crmApi';
 import api from '../../../lib/api';
 import type { AssignmentRule, Pipeline } from '../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../shared/UserSearchSelect';
+import { useConfirm } from '../../ConfirmProvider';
 
 const CRITERIA_FIELDS = [
   { value: 'source', label: 'Lead source' },
@@ -80,6 +81,7 @@ const USER_COLOR = '#8A5CD1';   // "assign to a person" (matches routing colour 
 const POOL_COLOR = '#0E9C8A';   // "round-robin across a team"
 
 export default function AssignmentRulebook() {
+  const confirm = useConfirm();
   const [rules, setRules] = useState<AssignmentRule[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
@@ -192,7 +194,14 @@ export default function AssignmentRulebook() {
     finally { setBusy((b) => ({ ...b, [r.id + 't']: false })); }
   };
   const remove = async (r: AssignmentRule) => {
-    if (!window.confirm(`Delete rule "${r.name}"?`)) return;
+    if (!(await confirm({
+      title: 'Delete this rule?',
+      message: 'This permanently removes the assignment rule',
+      itemName: r.name,
+      confirmLabel: 'Delete rule',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setBusy((b) => ({ ...b, [r.id + 'd']: true }));
     try {
       await crmAssignmentRules.remove(r.id);

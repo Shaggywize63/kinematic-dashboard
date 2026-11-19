@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Check, Plus, TrendingUp, X } from 'lucide-react';
 import { crmUpsells, type Upsell, type UpsellStatus } from '../../lib/crmApi';
 import { formatINR } from '../../lib/formatCurrency';
+import { useConfirm } from '../ConfirmProvider';
 
 const STATUS_STYLE: Record<UpsellStatus, { bg: string; fg: string; label: string }> = {
   won: { bg: 'rgba(16,185,129,0.12)', fg: '#10b981', label: 'Won' },
@@ -30,6 +31,7 @@ function fmtDate(s: string | null): string {
 }
 
 export default function UpsellsSection({ dealId, leadId }: { dealId?: string; leadId?: string }) {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<Upsell[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -92,7 +94,14 @@ export default function UpsellsSection({ dealId, leadId }: { dealId?: string; le
   }
 
   async function remove(id: string) {
-    if (!window.confirm('Remove this upsell?')) return;
+    if (!(await confirm({
+      title: 'Remove this upsell?',
+      message: 'This removes it from the record',
+      confirmLabel: 'Remove upsell',
+      confirmingLabel: 'Removing…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     try {
       await crmUpsells.remove(id);
       setRows((r) => r.filter((x) => x.id !== id));

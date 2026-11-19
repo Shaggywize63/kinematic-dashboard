@@ -13,8 +13,10 @@ import { Badge, Button, Input, PageHeader, T, useIsCompact } from '../../../../c
 import { isB2bClientActive } from '../../../../lib/b2bClient';
 import ContactAccountModal from '../../../../components/crm/spark/ContactAccountModal';
 import { useFieldHelpers } from '../../../../lib/crm/useFieldHelpers';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 export default function ContactsListPage() {
+  const confirm = useConfirm();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
@@ -118,7 +120,14 @@ export default function ContactsListPage() {
         onChangeAccount={spark ? setAccountFor : undefined}
         onDelete={async (c) => {
           const label = c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email || 'this contact';
-          if (!window.confirm(`Delete ${label}? This removes the contact from your CRM.`)) return;
+          if (!(await confirm({
+            title: 'Delete this contact?',
+            message: 'This removes the contact from your CRM',
+            itemName: label,
+            confirmLabel: 'Delete contact',
+            confirmingLabel: 'Deleting…',
+            tone: 'danger',
+          }))) return;
           try {
             await crmContacts.remove(c.id);
             toast.success('Contact deleted');

@@ -26,6 +26,7 @@ import { prettifySlug, useActivityTypes } from '../../../../lib/activityTypes';
 import { CompleteActivityDialog, SparkActivityCompany, SparkActivityMeta, SparkActivityOutcome } from '../../../../components/crm/spark/SparkActivityFields';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
 import EditActivityModal from '../../../../components/crm/EditActivityModal';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 // Activity cards are not a table, so the customizer toggles which
 // optional sections appear in each card. Subject + status are locked.
@@ -65,6 +66,7 @@ export default function ActivitiesPage() {
 }
 
 function ActivitiesPageInner() {
+  const confirm = useConfirm();
   const searchParams = useSearchParams();
   const initialType = searchParams.get('type') ?? '';
   const initialStatus = searchParams.get('status') ?? '';
@@ -393,7 +395,14 @@ function ActivitiesPageInner() {
   // crud.softDelete so rows are recoverable from the DB if needed. Confirm
   // guards against accidental clicks on the small ✕ button.
   const removeActivity = async (a: Activity) => {
-    if (!confirm('Delete this activity?')) return;
+    if (!(await confirm({
+      title: 'Delete this activity?',
+      message: 'This soft-deletes it — it can be restored from the database if needed',
+      confirmLabel: 'Delete activity',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     setBusyId(a.id);
     try {
       await crmActivities.remove(a.id);
