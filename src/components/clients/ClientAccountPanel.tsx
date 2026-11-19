@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../lib/api';
+import { financeApi, type DocRow } from '../../lib/financeApi';
 
 /**
  * Client Management → Account & Billing.
@@ -15,8 +16,14 @@ import api from '../../lib/api';
  */
 
 interface NextPayment { invoice_id: string; number: string; due_date: string | null; total: number; balance: number; status: string; share_token: string | null }
-interface Account { name: string; contact_person: string | null; contact_email: string | null; allocated: number | null; active: number; finance_customer_id: string | null; next_payment: NextPayment | null }
+interface Account {
+  name: string; contact_person: string | null; contact_email: string | null; allocated: number | null; active: number;
+  finance_customer_id: string | null; next_payment: NextPayment | null; price_per_user: number | null;
+}
 interface Customer { id: string; display_name: string; email?: string | null; company_name?: string | null; gstin?: string | null }
+interface SeatCharge {
+  id: string; user_label: string; added_on: string; cycle_days: number | null; days_charged: number | null; prorated_amount: number;
+}
 
 function unwrap<T>(r: unknown): T { const o = r as { data?: T }; return (o?.data ?? o) as T; }
 const inr = (n?: number | null) => (n == null ? '—' : `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`);
@@ -42,14 +49,42 @@ export default function ClientAccountPanel({ clientId }: { clientId: string }) {
   const [open, setOpen] = useState(false);
   const [financeAvailable, setFinanceAvailable] = useState(true);
 
+  // Pro-rated mid-cycle seat charges.
+  const [priceDraft, setPriceDraft] = useState('');
+  const [charges, setCharges] = useState<SeatCharge[]>([]);
+  const [chargesTotal, setChargesTotal] = useState(0);
+  const [invoiceOptions, setInvoiceOptions] = useState<DocRow[]>([]);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
+
+  const loadCharges = useCallback(() => {
+    api.get(`/api/v1/clients/${clientId}/seat-charges`, { noCache: true } as RequestInit)
+      .then((r) => {
+        const d = unwrap<{ price_per_user: number | null; charges: SeatCharge[]; total: number }>(r);
+        setCharges(d.charges || []);
+        setChargesTotal(d.total || 0);
+      })
+      .catch(() => { setCharges([]); setChargesTotal(0); });
+  }, [clientId]);
+
   const load = useCallback(() => {
     setLoading(true); setErr('');
     api.get(`/api/v1/clients/${clientId}/account`, { noCache: true } as RequestInit)
-      .then((r) => setAcct(unwrap<Account>(r)))
+      .then((r) => { const a = unwrap<Account>(r); setAcct(a); setPriceDraft(a.price_per_user != null ? String(a.price_per_user) : ''); })
       .catch((e: any) => setErr(e?.response?.data?.error || e?.message || 'Could not load account info'))
       .finally(() => setLoading(false));
-  }, [clientId]);
+    loadCharges();
+  }, [clientId, loadCharges]);
   useEffect(() => { load(); }, [load]);
+
+  // Draft invoices for the linked finance customer, to pick which one gets the pending charges.
+  useEffect(() => {
+    if (!acct?.finance_customer_id || charges.length === 0) { setInvoiceOptions([]); setSelectedInvoiceId(''); return; }
+    let alive = true;
+    financeApi.invoices.list({ customer_id: acct.finance_customer_id, status: 'draft', limit: 50 })
+      .then((r) => { if (alive) setInvoiceOptions(r.data || []); })
+      .catch(() => { if (alive) setInvoiceOptions([]); });
+    return () => { alive = false; };
+  }, [acct?.finance_customer_id, charges.length]);
 
   // Debounced finance-customer search (only while the picker is open).
   useEffect(() => {
@@ -71,6 +106,32 @@ export default function ClientAccountPanel({ clientId }: { clientId: string }) {
       load();
       setNote(customerId ? 'Linked — next payment now follows this customer’s invoices.' : 'Billing link cleared.');
     } catch (e: any) { setErr(e?.response?.data?.error || e?.message || 'Could not update the billing link'); }
+    finally { setBusy(''); }
+  };
+
+  const savePrice = async () => {
+    setBusy('price'); setErr(''); setNote('');
+    try {
+      const trimmed = priceDraft.trim();
+      const price = trimmed === '' ? null : Number(trimmed);
+      if (price != null && (!Number.isFinite(price) || price <= 0)) { setErr('Enter a positive price, or clear it to turn pro-rated billing off.'); return; }
+      await api.put(`/api/v1/clients/${clientId}/seat-price`, { price_per_user: price });
+      load();
+      setNote(price == null ? 'Pro-rated seat billing turned off.' : `Price per seat set to ${inr(price)} — new or reactivated seats will now be pro-rated.`);
+    } catch (e: any) { setErr(e?.response?.data?.error || e?.message || 'Could not save the price'); }
+    finally { setBusy(''); }
+  };
+
+  const applyCharges = async () => {
+    if (!selectedInvoiceId) return;
+    setBusy('apply'); setErr(''); setNote('');
+    try {
+      const r = await api.post(`/api/v1/clients/${clientId}/seat-charges/apply`, { document_id: selectedInvoiceId });
+      const d = unwrap<{ applied: number; total: number }>(r);
+      setNote(`Added ${d.applied} seat charge${d.applied === 1 ? '' : 's'} (${inr(d.total)}) to the invoice.`);
+      setSelectedInvoiceId('');
+      loadCharges();
+    } catch (e: any) { setErr(e?.response?.data?.error || e?.message || 'Could not apply the pending charges to that invoice'); }
     finally { setBusy(''); }
   };
 
@@ -166,6 +227,62 @@ export default function ClientAccountPanel({ clientId }: { clientId: string }) {
                 ))}
             </div>
             <button type="button" onClick={() => { setOpen(false); setQ(''); }} style={{ marginTop: 8, fontSize: 11.5, fontWeight: 600, color: ACCENT, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>Cancel</button>
+          </div>
+        )}
+      </div>
+
+      {/* Pro-rated mid-cycle seat charges */}
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 12, color: 'var(--textSec)' }}>
+            Price per seat:{' '}
+            <strong style={{ color: 'var(--text)' }}>{acct.price_per_user != null ? inr(acct.price_per_user) : 'not set'}</strong>
+            <span style={{ color: 'var(--textTert)' }}> — when set, a seat added or reactivated mid-cycle is queued below, pro-rated for the days left in the billing cycle.</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              value={priceDraft} onChange={(e) => setPriceDraft(e.target.value)} placeholder="e.g. 500" inputMode="decimal"
+              style={{ width: 110, padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--text)', fontSize: 13 }}
+            />
+            {btn('Save', savePrice, { primary: true })}
+          </div>
+        </div>
+
+        {charges.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--textTert)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
+              Pending — {charges.length} seat{charges.length === 1 ? '' : 's'} · {inr(chargesTotal)}
+            </div>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+              {charges.map((c) => (
+                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 12.5 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, color: 'var(--text)' }}>{c.user_label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--textTert)' }}>
+                      Added {fmtDate(c.added_on)}{c.cycle_days ? ` · ${c.days_charged} of ${c.cycle_days} days` : ' · full price (no billing cycle found)'}
+                    </div>
+                  </div>
+                  <div style={{ fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap' }}>{inr(c.prorated_amount)}</div>
+                </div>
+              ))}
+            </div>
+
+            {!acct.finance_customer_id ? (
+              <div style={{ fontSize: 11.5, color: 'var(--textTert)', marginTop: 8 }}>Link a finance customer above to apply these to an invoice.</div>
+            ) : invoiceOptions.length === 0 ? (
+              <div style={{ fontSize: 11.5, color: 'var(--textTert)', marginTop: 8 }}>No draft invoice found for this customer — create one in Finance, then come back here.</div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                <select
+                  value={selectedInvoiceId} onChange={(e) => setSelectedInvoiceId(e.target.value)}
+                  style={{ flex: '1 1 220px', padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--text)', fontSize: 12.5 }}
+                >
+                  <option value="">Apply to draft invoice…</option>
+                  {invoiceOptions.map((inv) => <option key={inv.id} value={inv.id}>{inv.number} · {inr(inv.total)}</option>)}
+                </select>
+                {btn(`Apply ${charges.length} charge${charges.length === 1 ? '' : 's'}`, applyCharges, { primary: true, disabled: !selectedInvoiceId })}
+              </div>
+            )}
           </div>
         )}
       </div>
