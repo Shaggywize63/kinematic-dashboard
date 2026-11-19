@@ -18,7 +18,7 @@ import { useLeadOwnerAccess } from '../../../../lib/leadOwnerAccess';
 import UserSearchSelect, { type UserOption } from '../../../../components/crm/shared/UserSearchSelect';
 import { ActivityTypeIcon, activityTypeEmoji } from '../../../../components/crm/shared/ActivityTypeIcon';
 import GoogleCalendarBanner from '../../../../components/crm/GoogleCalendarBanner';
-import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
@@ -681,13 +681,13 @@ function ActivitiesPageInner() {
               </button>
             ))}
           </div>
+          <LayoutModeToggle mode={cardView.prefs.mode} onSetMode={cardView.setMode} />
           <ViewCustomizer
             entityLabel="Activities"
             columns={ACTIVITY_CARD_FIELDS as unknown as { key: string; label: string; locked?: boolean }[]}
             hidden={cardView.prefs.hidden}
             mode={cardView.prefs.mode}
             onToggle={cardView.toggleHidden}
-            onSetMode={cardView.setMode}
             onReset={cardView.reset}
           />
           <button

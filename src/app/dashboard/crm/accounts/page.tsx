@@ -6,7 +6,7 @@ import { crmAccounts, type Pagination } from '../../../../lib/crmApi';
 import type { Account } from '../../../../types/crm';
 import AccountsTable, { ACCOUNT_COLUMNS } from '../../../../components/crm/AccountsTable';
 import ServerPaginationBar from '../../../../components/crm/shared/ServerPaginationBar';
-import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { useFieldHelpers } from '../../../../lib/crm/useFieldHelpers';
@@ -71,13 +71,13 @@ export default function AccountsListPage() {
 
   const actions = (
     <>
+      <LayoutModeToggle mode={view.prefs.mode} onSetMode={view.setMode} />
       <ViewCustomizer
         entityLabel="Accounts"
         columns={ACCOUNT_COLUMNS.filter((c) => !(fieldsLoaded && fields.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
         hidden={view.prefs.hidden}
         mode={view.prefs.mode}
         onToggle={view.toggleHidden}
-        onSetMode={view.setMode}
         onReset={view.reset}
       />
       <Button href="/dashboard/crm/accounts/duplicates" icon={<GitMerge size={16} strokeWidth={2} />}>Find duplicates</Button>

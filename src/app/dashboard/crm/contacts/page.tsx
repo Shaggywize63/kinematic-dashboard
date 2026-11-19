@@ -6,7 +6,7 @@ import { crmContacts, crmSettings } from '../../../../lib/crmApi';
 import type { Contact } from '../../../../types/crm';
 import ContactsTable, { CONTACT_COLUMNS } from '../../../../components/crm/ContactsTable';
 import { usePagination } from '../../../../components/shared/Pagination';
-import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { Badge, Button, Input, PageHeader, T, useIsCompact } from '../../../../components/ui';
@@ -61,6 +61,7 @@ export default function ContactsListPage() {
 
   const actions = (
     <>
+      <LayoutModeToggle mode={view.prefs.mode} onSetMode={view.setMode} />
       <ViewCustomizer
         entityLabel="Contacts"
         columns={(CONTACT_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[])
@@ -69,7 +70,6 @@ export default function ContactsListPage() {
         hidden={view.prefs.hidden}
         mode={view.prefs.mode}
         onToggle={view.toggleHidden}
-        onSetMode={view.setMode}
         onReset={view.reset}
       />
       <Button href="/dashboard/crm/contacts/import" icon={<Upload size={16} strokeWidth={1.8} />}>Import</Button>

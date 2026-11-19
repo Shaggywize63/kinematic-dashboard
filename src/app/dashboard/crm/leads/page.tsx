@@ -23,7 +23,7 @@ import LeadEditModal from '../../../../components/crm/LeadEditModal';
 import { STATUS_OPTIONS, type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../lib/crmLeadStatuses';
 import SmartFilterBar from '../../../../components/crm/SmartFilterBar';
-import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/shared/ViewCustomizer';
 import LeadKanban from '../../../../components/crm/LeadKanban';
 import LeadsPipeline, { type PipelineTab } from '../../../../components/crm/leads/LeadsPipeline';
 import LeadQuickViews, { type QuickViewChip } from '../../../../components/crm/leads/LeadQuickViews';
@@ -839,16 +839,17 @@ export default function LeadsListPage() {
             <option value="status:asc">Sort: Status</option>
           </Select>
         </div>
-        <ViewCustomizer
-          entityLabel="Leads"
-          columns={LEAD_COLUMNS.filter((c) => !(isBmw && c.key === 'score') && !(settingsLoaded && fieldHelpers.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
-          hidden={view.prefs.hidden}
-          mode={view.prefs.mode}
-          onToggle={view.toggleHidden}
-          onSetMode={view.setMode}
-          onReset={view.reset}
-          modes={['table', 'cards', 'kanban']}
-        />
+        <LayoutModeToggle mode={view.prefs.mode} onSetMode={view.setMode} modes={['table', 'cards', 'kanban']} />
+        {view.prefs.mode !== 'kanban' && (
+          <ViewCustomizer
+            entityLabel="Leads"
+            columns={LEAD_COLUMNS.filter((c) => !(isBmw && c.key === 'score') && !(settingsLoaded && fieldHelpers.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
+            hidden={view.prefs.hidden}
+            mode={view.prefs.mode}
+            onToggle={view.toggleHidden}
+            onReset={view.reset}
+          />
+        )}
       </div>
 
       <SmartFilterBar

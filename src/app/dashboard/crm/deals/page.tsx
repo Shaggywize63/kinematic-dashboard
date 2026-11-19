@@ -9,7 +9,7 @@ import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Deal, Pipeline } from '../../../../types/crm';
 import DealsTable, { DEAL_COLUMNS } from '../../../../components/crm/DealsTable';
 import DealEditModal from '../../../../components/crm/DealEditModal';
-import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { getStoredUser, canAccess, userHasModule } from '../../../../lib/auth';
 import { isKinematicTenant, isTataTiscanActive } from '../../../../lib/clientFeatures';
@@ -346,21 +346,23 @@ function DealsListPage() {
         actions={
           <>
             {view === 'list' && (
-              <ViewCustomizer
-                entityLabel="Deals"
-                // Dealer + Volume (kg) are steel-dealer-only (Tata / BMW / SRS)
-                // columns — don't even offer them as toggles on other tenants
-                // (e.g. the Kinematic admin), matching DealsTable's render gate.
-                columns={(isTataTiscanActive(getStoredUser())
-                  ? DEAL_COLUMNS
-                  : DEAL_COLUMNS.filter((c) => c.key !== 'dealer' && c.key !== 'volume_kg')
-                ).filter((c) => !(fieldsLoaded && fields.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
-                hidden={dealView.prefs.hidden}
-                mode={dealView.prefs.mode}
-                onToggle={dealView.toggleHidden}
-                onSetMode={dealView.setMode}
-                onReset={dealView.reset}
-              />
+              <>
+                <LayoutModeToggle mode={dealView.prefs.mode} onSetMode={dealView.setMode} />
+                <ViewCustomizer
+                  entityLabel="Deals"
+                  // Dealer + Volume (kg) are steel-dealer-only (Tata / BMW / SRS)
+                  // columns — don't even offer them as toggles on other tenants
+                  // (e.g. the Kinematic admin), matching DealsTable's render gate.
+                  columns={(isTataTiscanActive(getStoredUser())
+                    ? DEAL_COLUMNS
+                    : DEAL_COLUMNS.filter((c) => c.key !== 'dealer' && c.key !== 'volume_kg')
+                  ).filter((c) => !(fieldsLoaded && fields.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
+                  hidden={dealView.prefs.hidden}
+                  mode={dealView.prefs.mode}
+                  onToggle={dealView.toggleHidden}
+                  onReset={dealView.reset}
+                />
+              </>
             )}
             {/* Export CSV is always visible (admin or not). */}
             <Button
