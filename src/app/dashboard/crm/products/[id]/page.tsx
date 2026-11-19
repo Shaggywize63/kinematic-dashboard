@@ -7,6 +7,7 @@ import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmProducts, crmProductCategories } from '../../../../../lib/crmApi';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import type { Product, ProductCategory } from '../../../../../types/crm';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +19,7 @@ export default function ProductDetailPage() {
   // Connected-B2B (Spark & Ray): a free-text Make and "Product reference" wording; no Brand / Category.
   const [b2b, setB2b] = useState(false);
   const [refError, setRefError] = useState('');
+  const confirm = useConfirm();
 
   useEffect(() => { setB2b(isB2bClientActive()); }, []);
 
@@ -58,7 +60,13 @@ export default function ProductDetailPage() {
 
   const remove = async () => {
     if (!product) return;
-    if (!confirm(`Delete product "${product.name}"?`)) return;
+    const ok = await confirm({
+      title: 'Delete this product?',
+      message: 'This permanently removes it from your catalog.',
+      itemName: product.name,
+      confirmLabel: 'Delete product',
+    });
+    if (!ok) return;
     try {
       await crmProducts.remove(product.id);
       toast.success('Deleted');
