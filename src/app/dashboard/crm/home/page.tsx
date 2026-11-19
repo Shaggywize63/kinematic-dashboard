@@ -22,6 +22,7 @@ import { getStoredUser } from '../../../../lib/auth';
 import { Badge, Button, Card, EmptyState, Eyebrow, PageHeader, T, useIsCompact, type Tone } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
 import MyTargetsCard from '../../../../components/crm/MyTargetsCard';
+import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
 
 // Belt-and-braces gate: the sidebar already hides this entry for Tata
 // Tiscon users via the `hiddenForTata` flag in layout.tsx, but a direct
@@ -158,6 +159,10 @@ export default function CrmHomePage() {
   return (
     <div style={{ maxWidth: 1180, display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 24 }}>
       {header}
+
+      {/* ── Widgets pinned here from Lead Analytics ("Pin to CRM Home") — renders
+          nothing until the rep pins one, so the narrative below is untouched by default. ── */}
+      <PinnedOverviewSection page="home" />
 
       {/* ── Today's target + activity tiles ─────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'minmax(0, 1.4fr) minmax(0, 2fr)', gap: 12, alignItems: 'stretch' }}>

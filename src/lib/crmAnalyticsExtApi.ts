@@ -107,7 +107,7 @@ export const crmAnalyticsPlus = {
 export interface GridItem { i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }
 export interface WidgetInstance { id: string; widget_type: string; chart_type: string; config?: Record<string, unknown> }
 export interface DashboardConfig { widgets: WidgetInstance[]; layouts: { lg?: GridItem[]; md?: GridItem[]; sm?: GridItem[] } }
-export type LayoutPage = 'analytics' | 'overview' | 'ffm';
+export type LayoutPage = 'analytics' | 'overview' | 'ffm' | 'home';
 
 /**
  * True when two layout maps are equal in the only fields that matter
@@ -146,7 +146,7 @@ export function sameLayouts(a?: LayoutsShape | null, b?: LayoutsShape | null): b
 export const crmDashboardLayouts = {
   get: (page: LayoutPage) => api.get<Wrapped<DashboardConfig>>(`${LAYOUT_BASE}/${page}`),
   save: (page: LayoutPage, config: DashboardConfig) => api.put<Wrapped<DashboardConfig>>(`${LAYOUT_BASE}/${page}`, config),
-  pinToOverview: (widget: WidgetInstance) => api.post<Wrapped<DashboardConfig>>(`${LAYOUT_BASE}/overview/pin`, widget),
+  pin: (page: LayoutPage, widget: WidgetInstance) => api.post<Wrapped<DashboardConfig>>(`${LAYOUT_BASE}/${page}/pin`, widget),
   removeWidget: (page: LayoutPage, widget_id: string) => api.delete<Wrapped<DashboardConfig>>(`${LAYOUT_BASE}/${page}/widgets/${widget_id}`),
 };
 

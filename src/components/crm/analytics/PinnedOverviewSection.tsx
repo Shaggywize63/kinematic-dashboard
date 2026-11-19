@@ -1,26 +1,29 @@
 'use client';
 /**
- * Pinned analytics widgets on the CRM Overview.
+ * Pinned analytics widgets on the CRM Overview or CRM Home.
  *
- * Reads the per-user 'overview' layout from the dashboard-layouts API and
- * renders any widgets the user pinned from /dashboard/crm/leads/analytics.
- * Renders nothing when no widgets are pinned, so the existing Overview
- * stat cards + fixed charts are visually untouched until the user opts in.
+ * Reads the per-user layout (page: 'overview' | 'home') from the
+ * dashboard-layouts API and renders any widgets the user pinned from
+ * /dashboard/crm/leads/analytics ("Pin to CRM Overview" / "Pin to CRM
+ * Home"). Renders nothing when no widgets are pinned, so the host page's
+ * own fixed content is visually untouched until the user opts in.
  */
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { Pin } from 'lucide-react';
 import AnalyticsWidget from './AnalyticsWidget';
-import { crmDashboardLayouts, type DashboardConfig } from '../../../lib/crmAnalyticsExtApi';
+import { crmDashboardLayouts, type DashboardConfig, type LayoutPage } from '../../../lib/crmAnalyticsExtApi';
 
-export default function PinnedOverviewSection() {
+export default function PinnedOverviewSection({ page = 'overview' }: { page?: LayoutPage }) {
   const [config, setConfig] = useState<DashboardConfig>({ widgets: [], layouts: {} });
   const [loading, setLoading] = useState(true);
+  const pageLabel = page === 'home' ? 'CRM Home' : 'CRM Overview';
 
   useEffect(() => {
     let cancelled = false;
-    crmDashboardLayouts.get('overview')
+    setLoading(true);
+    crmDashboardLayouts.get(page)
       .then((r) => {
         if (cancelled) return;
         const cfg = r?.data ?? { widgets: [], layouts: {} };
@@ -31,23 +34,23 @@ export default function PinnedOverviewSection() {
       })
       .catch(() => {
         // Quietly fall back to empty — a backend hiccup shouldn't make the
-        // CRM Overview render a scary banner. The Lead Analytics page has
+        // host page render a scary banner. The Lead Analytics page has
         // its own visible error surface for diagnosing.
         if (!cancelled) setConfig({ widgets: [], layouts: {} });
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [page]);
 
   const onRemove = async (id: string) => {
     try {
-      const r = await crmDashboardLayouts.removeWidget('overview', id);
+      const r = await crmDashboardLayouts.removeWidget(page, id);
       const next = r?.data ?? { widgets: [], layouts: {} };
       setConfig({
         widgets: Array.isArray(next.widgets) ? next.widgets : [],
         layouts: next.layouts && typeof next.layouts === 'object' ? next.layouts : {},
       });
-      toast.success('Unpinned from Overview');
+      toast.success(`Unpinned from ${pageLabel}`);
     } catch (e: unknown) {
       const msg = (e as Error)?.message ?? 'unknown error';
       toast.error(`Failed to unpin: ${msg.slice(0, 120)}`);
