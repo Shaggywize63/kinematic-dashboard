@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import { crmAccounts, crmContacts, crmDeals, crmLeads } from '../../../lib/crmApi';
+import { leadOptionLabel } from '../../../lib/leadLabel';
 
 export type LinkedEntityType = '' | 'lead' | 'contact' | 'deal' | 'account';
 export interface LinkedEntity { type: LinkedEntityType; id: string; label: string }
@@ -29,10 +30,9 @@ async function fetchOptions(type: LinkedEntityType, q: string): Promise<Option[]
   const params = q ? { q } : undefined;
   if (type === 'lead') {
     const r = await crmLeads.list(params);
-    return (r.data || []).map((x: any) => {
-      const name = [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Lead';
-      return { id: x.id, label: x.phone ? `${name} · ${x.phone}` : name };
-    });
+    // On Spark & Ray the label carries the requirement too — one person can have
+    // several leads/requirements, so name alone doesn't disambiguate them.
+    return (r.data || []).map((x: any) => ({ id: x.id, label: leadOptionLabel(x) }));
   }
   if (type === 'contact') {
     const r = await crmContacts.list(params);
@@ -51,7 +51,7 @@ async function fetchOptions(type: LinkedEntityType, q: string): Promise<Option[]
 
 async function fetchLabel(type: LinkedEntityType, id: string): Promise<string> {
   try {
-    if (type === 'lead')    { const x = (await crmLeads.get(id)).data as any;    return x ? ([x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Lead') : ''; }
+    if (type === 'lead')    { const x = (await crmLeads.get(id)).data as any;    return x ? leadOptionLabel(x) : ''; }
     if (type === 'contact') { const x = (await crmContacts.get(id)).data as any; return x ? (x.full_name || [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Contact') : ''; }
     if (type === 'deal')    { const x = (await crmDeals.get(id)).data as any;    return x ? (x.title || x.name || 'Deal') : ''; }
     if (type === 'account') { const x = (await crmAccounts.get(id)).data as any; return x ? (x.name || 'Account') : ''; }
