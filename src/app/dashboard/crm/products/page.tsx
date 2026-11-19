@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { FolderTree, Package, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
-import { crmProducts, crmProductCategories, crmMakes, crmBrands } from '../../../../lib/crmApi';
+import { crmProducts, crmProductCategories } from '../../../../lib/crmApi';
 import { formatINR } from '../../../../lib/formatCurrency';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
-import type { Product, ProductCategory, Make, Brand } from '../../../../types/crm';
+import type { Product, ProductCategory } from '../../../../types/crm';
 import ProductImportModal from '../../../../components/crm/ProductImportModal';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
@@ -19,31 +19,19 @@ export default function ProductsListPage() {
   const [catFilter, setCatFilter] = useState<string>('');
   const [showInactive, setShowInactive] = useState(false);
   const [loading, setLoading] = useState(true);
-  // Connected-B2B (Spark & Ray) only: Make / Brand columns + filters, "Reference" wording and the spreadsheet import.
-  // `null` until read after mount (the gate looks at localStorage), so other clients load exactly as before.
+  // Connected-B2B (Spark & Ray) only: a free-text Make column, "Reference" wording and the spreadsheet import.
+  // No Brand / Category for Spark. `null` until read after mount, so other clients load exactly as before.
   const [b2b, setB2b] = useState<boolean | null>(null);
   useEffect(() => { setB2b(isB2bClientActive()); }, []);
-  const [makes, setMakes] = useState<Make[]>([]);
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [makeFilter, setMakeFilter] = useState('');
-  const [brandFilter, setBrandFilter] = useState('');
   const [importing, setImporting] = useState(false);
-
-  const loadMakesBrands = useCallback(async () => {
-    // A not-yet-migrated database answers 503; the products table still works, the filters are just empty.
-    const [m, b] = await Promise.all([crmMakes.list().catch(() => null), crmBrands.list().catch(() => null)]);
-    setMakes(m?.data || []); setBrands(b?.data || []);
-  }, []);
 
   const reload = async () => {
     if (b2b === null) return;
     setLoading(true);
     try {
       const [p, c] = await Promise.all([
-        crmProducts.list({
-          q: q || undefined, category_id: catFilter || undefined,
-          ...(b2b ? { make_id: makeFilter || undefined, brand_id: brandFilter || undefined } : {}),
-        }),
+        // Category filters only non-B2B tenants (Spark products carry no category).
+        crmProducts.list({ q: q || undefined, ...(b2b ? {} : { category_id: catFilter || undefined }) }),
         crmProductCategories.list(),
       ]);
       let list = p.data || [];
@@ -54,8 +42,7 @@ export default function ProductsListPage() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [q, catFilter, showInactive, b2b, makeFilter, brandFilter]);
-  useEffect(() => { if (b2b) loadMakesBrands(); }, [b2b, loadMakesBrands]);
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [q, catFilter, showInactive, b2b]);
 
   const handleDelete = async (p: Product) => {
     if (!confirm(`Delete product "${p.name}"? It will be removed from the list.`)) return;
@@ -68,7 +55,7 @@ export default function ProductsListPage() {
 
   const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
   const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700 };
-  const colCount = b2b ? 8 : 10;
+  const colCount = b2b ? 6 : 10;
   const catName = (id?: string | null) => cats.find((c) => c.id === id)?.name ?? '—';
 
   // Type-aware client-side column sorting. Raw values per column (price, weight,
@@ -77,8 +64,7 @@ export default function ProductsListPage() {
     const w = p.weight_kg ?? 0;
     switch (key) {
       case 'sku': return p.sku;
-      case 'make': return p.make_name ?? '';
-      case 'brand': return p.brand_name ?? '';
+      case 'make': return p.make ?? p.make_name ?? '';
       case 'name': return p.name;
       case 'category': return cats.find((c) => c.id === p.category_id)?.name ?? '';
       case 'price': return Number(p.price);
@@ -109,24 +95,12 @@ export default function ProductsListPage() {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
           <input placeholder={b2b ? 'Search reference, name...' : 'Search SKU, name...'} aria-label="Search products" value={q} onChange={(e) => setQ(e.target.value)}
             style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 220 }} />
-          <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)}
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
-            <option value="">All categories</option>
-            {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          {b2b && (
-            <>
-              <select aria-label="Make" value={makeFilter} onChange={(e) => setMakeFilter(e.target.value)}
-                style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
-                <option value="">All makes</option>
-                {makes.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-              <select aria-label="Brand" value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)}
-                style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
-                <option value="">All brands</option>
-                {brands.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-            </>
+          {!b2b && (
+            <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)}
+              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+              <option value="">All categories</option>
+              {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
           )}
           <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, color: 'var(--text-dim)' }}>
             <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> Show inactive
@@ -138,8 +112,7 @@ export default function ProductsListPage() {
             <th style={th}><SortLabel label={b2b ? 'Reference' : 'SKU'} sortKey="sku" sort={sort} onToggle={toggle} /></th>
             <th style={th}><SortLabel label="Name" sortKey="name" sort={sort} onToggle={toggle} /></th>
             {b2b && <th style={th}><SortLabel label="Make" sortKey="make" sort={sort} onToggle={toggle} /></th>}
-            {b2b && <th style={th}><SortLabel label="Brand" sortKey="brand" sort={sort} onToggle={toggle} /></th>}
-            <th style={th}><SortLabel label="Category" sortKey="category" sort={sort} onToggle={toggle} /></th>
+            {!b2b && <th style={th}><SortLabel label="Category" sortKey="category" sort={sort} onToggle={toggle} /></th>}
             <th style={th}><SortLabel label="Price" sortKey="price" sort={sort} onToggle={toggle} /></th>
             {!b2b && <th style={th}><SortLabel label="Weight" sortKey="weight" sort={sort} onToggle={toggle} /></th>}
             {!b2b && <th style={th}><SortLabel label="Price/tonne" sortKey="per_tonne" sort={sort} onToggle={toggle} /></th>}
@@ -158,9 +131,8 @@ export default function ProductsListPage() {
               <tr key={p.id}>
                 <td style={td}><Link href={`/dashboard/crm/products/${p.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{p.sku}</Link></td>
                 <td style={td}>{p.name}</td>
-                {b2b && <td style={td}>{p.make_name || '—'}</td>}
-                {b2b && <td style={td}>{p.brand_name || '—'}</td>}
-                <td style={td}>{catName(p.category_id)}</td>
+                {b2b && <td style={td}>{p.make || p.make_name || '—'}</td>}
+                {!b2b && <td style={td}>{catName(p.category_id)}</td>}
                 <td style={td}>{formatINR(p.price)}</td>
                 {!b2b && <td style={td}>{w > 0 ? `${w} kg` : '—'}</td>}
                 {!b2b && <td style={td}>{perTonne != null ? formatINR(perTonne) : '—'}</td>}
@@ -181,7 +153,7 @@ export default function ProductsListPage() {
       {importing && (
         <ProductImportModal
           onClose={() => setImporting(false)}
-          onImported={() => { reload(); loadMakesBrands(); }}
+          onImported={() => { reload(); }}
         />
       )}
     </div>

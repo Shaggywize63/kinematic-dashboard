@@ -4,21 +4,19 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Check } from 'lucide-react';
 import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
-import { crmProducts, crmProductCategories, crmMakes, crmBrands } from '../../../../../lib/crmApi';
+import { crmProducts, crmProductCategories } from '../../../../../lib/crmApi';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
-import type { ProductCategory, Make, Brand } from '../../../../../types/crm';
+import type { ProductCategory } from '../../../../../types/crm';
 
 export default function NewProductPage() {
   const router = useRouter();
   const [cats, setCats] = useState<ProductCategory[]>([]);
   const [busy, setBusy] = useState(false);
-  // Connected-B2B (Spark & Ray): Make / Brand selects and "Product reference" wording. Read after mount (localStorage).
+  // Connected-B2B (Spark & Ray): a free-text Make and "Product reference" wording; no Brand / Category.
   const [b2b, setB2b] = useState(false);
-  const [makes, setMakes] = useState<Make[]>([]);
-  const [brands, setBrands] = useState<Brand[]>([]);
   const [refError, setRefError] = useState('');
   const [form, setForm] = useState({
-    sku: '', name: '', description: '', category_id: '', make_id: '', brand_id: '', unit: 'each',
+    sku: '', name: '', description: '', category_id: '', make: '', unit: 'each',
     price: '', weight_kg: '', currency: 'INR', tax_rate_pct: '18', hsn_code: '', image_url: '', is_active: true,
   });
 
@@ -36,13 +34,7 @@ export default function NewProductPage() {
     })();
   }, []);
 
-  useEffect(() => {
-    const on = isB2bClientActive();
-    setB2b(on);
-    if (!on) return;
-    crmMakes.list().then((r) => setMakes((r.data || []).filter((m) => m.is_active))).catch(() => setMakes([]));
-    crmBrands.list().then((r) => setBrands((r.data || []).filter((m) => m.is_active))).catch(() => setBrands([]));
-  }, []);
+  useEffect(() => { setB2b(isB2bClientActive()); }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,8 +44,9 @@ export default function NewProductPage() {
         sku: form.sku,
         name: form.name,
         description: form.description || undefined,
-        category_id: form.category_id || undefined,
-        ...(b2b ? { make_id: form.make_id || null, brand_id: form.brand_id || null } : {}),
+        // Category is kept for non-B2B tenants only; Spark & Ray products carry just a free-text Make.
+        category_id: b2b ? undefined : (form.category_id || undefined),
+        ...(b2b ? { make: form.make.trim() || null } : {}),
         unit: form.unit || 'each',
         price: form.price ? Number(form.price) : 0,
         weight_kg: form.weight_kg ? Number(form.weight_kg) : undefined,
@@ -81,26 +74,17 @@ export default function NewProductPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         <Field label={b2b ? 'Product reference' : 'SKU'} error={refError}><input value={form.sku} onChange={(e) => { setForm({ ...form, sku: e.target.value }); setRefError(''); }} required aria-invalid={refError ? true : undefined} style={refError ? { ...input, borderColor: '#E01E2C' } : input} /></Field>
         <Field label="Name"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required style={input} /></Field>
-        <Field label="Category">
-          <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })} style={input}>
-            <option value="">— None —</option>
-            {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </Field>
-        {b2b && (
-          <Field label="Make">
-            <select value={form.make_id} onChange={(e) => setForm({ ...form, make_id: e.target.value })} style={input}>
+        {!b2b && (
+          <Field label="Category">
+            <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })} style={input}>
               <option value="">— None —</option>
-              {makes.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </Field>
         )}
         {b2b && (
-          <Field label="Brand">
-            <select value={form.brand_id} onChange={(e) => setForm({ ...form, brand_id: e.target.value })} style={input}>
-              <option value="">— None —</option>
-              {brands.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
+          <Field label="Make">
+            <input value={form.make} onChange={(e) => setForm({ ...form, make: e.target.value })} placeholder="e.g. MAC, ASCO" maxLength={120} style={input} />
           </Field>
         )}
         <Field label="Unit"><input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} style={input} /></Field>
