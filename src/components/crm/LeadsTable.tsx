@@ -58,6 +58,9 @@ interface Props {
   fieldHelpers?: FieldHelpers;
   // Rendered in place of the rows when there is nothing to show (no-results / first-run).
   emptyState?: ReactNode;
+  // 'cards' adds the .cards-view class (globals.css) — the same square card grid
+  // AccountsTable/DealsTable/ContactsTable use for their Customize "Cards" mode.
+  viewMode?: 'table' | 'cards';
 }
 
 // Table header cell — mono eyebrow, 12px vertical padding, hairline below.
@@ -143,10 +146,13 @@ const SLIM_HIDDEN = new Set(['latest_update', 'source', 'owner', 'created_by', '
  * `Card padding={0}` together with its pagination footer. Keeps the
  * `responsive-cards` class + `data-label`s that globals.css uses for the
  * tablet card-stack layout (phones get the dedicated LeadCardStack instead).
+ * `viewMode="cards"` adds `.cards-view` for the explicit desktop/tablet
+ * Customize "Cards" choice — a real square card grid, as distinct from the
+ * phone-only single-column LeadCardStack.
  */
 export default function LeadsTable({
   leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, sort, onSort, onEdit, onApprove,
-  onToggleImportant, statusOptions = null, onPreview, previewId = null, onScoreClick, slim = false, fieldHelpers, emptyState,
+  onToggleImportant, statusOptions = null, onPreview, previewId = null, onScoreClick, slim = false, fieldHelpers, emptyState, viewMode = 'table',
 }: Props) {
   const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
   const someSelected = !allSelected && leads.some((l) => selected.has(l.id));
@@ -190,7 +196,7 @@ export default function LeadsTable({
 
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table className="responsive-cards lead-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <table className={`responsive-cards lead-table${viewMode === 'cards' ? ' cards-view' : ''}`} style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
             <th style={{ ...thStyle, width: 40, paddingRight: 0 }}>

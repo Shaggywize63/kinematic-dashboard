@@ -223,7 +223,11 @@ export default function LeadsListPage() {
   const narrow = useIsCompact(900);
   // Below this width the preview panel slides over the list instead of docking beside it.
   const overlayPreview = useIsCompact(1440);
-  const useStack = isCompact || view.prefs.mode === 'cards';
+  // Phone-only: the dedicated single-column LeadCardStack layout. The explicit
+  // desktop/tablet "Cards" choice no longer forces this — it renders LeadsTable
+  // with viewMode="cards" instead, the same square card-grid Accounts/Deals/
+  // Contacts use, rather than the phone stack (which was never a grid to begin with).
+  const useStack = isCompact;
   const datePreset = useCrmDateRange((s) => s.preset);
   const setDatePreset = useCrmDateRange((s) => s.setPreset);
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
@@ -656,7 +660,7 @@ export default function LeadsListPage() {
     );
 
   const previewLead = useMemo(() => (previewId ? leads.find((l) => l.id === previewId) ?? null : null), [previewId, leads]);
-  const showPreview = !!previewLead && !useStack;
+  const showPreview = !!previewLead && !useStack && view.prefs.mode !== 'cards';
   const dockPreview = showPreview && !overlayPreview;
   const nFilters = activeFilterCount(filters);
 
@@ -861,6 +865,7 @@ export default function LeadsListPage() {
                 isB2C={isB2C}
                 hiddenColumns={hiddenSet}
                 statusOptions={leadStatuses}
+                viewMode={view.prefs.mode === 'cards' ? 'cards' : 'table'}
                 sort={sort}
                 // Header click: switch to this column asc, or flip asc↔desc if it's
                 // already the active sort. Feeds the same server-side `sort` state the

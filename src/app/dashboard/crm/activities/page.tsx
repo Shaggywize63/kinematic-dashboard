@@ -748,6 +748,10 @@ function ActivitiesPageInner() {
                 borderRadius: 10, padding: '12px 14px',
                 borderLeft: `4px solid ${isOverdue ? '#ef4444' : statusColor}`,
                 position: 'relative',
+                // Square card in grid mode, matching the Leads/Deals/Accounts/Contacts cards view —
+                // the grid's columns are already equal-width, so height = width keeps every card
+                // in a row the same size; content taller than the square scrolls inside it.
+                ...(cardsMode ? { aspectRatio: '1 / 1', overflowY: 'auto' } : {}),
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1 }}>
