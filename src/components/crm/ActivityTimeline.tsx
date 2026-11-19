@@ -12,6 +12,7 @@ import { prettifySlug } from '../../lib/activityTypes';
 import { ActivityTypeIcon } from './shared/ActivityTypeIcon';
 import { CompleteActivityDialog, SparkActivityCompany, SparkActivityMeta, SparkActivityOutcome } from './spark/SparkActivityFields';
 import { isB2bClientActive } from '../../lib/b2bClient';
+import { canCompleteActivities } from '../../lib/activityPermissions';
 
 // Date + time in user-readable form. Falls back to '' on bad input so
 // the row still renders.
@@ -98,7 +99,10 @@ export default function ActivityTimeline({ activities, onChange, onEdit, addHref
     <Link href={addHref} style={addBtnStyle}><InlineIcon icon={Plus} size={14} />Add activity</Link>
   ) : null;
 
+  const canComplete = canCompleteActivities();
   const updateStatus = async (a: Activity, status: string) => {
+    // Spark & Ray: only admins may mark an activity complete (backend enforces this too).
+    if (status === 'completed' && !canComplete) { toast.error('Only an admin can mark an activity complete.'); return; }
     if (status === 'completed' && isB2bClientActive()) { setCompleting(a); return; }
     setBusyId(a.id);
     try {
@@ -230,7 +234,7 @@ export default function ActivityTimeline({ activities, onChange, onEdit, addHref
                       <InlineIcon icon={Pencil} size={12} />Edit
                     </button>
                   )}
-                  {showActions && !isCompleted && (
+                  {showActions && !isCompleted && canComplete && (
                     <button onClick={() => updateStatus(a, 'completed')} disabled={busyId === a.id} style={btnGreen}>
                       <InlineIcon icon={CheckCircle2} size={12} />Mark Complete
                     </button>
