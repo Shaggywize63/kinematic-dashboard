@@ -366,8 +366,8 @@ function GradeBadge({ grade, score }: { grade: string | null | undefined; score:
 function ActivityStat({ label, value, icon, tone }: { label: string; value: number; icon: React.ReactNode; tone: Tone }) {
   return (
     <Card padding={14} style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <Eyebrow style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</Eyebrow>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+        <Eyebrow style={{ flex: '1 1 auto', minWidth: 0, whiteSpace: 'normal', lineHeight: 1.35 }}>{label}</Eyebrow>
         <span style={{ width: 24, height: 24, borderRadius: 6, background: TONE_BG[tone], color: TONE_FG[tone], display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
       </div>
       <div style={{ fontFamily: T.heading, fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
