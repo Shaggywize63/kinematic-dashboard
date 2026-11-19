@@ -38,7 +38,7 @@ import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
 import { LEAD_TYPE_DEFAULT_LABEL } from '../../../../lib/leadType';
 import { usePageTitle } from '../../../../lib/pageTitle';
-import { Badge, Button, Card, IconButton, Input, PageHeader, Segmented, Select, T, buttonStyle, useIsCompact } from '../../../../components/ui';
+import { Badge, Button, Card, IconButton, Input, Segmented, Select, T, buttonStyle, useIsCompact } from '../../../../components/ui';
 
 type UserOption = { id: string; name: string };
 
@@ -54,7 +54,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function LeadsListPage() {
-  usePageTitle('Leads');
+  usePageTitle('Leads', 'Track and qualify prospects, then convert the best ones to contacts, accounts and deals.');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [filters, setFilters] = useState<LeadFiltersValue>({});
@@ -712,17 +712,16 @@ export default function LeadsListPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <PageHeader
-        title={
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            Leads
-            <Badge mono style={{ fontSize: 11.5 }}>{totalCount.toLocaleString()} leads</Badge>
-          </span>
-        }
-        description="Track and qualify prospects, then convert the best ones to contacts, accounts and deals."
-        actions={headerActions}
-        compact={narrow}
-      />
+      {/* Title + description now live in the TopBar breadcrumb (see
+          usePageTitle above, hover the (i) icon for the description) — this
+          slim row just carries the live count and the page's actions, in
+          place of the old full-height PageHeader block. */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: narrow ? 'wrap' : 'nowrap' }}>
+        <Badge mono style={{ fontSize: 11.5 }}>{totalCount.toLocaleString()} leads</Badge>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {headerActions}
+        </div>
+      </div>
 
       {campaignSections && (
         /* Telecaller phase 3 — campaign sections. Each is a view of the same
