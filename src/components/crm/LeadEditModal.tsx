@@ -290,15 +290,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           }
         }
       } catch { /* no sites */ }
-      try {
-        const ar = await crmAccounts.get(accId);
-        const parentAccId = (ar.data as { parent_account_id?: string | null })?.parent_account_id;
-        if (parentAccId && !off) {
-          const gr = await crmAccounts.get(parentAccId);
-          const gname = (gr.data as { name?: string })?.name;
-          if (gname && !off) setForm((f) => ({ ...f, group: f.group || gname }));
-        }
-      } catch { /* no group */ }
+      // Parent Company / Group is its own lead field — it is NOT auto-filled from the linked account's parent
+      // (the rep sets it explicitly), so no derivation from crm_accounts.parent_account_id here.
     })();
     return () => { off = true; };
   }, [open, lead, sparkStructured]);
@@ -756,7 +749,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           {(!fields.isHidden('company') || !fields.isHidden('title') || !fields.isHidden('industry')) && (
             <><SL>{sparkStructured ? 'Company & plant' : 'Company'}</SL><Grid>
               {sparkStructured && (
-                <Field label="Group" hint="Parent group this company maps to (optional).">
+                <Field label="Parent Company / Group" hint="The parent company or group this company belongs to (optional).">
                   <Input value={form.group} onChange={(e) => setForm({ ...form, group: e.target.value })} placeholder="e.g. Tata Steel Limited" />
                 </Field>
               )}
@@ -827,8 +820,10 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             </Grid></>
           )}
           {/* Spark & Ray structured capture (Option A): the lead's requirement and
-              the make/product/qty lines it covers. */}
-          {sparkStructured && (
+              the make/product/qty lines it covers. Mapped to the Lead type — a
+              "Discussion" lead has no requirement yet, so the block is only shown
+              for a "Requirement" lead (or when no type is chosen). */}
+          {sparkStructured && form.lead_type !== 'discussion' && (
             <FlatBlock flat={flat} style={{ order: UNORDERED_LAST + 1 }}><SL>Requirement &amp; products</SL>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <Field label="Requirement">

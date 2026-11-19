@@ -3,7 +3,7 @@ import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
-  Blocks, Boxes, Briefcase, Building2, ChevronRight, ClipboardList, Database, Factory, GitBranch, Layers, ListChecks, ListOrdered, MapPinned, Moon, Network, Palette, Phone, Plug, Scale, Shuffle,
+  Blocks, Boxes, Briefcase, Building2, ChevronRight, ClipboardList, Database, GitBranch, Layers, ListChecks, ListOrdered, MapPinned, Moon, Network, Palette, Phone, Plug, Scale, Shuffle,
   Sparkles, Sun, SunMoon, Tag, Target, User, UserCircle, UserCog, Users, Workflow, Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -307,8 +307,7 @@ export default function SettingsIndex() {
               {/* Spark & Ray only: Makes and Brands sit right after Lead Sources. */}
               {spark && s.href === '/dashboard/crm/settings/sources' && (
                 <>
-                  <SettingCard href="/dashboard/crm/settings/makes" title="Makes" desc="The manufacturers your products come from." icon={<Factory {...ICON_PROPS} />} />
-                  <SettingCard href="/dashboard/crm/settings/brands" title="Brands" desc="The product brands you sell, such as MAC, PHD or BEKO. A brand is not a make." icon={<Tag {...ICON_PROPS} />} />
+                  <SettingCard href="/dashboard/crm/settings/brands" title="Brands" desc="The product brands you sell, such as MAC, PHD or BEKO." icon={<Tag {...ICON_PROPS} />} />
                 </>
               )}
             </Fragment>
