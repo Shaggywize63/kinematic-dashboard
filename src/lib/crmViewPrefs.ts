@@ -3,12 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getStoredUser } from './auth';
 import { crmListViewPrefs, type ListViewEntity } from './crmAnalyticsExtApi';
 
-// 'kanban' is a valid value the backend can store (crmListViewPrefs /
-// crm_list_view_prefs.config.mode) for forward-compat with a future board
-// view, but no UI offers it yet — isMode() below still only accepts the
-// two modes ViewCustomizer actually renders, falling back to 'table' for
-// anything else (including a 'kanban' value saved by a future client).
-export type ViewMode = 'table' | 'cards';
+export type ViewMode = 'table' | 'cards' | 'kanban';
 
 export interface ViewPrefs {
   hidden: string[];
@@ -25,7 +20,7 @@ function storageKey(entity: string, userId: string | null): string {
 }
 
 function isMode(v: unknown): v is ViewMode {
-  return v === 'table' || v === 'cards';
+  return v === 'table' || v === 'cards' || v === 'kanban';
 }
 
 function readUserId(): string | null {

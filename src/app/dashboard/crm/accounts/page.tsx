@@ -120,7 +120,7 @@ export default function AccountsListPage() {
         accounts={accounts}
         loading={loading || !fieldsLoaded}
         hiddenColumns={hiddenSet}
-        viewMode={view.prefs.mode}
+        viewMode={view.prefs.mode === 'cards' ? 'cards' : 'table'}
         sort={sort}
         onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
         fields={fields}

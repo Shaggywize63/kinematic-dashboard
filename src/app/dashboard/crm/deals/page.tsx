@@ -453,7 +453,7 @@ function DealsListPage() {
             filtered={filtersActive}
             onClearFilters={clearFilters}
             hiddenColumns={dealHidden}
-            viewMode={dealView.prefs.mode}
+            viewMode={dealView.prefs.mode === 'cards' ? 'cards' : 'table'}
             sort={sort}
             onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
             onAssign={async (dealId, userId) => {

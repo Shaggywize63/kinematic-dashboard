@@ -112,7 +112,7 @@ export default function ContactsListPage() {
         loading={loading}
         isB2C={isB2C}
         hiddenColumns={hiddenSet}
-        viewMode={view.prefs.mode}
+        viewMode={view.prefs.mode === 'cards' ? 'cards' : 'table'}
         sort={sort}
         onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
         onChangeAccount={spark ? setAccountFor : undefined}

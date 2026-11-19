@@ -24,6 +24,7 @@ import { STATUS_OPTIONS, type LeadFiltersValue } from '../../../../components/cr
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../lib/crmLeadStatuses';
 import SmartFilterBar from '../../../../components/crm/SmartFilterBar';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import LeadKanban from '../../../../components/crm/LeadKanban';
 import LeadsPipeline, { type PipelineTab } from '../../../../components/crm/leads/LeadsPipeline';
 import LeadQuickViews, { type QuickViewChip } from '../../../../components/crm/leads/LeadQuickViews';
 import LeadFilterChips, { buildAppliedChips } from '../../../../components/crm/leads/LeadFilterChips';
@@ -351,6 +352,29 @@ export default function LeadsListPage() {
       setExportElapsed(0);
     }
   };
+
+  // Kanban is a self-contained board, fetched independently of the paginated
+  // table/card list — it needs every status's full lead count (not just the
+  // current page), so it ignores `page`/`limit` and drops a single-status
+  // filter (otherwise every other column would render empty).
+  const [kanbanLeads, setKanbanLeads] = useState<Lead[]>([]);
+  const [kanbanLoading, setKanbanLoading] = useState(false);
+  const reloadKanban = async () => {
+    setKanbanLoading(true);
+    try {
+      const { status_in: _s, status: _t, ...base } = baseParams as Record<string, string | number>;
+      const r = await crmLeads.list({ ...base, limit: 500 });
+      setKanbanLeads(r.data || []);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to load leads');
+    } finally {
+      setKanbanLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (view.prefs.mode === 'kanban') reloadKanban();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view.prefs.mode, baseParams]);
 
   const reload = async () => {
     setLoading(true);
@@ -802,6 +826,7 @@ export default function LeadsListPage() {
           onToggle={view.toggleHidden}
           onSetMode={view.setMode}
           onReset={view.reset}
+          modes={['table', 'cards', 'kanban']}
         />
       </div>
 
@@ -810,7 +835,11 @@ export default function LeadsListPage() {
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <Card padding={0} style={{ overflow: 'hidden' }}>
-            {useStack ? (
+            {view.prefs.mode === 'kanban' ? (
+              <div style={{ padding: 14 }}>
+                <LeadKanban statuses={leadStatuses} initialLeads={kanbanLeads} loading={kanbanLoading} />
+              </div>
+            ) : useStack ? (
               <LeadCardStack
                 leads={filtered}
                 selected={selected}
@@ -882,13 +911,13 @@ export default function LeadsListPage() {
                 }}
               />
             )}
-            <PaginationBar
+            {view.prefs.mode !== 'kanban' && <PaginationBar
               pagination={pagination}
               pageSize={pageSize}
               onPageChange={setPage}
               onPageSizeChange={setPageSize}
               loading={loading}
-            />
+            />}
           </Card>
         </div>
 
