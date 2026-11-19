@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { crmActivities } from '../../../lib/crmApi';
 import { isB2bClientActive } from '../../../lib/b2bClient';
+import { canCompleteActivities } from '../../../lib/activityPermissions';
 import type { DetailActivity } from './format';
 
 /**
@@ -16,6 +17,8 @@ export function useActivityActions(onChanged: () => void) {
   const [completing, setCompleting] = useState<DetailActivity | null>(null);
 
   const setStatus = async (a: DetailActivity, status: 'open' | 'in_progress' | 'completed' | 'cancelled') => {
+    // Spark & Ray: only admins may mark an activity complete (the backend enforces this too).
+    if (status === 'completed' && !canCompleteActivities()) { toast.error('Only an admin can mark an activity complete.'); return; }
     if (status === 'completed' && isB2bClientActive()) { setCompleting(a); return; }
     setBusyId(a.id);
     try {
