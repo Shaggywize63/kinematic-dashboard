@@ -127,8 +127,12 @@ export default function CoOwnersCard({ entity, id, primaryOwnerId, primaryOwnerN
     );
   };
 
-  // Defer until the field overrides are known (no flash of a hidden owner), then withhold when hidden.
-  if (!fieldsLoaded || ownerHidden) return null;
+  // Owner is a built-in field, so when the admin hides `owner_id` the card is withheld from reps (the
+  // field-override contract). But an admin — or the lead's own primary owner — keeps it, so they can still
+  // manage co-owners, exactly as they keep the "Change owner" control when owner_id is hidden. Defer until
+  // the overrides (and, when hidden, the access check) are known so a hidden field never flashes for a rep.
+  if (!fieldsLoaded) return null;
+  if (ownerHidden && !canEdit) return null;
 
   return (
     <Card padding={18} style={{ minWidth: 0 }}>

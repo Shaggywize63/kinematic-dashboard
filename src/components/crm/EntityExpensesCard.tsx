@@ -46,11 +46,25 @@ export default function EntityExpensesCard({ kind, id }: { kind: 'lead' | 'deal'
       .catch(() => setState('error'));
   }, [kind, id]);
 
-  const fetchCandidates = useCallback(() => {
+  const fetchCandidates = useCallback(async () => {
     setPickState('loading');
-    expensesApi.listClaims()
-      .then((r) => { setCandidates(Array.isArray(r.data) ? r.data : []); setPickState('idle'); })
-      .catch(() => setPickState('error'));
+    try {
+      // A manager/approver may link anyone's claim (the backend allows it), so offer every claim they can see;
+      // a regular rep is 403'd on the admin list and falls back to their own claims. Without this, an admin who
+      // files no field expenses of their own sees an empty picker.
+      let list: ExpenseClaim[];
+      try {
+        const r = await expensesApi.listAll({ limit: 100 });
+        list = Array.isArray(r.data) ? r.data : [];
+      } catch {
+        const r = await expensesApi.listClaims();
+        list = Array.isArray(r.data) ? r.data : [];
+      }
+      setCandidates(list);
+      setPickState('idle');
+    } catch {
+      setPickState('error');
+    }
   }, []);
 
   const openPicker = useCallback(() => { setPicking(true); if (candidates === null) fetchCandidates(); }, [candidates, fetchCandidates]);
@@ -171,10 +185,10 @@ export default function EntityExpensesCard({ kind, id }: { kind: 'lead' | 'deal'
           <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Link2 aria-hidden size={13} strokeWidth={2} />Link an existing expense</Eyebrow>
           <Button size="sm" variant="ghost" onClick={() => setPicking(false)} icon={<X size={14} strokeWidth={1.8} />} aria-label="Close">Close</Button>
         </div>
-        {pickState === 'loading' && <div style={{ fontSize: 13, color: T.mute }}>Loading your expenses…</div>}
+        {pickState === 'loading' && <div style={{ fontSize: 13, color: T.mute }}>Loading expenses…</div>}
         {pickState === 'error' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13, color: T.dim }}>
-            <span>Couldn’t load your expenses</span>
+            <span>Couldn’t load expenses</span>
             <Button size="sm" variant="ghost" onClick={fetchCandidates} icon={<RotateCcw size={14} strokeWidth={1.8} />}>Try again</Button>
           </div>
         )}
@@ -202,7 +216,7 @@ export default function EntityExpensesCard({ kind, id }: { kind: 'lead' | 'deal'
                   <div style={{ minWidth: 0, flex: '1 1 150px' }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflowWrap: 'anywhere' }}>{c.claim_no || c.title || 'Expense claim'}</div>
                     <div style={{ fontSize: 12, color: T.mute, overflowWrap: 'anywhere' }}>
-                      {[CLAIM_STATUS_LABEL[c.status], otherLink ? `on ${otherLink}` : null].filter(Boolean).join(' · ')}
+                      {[c.user_name, CLAIM_STATUS_LABEL[c.status], otherLink ? `on ${otherLink}` : null].filter(Boolean).join(' · ')}
                     </div>
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{money(c.total_amount, c.currency)}</div>
