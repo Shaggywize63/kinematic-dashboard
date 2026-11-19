@@ -19,6 +19,7 @@ import {
 import type { Lead } from '../../../../../types/crm';
 import { Braces, Database, Link2, Mail, Save, Send, Upload, Users } from 'lucide-react';
 import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 type PickContact = { id: string; name: string; email: string };
 
@@ -41,6 +42,7 @@ const VARIABLES: Array<{ token: string; desc: string }> = [
 
 export default function NewEmailCampaignPage() {
   const router = useRouter();
+  const confirm = useConfirm();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [name, setName] = useState('');
   const [templateId, setTemplateId] = useState('');
@@ -196,7 +198,16 @@ export default function NewEmailCampaignPage() {
     // CSV recipient list — create the campaign from the uploaded file (no leads).
     if (mode === 'csv') {
       if (!csvFile || !csvInfo || !csvInfo.count) { setErr('Upload a CSV/XLSX with at least one valid email.'); return; }
-      if (thenLaunch && !confirm(`Send this campaign to ${csvInfo.count} recipient(s)? Sending is paced at ${throttle}/min and cannot be undone.`)) return;
+      if (thenLaunch) {
+        const ok = await confirm({
+          title: `Send this campaign to ${csvInfo.count} recipient(s)?`,
+          message: `Sending is paced at ${throttle}/min and cannot be undone.`,
+          confirmLabel: 'Send campaign',
+          confirmingLabel: 'Sending…',
+          irreversible: false,
+        });
+        if (!ok) return;
+      }
       setSaving(true); setErr('');
       try {
         const created = await crmEmailCampaigns.createFromCsv(csvFile, { name: name.trim(), template_id: templateId, throttle_per_min: throttle });
@@ -208,7 +219,16 @@ export default function NewEmailCampaignPage() {
     }
 
     if (pickMode && !selectedIds.length) { setErr('Select at least one contact to send to.'); return; }
-    if (thenLaunch && !confirm(`Send this campaign to ${preview ? preview.count : 'the selected'} recipient(s)? Sending is paced at ${throttle}/min and cannot be undone.`)) return;
+    if (thenLaunch) {
+      const ok = await confirm({
+        title: `Send this campaign to ${preview ? preview.count : 'the selected'} recipient(s)?`,
+        message: `Sending is paced at ${throttle}/min and cannot be undone.`,
+        confirmLabel: 'Send campaign',
+        confirmingLabel: 'Sending…',
+        irreversible: false,
+      });
+      if (!ok) return;
+    }
     setSaving(true); setErr('');
     try {
       const created = await crmEmailCampaigns.create({

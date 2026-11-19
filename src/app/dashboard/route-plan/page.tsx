@@ -6,6 +6,7 @@ import { api } from '../../../lib/api';
 import { userHasModule, getStoredUser } from '../../../lib/auth';
 import { AlertTriangle, Car, Check, CheckCircle2, Clock, Download, FileText, FolderOpen, Link2, ListOrdered, MessageSquareText, RotateCcw, Route as RouteIcon, StickyNote, Target, Timer, User, X, Zap, type LucideIcon } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../components/ui/PageIcon';
+import { useConfirm } from '../../../components/ConfirmProvider';
 
 // Leaflet-based map of a single plan's stops; client-only (ssr:false).
 const RoutePlanMap = dynamic(() => import('../../../components/route-plan/RoutePlanMap'), { ssr: false });
@@ -235,6 +236,7 @@ export default function RoutePlanPage() {
 }
 
 function RoutePlanContent() {
+  const confirm = useConfirm();
   const todayStr = new Date().toISOString().split('T')[0];
 
   const [date, setDate]         = useState(todayStr);
@@ -563,7 +565,14 @@ function RoutePlanContent() {
   };
 
   const handleDelete = async (id: string, feName: string) => {
-    if (!confirm(`Delete route plan for ${feName}? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: 'Delete this route plan?',
+      message: `This deletes the route plan for ${feName}`,
+      confirmLabel: 'Delete',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await api.delete(`/api/v1/route-plans/${id}`);
       fetchData();

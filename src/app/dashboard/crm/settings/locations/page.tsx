@@ -5,6 +5,7 @@ import api from '../../../../../lib/api';
 import { useClient } from '../../../../../context/ClientContext';
 import { Check, CheckCircle2, MapPinned, Plus, Trash2, Upload } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 // Settings → Locations — manage the State / City / District / Block master
 // list per client. Powers the cascading filters on the Leads page. Supports
@@ -71,6 +72,7 @@ export default function LocationsSettingsPage() {
   const [filter, setFilter] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -131,7 +133,12 @@ export default function LocationsSettingsPage() {
 
   const remove = async (row: Row) => {
     const label = row.kind === 'block' ? 'this block from the catalogue' : 'this location';
-    if (!confirm(`Delete ${label}?`)) return;
+    const ok = await confirm({
+      title: `Delete ${label}?`,
+      message: row.kind === 'block' ? 'This removes it from the blocks catalogue.' : 'This removes it from your locations list.',
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     try {
       const path = row.kind === 'block'
         ? `/api/v1/crm/blocks/${row.id}`

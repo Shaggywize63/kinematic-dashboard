@@ -5,10 +5,12 @@ import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate, inr } from '../../../../../components/distribution/Atoms';
 import { CheckCircle2, Package, Upload, XCircle } from 'lucide-react';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 interface ItemRow { sku_id: string; base_price: number; min_qty?: number; max_qty?: number | null }
 
 export default function PriceListDetail() {
+  const confirm = useConfirm();
   const params = useParams();
   const id = params?.id as string;
   const [pl, setPl] = useState<any | null>(null);
@@ -58,7 +60,15 @@ export default function PriceListDetail() {
   };
 
   const activate = async () => {
-    if (!confirm('Activate this version? Any current active list for the same class+region will be deactivated atomically.')) return;
+    const ok = await confirm({
+      title: 'Activate this version?',
+      message: 'Any current active list for the same class+region will be deactivated atomically.',
+      confirmLabel: 'Activate',
+      confirmingLabel: 'Activating…',
+      tone: 'default',
+      irreversible: false,
+    });
+    if (!ok) return;
     try { await api.activatePriceList(id); await load(); } catch (e: any) { alert(e.message); }
   };
 

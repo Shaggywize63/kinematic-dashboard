@@ -26,6 +26,7 @@ import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
 import { BookOpen, Check, Download, FileSpreadsheet, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 // One row from /api/v1/crm/locations — the per-tenant city allow-list
 // managed under Settings → Locations. We only care about the city name
@@ -52,6 +53,7 @@ function downloadTemplate() {
 }
 
 export default function PeopleDirectoryPage() {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -255,7 +257,12 @@ export default function PeopleDirectoryPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this entry?')) return;
+    const ok = await confirm({
+      title: 'Delete this entry?',
+      message: 'This removes it from the people directory.',
+      confirmLabel: 'Delete entry',
+    });
+    if (!ok) return;
     try {
       await crmPeopleDirectory.remove(id);
       toast.success('Deleted');

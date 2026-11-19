@@ -7,6 +7,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import RecipientPicker from '../../../components/RecipientPicker';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
 import { Badge, Button, Card, EmptyState, Eyebrow, Field, Input, Select, T, Textarea, useIsCompact } from '../../../components/ui';
+import { useConfirm } from '../../../components/ConfirmProvider';
 
 /**
  * Admin broadcast composer + send history. This used to be the whole
@@ -34,6 +35,7 @@ const notifVal = (h: Notif, key: string): unknown => {
 const PAGE = 10;
 
 export default function BroadcastPanel() {
+  const confirm = useConfirm();
   const narrow = useIsCompact(1100);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -92,7 +94,14 @@ export default function BroadcastPanel() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this broadcast? It will be removed from all users.')) return;
+    const ok = await confirm({
+      title: 'Delete this broadcast?',
+      message: 'It will be removed from all users.',
+      confirmLabel: 'Delete',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await api.delete(`/api/v1/notifications/${id}`);
       setHistory(history.filter((h) => h.id !== id));
@@ -100,7 +109,14 @@ export default function BroadcastPanel() {
   };
 
   const handleClearAll = async () => {
-    if (!confirm('Clear ALL broadcast history? This cannot be undone — every row below will be removed from your org.')) return;
+    const ok = await confirm({
+      title: 'Clear all broadcast history?',
+      message: 'Every row below will be removed from your org.',
+      confirmLabel: 'Clear History',
+      confirmingLabel: 'Clearing…',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await api.delete('/api/v1/notifications/history/clear');
       setHistory([]); setTotal(0); setPage(1);

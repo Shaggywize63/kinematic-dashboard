@@ -7,6 +7,7 @@ import { API_BASE_URL } from '../../../../lib/api';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { CheckCircle2, Hourglass, MailCheck, MailPlus, RotateCcw, Send, Star, Trash2 } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 /**
  * Verified sender addresses for outbound email.
@@ -23,6 +24,7 @@ import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIc
  * user knows what happened.
  */
 export default function EmailSendersPage() {
+  const confirm = useConfirm();
   const params = useSearchParams();
   const [rows, setRows] = useState<VerifiedSender[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,7 +97,15 @@ export default function EmailSendersPage() {
   };
 
   const remove = async (id: string, email: string) => {
-    if (!confirm(`Remove ${email} from verified senders?`)) return;
+    const ok = await confirm({
+      title: 'Remove this verified sender?',
+      message: 'It will no longer be selectable as a From address for email alerts.',
+      itemName: email,
+      confirmLabel: 'Remove sender',
+      confirmingLabel: 'Removing…',
+      tone: 'default',
+    });
+    if (!ok) return;
     try { await verifiedSendersApi.remove(id); load(); }
     catch (e: any) { toast.error(e?.message || 'Failed to remove'); }
   };

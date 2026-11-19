@@ -5,6 +5,7 @@ import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Btn, Th, Td, StatCard, fmtDate } from '../../../../../components/distribution/Atoms';
 import { ArrowLeftRight, CheckCircle2, Lock, Package, PackageX, ShoppingCart, Truck, Undo2, XCircle } from 'lucide-react';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 function loadStatusColor(status: string): 'gray' | 'green' | 'red' | 'amber' | 'blue' {
   switch ((status || '').toLowerCase()) {
@@ -18,6 +19,7 @@ function loadStatusColor(status: string): 'gray' | 'green' | 'red' | 'amber' | '
 interface RecRow { returned: string; damaged: string }
 
 export default function VanLoadDetail() {
+  const confirm = useConfirm();
   const params = useParams();
   const id = params?.id as string;
   const [load, setLoad] = useState<any | null>(null);
@@ -91,7 +93,15 @@ export default function VanLoadDetail() {
   };
 
   const closeLoad = async () => {
-    if (!confirm('Close this van load? Returns settle back to distributor stock and the load can no longer be edited.')) return;
+    const ok = await confirm({
+      title: 'Close this van load?',
+      message: 'Returns settle back to distributor stock and the load can no longer be edited.',
+      confirmLabel: 'Close Load',
+      confirmingLabel: 'Closing…',
+      tone: 'default',
+      irreversible: false,
+    });
+    if (!ok) return;
     setClosing(true); setMsg(null);
     try {
       await api.closeVanLoad(id);

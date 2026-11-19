@@ -14,6 +14,7 @@ import CustomFieldsSection from './CustomFieldsSection';
 import ActivityPhotoField from './shared/ActivityPhotoField';
 import LinkedEntityField, { linkedEntityOf, type LinkedEntity } from './shared/LinkedEntityField';
 import { AssigneeChips, FormSerialInput, OutcomeField, ProductChips, useProductCatalogue } from './spark/SparkActivityFields';
+import { useConfirm } from '../ConfirmProvider';
 
 /**
  * The edit-activity form (type, subject, notes, outcome, photo, due date, assignees, custom fields, Spark
@@ -21,6 +22,7 @@ import { AssigneeChips, FormSerialInput, OutcomeField, ProductChips, useProductC
  * activity list. `onSaved` fires after a successful save OR delete so the caller can refresh its list.
  */
 export default function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity; onClose: () => void; onSaved: () => void }) {
+  const confirm = useConfirm();
   const [subject, setSubject] = useState(activity.subject || '');
   const [description, setDescription] = useState(activity.description || activity.body || '');
   const [outcome, setOutcome] = useState(activity.outcome || '');
@@ -138,7 +140,13 @@ export default function EditActivityModal({ activity, onClose, onSaved }: { acti
   };
 
   const remove = async () => {
-    if (!confirm(`Delete this ${activity.type}? It will be soft-deleted on the backend and can be recovered by support, but won't appear in lists or analytics.`)) return;
+    const ok = await confirm({
+      title: `Delete this ${activity.type}?`,
+      message: "It will be soft-deleted on the backend and can be recovered by support, but won't appear in lists or analytics.",
+      confirmLabel: 'Delete activity',
+      irreversible: false,
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
       await crmActivities.remove(activity.id);
