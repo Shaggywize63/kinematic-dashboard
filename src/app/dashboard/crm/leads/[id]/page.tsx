@@ -530,6 +530,7 @@ export default function LeadDetailPage() {
                 fields={fields}
                 contactFields={contactFields}
                 contacts={contacts}
+                canEditContacts={canEditLead}
                 hideEmail={isTataActive}
                 activities={activities}
                 latestUpdate={updates.items[0] ?? null}

@@ -9,6 +9,7 @@ import MentionInput, { renderMentions } from '../../messaging/MentionInput';
 import OwnerAvatar from '../shared/OwnerAvatar';
 import { WA_PATH } from '../shared/WhatsAppButton';
 import { ActivityFields } from '../ActivityTimeline';
+import { canCompleteActivities } from '../../../lib/activityPermissions';
 import { SparkActivityCompany, SparkActivityMeta } from '../spark/SparkActivityFields';
 import { Button, T } from '../../ui';
 import RowMenu, { type RowMenuItem } from './RowMenu';
@@ -184,6 +185,8 @@ export function ActivityRow({
   const state = activityState(a);
   const badge = STATE_BADGE[state];
   const actionable = state === 'open' || state === 'in_progress';
+  // Spark & Ray: only admins may mark an activity complete.
+  const canComplete = canCompleteActivities();
   const due = actionable ? dueInfo(a.due_at) : null;
   const campaign = a.type === 'call' ? activityCampaign(a, leadCampaign) : null;
   const when = activityWhen(a);
@@ -213,7 +216,7 @@ export function ActivityRow({
             {!upcoming || !due ? ` · ${actionable && a.due_at ? 'due ' : ''}${relTime(when)}` : ` · due ${fmtIST(a.due_at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`}
           </div>
         </div>
-        {actionable && (
+        {actionable && canComplete && (
           <Button size="sm" onClick={() => onStatus('completed')} disabled={busy} icon={<Check size={14} strokeWidth={2.2} aria-hidden />} style={{ color: T.ok }}>
             Complete
           </Button>
