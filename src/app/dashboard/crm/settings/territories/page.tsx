@@ -7,9 +7,11 @@ import type { Territory } from '../../../../../types/crm';
 import { Badge, Button, Card, EmptyState, Eyebrow, Field, FormGrid, IconButton, Input, PageHeader, Select, T, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import LogoSpinner from '../../../../../components/shared/LogoSpinner';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 export default function TerritoriesPage() {
   usePageTitle('Territories');
+  const confirm = useConfirm();
   const narrow = useIsCompact(900);
   const [items, setItems] = useState<Territory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +57,14 @@ export default function TerritoriesPage() {
   };
 
   const remove = async (t: Territory) => {
-    if (!window.confirm(`Delete territory "${t.name}"? Sub-territories using this as parent will be orphaned.`)) return;
+    if (!(await confirm({
+      title: 'Delete this territory?',
+      message: 'Sub-territories using this as parent will be orphaned',
+      itemName: t.name,
+      confirmLabel: 'Delete territory',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setBusy((b) => ({ ...b, [t.id]: true }));
     try {
       await crmTerritories.remove(t.id);

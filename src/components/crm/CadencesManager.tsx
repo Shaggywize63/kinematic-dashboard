@@ -5,6 +5,7 @@ import { crmFlows, crmFlowSteps, type Flow, type FlowStep } from '../../lib/crmA
 import type { LucideIcon } from 'lucide-react';
 import { Bell, CheckSquare, ChevronDown, ChevronRight, LayoutTemplate, ListOrdered, Mail, MessageCircle, Pause, PartyPopper, Play, Plus, Repeat, Settings2, Sprout, Timer, Trash2, Workflow } from 'lucide-react';
 import { IconTile, InlineIcon } from '../ui/PageIcon';
+import { useConfirm } from '../ConfirmProvider';
 
 // The engine executes steps in `position` order and falls through by position
 // when edges are null — so a linear cadence is just ordered steps with no edges.
@@ -95,6 +96,7 @@ const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 
 const btnGhost: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 13 };
 
 export default function CadencesManager() {
+  const confirm = useConfirm();
   const [flows, setFlows] = useState<Flow[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -156,7 +158,14 @@ export default function CadencesManager() {
   };
 
   const removeFlow = async (f: Flow) => {
-    if (!window.confirm(`Delete cadence “${f.name}”?`)) return;
+    if (!(await confirm({
+      title: 'Delete this cadence?',
+      message: 'This permanently removes the cadence and its steps',
+      itemName: f.name,
+      confirmLabel: 'Delete cadence',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     try { await crmFlows.remove(f.id); toast.success('Deleted'); if (expandedId === f.id) setExpandedId(null); load(); }
     catch (e: any) { toast.error(e.message || 'Delete failed'); }
   };
@@ -259,6 +268,7 @@ export default function CadencesManager() {
 }
 
 function StepEditor({ flowId }: { flowId: string }) {
+  const confirm = useConfirm();
   const [steps, setSteps] = useState<FlowStep[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -320,6 +330,14 @@ function StepEditor({ flowId }: { flowId: string }) {
   };
 
   const removeStep = async (s: FlowStep) => {
+    if (!(await confirm({
+      title: 'Remove this step?',
+      message: 'This removes it from the cadence',
+      confirmLabel: 'Remove step',
+      confirmingLabel: 'Removing…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     try { await crmFlowSteps.remove(s.id); await load(); }
     catch (e: any) { toast.error(e.message || 'Remove failed'); }
   };

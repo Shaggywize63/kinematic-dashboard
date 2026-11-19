@@ -7,8 +7,10 @@ import { ArrowLeft, Blocks, Check, Pencil, Plus, Search, Trash2 } from 'lucide-r
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { crmCustomObjects, crmCustomFields, type CustomObject, type CustomRecord } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 export default function CustomObjectRecordsPage() {
+  const confirm = useConfirm();
   const params = useParams();
   const key = String(params?.key || '');
 
@@ -44,7 +46,14 @@ export default function CustomObjectRecordsPage() {
   const visibleFields = useMemo(() => fields.filter((f) => f.field_type !== 'formula'), [fields]);
 
   const remove = async (rec: CustomRecord) => {
-    if (!window.confirm('Delete this record?')) return;
+    if (!(await confirm({
+      title: 'Delete this record?',
+      message: 'This permanently removes the record',
+      itemName: rec.title || undefined,
+      confirmLabel: 'Delete record',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     try { await crmCustomObjects.removeRecord(key, rec.id); toast.success('Deleted'); loadRecords(); }
     catch (e: any) { toast.error(e.message || 'Delete failed'); }
   };
