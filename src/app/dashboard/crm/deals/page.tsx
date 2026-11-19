@@ -21,6 +21,7 @@ import { formatINR, formatINRCompact } from '../../../../lib/formatCurrency';
 import { useFieldHelpers } from '../../../../lib/crm/useFieldHelpers';
 import MetricTiles, { type MetricTile } from '../../../../components/crm/shared/MetricTiles';
 import ServerPaginationBar from '../../../../components/crm/shared/ServerPaginationBar';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 const DEAL_DEFAULT_PAGE_SIZE = 50;
 
@@ -48,6 +49,7 @@ function DealsListPage() {
   const router = useRouter();
   const search = useSearchParams();
   usePageTitle('Deals');
+  const confirm = useConfirm();
   const narrow = useIsCompact(900);
   const initialView: ViewMode = search.get('view') === 'kanban' ? 'kanban' : 'list';
   const initialPipelineId = search.get('pipeline_id') || '';
@@ -258,7 +260,15 @@ function DealsListPage() {
 
   const bulkDelete = async () => {
     if (selected.size === 0) return;
-    if (!window.confirm(`Delete ${selected.size} deal${selected.size > 1 ? 's' : ''}? This soft-deletes them and they can be restored from the database if needed.`)) return;
+    const n = selected.size;
+    if (!(await confirm({
+      title: `Delete ${n} deal${n > 1 ? 's' : ''}?`,
+      message: 'This soft-deletes them — rows can be restored from the database if needed',
+      confirmLabel: `Delete ${n > 1 ? `${n} deals` : 'deal'}`,
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     setBulkBusy(true);
     let ok = 0, failed = 0;
     for (const id of Array.from(selected)) {
@@ -467,7 +477,14 @@ function DealsListPage() {
             onToggleAll={toggleAll}
             onEdit={setEditingDeal}
             onDelete={async (id) => {
-              if (!window.confirm('Delete this deal? It will be soft-deleted and can be restored from the database if needed.')) return;
+              if (!(await confirm({
+                title: 'Delete this deal?',
+                message: 'This soft-deletes it — the row can be restored from the database if needed',
+                confirmLabel: 'Delete deal',
+                confirmingLabel: 'Deleting…',
+                tone: 'danger',
+                irreversible: false,
+              }))) return;
               try {
                 await crmDeals.remove(id);
                 toast.success('Deal deleted');

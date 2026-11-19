@@ -34,6 +34,7 @@ import { DealSectionsView, useDealSections } from '../../../../../components/crm
 import { DealLinesCard, OrderValueStep } from '../../../../../components/crm/spark/DealLinesCard';
 import { useFieldHelpers } from '../../../../../lib/crm/useFieldHelpers';
 import { Badge } from '../../../../../components/ui';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 const LOST_REASONS = [
   'Price too high',
@@ -150,6 +151,7 @@ export default function DealDetailPage() {
   const isBmw = isBmwActive(authUser as Parameters<typeof isBmwActive>[0]);
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const confirm = useConfirm();
   // Spark & Ray: Quotation / Pricing / Product trial / Approvals sections, as configured under Settings -> Deal sections.
   const spark = isB2bClientActive();
   const dealSections = useDealSections(spark);
@@ -415,7 +417,14 @@ export default function DealDetailPage() {
   };
   const reopenDeal = async () => {
     if (!deal) return;
-    if (!window.confirm('Re-open this deal? It will return to open status.')) return;
+    if (!(await confirm({
+      title: 'Re-open this deal?',
+      message: 'It will return to open status',
+      confirmLabel: 'Re-open deal',
+      confirmingLabel: 'Re-opening…',
+      tone: 'default',
+      irreversible: false,
+    }))) return;
     setReopening(true);
     try {
       await crmDeals.update(deal.id, { status: 'open' } as any);
@@ -466,7 +475,13 @@ export default function DealDetailPage() {
 
   const handleDelete = async () => {
     if (!deal) return;
-    if (!window.confirm('Delete this deal? This action cannot be undone.')) return;
+    if (!(await confirm({
+      title: 'Delete this deal?',
+      message: 'This permanently removes the deal and its history',
+      confirmLabel: 'Delete deal',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setDeleting(true);
     try {
       await crmDeals.remove(deal.id);
@@ -1330,6 +1345,7 @@ function DealProductsCard({ deal }: { deal: Deal }) {
  * the deal page" — one deal, N line items, total = Σ line_total.
  */
 function EditableLineItemsCard({ dealId }: { dealId: string }) {
+  const confirm = useConfirm();
   const [items, setItems] = useState<DealLineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1373,7 +1389,14 @@ function EditableLineItemsCard({ dealId }: { dealId: string }) {
   };
 
   const remove = async (id: string) => {
-    if (!confirm('Delete this line item?')) return;
+    if (!(await confirm({
+      title: 'Delete this line item?',
+      message: 'This removes it from the deal',
+      confirmLabel: 'Delete line item',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     setBusyId(id);
     try {
       await crmLineItems.remove(id);
