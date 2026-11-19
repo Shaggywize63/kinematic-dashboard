@@ -38,6 +38,7 @@ import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
 import { LEAD_TYPE_DEFAULT_LABEL } from '../../../../lib/leadType';
 import { usePageTitle } from '../../../../lib/pageTitle';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 import { Badge, Button, Card, IconButton, Input, Segmented, Select, T, buttonStyle, useIsCompact } from '../../../../components/ui';
 
 type UserOption = { id: string; name: string };
@@ -55,6 +56,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function LeadsListPage() {
   usePageTitle('Leads', 'Track and qualify prospects, then convert the best ones to contacts, accounts and deals.');
+  const confirm = useConfirm();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [filters, setFilters] = useState<LeadFiltersValue>({});
@@ -545,9 +547,18 @@ export default function LeadsListPage() {
     const parsed = userRaw ? (() => { try { return JSON.parse(userRaw); } catch { return null; } })() : null;
     const userId = parsed?.id || parsed?.user_id || parsed?.userId;
     if (!userId) return toast.error('Could not determine your user ID');
+    const n = selected.size;
+    if (!(await confirm({
+      title: `Assign ${n} lead${n > 1 ? 's' : ''} to you?`,
+      message: `This reassigns the selected lead${n > 1 ? 's' : ''} and removes them from their current owner's queue`,
+      confirmLabel: 'Assign to me',
+      confirmingLabel: 'Assigning…',
+      tone: 'default',
+      irreversible: false,
+    }))) return;
     try {
       await crmLeads.bulkAssign({ lead_ids: Array.from(selected), owner_id: userId });
-      toast.success(`Assigned ${selected.size} leads to you`);
+      toast.success(`Assigned ${n} leads to you`);
       setSelected(new Set());
       reload();
     } catch (e: any) { toast.error(e.message || 'Bulk assign failed'); }
@@ -568,9 +579,18 @@ export default function LeadsListPage() {
 
   const bulkAssignTo = async (userId: string, userName: string) => {
     if (!ownerAccess.canAssign) return;
+    const n = selected.size;
+    if (!(await confirm({
+      title: `Assign ${n} lead${n > 1 ? 's' : ''} to ${userName}?`,
+      message: `This reassigns the selected lead${n > 1 ? 's' : ''} and removes them from their current owner's queue`,
+      confirmLabel: `Assign to ${userName}`,
+      confirmingLabel: 'Assigning…',
+      tone: 'default',
+      irreversible: false,
+    }))) return;
     try {
       await crmLeads.bulkAssign({ lead_ids: Array.from(selected), owner_id: userId });
-      toast.success(`Assigned ${selected.size} leads to ${userName}`);
+      toast.success(`Assigned ${n} leads to ${userName}`);
       setSelected(new Set());
       reload();
     } catch (e: any) { toast.error(e.message || 'Bulk assign failed'); }
@@ -584,9 +604,15 @@ export default function LeadsListPage() {
   // are surfaced honestly in the toast.
   const bulkDelete = async () => {
     if (selected.size === 0) return;
-    if (!window.confirm(
-      `Delete ${selected.size} lead${selected.size > 1 ? 's' : ''}? This soft-deletes them — rows can be restored from the database if needed.`,
-    )) return;
+    const n = selected.size;
+    if (!(await confirm({
+      title: `Delete ${n} lead${n > 1 ? 's' : ''}?`,
+      message: 'This soft-deletes them — rows can be restored from the database if needed',
+      confirmLabel: `Delete ${n > 1 ? `${n} leads` : 'lead'}`,
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     setBulkBusy(true);
     let ok = 0, failed = 0;
     for (const id of Array.from(selected)) {
