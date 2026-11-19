@@ -28,6 +28,8 @@ import { isConsumerChampion, isBmwActive } from '../../../../../lib/clientFeatur
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import EntityExpensesCard from '../../../../../components/crm/EntityExpensesCard';
 import CoOwnersCard from '../../../../../components/crm/CoOwnersCard';
+import ReorderablePanels from '../../../../../components/crm/shared/ReorderablePanels';
+import { usePanelOrder } from '../../../../../lib/crmPanelOrder';
 import { DealSectionsView, useDealSections } from '../../../../../components/crm/spark/DealSections';
 import { DealLinesCard, OrderValueStep } from '../../../../../components/crm/spark/DealLinesCard';
 import { useFieldHelpers } from '../../../../../lib/crm/useFieldHelpers';
@@ -113,6 +115,10 @@ function normaliseEvent(h: any): { id?: string; eventType: string; createdAt: st
   return { id: h.id, eventType, createdAt, fromStage: fromStage || undefined, toStage: toStage || undefined, note: note || undefined };
 }
 
+// The sidebar's built-in order. A card gated on a condition (primary_contact/win_probability/nba) that
+// isn't eligible to render for the current deal/user just drops out — see ReorderablePanels.
+const DEAL_SIDEBAR_DEFAULT_ORDER = ['coowners', 'expenses', 'primary_contact', 'win_probability', 'nba'];
+
 class SafeRender extends Component<{ label: string; children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
   static getDerivedStateFromError(error: Error) { return { error }; }
@@ -151,6 +157,9 @@ export default function DealDetailPage() {
   // forms is not shown here either. The gated rows wait for the settings so a hidden field never flashes in.
   const { fields: dealFields, loaded: dealFieldsLoaded } = useFieldHelpers('deal');
   const [deal, setDeal] = useState<Deal | null>(null);
+  // Per-user order of the sidebar cards (synced via /crm/panel-prefs). Must stay above the
+  // "not found" early return below, like every other hook in this component.
+  const { order: sidebarPanelOrder, setOrder: setSidebarPanelOrder } = usePanelOrder('deal_detail', DEAL_SIDEBAR_DEFAULT_ORDER);
   // INR ↔ Weight toggle for the Amount field. Reads / writes the same
   // localStorage key the dashboard analytics page uses so flipping the
   // unit on one surface persists everywhere.
@@ -842,60 +851,67 @@ export default function DealDetailPage() {
 
         </div>
 
-        <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {/* Primary owner + co-owners (peers who also see this deal). */}
-          <SafeRender label="co-owners"><CoOwnersCard entity="deals" id={id} primaryOwnerId={deal.owner_id} primaryOwnerName={deal.owner_name} /></SafeRender>
-          {/* Connected-B2B: what was spent to win this deal (claims linked to it) vs. its value. Renders nothing for other clients. */}
-          <SafeRender label="expenses"><EntityExpensesCard kind="deal" id={id} /></SafeRender>
-          {primary && primary.contact_id && (
-            <Card title="Primary Contact" icon={UserRound}>
-              <Link href={`/dashboard/crm/contacts/${primary.contact_id}`} style={chipLink}>
-                → {primary.contact?.full_name || `${primary.contact?.first_name || ''} ${primary.contact?.last_name || ''}`.trim() || 'View contact'}
-              </Link>
-            </Card>
-          )}
-
-          {/* Win Probability + Next Best Action are AI manager-tier
-              surfaces — hidden for Consumer Champions who own the
-              FE-tier flow and don't act on these recommendations, and
-              removed entirely for BMW (no forecast / NBA surface). */}
-          {!isChampion && !isBmw && (
-          <SafeRender label="win probability">
-            <div style={{ position: 'relative' }}>
-              <WinProbabilityGauge
-                probability={winProb?.probability ?? (deal as any).ai_win_probability ?? deal.probability ?? 0}
-                confidence={winProb?.confidence ?? (deal as any).ai_win_confidence ?? undefined}
-                drivers={winProb?.drivers}
-                reasoning={winProb?.reasoning}
-                breakdown={winProb?.breakdown}
-                ai
-              />
-              {winBusy && !winProb && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <LogoSpinner size={40} label="Forecasting…" />
+        <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+          <ReorderablePanels order={sidebarPanelOrder} onReorder={setSidebarPanelOrder} panels={{
+            // Primary owner + co-owners (peers who also see this deal).
+            coowners: <SafeRender label="co-owners"><CoOwnersCard entity="deals" id={id} primaryOwnerId={deal.owner_id} primaryOwnerName={deal.owner_name} /></SafeRender>,
+            // Connected-B2B: what was spent to win this deal (claims linked to it) vs. its value. Renders nothing for other clients.
+            expenses: <SafeRender label="expenses"><EntityExpensesCard kind="deal" id={id} /></SafeRender>,
+            ...(primary && primary.contact_id ? {
+              primary_contact: (
+                <Card title="Primary Contact" icon={UserRound}>
+                  <Link href={`/dashboard/crm/contacts/${primary.contact_id}`} style={chipLink}>
+                    → {primary.contact?.full_name || `${primary.contact?.first_name || ''} ${primary.contact?.last_name || ''}`.trim() || 'View contact'}
+                  </Link>
+                </Card>
+              ),
+            } : {}),
+            // Win Probability + its re-forecast button are AI manager-tier surfaces — hidden for Consumer
+            // Champions who own the FE-tier flow and don't act on these recommendations, and removed
+            // entirely for BMW (no forecast / NBA surface). Bundled as one panel: the button re-forecasts
+            // the gauge directly above it.
+            ...((!isChampion && !isBmw) ? {
+              win_probability: (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <SafeRender label="win probability">
+                    <div style={{ position: 'relative' }}>
+                      <WinProbabilityGauge
+                        probability={winProb?.probability ?? (deal as any).ai_win_probability ?? deal.probability ?? 0}
+                        confidence={winProb?.confidence ?? (deal as any).ai_win_confidence ?? undefined}
+                        drivers={winProb?.drivers}
+                        reasoning={winProb?.reasoning}
+                        breakdown={winProb?.breakdown}
+                        ai
+                      />
+                      {winBusy && !winProb && (
+                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <LogoSpinner size={40} label="Forecasting…" />
+                        </div>
+                      )}
+                    </div>
+                  </SafeRender>
+                  <button onClick={loadWinProb} disabled={winBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <InlineIcon icon={RefreshCw} size={14} />
+                    {winBusy ? 'Predicting…' : 'Re-forecast Win Probability'}
+                  </button>
                 </div>
-              )}
-            </div>
-          </SafeRender>
-          )}
-          {!isChampion && !isBmw && (
-          <button onClick={loadWinProb} disabled={winBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <InlineIcon icon={RefreshCw} size={14} />
-            {winBusy ? 'Predicting…' : 'Re-forecast Win Probability'}
-          </button>
-          )}
-          {!isChampion && !isBmw && (
-          <SafeRender label="next best action">
-            <div style={{ position: 'relative' }}>
-              <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} dealId={id} />
-              {nbaBusy && !nba && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <LogoSpinner size={40} label="Computing…" />
-                </div>
-              )}
-            </div>
-          </SafeRender>
-          )}
+              ),
+            } : {}),
+            ...((!isChampion && !isBmw) ? {
+              nba: (
+                <SafeRender label="next best action">
+                  <div style={{ position: 'relative' }}>
+                    <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} dealId={id} />
+                    {nbaBusy && !nba && (
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <LogoSpinner size={40} label="Computing…" />
+                      </div>
+                    )}
+                  </div>
+                </SafeRender>
+              ),
+            } : {}),
+          }} />
         </div>
       </div>
 

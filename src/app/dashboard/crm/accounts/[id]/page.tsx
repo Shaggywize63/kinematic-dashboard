@@ -28,15 +28,30 @@ import AccountUpdatesCard from '../../../../../components/crm/spark/AccountUpdat
 import AccountAddresses from '../../../../../components/crm/spark/AccountAddresses';
 import { Button, useIsCompact } from '../../../../../components/ui';
 import { useFieldHelpers } from '../../../../../lib/crm/useFieldHelpers';
+import ReorderablePanels from '../../../../../components/crm/shared/ReorderablePanels';
+import { usePanelOrder } from '../../../../../lib/crmPanelOrder';
 import { accountLocationLines } from '../../../../../lib/accountLocation';
 import { apiErrorText, dealRollup } from '../../../../../lib/sparkAccounts';
 import { BrandChips } from '../../../../../components/crm/spark/BrandChips';
 import CoOwnersCard from '../../../../../components/crm/CoOwnersCard';
 
+// Built-in order of the main-column and sidebar cards. A card gated on a condition (spark-only, a
+// description, notes present, …) that isn't eligible to render for the current account just drops
+// out — see ReorderablePanels. The header/key-facts block above isn't a panel and always stays first.
+const ACCOUNT_MAIN_DEFAULT_ORDER = [
+  'coowners', 'recent_updates', 'addresses', 'timeline', 'about', 'custom_fields',
+  'contacts', 'structure_gaps', 'leads', 'deals', 'products', 'activities', 'notes',
+];
+const ACCOUNT_SIDEBAR_DEFAULT_ORDER = ['stats', 'ai_summary'];
+
 export default function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [a, setA] = useState<Account | null>(null);
+  // Per-user order of the main-column and sidebar cards (synced via /crm/panel-prefs). Must stay above
+  // the loading/"not found" early returns below, like every other hook in this component.
+  const { order: mainPanelOrder, setOrder: setMainPanelOrder } = usePanelOrder('account_detail', ACCOUNT_MAIN_DEFAULT_ORDER);
+  const { order: sidebarPanelOrder, setOrder: setSidebarPanelOrder } = usePanelOrder('account_detail_sidebar', ACCOUNT_SIDEBAR_DEFAULT_ORDER);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -322,26 +337,22 @@ export default function AccountDetailPage() {
           )}
         </div>
 
-        {/* Primary owner + co-owners (peers who also see this account). */}
-        <CoOwnersCard entity="accounts" id={a.id} primaryOwnerId={a.owner_id} primaryOwnerName={a.owner_name} />
-
-        {spark && (
+        <ReorderablePanels order={mainPanelOrder} onReorder={setMainPanelOrder} panels={{
+          // Primary owner + co-owners (peers who also see this account).
+          coowners: <CoOwnersCard entity="accounts" id={a.id} primaryOwnerId={a.owner_id} primaryOwnerName={a.owner_name} />,
+          ...(spark ? { recent_updates: (
           <Card title="Recent updates" icon={MessageSquareText}>
             <AccountUpdatesCard accountId={a.id} contacts={contacts} />
           </Card>
-        )}
+          ) } : {}),
+          ...(spark ? { addresses: <AccountAddresses accountId={a.id} openNewSignal={addPlantSignal} /> } : {}),
+          timeline: <TimelineCard data={timeline} />,
 
-        {spark && <AccountAddresses accountId={a.id} openNewSignal={addPlantSignal} />}
-
-        <TimelineCard data={timeline} />
-
-        {a.description && (<Card title="About" icon={Info}><div style={{ fontSize: 13, color: 'var(--text)' }}>{a.description}</div></Card>)}
-
-        {/* Read-only admin-defined custom fields — renders nothing when
-            the account has no stored values. */}
-        <CustomFieldsDetailCard entity="account" customFields={a.custom_fields} />
-
-        <Card
+          ...(a.description ? { about: (<Card title="About" icon={Info}><div style={{ fontSize: 13, color: 'var(--text)' }}>{a.description}</div></Card>) } : {}),
+          // Read-only admin-defined custom fields — renders nothing when the account has no stored values.
+          custom_fields: <CustomFieldsDetailCard entity="account" customFields={a.custom_fields} />,
+          contacts: (
+          <Card
           anchor="contacts"
           title={`Contacts (${contacts.length})`}
           icon={ContactIcon}
@@ -371,9 +382,9 @@ export default function AccountDetailPage() {
             </div>
           )}
         </Card>
-
-        {spark && <AccountStructureGaps gaps={structureGaps} onFix={goFixGap} />}
-
+          ),
+          ...(spark ? { structure_gaps: <AccountStructureGaps gaps={structureGaps} onFix={goFixGap} /> } : {}),
+          leads: (
         <Card anchor="leads" title={`Leads (${totalLeadCount})`} icon={UserPlus}>
           {leadsError ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Could not load leads.</div>
@@ -447,7 +458,8 @@ export default function AccountDetailPage() {
             </div>
           )}
         </Card>
-
+          ),
+          deals: (
         <Card anchor="deals" title={`Deals (${deals.length})`} icon={Handshake}>
           {deals.length === 0 ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No deals.</div>
@@ -483,7 +495,8 @@ export default function AccountDetailPage() {
             </div>
           )}
         </Card>
-
+          ),
+          products: (
         <Card title={`Products${products.length > 0 ? ` (${products.length})` : ''}`} icon={Package}>
           {products.length === 0 ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No product lines on this account&apos;s deals yet.</div>
@@ -498,10 +511,9 @@ export default function AccountDetailPage() {
             </div>
           )}
         </Card>
-
-        <Card title={`Activities (${activities.length})`} icon={CheckSquare}><ActivityTimeline activities={activities} onEdit={setEditingActivity} addHref={`/dashboard/crm/activities/new?account_id=${id}`} /></Card>
-
-        {notes.length > 0 && (
+          ),
+          activities: <Card title={`Activities (${activities.length})`} icon={CheckSquare}><ActivityTimeline activities={activities} onEdit={setEditingActivity} addHref={`/dashboard/crm/activities/new?account_id=${id}`} /></Card>,
+          ...(notes.length > 0 ? { notes: (
           <Card title={`Notes (${notes.length})`} icon={StickyNote}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {notes.map((n) => (
@@ -512,10 +524,13 @@ export default function AccountDetailPage() {
               ))}
             </div>
           </Card>
-        )}
+          ) } : {}),
+        }} />
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ minWidth: 0 }}>
+        <ReorderablePanels order={sidebarPanelOrder} onReorder={setSidebarPanelOrder} panels={{
+          stats: (
         <Card title="Account Stats" icon={BarChart3}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
             <Stat label="Contacts" value={String(contacts.length)} />
@@ -525,7 +540,9 @@ export default function AccountDetailPage() {
             <Stat label="Won" value={formatINR(wonValue)} />
           </div>
         </Card>
-        <AccountSummaryCard accountId={a.id} initial={a.ai_summary} />
+          ),
+          ai_summary: <AccountSummaryCard accountId={a.id} initial={a.ai_summary} />,
+        }} />
       </div>
 
       {editingActivity && (

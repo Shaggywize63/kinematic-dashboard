@@ -36,6 +36,8 @@ import { LeadStructureGaps } from '../../../../../components/crm/spark/Structure
 import EntityExpensesCard from '../../../../../components/crm/EntityExpensesCard';
 import CoOwnersCard from '../../../../../components/crm/CoOwnersCard';
 import SampleInvoicesCard from '../../../../../components/crm/SampleInvoicesCard';
+import ReorderablePanels from '../../../../../components/crm/shared/ReorderablePanels';
+import { usePanelOrder } from '../../../../../lib/crmPanelOrder';
 import InsightsTab from '../../../../../components/crm/lead-detail/InsightsTab';
 import ScoreCard from '../../../../../components/crm/lead-detail/ScoreCard';
 import DisqualifiedBanner from '../../../../../components/crm/lead-detail/DisqualifiedBanner';
@@ -52,6 +54,9 @@ const UPDATE_ADMIN_ROLES = new Set(['super_admin', 'admin', 'org_admin']);
 // (or denied) an Edit affordance the server then disagrees with.
 const TENANT_ADMIN_ROLES = ['super_admin', 'admin', 'main_admin', 'sub_admin', 'client', 'city_manager'];
 const TAB_IDS: LeadTab[] = ['overview', 'timeline', 'deals', 'insights'];
+// The sidebar's built-in order. A tenant-gated panel (expenses/sample_invoices/score/nba) that isn't
+// eligible to render for the current lead/user just drops out — see ReorderablePanels.
+const LEAD_SIDEBAR_DEFAULT_ORDER = ['coowners', 'expenses', 'sample_invoices', 'score', 'nba'];
 
 /** Spark & Ray: the deal form in conversion mode for a lead (it reads the lead itself to prefill name / account). */
 const sparkConvertHref = (leadId: string) => `/dashboard/crm/deals/new?lead_id=${encodeURIComponent(leadId)}&convert=1`;
@@ -94,6 +99,9 @@ export default function LeadDetailPage() {
   const id = params?.id as string;
   const [lead, setLead] = useState<LifecycleLead | null>(null);
   const narrow = useIsCompact(960);
+  // Per-user order of the sidebar intelligence cards (synced via /crm/panel-prefs). Must stay above the
+  // loading/not-found early returns below, like every other hook in this component.
+  const { order: sidebarPanelOrder, setOrder: setSidebarPanelOrder } = usePanelOrder('lead_detail', LEAD_SIDEBAR_DEFAULT_ORDER);
 
   // Per-tenant built-in field overrides — the detail view is a render site like Create and Edit, so
   // hidden fields stay hidden and relabels apply.
@@ -539,33 +547,40 @@ export default function LeadDetailPage() {
           </div>
         </div>
 
-        <aside aria-label="Lead intelligence" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Primary owner + co-owners (peers who also see this lead). */}
-          <CoOwnersCard entity="leads" id={id} primaryOwnerId={lead.owner_id} primaryOwnerName={lead.owner_name} />
-          {/* Connected-B2B: what was spent on this lead (claims linked to it) vs. the deal value. Renders nothing for other clients. */}
-          <EntityExpensesCard kind="lead" id={id} />
-          {/* Connected-B2B (Spark & Ray): sample-invoice numbers stored on the lead's custom_fields.sample_invoices.
-              Self-gates on isB2bClientActive() and renders nothing for other clients. */}
-          <SampleInvoicesCard
-            lead={lead}
-            onSaved={(updated) => { setLead((prev) => ({ ...(prev as LifecycleLead), ...updated })); void reload(); }}
-          />
-          {/* Score + boost suggestions are hidden for Consumer Champion reps AND for the Tata Tiscon tenant —
-              their flow doesn't use the AI score-boost loop. The NBA card stays visible since it's an action
-              prompt the FE can act on directly. */}
-          {showScore && (
-            <>
-              <ScoreCard lead={lead} score={score} scoring={scoring} onRescore={reScore} />
-              <ScoreBoostSuggestions
-                lead={lead as any}
-                onEdit={() => { if (canEditLead) setEditOpen(true); }}
-                onQualify={markQualified}
-                busy={qualifying || scoring}
-              />
-            </>
-          )}
-          {/* Next Best Action — AI manager-tier surface; hidden for the Consumer Champion FE flow since they don't act on it, and removed entirely for BMW. */}
-          {!isChampion && !isBmw && <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />}
+        <aside aria-label="Lead intelligence" style={{ minWidth: 0 }}>
+          <ReorderablePanels order={sidebarPanelOrder} onReorder={setSidebarPanelOrder} panels={{
+            // Primary owner + co-owners (peers who also see this lead).
+            coowners: <CoOwnersCard entity="leads" id={id} primaryOwnerId={lead.owner_id} primaryOwnerName={lead.owner_name} />,
+            // Connected-B2B: what was spent on this lead (claims linked to it) vs. the deal value. Gated here
+            // the same way the card gates itself internally, so a non-B2B tenant never gets an empty drag slot.
+            ...(isB2bClientActive() ? { expenses: <EntityExpensesCard kind="lead" id={id} /> } : {}),
+            // Connected-B2B (Spark & Ray): sample-invoice numbers stored on the lead's custom_fields.sample_invoices.
+            ...(isB2bClientActive() ? {
+              sample_invoices: (
+                <SampleInvoicesCard
+                  lead={lead}
+                  onSaved={(updated) => { setLead((prev) => ({ ...(prev as LifecycleLead), ...updated })); void reload(); }}
+                />
+              ),
+            } : {}),
+            // Score + boost suggestions are hidden for Consumer Champion reps AND for the Tata Tiscon tenant —
+            // their flow doesn't use the AI score-boost loop.
+            ...(showScore ? {
+              score: (
+                <>
+                  <ScoreCard lead={lead} score={score} scoring={scoring} onRescore={reScore} />
+                  <ScoreBoostSuggestions
+                    lead={lead as any}
+                    onEdit={() => { if (canEditLead) setEditOpen(true); }}
+                    onQualify={markQualified}
+                    busy={qualifying || scoring}
+                  />
+                </>
+              ),
+            } : {}),
+            // Next Best Action — AI manager-tier surface; hidden for the Consumer Champion FE flow since they don't act on it, and removed entirely for BMW.
+            ...((!isChampion && !isBmw) ? { nba: <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} /> } : {}),
+          }} />
         </aside>
       </div>
 

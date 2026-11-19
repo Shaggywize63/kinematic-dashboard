@@ -162,3 +162,15 @@ export const crmListViewPrefs = {
   save: (entity: ListViewEntity, prefs: ListViewPrefsPayload) =>
     api.put<Wrapped<ListViewPrefsPayload>>(`${LIST_VIEW_PREFS_BASE}/${entity}`, prefs),
 };
+
+// ── Per-user panel order for CRM detail pages ──
+
+const PANEL_PREFS_BASE = '/api/v1/crm/panel-prefs';
+export type PanelPage = 'lead_detail' | 'deal_detail' | 'account_detail' | 'account_detail_sidebar' | 'client_detail';
+export interface PanelPrefsPayload { order: string[] }
+
+export const crmPanelPrefs = {
+  get: (page: PanelPage) => api.get<Wrapped<PanelPrefsPayload>>(`${PANEL_PREFS_BASE}/${page}`),
+  save: (page: PanelPage, prefs: PanelPrefsPayload) =>
+    api.put<Wrapped<PanelPrefsPayload>>(`${PANEL_PREFS_BASE}/${page}`, prefs),
+};
