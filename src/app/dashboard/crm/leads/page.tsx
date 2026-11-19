@@ -796,7 +796,7 @@ export default function LeadsListPage() {
         </div>
         <ViewCustomizer
           entityLabel="Leads"
-          columns={LEAD_COLUMNS.filter((c) => !(isBmw && c.key === 'score')) as unknown as { key: string; label: string; locked?: boolean }[]}
+          columns={LEAD_COLUMNS.filter((c) => !(isBmw && c.key === 'score') && !(settingsLoaded && fieldHelpers.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
           hidden={view.prefs.hidden}
           mode={view.prefs.mode}
           onToggle={view.toggleHidden}

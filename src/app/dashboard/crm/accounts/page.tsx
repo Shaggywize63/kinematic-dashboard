@@ -73,7 +73,7 @@ export default function AccountsListPage() {
     <>
       <ViewCustomizer
         entityLabel="Accounts"
-        columns={ACCOUNT_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+        columns={ACCOUNT_COLUMNS.filter((c) => !(fieldsLoaded && fields.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
         hidden={view.prefs.hidden}
         mode={view.prefs.mode}
         onToggle={view.toggleHidden}

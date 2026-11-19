@@ -149,3 +149,16 @@ export const crmDashboardLayouts = {
   pinToOverview: (widget: WidgetInstance) => api.post<Wrapped<DashboardConfig>>(`${LAYOUT_BASE}/overview/pin`, widget),
   removeWidget: (page: LayoutPage, widget_id: string) => api.delete<Wrapped<DashboardConfig>>(`${LAYOUT_BASE}/${page}/widgets/${widget_id}`),
 };
+
+// ── Per-user list-view prefs (hidden columns + table/cards/kanban mode) ──
+
+const LIST_VIEW_PREFS_BASE = '/api/v1/crm/list-view-prefs';
+export type ListViewEntity = 'leads' | 'deals' | 'accounts' | 'contacts' | 'activities';
+export type ListViewMode = 'table' | 'cards' | 'kanban';
+export interface ListViewPrefsPayload { hidden: string[]; mode: ListViewMode }
+
+export const crmListViewPrefs = {
+  get: (entity: ListViewEntity) => api.get<Wrapped<ListViewPrefsPayload>>(`${LIST_VIEW_PREFS_BASE}/${entity}`),
+  save: (entity: ListViewEntity, prefs: ListViewPrefsPayload) =>
+    api.put<Wrapped<ListViewPrefsPayload>>(`${LIST_VIEW_PREFS_BASE}/${entity}`, prefs),
+};

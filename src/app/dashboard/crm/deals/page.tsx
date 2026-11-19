@@ -344,7 +344,7 @@ function DealsListPage() {
                 columns={(isTataTiscanActive(getStoredUser())
                   ? DEAL_COLUMNS
                   : DEAL_COLUMNS.filter((c) => c.key !== 'dealer' && c.key !== 'volume_kg')
-                ) as unknown as { key: string; label: string; locked?: boolean }[]}
+                ).filter((c) => !(fieldsLoaded && fields.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
                 hidden={dealView.prefs.hidden}
                 mode={dealView.prefs.mode}
                 onToggle={dealView.toggleHidden}
