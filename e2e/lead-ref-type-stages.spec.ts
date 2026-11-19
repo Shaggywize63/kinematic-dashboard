@@ -202,7 +202,7 @@ test.describe('Lead number', () => {
     await expect(page.locator('table.responsive-cards th', { hasText: 'Lead No.' })).toHaveCount(0);
     await expect(page.getByTestId('lead-no')).toHaveCount(0);
     // Not in the column customiser.
-    await page.getByTitle(/Customize columns and layout for Leads/).click();
+    await page.getByTitle(/Customize columns for Leads/).click();
     await expect(page.getByRole('checkbox', { name: /Lead No\./ })).toHaveCount(0);
     // Close the customiser by clicking its scrim (it has no Escape handler); wait for the
     // scrim to detach so it no longer intercepts the next click.
@@ -794,12 +794,12 @@ test.describe('Settings -> Lead stages', () => {
 
   test('Discard changes reloads the saved list (after a confirmation)', async ({ page }) => {
     await stagesPage(page, { saved: SAVED });
-    page.on('dialog', (d) => d.accept());
     await page.goto('/dashboard/crm/settings/lead-stages');
     await expect(stageRows(page)).toHaveCount(4, { timeout: 60_000 });
     await page.getByRole('button', { name: 'Add the combined stage list' }).click();
     await expect(stageRows(page)).toHaveCount(13);
     await page.getByRole('button', { name: 'Discard changes' }).click();
+    await page.getByTestId('confirm-dialog-confirm').click();
     await expect(stageRows(page)).toHaveCount(4);
     await expect(page.getByTestId('stages-unsaved')).toHaveCount(0);
   });

@@ -64,11 +64,11 @@ test.describe('Account page activity edit', () => {
     const calls = { patched: [] as Record<string, any>[], deleted: [] as string[], activityGets: 0 };
     await scopeToSpark(page);
     await setup(page, calls);
-    page.on('dialog', (d) => d.accept());
     await page.goto('/dashboard/crm/accounts/acc-1');
     await expect(page.getByText('Activities (2)')).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Edit activity: Intro call' }).click();
     await page.getByRole('dialog', { name: 'Edit activity' }).getByRole('button', { name: 'Delete', exact: true }).click();
+    await page.getByTestId('confirm-dialog-confirm').click();
     await expect.poll(() => calls.deleted.length).toBe(1);
     await expect(page.getByRole('button', { name: /^Edit activity:/ })).toHaveCount(1);
   });

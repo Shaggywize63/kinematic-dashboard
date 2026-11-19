@@ -68,7 +68,8 @@ export default function ConfirmModal({
       }}
     >
       <style>{`@keyframes kspin{to{transform:rotate(360deg)}}`}</style>
-      <div 
+      <div
+        data-testid="confirm-dialog"
         style={{
           background: C.s2,
           border: `1px solid ${C.border}`,
@@ -133,8 +134,9 @@ export default function ConfirmModal({
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 12 }}>
-          <button 
+          <button
             onClick={onClose}
+            data-testid="confirm-dialog-cancel"
             style={{
               flex: 1,
               padding: '14px',
@@ -153,6 +155,7 @@ export default function ConfirmModal({
           <button
             onClick={onConfirm}
             disabled={loading}
+            data-testid="confirm-dialog-confirm"
             style={{
               flex: 1,
               padding: '14px',

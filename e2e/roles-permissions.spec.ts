@@ -141,8 +141,8 @@ test.describe('Roles & Permissions admin screen', () => {
 
     // Select the role to open its detail panel, then delete from there.
     await page.getByText('Sales Head').click();
-    page.once('dialog', (d) => d.accept());
     await page.getByRole('button', { name: '🗑 Delete' }).click();
+    await page.getByTestId('confirm-dialog-confirm').click();
 
     await expect.poll(() => cap.deletedRoleIds).toContain('role-1');
   });
