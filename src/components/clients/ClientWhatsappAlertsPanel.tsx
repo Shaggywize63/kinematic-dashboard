@@ -28,13 +28,16 @@ type View = {
   kinds: string[];
   daily_summary: boolean;
   voice_leads: boolean;
+  approvals: boolean;
   project_disabled: boolean;
   connection: { configured: boolean; active: boolean; from_phone: string | null; display_name: string | null };
   templates: Template[];
   catalog: Entry[];
   suggested_template: { name: string; category: string; language: string; body: string };
+  approval_template?: { id: string; name: string } | null;
+  suggested_approval_template?: { name: string; category: string; language: string; body: string; buttons: string[] };
 };
-type Form = { enabled: boolean; template_id: string; recipients: Recipient[]; kinds: string[]; daily_summary: boolean; voice_leads: boolean };
+type Form = { enabled: boolean; template_id: string; recipients: Recipient[]; kinds: string[]; daily_summary: boolean; voice_leads: boolean; approvals: boolean };
 
 const MAX_PEOPLE = 10;
 const GROUPS: { id: string; label: string }[] = [
@@ -55,13 +58,14 @@ const toForm = (v: View): Form => ({
   kinds: [...v.kinds],
   daily_summary: !!v.daily_summary,
   voice_leads: !!v.voice_leads,
+  approvals: !!v.approvals,
 });
 const sig = (f: Form) => JSON.stringify({ ...f, kinds: [...f.kinds].sort() });
 const errText = (e: any, fallback: string) => e?.response?.data?.error?.message || e?.response?.data?.error || e?.message || fallback;
 
 const ClientWhatsappAlertsPanel = forwardRef<WhatsappAlertsHandle, { clientId: string }>(function ClientWhatsappAlertsPanel({ clientId }, ref) {
   const [view, setView] = useState<View | null>(null);
-  const [form, setForm] = useState<Form>({ enabled: false, template_id: '', recipients: [], kinds: [], daily_summary: false, voice_leads: false });
+  const [form, setForm] = useState<Form>({ enabled: false, template_id: '', recipients: [], kinds: [], daily_summary: false, voice_leads: false, approvals: false });
   const [saved, setSaved] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -127,6 +131,7 @@ const ClientWhatsappAlertsPanel = forwardRef<WhatsappAlertsHandle, { clientId: s
         kinds: f.kinds,
         daily_summary: f.daily_summary,
         voice_leads: f.voice_leads,
+        approvals: f.approvals,
       });
       const v = unwrap<View>(r);
       if (!v || !Array.isArray(v.catalog)) throw new Error('Unexpected response while saving WhatsApp alert settings.');
@@ -282,6 +287,37 @@ const ClientWhatsappAlertsPanel = forwardRef<WhatsappAlertsHandle, { clientId: s
             </span>
           </span>
         </label>
+      </div>
+
+      {/* One-tap approvals */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={sectionLabel}>One-tap approvals</div>
+        <label htmlFor={`${idBase}-approvals`} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', background: form.approvals ? 'rgba(37,211,102,0.1)' : 'transparent', border: `1px solid ${form.approvals ? '#25D366' : 'transparent'}` }}>
+          <input id={`${idBase}-approvals`} type="checkbox" checked={form.approvals} onChange={e => setForm(f => ({ ...f, approvals: e.target.checked }))} style={{ marginTop: 2 }} />
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: form.approvals ? 600 : 500, color: form.approvals ? 'var(--text)' : 'var(--textSec)' }}>Let approvers approve or reject on WhatsApp</span>
+            <span style={{ fontSize: 10.5, color: 'var(--textTert)', lineHeight: 1.5 }}>
+              Leave requests, expense claims and attendance corrections go to the approver&apos;s own WhatsApp (the mobile on their user profile)
+              with Approve and Reject buttons. A tap records the decision as if they used the app. Rejected expense claims get the note &ldquo;Rejected on WhatsApp&rdquo;.
+            </span>
+          </span>
+        </label>
+        {form.approvals && view && !view.approval_template && (
+          <div style={{ fontSize: 11, color: '#B45309', background: 'rgba(245,158,11,0.1)', borderRadius: 8, padding: '8px 10px', lineHeight: 1.5 }}>
+            This client has no approved WhatsApp template with Approve and Reject buttons yet, so nothing will be sent.
+            {view.suggested_approval_template && (
+              <>
+                {' '}Create one in WhatsApp Manager, then Sync templates in CRM Settings → WhatsApp:
+                <div style={{ marginTop: 4 }}><b>Name:</b> {view.suggested_approval_template.name} · <b>Category:</b> {view.suggested_approval_template.category} · <b>Language:</b> {view.suggested_approval_template.language}</div>
+                <div style={{ marginTop: 2 }}>{view.suggested_approval_template.body}</div>
+                <div style={{ marginTop: 2 }}><b>Quick-reply buttons:</b> {view.suggested_approval_template.buttons.join(', ')}</div>
+              </>
+            )}
+          </div>
+        )}
+        {form.approvals && view?.approval_template && (
+          <div style={{ fontSize: 10.5, color: 'var(--textTert)' }}>Uses the template &ldquo;{view.approval_template.name}&rdquo;.</div>
+        )}
       </div>
 
       {/* Updates */}
