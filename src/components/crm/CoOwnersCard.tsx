@@ -10,25 +10,37 @@ import { UserPlus, X, Users } from 'lucide-react';
 import { Card, Eyebrow, T } from '../ui';
 import { InlineIcon } from '../ui/PageIcon';
 import UserSearchSelect from './shared/UserSearchSelect';
+import InlineOwnerAssign from './shared/InlineOwnerAssign';
 import { useAssignableUsers } from './spark/DealSections';
 import { useLeadOwnerAccess } from '../../lib/leadOwnerAccess';
 import { useFieldHelpers } from '../../lib/crm/useFieldHelpers';
 import { getStoredUser } from '../../lib/auth';
-import { crmCoOwners, type CoOwner, type CoOwnerEntity } from '../../lib/crmApi';
+import { crmCoOwners, crmLeads, crmContacts, crmAccounts, crmDeals, type CoOwner, type CoOwnerEntity } from '../../lib/crmApi';
 
 const SINGULAR: Record<CoOwnerEntity, 'lead' | 'account' | 'contact' | 'deal'> = {
   leads: 'lead', accounts: 'account', contacts: 'contact', deals: 'deal',
 };
+// The per-entity update() used to reassign the primary owner (owner_id). Typed loosely: each record's update
+// accepts owner_id and stamps owner_name on the reply.
+const RECORD: Record<CoOwnerEntity, { update: (id: string, body: { owner_id: string | null }) => Promise<{ data?: { owner_name?: string | null } | null }> }> = {
+  leads: crmLeads, accounts: crmAccounts, contacts: crmContacts, deals: crmDeals,
+};
 
-export default function CoOwnersCard({ entity, id, primaryOwnerId, primaryOwnerName }: {
+export default function CoOwnersCard({ entity, id, primaryOwnerId, primaryOwnerName, allowOwnerChange = false }: {
   entity: CoOwnerEntity;
   id: string;
   primaryOwnerId?: string | null;
   primaryOwnerName?: string | null;
+  /** When true, the primary owner can be reassigned here (accounts / contacts, which have no other owner control).
+   *  Leads keep their own header control, so they don't pass this. */
+  allowOwnerChange?: boolean;
 }) {
   const [owners, setOwners] = useState<CoOwner[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [saving, setSaving] = useState(false);
+  // The primary owner, kept locally so a reassignment here reflects at once.
+  const [primary, setPrimary] = useState<{ id: string | null; name: string | null }>({ id: primaryOwnerId ?? null, name: primaryOwnerName ?? null });
+  useEffect(() => { setPrimary({ id: primaryOwnerId ?? null, name: primaryOwnerName ?? null }); }, [primaryOwnerId, primaryOwnerName]);
 
   // Owner is a built-in field: when the admin has hidden `owner_id` (field overrides), the Owners card
   // is withheld entirely, like every other built-in render site (the CLAUDE.md contract).
@@ -38,7 +50,7 @@ export default function CoOwnersCard({ entity, id, primaryOwnerId, primaryOwnerN
   // An admin, or the record's own primary owner, can change the co-owner set. Everyone else just sees it.
   const access = useLeadOwnerAccess();
   const myId = getStoredUser()?.id ?? null;
-  const canEdit = access.ready && (access.isAdmin || (!!myId && myId === primaryOwnerId));
+  const canEdit = access.ready && (access.isAdmin || (!!myId && myId === primary.id));
 
   const users = useAssignableUsers(canEdit);
 
@@ -65,31 +77,52 @@ export default function CoOwnersCard({ entity, id, primaryOwnerId, primaryOwnerN
 
   const add = (userId: string) => {
     if (!userId || saving) return;
-    if (userId === primaryOwnerId) { toast.error('That person is already the primary owner'); return; }
+    if (userId === primary.id) { toast.error('That person is already the primary owner'); return; }
     if (owners.some((o) => o.user_id === userId)) return;
     void save([...owners.map((o) => o.user_id), userId]);
   };
   const remove = (userId: string) => { if (!saving) void save(owners.filter((o) => o.user_id !== userId).map((o) => o.user_id)); };
 
+  // Reassign the primary owner (accounts / contacts). The server drops the new owner from the co-owner set if
+  // they were one, so refresh the chips afterwards.
+  const changeOwner = useCallback(async (userId: string | null) => {
+    const r = await RECORD[entity].update(id, { owner_id: userId });
+    const name = r?.data?.owner_name ?? null;
+    setPrimary({ id: userId, name });
+    try { const cr = await crmCoOwners.list(entity, id); setOwners(cr.data || []); } catch { /* keep what we have */ }
+  }, [entity, id]);
+
   // Don't offer the primary owner or an existing co-owner in the picker.
   const pickable = useMemo(() => {
-    const taken = new Set<string>([...(primaryOwnerId ? [primaryOwnerId] : []), ...owners.map((o) => o.user_id)]);
+    const taken = new Set<string>([...(primary.id ? [primary.id] : []), ...owners.map((o) => o.user_id)]);
     return users.filter((u) => !taken.has(u.id));
-  }, [users, owners, primaryOwnerId]);
+  }, [users, owners, primary.id]);
 
   const body = () => {
     if (state === 'loading') return <div style={{ fontSize: 13, color: T.mute }}>Loading owners…</div>;
     if (state === 'error') return <div style={{ fontSize: 13, color: T.dim }}>Couldn’t load owners</div>;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {/* Primary owner, shown first and marked, never removable here (change it on the owner control). */}
-          {(primaryOwnerName || primaryOwnerId) && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+          {/* Primary owner, shown first and marked. On accounts / contacts an admin / owner can reassign it right
+              here; elsewhere (and for reps) it's a read-only chip — the owner is changed on its own control. */}
+          {allowOwnerChange && canEdit ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <InlineOwnerAssign
+                currentOwnerId={primary.id}
+                currentOwnerName={primary.name}
+                size={22}
+                recordLabel={`Owner of this ${SINGULAR[entity]}`}
+                onAssign={changeOwner}
+              />
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: T.mute }}>PRIMARY</span>
+            </span>
+          ) : (primary.name || primary.id) ? (
             <span style={chip(true)}>
-              {primaryOwnerName || 'Owner'}
+              {primary.name || 'Owner'}
               <span style={{ fontSize: 9.5, fontWeight: 700, color: T.mute, marginLeft: 2 }}>PRIMARY</span>
             </span>
-          )}
+          ) : null}
           {owners.map((o) => (
             <span key={o.user_id} style={chip(false)}>
               {o.name || 'User'}
