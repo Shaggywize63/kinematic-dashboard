@@ -752,20 +752,12 @@ export default function LeadsListPage() {
 
       <LeadQuickViews chips={viewChips} />
 
-      {/* Toolbar — one wrapping row: KINI smart filter, free-text search, the
-          Filters drawer trigger, the approval toggle, the sort order and the
-          column customiser. The smart-filter chips / "Interpreted as" line sit
-          under the KINI box. */}
+      {/* Toolbar — search-first row (free-text search, the Filters drawer
+          trigger, the approval toggle, the sort order and the column
+          customiser), then the KINI smart filter gets its own full-width row
+          below so it reads as the standout feature rather than competing with
+          the other controls for space. */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        <SmartFilterBar
-          query={smartQuery}
-          setQuery={setSmartQuery}
-          onRun={runSmartFilter}
-          onClear={clearSmartFilter}
-          loading={smartLoading}
-          explanation={smartExplain}
-          params={smartParams}
-        />
         <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 180 }}>
           <Search size={15} strokeWidth={1.8} aria-hidden style={{ position: 'absolute', left: 11, top: 10.5, color: T.mute, pointerEvents: 'none' }} />
           <Input
@@ -833,6 +825,16 @@ export default function LeadsListPage() {
           modes={['table', 'cards', 'kanban']}
         />
       </div>
+
+      <SmartFilterBar
+        query={smartQuery}
+        setQuery={setSmartQuery}
+        onRun={runSmartFilter}
+        onClear={clearSmartFilter}
+        loading={smartLoading}
+        explanation={smartExplain}
+        params={smartParams}
+      />
 
       <LeadFilterChips chips={appliedChips} onClearAll={clearAll} />
 
