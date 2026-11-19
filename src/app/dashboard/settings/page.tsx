@@ -265,7 +265,13 @@ export default function SettingsPage() {
     setForm({
       name: u.name || '',
       email: u.email || '',
-      role: u.role || 'sub_admin',
+      // Editing an existing user: never guess a role. 'sub_admin' here used to be a *default*, but on save
+      // it is sent as a real change — if `u.role` ever comes back empty (a stale row, a fetch that dropped
+      // the column), this silently downgraded whoever was being edited, including an admin renaming
+      // themselves. '' is the same "leave unchanged" the rest of this form, and the backend, already use
+      // for a blank field, so an unknown role is now never written. Only "add user" needs a real default
+      // (ROLE_DEFAULTS keys off it from the picker there), and that path is untouched.
+      role: u.role || '',
       password: '', // Hidden/Unchanged by default
       mobile: u.mobile || '',
       employee_id: u.employee_id || '',
