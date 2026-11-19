@@ -35,9 +35,9 @@ import { leadIdentitySlots } from '../../../../../lib/leadStructure';
 import { LeadStructureGaps } from '../../../../../components/crm/spark/StructureGaps';
 import EntityExpensesCard from '../../../../../components/crm/EntityExpensesCard';
 import CoOwnersCard from '../../../../../components/crm/CoOwnersCard';
-import SampleInvoicesCard from '../../../../../components/crm/SampleInvoicesCard';
 import ReorderablePanels from '../../../../../components/crm/shared/ReorderablePanels';
 import { usePanelOrder } from '../../../../../lib/crmPanelOrder';
+import LeadPeopleCard from '../../../../../components/crm/LeadPeopleCard';
 import InsightsTab from '../../../../../components/crm/lead-detail/InsightsTab';
 import ScoreCard from '../../../../../components/crm/lead-detail/ScoreCard';
 import DisqualifiedBanner from '../../../../../components/crm/lead-detail/DisqualifiedBanner';
@@ -54,9 +54,9 @@ const UPDATE_ADMIN_ROLES = new Set(['super_admin', 'admin', 'org_admin']);
 // (or denied) an Edit affordance the server then disagrees with.
 const TENANT_ADMIN_ROLES = ['super_admin', 'admin', 'main_admin', 'sub_admin', 'client', 'city_manager'];
 const TAB_IDS: LeadTab[] = ['overview', 'timeline', 'deals', 'insights'];
-// The sidebar's built-in order. A tenant-gated panel (expenses/sample_invoices/score/nba) that isn't
+// The sidebar's built-in order. A tenant-gated panel (expenses/score/nba) that isn't
 // eligible to render for the current lead/user just drops out — see ReorderablePanels.
-const LEAD_SIDEBAR_DEFAULT_ORDER = ['coowners', 'expenses', 'sample_invoices', 'score', 'nba'];
+const LEAD_SIDEBAR_DEFAULT_ORDER = ['people', 'coowners', 'expenses', 'score', 'nba'];
 
 /** Spark & Ray: the deal form in conversion mode for a lead (it reads the lead itself to prefill name / account). */
 const sparkConvertHref = (leadId: string) => `/dashboard/crm/deals/new?lead_id=${encodeURIComponent(leadId)}&convert=1`;
@@ -549,20 +549,13 @@ export default function LeadDetailPage() {
 
         <aside aria-label="Lead intelligence" style={{ minWidth: 0 }}>
           <ReorderablePanels order={sidebarPanelOrder} onReorder={setSidebarPanelOrder} panels={{
-            // Primary owner + co-owners (peers who also see this lead).
-            coowners: <CoOwnersCard entity="leads" id={id} primaryOwnerId={lead.owner_id} primaryOwnerName={lead.owner_name} />,
+            // Connected-B2B (Spark & Ray): the customer people on this lead, with "Make primary" to change the nodal contact.
+            people: <LeadPeopleCard leadId={id} />,
+            // Primary owner (reassignable here) + co-owners (peers who also see this lead).
+            coowners: <CoOwnersCard entity="leads" id={id} primaryOwnerId={lead.owner_id} primaryOwnerName={lead.owner_name} allowOwnerChange />,
             // Connected-B2B: what was spent on this lead (claims linked to it) vs. the deal value. Gated here
             // the same way the card gates itself internally, so a non-B2B tenant never gets an empty drag slot.
             ...(isB2bClientActive() ? { expenses: <EntityExpensesCard kind="lead" id={id} /> } : {}),
-            // Connected-B2B (Spark & Ray): sample-invoice numbers stored on the lead's custom_fields.sample_invoices.
-            ...(isB2bClientActive() ? {
-              sample_invoices: (
-                <SampleInvoicesCard
-                  lead={lead}
-                  onSaved={(updated) => { setLead((prev) => ({ ...(prev as LifecycleLead), ...updated })); void reload(); }}
-                />
-              ),
-            } : {}),
             // Score + boost suggestions are hidden for Consumer Champion reps AND for the Tata Tiscon tenant —
             // their flow doesn't use the AI score-boost loop.
             ...(showScore ? {

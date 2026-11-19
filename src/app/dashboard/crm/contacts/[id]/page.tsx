@@ -150,7 +150,7 @@ export default function ContactDetailPage() {
         )}
 
         {/* Primary owner + co-owners (peers who also see this contact). */}
-        <CoOwnersCard entity="contacts" id={c.id} primaryOwnerId={c.owner_id} primaryOwnerName={c.owner_name} />
+        <CoOwnersCard entity="contacts" id={c.id} primaryOwnerId={c.owner_id} primaryOwnerName={c.owner_name} allowOwnerChange />
 
         {/* Read-only admin-defined custom fields — renders nothing when
             the contact has no stored values. */}

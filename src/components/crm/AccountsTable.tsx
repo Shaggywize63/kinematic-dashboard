@@ -30,22 +30,11 @@ export const ACCOUNT_COLUMNS = [
   { key: 'contacts', label: 'Contacts' },
   { key: 'open_deals', label: 'Open deals' },
   { key: 'won', label: 'Won' },
-  { key: 'revenue', label: 'Revenue' },
-  { key: 'employees', label: 'Employees' },
   { key: 'owner', label: 'Owner' },
 ] as const;
 
 /** The built-in account field behind each list column, for the admin's hide / relabel overrides. Rollup columns have none. */
-const COLUMN_FIELD: Record<string, string> = { industry: 'industry', revenue: 'annual_revenue', employees: 'employees', owner: 'owner_id' };
-
-// Annual revenue is stored as a plain number; render it in the tenant's
-// locale with no currency symbol assumption (the field is currency-agnostic).
-function formatRevenue(v: Account['annual_revenue']): string | null {
-  if (v === null || v === undefined) return null;
-  const n = Number(v);
-  if (!Number.isFinite(n)) return String(v);
-  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
-}
+const COLUMN_FIELD: Record<string, string> = { industry: 'industry', owner: 'owner_id' };
 
 function hostOf(url?: string | null): string | null {
   if (!url) return null;
@@ -65,7 +54,7 @@ export default function AccountsTable({ accounts, loading, hiddenColumns, viewMo
   // A built-in field the admin hid on the account forms is hidden here too.
   for (const [col, key] of Object.entries(COLUMN_FIELD)) if (isHidden(key)) hidden.add(col);
   const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
-  const colCount = 1 + ['industry', 'contacts', 'open_deals', 'won', 'revenue', 'employees', 'owner'].filter((c) => !hidden.has(c)).length;
+  const colCount = 1 + ['industry', 'contacts', 'open_deals', 'won', 'owner'].filter((c) => !hidden.has(c)).length;
   const num: React.CSSProperties = { ...tdStyle, textAlign: 'right', fontFamily: T.mono, fontSize: 12.5, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
   const zero = (n: number | undefined) => !n;
 
@@ -81,9 +70,6 @@ export default function AccountsTable({ accounts, loading, hiddenColumns, viewMo
               {!hidden.has('contacts')   && <th style={{ ...thStyle, textAlign: 'right' }}>Contacts</th>}
               {!hidden.has('open_deals') && <th style={{ ...thStyle, textAlign: 'right' }}>Open deals</th>}
               {!hidden.has('won')        && <th style={{ ...thStyle, textAlign: 'right' }}>Won</th>}
-              {/* Revenue column → real column annual_revenue. */}
-              {!hidden.has('revenue')    && <SortTh label={label('annual_revenue', 'Revenue')} sortKey="annual_revenue" sort={sort} onSort={onSort} align="right" />}
-              {!hidden.has('employees')  && <SortTh label={label('employees', 'Employees')} sortKey="employees" sort={sort} onSort={onSort} align="right" />}
               {/* Owner shows owner_name (stamped, not a real column) → non-sortable. */}
               {!hidden.has('owner')      && <th style={thStyle}>{label('owner_id', 'Owner')}</th>}
             </tr>
@@ -99,7 +85,6 @@ export default function AccountsTable({ accounts, loading, hiddenColumns, viewMo
                 description="Accounts group the contacts, deals and activity for one company. Create one, or convert a qualified lead." />
             ))}
             {accounts.map((a) => {
-              const revenue = formatRevenue(a.annual_revenue);
               const site = isHidden('website') ? null : hostOf(a.website);
               const place = placeOf(a, isHidden);
               const openN = a.open_deals_count ?? 0;
@@ -134,8 +119,6 @@ export default function AccountsTable({ accounts, loading, hiddenColumns, viewMo
                       {wonV ? formatINRCompact(wonV) : '—'}
                     </td>
                   )}
-                  {!hidden.has('revenue')    && <td style={{ ...num, color: revenue ? T.text : T.mute }} data-label={label('annual_revenue', 'Revenue')}>{revenue ?? '—'}</td>}
-                  {!hidden.has('employees')  && <td style={{ ...num, color: a.employees ? T.text : T.mute }} data-label={label('employees', 'Employees')}>{a.employees ? Number(a.employees).toLocaleString() : '—'}</td>}
                   {!hidden.has('owner') && (
                     <td style={tdStyle} data-label={label('owner_id', 'Owner')}>
                       <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 12.5, color: a.owner_name ? T.text : T.mute }}>

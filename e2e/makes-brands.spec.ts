@@ -148,20 +148,17 @@ const headers = (labels: string[]) => labels.map((l) => new RegExp('^' + l.repla
 const row = (page: Page, id: string) => page.getByTestId(`nl-row-${id}`);
 
 // ── Settings index ──────────────────────────────────────────────────────────
+// The Makes settings page has been removed (a product's Make is now free text); only Brands remains.
 test.describe('Settings cards', () => {
-  test('Spark & Ray sees Makes and Brands cards right after Lead Sources', async ({ page }) => {
+  test('Spark & Ray sees the Brands card, and no Makes card', async ({ page }) => {
     await setup(page);
     await page.goto('/dashboard/crm/settings');
-    await expect(page.locator('a[href="/dashboard/crm/settings/makes"]')).toBeVisible({ timeout: 60_000 });
-    const hrefs = await page.locator('a[href^="/dashboard/crm/settings/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
-    const i = hrefs.indexOf('/dashboard/crm/settings/sources');
-    expect(i).toBeGreaterThan(-1);
-    expect(hrefs.slice(i, i + 3)).toEqual(['/dashboard/crm/settings/sources', '/dashboard/crm/settings/makes', '/dashboard/crm/settings/brands']);
-    await expect(page.locator('a[href="/dashboard/crm/settings/makes"]')).toContainText('Makes');
+    await expect(page.locator('a[href="/dashboard/crm/settings/brands"]')).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('a[href="/dashboard/crm/settings/brands"]')).toContainText('Brands');
+    await expect(page.locator('a[href="/dashboard/crm/settings/makes"]')).toHaveCount(0);
   });
 
-  test('another client sees neither card', async ({ page }) => {
+  test('another client sees no Brands card', async ({ page }) => {
     await setup(page, { spark: false });
     await page.goto('/dashboard/crm/settings');
     await expect(page.locator('a[href="/dashboard/crm/settings/sources"]')).toBeVisible({ timeout: 60_000 });
@@ -169,190 +166,11 @@ test.describe('Settings cards', () => {
     await expect(page.locator('a[href="/dashboard/crm/settings/brands"]')).toHaveCount(0);
   });
 
-  test('a card opens its page', async ({ page }) => {
+  test('the Brands card opens its page', async ({ page }) => {
     await setup(page);
     await page.goto('/dashboard/crm/settings');
-    await page.locator('a[href="/dashboard/crm/settings/makes"]').click();
-    await expect(page.getByRole('heading', { name: 'Makes' })).toBeVisible({ timeout: 60_000 });
-  });
-});
-
-// ── Makes page ──────────────────────────────────────────────────────────────
-test.describe('Makes page', () => {
-  test('lists name, description, product count and the active switch', async ({ page }) => {
-    await setup(page);
-    await page.goto('/dashboard/crm/settings/makes');
-    await expect(row(page, 'm-festo')).toBeVisible({ timeout: 60_000 });
-    await expect(page.locator('thead th')).toHaveText(['Name', 'Description', 'Products', 'Active', 'Actions']);
-    await expect(row(page, 'm-festo')).toContainText('Festo');
-    await expect(row(page, 'm-festo')).toContainText('German pneumatics');
-    await expect(row(page, 'm-festo').getByRole('cell').nth(2)).toHaveText('4');
-    await expect(row(page, 'm-festo').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
-    await expect(row(page, 'm-old').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
-    await expect(row(page, 'm-old')).toContainText('Off');
-  });
-
-  test('empty states use the plain wording', async ({ page }) => {
-    await setup(page, { makes: [], brands: [] });
-    await page.goto('/dashboard/crm/settings/makes');
-    await expect(page.getByText('No makes yet. Add the manufacturers you buy from.')).toBeVisible({ timeout: 60_000 });
-    await page.goto('/dashboard/crm/settings/brands');
-    await expect(page.getByText('No brands yet. Add brands such as MAC, PHD or BEKO.')).toBeVisible({ timeout: 60_000 });
-  });
-
-  test('Add: inline row sends name + description and the new make appears', async ({ page }) => {
-    const calls = await setup(page);
-    await page.goto('/dashboard/crm/settings/makes');
-    await expect(row(page, 'm-festo')).toBeVisible({ timeout: 60_000 });
-    await page.getByRole('button', { name: 'Add make' }).click();
-    await page.getByLabel('New make name').fill('  SMC ');
-    await page.getByLabel('New make description').fill('Japan');
-    await page.getByTestId('nl-add-row').getByRole('button', { name: 'Add', exact: true }).click();
-    await expect(page.getByTestId('nl-add-row')).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'SMC', exact: true })).toBeVisible();
-    expect(calls.writes).toEqual([{ method: 'POST', path: '/api/v1/crm/makes', body: { name: 'SMC', description: 'Japan', is_active: true } }]);
-    // The name field is cleared and focused so the next make can be typed straight away.
-    await expect(page.getByLabel('New make name')).toHaveValue('');
-    await page.getByLabel('New make name').fill('Bosch');
-    await page.getByLabel('New make name').press('Enter');
-    await expect(page.getByRole('cell', { name: 'Bosch', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Done' }).click();
-    await expect(page.getByTestId('nl-add-row')).toHaveCount(0);
-  });
-
-  test('Add: an empty name is refused without calling the API', async ({ page }) => {
-    const calls = await setup(page);
-    await page.goto('/dashboard/crm/settings/makes');
-    await page.getByRole('button', { name: 'Add make' }).click({ timeout: 60_000 });
-    await page.getByTestId('nl-add-row').getByRole('button', { name: 'Add', exact: true }).click();
-    await expect(page.getByTestId('nl-add-error')).toHaveText('Name is required.');
-    expect(calls.writes).toHaveLength(0);
-  });
-
-  test('Add: DUPLICATE message is shown next to the add row', async ({ page }) => {
-    await setup(page);
-    await page.goto('/dashboard/crm/settings/makes');
-    await page.getByRole('button', { name: 'Add make' }).click({ timeout: 60_000 });
-    await page.getByLabel('New make name').fill('festo');
-    await page.getByLabel('New make name').press('Enter');
-    await expect(page.getByTestId('nl-add-error')).toHaveText('A make named "festo" already exists');
-    // Typing again clears it.
-    await page.getByLabel('New make name').fill('Festo 2');
-    await expect(page.getByTestId('nl-add-error')).toHaveCount(0);
-  });
-
-  test('Add: NOT_MIGRATED message is shown and the page says why the list is empty', async ({ page }) => {
-    await setup(page, { notMigrated: true });
-    await page.goto('/dashboard/crm/settings/makes');
-    await expect(page.getByTestId('nl-load-error')).toHaveText(NOT_MIGRATED, { timeout: 60_000 });
-    await page.getByRole('button', { name: 'Add make' }).click();
-    await page.getByLabel('New make name').fill('SMC');
-    await page.getByLabel('New make name').press('Enter');
-    await expect(page.getByTestId('nl-add-error')).toHaveText(NOT_MIGRATED);
-  });
-
-  test('Edit: rename sends the new name and description; Cancel sends nothing', async ({ page }) => {
-    const calls = await setup(page);
-    await page.goto('/dashboard/crm/settings/makes');
-    await expect(row(page, 'm-piab')).toBeVisible({ timeout: 60_000 });
-    await row(page, 'm-piab').getByRole('button', { name: 'Edit Piab' }).click();
-    await row(page, 'm-piab').getByLabel('Make name').fill('Piab AB');
-    await row(page, 'm-piab').getByRole('button', { name: 'Cancel' }).click();
-    expect(calls.writes).toHaveLength(0);
-    await expect(row(page, 'm-piab')).toContainText('Piab');
-
-    await row(page, 'm-piab').getByRole('button', { name: 'Edit Piab' }).click();
-    await row(page, 'm-piab').getByLabel('Make name').fill('Piab AB');
-    await row(page, 'm-piab').getByLabel('Make description').fill('Vacuum specialist');
-    await row(page, 'm-piab').getByRole('button', { name: 'Save' }).click();
-    await expect(row(page, 'm-piab')).toContainText('Piab AB');
-    await expect(row(page, 'm-piab')).toContainText('Vacuum specialist');
-    expect(calls.writes).toEqual([{ method: 'PATCH', path: '/api/v1/crm/makes/m-piab', body: { name: 'Piab AB', description: 'Vacuum specialist' } }]);
-  });
-
-  test('Edit: renaming to an existing make shows DUPLICATE under that row', async ({ page }) => {
-    await setup(page);
-    await page.goto('/dashboard/crm/settings/makes');
-    await expect(row(page, 'm-piab')).toBeVisible({ timeout: 60_000 });
-    await row(page, 'm-piab').getByRole('button', { name: 'Edit Piab' }).click();
-    await row(page, 'm-piab').getByLabel('Make name').fill('Festo');
-    await row(page, 'm-piab').getByLabel('Make name').press('Enter');
-    await expect(page.getByTestId('nl-row-error-m-piab')).toHaveText('A make named "Festo" already exists');
-    // Still editing, so the admin can correct it.
-    await expect(row(page, 'm-piab').getByLabel('Make name')).toBeVisible();
-  });
-
-  test('Switch off and back on sends is_active', async ({ page }) => {
-    const calls = await setup(page);
-    await page.goto('/dashboard/crm/settings/makes');
-    const sw = row(page, 'm-piab').getByRole('switch');
-    await expect(sw).toHaveAttribute('aria-checked', 'true', { timeout: 60_000 });
-    await sw.click();
-    await expect(row(page, 'm-piab').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
-    await expect(row(page, 'm-piab')).toContainText('Off');
-    await row(page, 'm-piab').getByRole('switch').click();
-    await expect(row(page, 'm-piab').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
-    expect(calls.writes.map((w) => [w.method, w.path, w.body])).toEqual([
-      ['PATCH', '/api/v1/crm/makes/m-piab', { is_active: false }],
-      ['PATCH', '/api/v1/crm/makes/m-piab', { is_active: true }],
-    ]);
-  });
-
-  test('Delete asks inline first (no browser dialog); Keep sends nothing, Yes removes the row', async ({ page }) => {
-    const calls = await setup(page);
-    await page.goto('/dashboard/crm/settings/makes');
-    await expect(row(page, 'm-piab')).toBeVisible({ timeout: 60_000 });
-    await row(page, 'm-piab').getByRole('button', { name: 'Delete Piab' }).click();
-    await expect(row(page, 'm-piab')).toContainText('Delete "Piab"?');
-    await row(page, 'm-piab').getByRole('button', { name: 'Keep' }).click();
-    await expect(row(page, 'm-piab')).not.toContainText('Delete "Piab"?');
-    expect(calls.writes).toHaveLength(0);
-
-    await row(page, 'm-piab').getByRole('button', { name: 'Delete Piab' }).click();
-    await row(page, 'm-piab').getByRole('button', { name: 'Yes, delete' }).click();
-    await expect(row(page, 'm-piab')).toHaveCount(0);
-    expect(calls.writes).toEqual([{ method: 'DELETE', path: '/api/v1/crm/makes/m-piab', body: {} }]);
-    expect(calls.dialogs).toEqual([]);
-  });
-
-  test('Delete of a make in use shows the IN_USE message under the row and keeps it', async ({ page }) => {
-    await setup(page);
-    await page.goto('/dashboard/crm/settings/makes');
-    await expect(row(page, 'm-festo')).toBeVisible({ timeout: 60_000 });
-    await row(page, 'm-festo').getByRole('button', { name: 'Delete Festo' }).click();
-    await row(page, 'm-festo').getByRole('button', { name: 'Yes, delete' }).click();
-    await expect(page.getByTestId('nl-row-error-m-festo')).toHaveText('Used by 4 products. Switch it off instead.');
-    await expect(row(page, 'm-festo')).toBeVisible();
-    // The confirmation is closed again, and the switch still works as the message suggests.
-    await expect(row(page, 'm-festo')).not.toContainText('Delete "Festo"?');
-    await row(page, 'm-festo').getByRole('switch').click();
-    await expect(row(page, 'm-festo').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
-    await expect(page.getByTestId('nl-row-error-m-festo')).toHaveCount(0);
-  });
-
-  test('search and the Active filter are sent to the server', async ({ page }) => {
-    const calls = await setup(page);
-    await page.goto('/dashboard/crm/settings/makes');
-    await expect(row(page, 'm-festo')).toBeVisible({ timeout: 60_000 });
-    await page.getByLabel('Search makes').fill('pia');
-    await expect(row(page, 'm-festo')).toHaveCount(0);
-    await expect(row(page, 'm-piab')).toBeVisible();
-    expect(calls.lists.makes.at(-1)).toContain('q=pia');
-    await page.getByLabel('Search makes').fill('zzz');
-    await expect(page.getByText('No makes match.')).toBeVisible();
-    await page.getByLabel('Search makes').fill('');
-    await page.getByLabel('Show').selectOption('false');
-    await expect(row(page, 'm-old')).toBeVisible();
-    await expect(row(page, 'm-festo')).toHaveCount(0);
-    expect(calls.lists.makes.at(-1)).toContain('is_active=false');
-  });
-
-  test('a client that is not Spark & Ray gets a plain message and no makes call', async ({ page }) => {
-    const calls = await setup(page, { spark: false });
-    await page.goto('/dashboard/crm/settings/makes');
-    await expect(page.getByText('Makes are not used by this client.')).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByRole('button', { name: 'Add make' })).toHaveCount(0);
-    expect(calls.lists.makes).toHaveLength(0);
+    await page.locator('a[href="/dashboard/crm/settings/brands"]').click();
+    await expect(page.getByRole('heading', { name: 'Brands' })).toBeVisible({ timeout: 60_000 });
   });
 });
 
@@ -412,54 +230,44 @@ test.describe('Brands page', () => {
 
 // ── Products list ───────────────────────────────────────────────────────────
 test.describe('Products list', () => {
-  test('Spark & Ray: Reference, Name, Make, Brand, Category, Price columns with the names filled in', async ({ page }) => {
-    await setup(page);
+  test('Spark & Ray: Reference, Name, Make, Price columns (no Brand / Category); Make is the free-text value', async ({ page }) => {
+    await setup(page, { products: [
+      { ...PRODUCTS[0], make: 'Festo' },         // free-text make
+      { ...PRODUCTS[1], make: 'Piab' },
+      { ...PRODUCTS[2], make: null, make_name: null },
+    ] });
     await page.goto('/dashboard/crm/products');
     await expect(page.getByRole('cell', { name: '13280' })).toBeVisible({ timeout: 60_000 });
-    await expect(page.locator('thead th')).toHaveText(headers(['Reference', 'Name', 'Make', 'Brand', 'Category', 'Price', 'Active', 'Actions']));
+    await expect(page.locator('thead th')).toHaveText(headers(['Reference', 'Name', 'Make', 'Price', 'Active', 'Actions']));
     const r1 = page.getByRole('row').filter({ hasText: '13280' });
     await expect(r1.getByRole('cell').nth(1)).toHaveText('Pneumatic cylinder 32mm');
     await expect(r1.getByRole('cell').nth(2)).toHaveText('Festo');
-    await expect(r1.getByRole('cell').nth(3)).toHaveText('MAC');
-    await expect(r1.getByRole('cell').nth(4)).toHaveText('Cylinders');
-    const r2 = page.getByRole('row').filter({ hasText: '20415' });
-    await expect(r2.getByRole('cell').nth(3)).toHaveText('—');
+    const r3 = page.getByRole('row').filter({ hasText: '30001' });
+    await expect(r3.getByRole('cell').nth(2)).toHaveText('—');
+    // No Make / Brand filter selects any more.
+    await expect(page.getByLabel('Make')).toHaveCount(0);
+    await expect(page.getByLabel('Brand')).toHaveCount(0);
     await expect(page.getByPlaceholder('Search reference, name...')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Import from file' })).toBeVisible();
   });
 
-  test('Spark & Ray: Make / Brand filters and the search box refetch with make_id, brand_id and q', async ({ page }) => {
+  test('Spark & Ray: the search box refetches with q (no make_id / brand_id params)', async ({ page }) => {
     const calls = await setup(page);
     await page.goto('/dashboard/crm/products');
     await expect(page.getByRole('cell', { name: '13280' })).toBeVisible({ timeout: 60_000 });
-    // The selects list every make / brand from the master lists.
-    await expect(page.getByLabel('Make').locator('option')).toHaveText(['All makes', 'Festo', 'Piab', 'Oldco']);
-    await expect(page.getByLabel('Brand').locator('option')).toHaveText(['All brands', 'MAC', 'PHD', 'BEKO']);
-
-    await page.getByLabel('Make').selectOption({ label: 'Piab' });
-    await expect(page.getByRole('cell', { name: '13280' })).toHaveCount(0);
-    await expect(page.getByRole('cell', { name: '20415' })).toBeVisible();
-    expect(calls.lists.products.at(-1)).toContain('make_id=m-piab');
-
-    await page.getByLabel('Make').selectOption('');
-    await page.getByLabel('Brand').selectOption({ label: 'PHD' });
-    await expect(page.getByRole('cell', { name: '30001' })).toBeVisible();
-    await expect(page.getByRole('cell', { name: '20415' })).toHaveCount(0);
-    expect(calls.lists.products.at(-1)).toContain('brand_id=b-phd');
-    expect(calls.lists.products.at(-1)).not.toContain('make_id');
-
-    await page.getByLabel('Brand').selectOption('');
     await page.getByLabel('Search products').fill('13280');
     await expect(page.getByRole('cell', { name: '20415' })).toHaveCount(0);
     await expect(page.getByRole('cell', { name: '13280' })).toBeVisible();
     expect(calls.lists.products.at(-1)).toContain('q=13280');
-    await page.getByLabel('Search products').fill('vacuum');
-    await expect(page.getByRole('cell', { name: '20415' })).toBeVisible();
-    expect(calls.lists.products.at(-1)).toContain('q=vacuum');
+    expect(calls.lists.products.every((u) => !/make_id|brand_id/.test(u))).toBe(true);
+    expect(calls.lists.makes).toHaveLength(0);
+    expect(calls.lists.brands).toHaveLength(0);
   });
 
   test('Spark & Ray: the Make column sorts', async ({ page }) => {
-    await setup(page);
+    await setup(page, { products: [
+      { ...PRODUCTS[0], make: 'Festo' }, { ...PRODUCTS[1], make: 'Piab' }, { ...PRODUCTS[2], make: null, make_name: null },
+    ] });
     await page.goto('/dashboard/crm/products');
     await expect(page.getByRole('cell', { name: '13280' })).toBeVisible({ timeout: 60_000 });
     await page.locator('thead th').filter({ hasText: 'Make' }).getByText('Make').click();
@@ -467,7 +275,7 @@ test.describe('Products list', () => {
     expect(await makes()).toEqual(['Festo', 'Piab', '—']);
   });
 
-  test('another client: the table is unchanged (SKU, weight, tax, HSN), no make/brand filters, no import', async ({ page }) => {
+  test('another client: the table is unchanged (SKU, Category, weight, tax, HSN), no make/brand filters, no import', async ({ page }) => {
     const calls = await setup(page, { spark: false });
     await page.goto('/dashboard/crm/products');
     await expect(page.getByRole('cell', { name: '13280' })).toBeVisible({ timeout: 60_000 });
@@ -480,38 +288,31 @@ test.describe('Products list', () => {
     expect(calls.lists.brands).toHaveLength(0);
     expect(calls.lists.products.every((u) => !/make_id|brand_id/.test(u))).toBe(true);
   });
-
-  test('Spark & Ray: a not-yet-migrated database still shows the products (filters empty)', async ({ page }) => {
-    await setup(page, { notMigrated: true });
-    await page.goto('/dashboard/crm/products');
-    await expect(page.getByRole('cell', { name: '13280' })).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByLabel('Make').locator('option')).toHaveText(['All makes']);
-  });
 });
 
 // ── Product forms ───────────────────────────────────────────────────────────
 test.describe('Product forms', () => {
-  test('new product (Spark): Product reference label, Make and Brand selects with None, ids in the POST', async ({ page }) => {
+  test('new product (Spark): Product reference label, free-text Make (no Brand / Category), make in the POST', async ({ page }) => {
     const calls = await setup(page);
     await page.goto('/dashboard/crm/products/new');
     await expect(page.getByText('Product reference', { exact: true })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText('SKU', { exact: true })).toHaveCount(0);
-    const make = page.getByLabel('Make');
-    const brand = page.getByLabel('Brand');
-    // Only active entries are offered for a new product.
-    await expect(make.locator('option')).toHaveText(['— None —', 'Festo', 'Piab']);
-    await expect(brand.locator('option')).toHaveText(['— None —', 'MAC', 'PHD']);
+    // Make is a free-text box now; Brand and Category are gone for Spark products.
+    await expect(page.getByLabel('Make')).toHaveRole('textbox');
+    await expect(page.getByText('Brand', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Category', { exact: true })).toHaveCount(0);
     await page.getByLabel('Product reference').fill('77001');
     await page.getByLabel('Name', { exact: true }).fill('Gripper');
-    await make.selectOption({ label: 'Festo' });
-    await brand.selectOption({ label: 'PHD' });
+    await page.getByLabel('Make').fill('MAC');
     await page.getByRole('button', { name: 'Create' }).click();
     await expect(page).toHaveURL(/\/dashboard\/crm\/products$/, { timeout: 30_000 });
     const post = calls.writes.find((w) => w.method === 'POST' && w.path === '/api/v1/crm/products');
-    expect(post?.body).toMatchObject({ sku: '77001', name: 'Gripper', make_id: 'm-festo', brand_id: 'b-phd' });
+    expect(post?.body).toMatchObject({ sku: '77001', name: 'Gripper', make: 'MAC' });
+    expect(post?.body).not.toHaveProperty('make_id');
+    expect(post?.body).not.toHaveProperty('brand_id');
   });
 
-  test('new product (Spark): None sends null ids', async ({ page }) => {
+  test('new product (Spark): an empty Make sends make: null', async ({ page }) => {
     const calls = await setup(page);
     await page.goto('/dashboard/crm/products/new');
     await page.getByLabel('Product reference').fill('77002');
@@ -519,8 +320,8 @@ test.describe('Product forms', () => {
     await page.getByRole('button', { name: 'Create' }).click();
     await expect(page).toHaveURL(/\/dashboard\/crm\/products$/, { timeout: 30_000 });
     const post = calls.writes.find((w) => w.method === 'POST');
-    expect(post?.body.make_id).toBeNull();
-    expect(post?.body.brand_id).toBeNull();
+    expect(post?.body.make).toBeNull();
+    expect(post?.body).not.toHaveProperty('make_id');
   });
 
   test('new product (Spark): a duplicate reference shows the server message on the reference field and stays put', async ({ page }) => {
@@ -553,25 +354,18 @@ test.describe('Product forms', () => {
     expect(calls.lists.makes).toHaveLength(0);
   });
 
-  test('edit product (Spark): selects are preselected, a change is saved, a duplicate shows on the reference field', async ({ page }) => {
-    const calls = await setup(page);
+  test('edit product (Spark): the free-text Make is preselected and saved (no make_id / Brand)', async ({ page }) => {
+    const calls = await setup(page, { products: [{ ...PRODUCTS[0], make: 'Festo' }] });
     await page.goto('/dashboard/crm/products/p-1');
     await expect(page.getByLabel('Product reference')).toHaveValue('13280', { timeout: 60_000 });
-    await expect(page.getByLabel('Make')).toHaveValue('m-festo');
-    await expect(page.getByLabel('Brand')).toHaveValue('b-mac');
-    await page.getByLabel('Make').selectOption({ label: 'Piab' });
-    await page.getByLabel('Brand').selectOption('');
+    await expect(page.getByLabel('Make')).toHaveValue('Festo');
+    await expect(page.getByText('Brand', { exact: true })).toHaveCount(0);
+    await page.getByLabel('Make').fill('Piab');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect.poll(() => calls.writes.length).toBe(1);
     expect(calls.writes[0].method).toBe('PATCH');
-    expect(calls.writes[0].body).toMatchObject({ sku: '13280', make_id: 'm-piab', brand_id: null });
-  });
-
-  test('edit product (Spark): a switched-off make on the product stays selectable', async ({ page }) => {
-    await setup(page, { products: [{ ...PRODUCTS[0], make_id: 'm-old', make_name: 'Oldco' }] });
-    await page.goto('/dashboard/crm/products/p-1');
-    await expect(page.getByLabel('Make')).toHaveValue('m-old', { timeout: 60_000 });
-    await expect(page.getByLabel('Make').locator('option')).toHaveText(['— None —', 'Festo', 'Piab', 'Oldco (off)']);
+    expect(calls.writes[0].body).toMatchObject({ sku: '13280', make: 'Piab' });
+    expect(calls.writes[0].body).not.toHaveProperty('make_id');
   });
 
   test('edit product (Spark): 409 shows the duplicate message under the reference', async ({ page }) => {
@@ -676,16 +470,14 @@ test.describe('Import from file', () => {
     expect(calls.bulk[0]).toMatchObject({ create_missing: false, update_existing: false });
   });
 
-  test('done reloads the products list and the make / brand filters', async ({ page }) => {
+  test('done reloads the products list', async ({ page }) => {
     const calls = await setup(page);
     await openImport(page);
     const lists = calls.lists.products.length;
-    const makeLists = calls.lists.makes.length;
     await page.getByTestId('import-text').fill('Reference,Name\n1,A');
     await page.getByRole('button', { name: 'Import 1 product' }).click();
     await expect(page.getByTestId('import-result')).toBeVisible();
     await expect.poll(() => calls.lists.products.length).toBeGreaterThan(lists);
-    await expect.poll(() => calls.lists.makes.length).toBeGreaterThan(makeLists);
     await page.getByRole('button', { name: 'Done' }).click();
     await expect(page.getByTestId('product-import')).toHaveCount(0);
   });

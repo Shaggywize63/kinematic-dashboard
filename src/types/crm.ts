@@ -829,7 +829,9 @@ export interface Product {
   tax_rate_pct?: number | null; hsn_code?: string | null;
   image_url?: string | null; is_active: boolean;
   tags?: string[] | null; created_at: string; updated_at: string;
-  // Connected-B2B (Spark & Ray): the manufacturer and the product brand. `sku` is the product reference.
+  // Connected-B2B (Spark & Ray): `make` is the free-text manufacturer typed on the product; `sku` is the
+  // product reference. make_id / brand_id are the legacy master-list links, kept so old products still resolve.
+  make?: string | null;
   make_id?: string | null; brand_id?: string | null;
   make_name?: string | null; brand_name?: string | null;
 }

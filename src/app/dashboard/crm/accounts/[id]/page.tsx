@@ -339,7 +339,7 @@ export default function AccountDetailPage() {
 
         <ReorderablePanels order={mainPanelOrder} onReorder={setMainPanelOrder} panels={{
           // Primary owner + co-owners (peers who also see this account).
-          coowners: <CoOwnersCard entity="accounts" id={a.id} primaryOwnerId={a.owner_id} primaryOwnerName={a.owner_name} />,
+          coowners: <CoOwnersCard entity="accounts" id={a.id} primaryOwnerId={a.owner_id} primaryOwnerName={a.owner_name} allowOwnerChange />,
           ...(spark ? { recent_updates: (
           <Card title="Recent updates" icon={MessageSquareText}>
             <AccountUpdatesCard accountId={a.id} contacts={contacts} />
