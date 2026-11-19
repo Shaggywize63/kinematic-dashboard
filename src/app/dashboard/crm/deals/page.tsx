@@ -344,7 +344,7 @@ function DealsListPage() {
                 columns={(isTataTiscanActive(getStoredUser())
                   ? DEAL_COLUMNS
                   : DEAL_COLUMNS.filter((c) => c.key !== 'dealer' && c.key !== 'volume_kg')
-                ) as unknown as { key: string; label: string; locked?: boolean }[]}
+                ).filter((c) => !(fieldsLoaded && fields.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
                 hidden={dealView.prefs.hidden}
                 mode={dealView.prefs.mode}
                 onToggle={dealView.toggleHidden}
@@ -453,7 +453,7 @@ function DealsListPage() {
             filtered={filtersActive}
             onClearFilters={clearFilters}
             hiddenColumns={dealHidden}
-            viewMode={dealView.prefs.mode}
+            viewMode={dealView.prefs.mode === 'cards' ? 'cards' : 'table'}
             sort={sort}
             onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
             onAssign={async (dealId, userId) => {

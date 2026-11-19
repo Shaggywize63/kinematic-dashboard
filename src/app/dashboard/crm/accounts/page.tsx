@@ -73,7 +73,7 @@ export default function AccountsListPage() {
     <>
       <ViewCustomizer
         entityLabel="Accounts"
-        columns={ACCOUNT_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+        columns={ACCOUNT_COLUMNS.filter((c) => !(fieldsLoaded && fields.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
         hidden={view.prefs.hidden}
         mode={view.prefs.mode}
         onToggle={view.toggleHidden}
@@ -120,7 +120,7 @@ export default function AccountsListPage() {
         accounts={accounts}
         loading={loading || !fieldsLoaded}
         hiddenColumns={hiddenSet}
-        viewMode={view.prefs.mode}
+        viewMode={view.prefs.mode === 'cards' ? 'cards' : 'table'}
         sort={sort}
         onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
         fields={fields}

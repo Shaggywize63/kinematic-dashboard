@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Columns3, LayoutGrid, LayoutTemplate, List, Settings2 } from 'lucide-react';
+import { Columns3, Kanban, LayoutGrid, LayoutTemplate, List, Settings2 } from 'lucide-react';
 import type { ViewMode } from '../../../lib/crmViewPrefs';
 import { InlineIcon } from '../../ui/PageIcon';
 
@@ -19,6 +19,8 @@ interface Props {
   onToggle: (key: string) => void;
   onSetMode: (mode: ViewMode) => void;
   onReset: () => void;
+  /** Modes offered in the Layout toggle. Defaults to table/cards; pass ['table','cards','kanban'] to also offer a board view. */
+  modes?: ViewMode[];
 }
 
 /**
@@ -31,7 +33,13 @@ interface Props {
  * popover snaps to a full-width bottom sheet so it never clips off the
  * edge of the viewport.
  */
-export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onToggle, onSetMode, onReset }: Props) {
+const MODE_META: Record<ViewMode, { label: string; icon: typeof List }> = {
+  table: { label: 'Table', icon: List },
+  cards: { label: 'Cards', icon: LayoutGrid },
+  kanban: { label: 'Kanban', icon: Kanban },
+};
+
+export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onToggle, onSetMode, onReset, modes = ['table', 'cards'] }: Props) {
   const [open, setOpen] = useState(false);
   const hiddenSet = new Set(hidden);
   const visibleCount = columns.filter((c) => !hiddenSet.has(c.key)).length;
@@ -86,7 +94,7 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
           >
             <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={LayoutTemplate} size={13} />Layout</div>
             <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 2, marginBottom: 14 }}>
-              {(['table', 'cards'] as const).map((m) => (
+              {modes.map((m) => (
                 <button
                   key={m}
                   type="button"
@@ -100,18 +108,19 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
                     fontSize: 12,
                     fontWeight: 700,
                     cursor: 'pointer',
-                    textTransform: 'capitalize',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 6,
                   }}
                 >
-                  <InlineIcon icon={m === 'table' ? List : LayoutGrid} size={14} />
-                  {m === 'table' ? 'Table' : 'Cards'}
+                  <InlineIcon icon={MODE_META[m].icon} size={14} />
+                  {MODE_META[m].label}
                 </button>
               ))}
             </div>
 
+            {mode !== 'kanban' && (
+            <>
             <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Columns3} size={13} />Columns</div>
             <div className="crm-view-customizer-list" style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto' }}>
               {columns.map((col) => {
@@ -146,6 +155,8 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
                 );
               })}
             </div>
+            </>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
               <button

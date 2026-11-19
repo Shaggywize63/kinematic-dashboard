@@ -858,6 +858,13 @@ table.cards-view tr {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px 14px;
+  /* Square card: the grid's columns are already equal-width (auto-fill + 1fr), so
+     forcing height = width here keeps every card in a row the same square size.
+     Content can exceed the square (a record with many visible columns, or a long
+     wrapped update) — scroll it inside the card rather than growing past the grid
+     or clipping it outright. */
+  aspect-ratio: 1 / 1;
+  overflow-y: auto;
 }
 table.cards-view td {
   display: flex;
