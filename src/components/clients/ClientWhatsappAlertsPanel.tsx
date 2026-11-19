@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import api from '../../lib/api';
 
 /**
@@ -8,8 +8,15 @@ import api from '../../lib/api';
  * Who gets this client's important updates on WhatsApp (up to 10 people), which updates, and the approved WhatsApp
  * template they go out with (GET/PUT /api/v1/clients/:id/whatsapp-alerts; POST …/test sends a test). Off by default.
  * Messages go out from the client's own WhatsApp number (CRM Settings → WhatsApp), and an update must also be on under
- * Notifications above to be sent. Own Save button, like the Notifications panel.
+ * Notifications above to be sent. Own Save button, like the Notifications panel; the client form's main Save also calls
+ * saveIfDirty() through a ref, so changes made here are never lost to the wrong button.
  */
+
+/** What the client form can ask of this panel. */
+export type WhatsappAlertsHandle = {
+  /** Save unsaved changes (a typed-but-not-added person included). True when there was nothing to save or it saved. */
+  saveIfDirty: () => Promise<boolean>;
+};
 
 type Recipient = { name: string; phone: string };
 type Template = { id: string; name: string; language: string; category: string; status: string; body: string; placeholders: number };
@@ -20,13 +27,17 @@ type View = {
   recipients: Recipient[];
   kinds: string[];
   daily_summary: boolean;
+  voice_leads: boolean;
+  approvals: boolean;
   project_disabled: boolean;
   connection: { configured: boolean; active: boolean; from_phone: string | null; display_name: string | null };
   templates: Template[];
   catalog: Entry[];
   suggested_template: { name: string; category: string; language: string; body: string };
+  approval_template?: { id: string; name: string } | null;
+  suggested_approval_template?: { name: string; category: string; language: string; body: string; buttons: string[] };
 };
-type Form = { enabled: boolean; template_id: string; recipients: Recipient[]; kinds: string[]; daily_summary: boolean };
+type Form = { enabled: boolean; template_id: string; recipients: Recipient[]; kinds: string[]; daily_summary: boolean; voice_leads: boolean; approvals: boolean };
 
 const MAX_PEOPLE = 10;
 const GROUPS: { id: string; label: string }[] = [
@@ -46,13 +57,15 @@ const toForm = (v: View): Form => ({
   recipients: v.recipients.map(r => ({ ...r })),
   kinds: [...v.kinds],
   daily_summary: !!v.daily_summary,
+  voice_leads: !!v.voice_leads,
+  approvals: !!v.approvals,
 });
 const sig = (f: Form) => JSON.stringify({ ...f, kinds: [...f.kinds].sort() });
 const errText = (e: any, fallback: string) => e?.response?.data?.error?.message || e?.response?.data?.error || e?.message || fallback;
 
-export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: string }) {
+const ClientWhatsappAlertsPanel = forwardRef<WhatsappAlertsHandle, { clientId: string }>(function ClientWhatsappAlertsPanel({ clientId }, ref) {
   const [view, setView] = useState<View | null>(null);
-  const [form, setForm] = useState<Form>({ enabled: false, template_id: '', recipients: [], kinds: [], daily_summary: false });
+  const [form, setForm] = useState<Form>({ enabled: false, template_id: '', recipients: [], kinds: [], daily_summary: false, voice_leads: false, approvals: false });
   const [saved, setSaved] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,7 +97,11 @@ export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: stri
     return () => { alive = false; };
   }, [clientId, apply]);
 
-  const dirty = useMemo(() => sig(form) !== saved, [form, saved]);
+  // A number typed into the "add person" box counts as a change: people forget to press Add person.
+  const withPending = useCallback((f: Form): Form => (newPhone.trim()
+    ? { ...f, recipients: [...f.recipients, { name: newName.trim(), phone: newPhone.trim() }] }
+    : f), [newName, newPhone]);
+  const dirty = useMemo(() => sig(withPending(form)) !== saved, [form, saved, withPending]);
   const catalog = view?.catalog ?? [];
   const template = view?.templates.find(t => t.id === form.template_id) ?? null;
   const offInApp = catalog.filter(c => form.kinds.includes(c.kind) && !c.in_app_enabled);
@@ -103,25 +120,35 @@ export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: stri
   };
   const removePerson = (i: number) => setForm(f => ({ ...f, recipients: f.recipients.filter((_, j) => j !== i) }));
 
-  const save = async () => {
+  const save = async (): Promise<boolean> => {
+    const f = withPending(form);
     setSaving(true); setErr(''); setNote('');
     try {
       const r = await api.put(`/api/v1/clients/${clientId}/whatsapp-alerts`, {
-        enabled: form.enabled,
-        template_id: form.template_id || null,
-        recipients: form.recipients,
-        kinds: form.kinds,
-        daily_summary: form.daily_summary,
+        enabled: f.enabled,
+        template_id: f.template_id || null,
+        recipients: f.recipients,
+        kinds: f.kinds,
+        daily_summary: f.daily_summary,
+        voice_leads: f.voice_leads,
+        approvals: f.approvals,
       });
       const v = unwrap<View>(r);
       if (!v || !Array.isArray(v.catalog)) throw new Error('Unexpected response while saving WhatsApp alert settings.');
       apply(v);
+      setNewName(''); setNewPhone('');
       setNote(!v.enabled ? 'Saved. WhatsApp alerts are off for this client.'
         : v.daily_summary ? 'Saved. Alerts start within a minute; the summary goes out at 7 pm.' : 'Saved. Alerts start within a minute.');
+      return true;
     } catch (e: any) {
       setErr(errText(e, 'Could not save WhatsApp alert settings'));
+      return false;
     } finally { setSaving(false); }
   };
+
+  useImperativeHandle(ref, () => ({
+    saveIfDirty: async () => (loading || !view || !dirty ? true : save()),
+  }));
 
   const sendTest = async (type?: 'daily_summary') => {
     setTesting(true); setErr(''); setNote('');
@@ -247,6 +274,52 @@ export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: stri
         </label>
       </div>
 
+      {/* Voice note → lead */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={sectionLabel}>Leads by voice note</div>
+        <label htmlFor={`${idBase}-voice`} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', background: form.voice_leads ? 'rgba(37,211,102,0.1)' : 'transparent', border: `1px solid ${form.voice_leads ? '#25D366' : 'transparent'}` }}>
+          <input id={`${idBase}-voice`} type="checkbox" checked={form.voice_leads} onChange={e => setForm(f => ({ ...f, voice_leads: e.target.checked }))} style={{ marginTop: 2 }} />
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: form.voice_leads ? 600 : 500, color: form.voice_leads ? 'var(--text)' : 'var(--textSec)' }}>Let this client&apos;s team add leads by WhatsApp voice note</span>
+            <span style={{ fontSize: 10.5, color: 'var(--textTert)', lineHeight: 1.5 }}>
+              A rep sends a voice note (any Indian language) or a message starting with &ldquo;lead&rdquo; to the client&apos;s WhatsApp number.
+              KINI creates the lead, owned by that rep, and replies with what it saved. Only works from numbers saved on the client&apos;s active users.
+            </span>
+          </span>
+        </label>
+      </div>
+
+      {/* One-tap approvals */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={sectionLabel}>One-tap approvals</div>
+        <label htmlFor={`${idBase}-approvals`} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', background: form.approvals ? 'rgba(37,211,102,0.1)' : 'transparent', border: `1px solid ${form.approvals ? '#25D366' : 'transparent'}` }}>
+          <input id={`${idBase}-approvals`} type="checkbox" checked={form.approvals} onChange={e => setForm(f => ({ ...f, approvals: e.target.checked }))} style={{ marginTop: 2 }} />
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: form.approvals ? 600 : 500, color: form.approvals ? 'var(--text)' : 'var(--textSec)' }}>Let approvers approve or reject on WhatsApp</span>
+            <span style={{ fontSize: 10.5, color: 'var(--textTert)', lineHeight: 1.5 }}>
+              Leave requests, expense claims and attendance corrections go to the approver&apos;s own WhatsApp (the mobile on their user profile)
+              with Approve and Reject buttons. A tap records the decision as if they used the app. Rejected expense claims get the note &ldquo;Rejected on WhatsApp&rdquo;.
+            </span>
+          </span>
+        </label>
+        {form.approvals && view && !view.approval_template && (
+          <div style={{ fontSize: 11, color: '#B45309', background: 'rgba(245,158,11,0.1)', borderRadius: 8, padding: '8px 10px', lineHeight: 1.5 }}>
+            This client has no approved WhatsApp template with Approve and Reject buttons yet, so nothing will be sent.
+            {view.suggested_approval_template && (
+              <>
+                {' '}Create one in WhatsApp Manager, then Sync templates in CRM Settings → WhatsApp:
+                <div style={{ marginTop: 4 }}><b>Name:</b> {view.suggested_approval_template.name} · <b>Category:</b> {view.suggested_approval_template.category} · <b>Language:</b> {view.suggested_approval_template.language}</div>
+                <div style={{ marginTop: 2 }}>{view.suggested_approval_template.body}</div>
+                <div style={{ marginTop: 2 }}><b>Quick-reply buttons:</b> {view.suggested_approval_template.buttons.join(', ')}</div>
+              </>
+            )}
+          </div>
+        )}
+        {form.approvals && view?.approval_template && (
+          <div style={{ fontSize: 10.5, color: 'var(--textTert)' }}>Uses the template &ldquo;{view.approval_template.name}&rdquo;.</div>
+        )}
+      </div>
+
       {/* Updates */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -287,7 +360,7 @@ export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: stri
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <button
-          type="button" onClick={save} disabled={!dirty || saving}
+          type="button" onClick={() => { void save(); }} disabled={!dirty || saving}
           style={{ padding: '9px 16px', border: 'none', borderRadius: 10, background: dirty ? '#3E9EFF' : 'var(--s4)', color: dirty ? '#fff' : 'var(--textTert)', fontSize: 12.5, fontWeight: 700, cursor: dirty && !saving ? 'pointer' : 'default', opacity: saving ? 0.7 : 1 }}
         >
           {saving ? 'Saving…' : 'Save WhatsApp alerts'}
@@ -314,4 +387,6 @@ export default function ClientWhatsappAlertsPanel({ clientId }: { clientId: stri
       </div>
     </div>
   );
-}
+});
+
+export default ClientWhatsappAlertsPanel;

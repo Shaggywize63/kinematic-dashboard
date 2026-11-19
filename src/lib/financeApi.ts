@@ -77,8 +77,19 @@ export interface DocRow extends Partial<Recurrence> {
   id: string; number: string; doc_type: 'invoice' | 'quote'; reference_number: string | null; status: string; display_status: DisplayStatus;
   customer_id: string; customer_snapshot: { name?: string; email?: string; gstin?: string; phone?: string; company_name?: string };
   issue_date: string; due_date: string | null; expiry_date: string | null; total: number; amount_paid: number; balance: number;
+  taxable_value?: number; tax_total?: number;
   sent_at: string | null; created_at: string;
 }
+/** A recurring invoice due to be raised (from GET /invoices/upcoming). Read-only — nothing is created. */
+export interface UpcomingInvoice {
+  id: string; number: string; customer_id: string | null; customer_name: string;
+  next_invoice_date: string; cadence: string;
+  amount: number; taxable_value: number; tax_total: number;
+  days_until: number; overdue: boolean;
+}
+/** Totals returned alongside the upcoming-invoices rows (in the response `totals`). */
+export interface UpcomingInvoicesTotals { count: number; due_now: number; amount: number; tax_total: number; horizon_days: number }
+
 export interface DocEvent { id: string; event: string; detail: Record<string, unknown>; actor: string | null; created_at: string }
 export interface DocPayment { allocation_id: string; amount: number; id: string; payment_number: string; payment_date: string; mode: string; reference: string | null }
 export interface DocDetail extends DocRow {
@@ -106,6 +117,8 @@ export interface SendResult { document: DocDetail; delivery: { to: string; provi
 export type PaymentMode = 'cash' | 'bank_transfer' | 'upi' | 'cheque' | 'card' | 'other';
 export interface PaymentRow {
   id: string; payment_number: string; customer_id: string; payment_date: string; amount: number; unused_amount: number; mode: PaymentMode;
+  /** GST portion of the receipt (cash basis): the tax share of the invoices this payment was applied to. */
+  gst?: number;
   reference: string | null; notes: string | null; customer?: { id: string; display_name: string; email?: string | null };
   allocations?: Array<{ id: string; amount: number; document: { id: string; number: string; total: number; issue_date: string } }>;
 }
@@ -120,7 +133,8 @@ export interface DashboardData {
   period: { from: string; to: string; label: string; fy_from: string; fy_to: string; month: string | null };
   granularity: 'month' | 'day';
   receivables: { total: number; current: number; d1_15: number; d16_30: number; d31_45: number; d45_plus: number; open_invoices: number; overdue_invoices: number };
-  totals: { sales: number; receipts: number };
+  /** `tax` = GST charged on the period's invoices (already inside `sales`). */
+  totals: { sales: number; receipts: number; tax: number };
   months: Array<{ month: string; label: string; sales: number; receipts: number }>;
   draft_invoices: number; open_quotes: number;
 }
@@ -260,6 +274,9 @@ export const financeApi = {
   invoices: {
     ...documents('invoices'),
     void: (id: string) => api.post<Wrapped<DocDetail>>(`${BASE}/invoices/${id}/void`, {}),
+    /** Recurring invoices due to be raised within `days` (default 30 on the server), plus overdue ones. */
+    upcoming: (days?: number) =>
+      api.get<Wrapped<UpcomingInvoice[]> & { totals: UpcomingInvoicesTotals }>(`${BASE}/invoices/upcoming${qs(days ? { days } : undefined)}`, noCache),
   },
   quotes: {
     ...documents('quotes'),
