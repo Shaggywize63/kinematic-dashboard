@@ -22,7 +22,7 @@ const UP_NEXT_MAX = 3;
 
 /** At-a-glance tab: what's due, the latest word on the lead, how to reach them, and every captured field. */
 export default function OverviewTab({
-  lead, fields, contactFields, contacts, hideEmail, activities, latestUpdate, campaigns, leadCampaign, waPrefill, displayName, onPatch, onActivitiesChanged, onOpenTab,
+  lead, fields, contactFields, contacts, canEditContacts = false, hideEmail, activities, latestUpdate, campaigns, leadCampaign, waPrefill, displayName, onPatch, onActivitiesChanged, onOpenTab,
 }: {
   lead: LifecycleLead;
   fields: FieldHelpers;
@@ -32,6 +32,8 @@ export default function OverviewTab({
   contactFields: FieldHelpers;
   // Contact-persons captured on this lead (B2B); empty for non-B2B / older leads.
   contacts: Contact[];
+  // Whether the viewer may edit a captured contact's requirement inline (admin / lead creator).
+  canEditContacts?: boolean;
   hideEmail: boolean;
   activities: DetailActivity[];
   latestUpdate: LeadUpdate | null;
@@ -177,7 +179,7 @@ export default function OverviewTab({
 
       {/* Contact-persons + requirements captured on this lead — the revisit
           view, so opening an already-visited lead shows who was logged on it. */}
-      <LeadContactsCard contacts={contacts} fields={contactFields} />
+      <LeadContactsCard contacts={contacts} fields={contactFields} canEdit={canEditContacts} />
 
       {/* Comprehensive categorised detail panel — every lead field grouped by Contact / Company / Personal /
           Address / Custom / Consent, hiding any group with no populated values. Gated through `fields`. */}
