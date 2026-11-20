@@ -5,8 +5,10 @@ import { crmPipelines } from '../../../../../lib/crmApi';
 import type { Pipeline } from '../../../../../types/crm';
 import { Ban, GitBranch, Plus, Star, Trash2 } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 export default function PipelinesSettings() {
+  const confirm = useConfirm();
   const [items, setItems] = useState<Pipeline[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
@@ -27,7 +29,14 @@ export default function PipelinesSettings() {
 
   const handleDelete = async (p: Pipeline) => {
     if (p.is_default) return toast.error('Cannot delete the default pipeline');
-    if (!window.confirm(`Delete pipeline "${p.name}"? This action cannot be undone.`)) return;
+    if (!(await confirm({
+      title: 'Delete this pipeline?',
+      itemName: p.name,
+      message: 'This permanently removes the pipeline',
+      confirmLabel: 'Delete pipeline',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setBusy((b) => ({ ...b, [p.id + '_del']: true }));
     try {
       await crmPipelines.remove(p.id);
@@ -41,7 +50,15 @@ export default function PipelinesSettings() {
   };
 
   const handleDeactivate = async (p: Pipeline) => {
-    if (!window.confirm(`Deactivate pipeline "${p.name}"? It will be hidden from the pipeline switcher.`)) return;
+    if (!(await confirm({
+      title: 'Deactivate this pipeline?',
+      itemName: p.name,
+      message: 'It will be hidden from the pipeline switcher',
+      confirmLabel: 'Deactivate',
+      confirmingLabel: 'Deactivating…',
+      tone: 'default',
+      irreversible: false,
+    }))) return;
     setBusy((b) => ({ ...b, [p.id + '_deact']: true }));
     try {
       await crmPipelines.update(p.id, { is_active: false } as any);

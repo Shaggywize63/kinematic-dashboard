@@ -11,6 +11,7 @@ import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS } from '../../../lib/mo
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
 import { usePageTitle } from '../../../lib/pageTitle';
 import { Badge, Button, Card, EmptyState, Eyebrow, Field, Input, PageHeader, Segmented, Select, T, useIsCompact } from '../../../components/ui';
+import { useConfirm } from '../../../components/ConfirmProvider';
 
 const ROLE_DEFAULTS: Record<string, string[]> = {
   admin: [
@@ -105,6 +106,7 @@ function RangeField({ label, value, unit, min, max, step, onChange, accent }: { 
 
 export default function SettingsPage() {
   usePageTitle('Settings');
+  const confirm = useConfirm();
   const narrow = useIsCompact(900);
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [cities, setCities] = useState<any[]>([]);
@@ -410,7 +412,12 @@ export default function SettingsPage() {
   };
 
   const handleDeleteClient = async (id: string) => {
-    if (!confirm('Delete this client? Their administrator account and module access will be removed.')) return;
+    const ok = await confirm({
+      title: 'Delete this client?',
+      message: 'Their administrator account and module access will be removed.',
+      confirmLabel: 'Delete client',
+    });
+    if (!ok) return;
     try {
       await api.delete(`/api/v1/clients/${id}`);
       fetchData();

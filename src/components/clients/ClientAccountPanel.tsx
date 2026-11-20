@@ -140,6 +140,21 @@ export default function ClientAccountPanel({ clientId }: { clientId: string }) {
     finally { setBusy(''); }
   };
 
+  const billCurrent = async () => {
+    setBusy('bill'); setErr(''); setNote('');
+    try {
+      const r = await api.post(`/api/v1/clients/${clientId}/seat-charges/bill-current`, {});
+      const d = unwrap<{ queued: number; active_seats: number; baseline_seats: number; already_pending: number; total: number; days_charged: number; cycle_days: number }>(r);
+      if (d.queued > 0) {
+        setNote(`Queued ${d.queued} seat${d.queued === 1 ? '' : 's'} (${inr(d.total)}), pro-rated for ${d.days_charged} of ${d.cycle_days} days left in the cycle. Apply them to an invoice below.`);
+      } else {
+        setNote(`Nothing to bill — all ${d.active_seats} active seat${d.active_seats === 1 ? '' : 's'} are already covered (${d.baseline_seats} on the recurring invoice, ${d.already_pending} already pending).`);
+      }
+      loadCharges();
+    } catch (e: any) { setErr(e?.response?.data?.error || e?.message || 'Could not bill the current seats'); }
+    finally { setBusy(''); }
+  };
+
   const sendEmail = async (kind: 'welcome' | 'payment-reminder') => {
     setBusy(kind); setErr(''); setNote('');
     try {
@@ -254,6 +269,14 @@ export default function ClientAccountPanel({ clientId }: { clientId: string }) {
             {btn('Save', () => savePriceValue(priceDraft), { primary: true })}
           </div>
         </div>
+        {acct.price_per_user != null && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+            {btn(busy === 'bill' ? 'Billing…' : 'Bill current seats', billCurrent, { disabled: busy === 'bill' })}
+            <span style={{ fontSize: 11.5, color: 'var(--textTert)' }}>
+              Catches up seats active now but not yet charged — those beyond what the recurring invoice already bills — pro-rated for the days left in the cycle. Needs a recurring invoice for this customer.
+            </span>
+          </div>
+        )}
         {acct.detected_price_per_user != null && acct.detected_price_per_user !== acct.price_per_user && (
           <div style={{ fontSize: 11.5, color: 'var(--textTert)', marginTop: 6 }}>
             Detected {inr(acct.detected_price_per_user)}/seat from this client's own invoice.{' '}

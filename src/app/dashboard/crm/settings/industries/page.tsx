@@ -12,6 +12,7 @@ import {
 } from '../../../../../lib/industries';
 import { Badge, Button, Card, EmptyState, Eyebrow, Input, PageHeader, T } from '../../../../../components/ui';
 import { apiErrorText } from '../../../../../lib/sparkAccounts';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 // Settings -> Industries (Spark & Ray): the list of industries every dropdown, badge and map pin uses — name, colour
 // and optional sub-industries — in display order. Saved whole as crm_settings.config.industries (the settings config
@@ -29,6 +30,7 @@ const snapshot = (rows: readonly Row[]) => JSON.stringify(buildIndustriesConfig(
 
 export default function IndustriesSettingsPage() {
   usePageTitle('Industries');
+  const confirm = useConfirm();
   // Read after mount: the gate looks at localStorage.
   const [spark, setSpark] = useState<boolean | null>(null);
   useEffect(() => { setSpark(isB2bClientActive()); }, []);
@@ -90,8 +92,15 @@ export default function IndustriesSettingsPage() {
     setErrors([]); setFocusId(id);
   };
 
-  const remove = (r: Row) => {
-    if (!window.confirm(`Delete the industry “${r.name.trim() || 'untitled'}”? Leads already using it keep the value but show in grey.`)) return;
+  const remove = async (r: Row) => {
+    if (!(await confirm({
+      title: 'Delete this industry?',
+      message: 'Leads already using it keep the value but show in grey',
+      itemName: r.name.trim() || 'untitled',
+      confirmLabel: 'Delete industry',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setRows((l) => l.filter((x) => x.id !== r.id)); setErrors([]);
   };
 
@@ -117,7 +126,13 @@ export default function IndustriesSettingsPage() {
   };
 
   const reset = async () => {
-    if (!window.confirm('Reset to the default industries? Your custom list, colours and sub-industries will be removed.')) return;
+    if (!(await confirm({
+      title: 'Reset to the default industries?',
+      message: 'Your custom list, colours and sub-industries will be removed',
+      confirmLabel: 'Reset to defaults',
+      confirmingLabel: 'Resetting…',
+      tone: 'danger',
+    }))) return;
     setSaving(true);
     try {
       await crmSettings.update({ config: { industries: null } });

@@ -14,10 +14,12 @@ import StoreSelect from '../../../../components/StoreSelect';
 import { AlertTriangle, ArrowLeft, Check, FileText, Megaphone, Package, Plus, Store, Tag, Target, Trash2, UserPlus, X } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import { PC, SectionCard, StateBlock, useIsCompact, TableScroll, th, thR } from '../_components/planogramUi';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 const BASE = '/dashboard/planograms';
 
 export default function PlanogramDetailPage() {
+  const confirm = useConfirm();
   const router = useRouter();
   const isCompact = useIsCompact();
   const params = useParams<{ id: string }>();
@@ -438,7 +440,14 @@ export default function PlanogramDetailPage() {
                 <button
                   onClick={async () => {
                     if (!id) return;
-                    if (!confirm('Remove this assignment?')) return;
+                    const ok = await confirm({
+                      title: 'Remove this assignment?',
+                      message: 'The store will stop being scored against this planogram.',
+                      confirmLabel: 'Remove',
+                      confirmingLabel: 'Removing…',
+                      tone: 'danger',
+                    });
+                    if (!ok) return;
                     try {
                       await planogramApi.unassign(id, a.id);
                       setAssignments((prev) => prev.filter((x) => x.id !== a.id));

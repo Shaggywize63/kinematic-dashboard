@@ -90,20 +90,21 @@ export default function SmartFilterBar({
   const showChips = !explanation && focused && !query;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, flex: '1 1 320px' }}>
-      {/* Input row */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, width: '100%' }}>
+      {/* Input row — sized up from the shared 36px toolbar controls so KINI reads as
+          the standout feature it is, not just another filter chip. */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <div
           style={{
             position: 'relative', flex: 1, minWidth: 0, display: 'flex', alignItems: 'center',
             background: 'var(--s3)',
             border: `1px solid ${focused ? 'var(--primary)' : 'color-mix(in srgb, var(--primary) 38%, var(--border))'}`,
-            borderRadius: 8, height: 36,
+            borderRadius: 10, height: 46,
             boxShadow: focused ? '0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent)' : 'none',
             transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
           }}
         >
-          <span aria-hidden style={{ position: 'absolute', left: 11, display: 'inline-flex', color: 'var(--primary)', pointerEvents: 'none' }}><Sparkles size={15} strokeWidth={1.8} /></span>
+          <span aria-hidden style={{ position: 'absolute', left: 14, display: 'inline-flex', color: 'var(--primary)', pointerEvents: 'none' }}><Sparkles size={18} strokeWidth={1.8} /></span>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -114,7 +115,7 @@ export default function SmartFilterBar({
             aria-label="Smart Filter — describe the leads you want in plain English"
             style={{
               flex: 1, width: '100%', minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
-              color: 'var(--text)', padding: '0 12px 0 34px', height: '100%', borderRadius: 8, fontSize: 13,
+              color: 'var(--text)', padding: '0 14px 0 42px', height: '100%', borderRadius: 10, fontSize: 14.5,
             }}
           />
           {/* Typewriter overlay — sits over the empty input, never blocks clicks. */}
@@ -122,8 +123,8 @@ export default function SmartFilterBar({
             <div
               aria-hidden
               style={{
-                position: 'absolute', left: 34, right: 12, pointerEvents: 'none',
-                color: 'var(--textSec)', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                position: 'absolute', left: 42, right: 14, pointerEvents: 'none',
+                color: 'var(--textSec)', fontSize: 14.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}
             >
               <span style={{ opacity: 0.7 }}>Ask KINI: </span>{typed}<span className="sf-caret" style={{ height: 14 }} />
@@ -135,15 +136,15 @@ export default function SmartFilterBar({
           disabled={loading}
           className={loading ? undefined : 'sf-run'}
           style={{
-            background: 'var(--primary)', border: 'none', color: '#fff', padding: '0 14px', height: 36,
-            borderRadius: 8, fontSize: 13, fontWeight: 600, opacity: loading ? 0.65 : 1,
+            background: 'var(--primary)', border: 'none', color: '#fff', padding: '0 18px', height: 46,
+            borderRadius: 10, fontSize: 14, fontWeight: 600, opacity: loading ? 0.65 : 1,
             whiteSpace: 'nowrap', cursor: loading ? 'default' : 'pointer', display: 'inline-flex',
-            alignItems: 'center', gap: 7,
+            alignItems: 'center', gap: 8,
           }}
         >
           {loading
-            ? (<><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid rgba(255,255,255,0.5)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />Thinking…</>)
-            : (<><Sparkles size={14} strokeWidth={1.8} aria-hidden />Smart Filter</>)}
+            ? (<><span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.5)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />Thinking…</>)
+            : (<><Sparkles size={16} strokeWidth={1.8} aria-hidden />Smart Filter</>)}
         </button>
       </div>
 

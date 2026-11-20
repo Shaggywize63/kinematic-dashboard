@@ -10,6 +10,7 @@ import { formatINR } from '../../../../lib/formatCurrency';
 import { getStoredUser, userHasModule } from '../../../../lib/auth';
 import { Badge, Button, Card, EmptyState, Eyebrow, PageHeader, T, useIsCompact, type Tone } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 /**
  * Pipeline section, records-list view.
@@ -23,6 +24,7 @@ import { usePageTitle } from '../../../../lib/pageTitle';
  */
 export default function PipelinePage() {
   usePageTitle('Pipelines');
+  const confirm = useConfirm();
   const narrow = useIsCompact(900);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [dealsByPipeline, setDealsByPipeline] = useState<Record<string, Deal[]>>({});
@@ -72,7 +74,14 @@ export default function PipelinePage() {
     if (openCount > 0) {
       return toast.error(`Cannot delete: ${openCount} open deal${openCount === 1 ? ' is' : 's are'} still in this pipeline. Move them first.`);
     }
-    if (!window.confirm(`Delete pipeline "${p.name}"? Its stages will be removed too. This cannot be undone.`)) return;
+    if (!(await confirm({
+      title: 'Delete this pipeline?',
+      message: 'Its stages will be removed too',
+      itemName: p.name,
+      confirmLabel: 'Delete pipeline',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     try {
       await crmPipelines.remove(p.id);
       toast.success('Pipeline deleted');

@@ -9,7 +9,7 @@ import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Deal, Pipeline } from '../../../../types/crm';
 import DealsTable, { DEAL_COLUMNS } from '../../../../components/crm/DealsTable';
 import DealEditModal from '../../../../components/crm/DealEditModal';
-import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { getStoredUser, canAccess, userHasModule } from '../../../../lib/auth';
 import { isKinematicTenant, isTataTiscanActive } from '../../../../lib/clientFeatures';
@@ -21,6 +21,7 @@ import { formatINR, formatINRCompact } from '../../../../lib/formatCurrency';
 import { useFieldHelpers } from '../../../../lib/crm/useFieldHelpers';
 import MetricTiles, { type MetricTile } from '../../../../components/crm/shared/MetricTiles';
 import ServerPaginationBar from '../../../../components/crm/shared/ServerPaginationBar';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 const DEAL_DEFAULT_PAGE_SIZE = 50;
 
@@ -48,6 +49,7 @@ function DealsListPage() {
   const router = useRouter();
   const search = useSearchParams();
   usePageTitle('Deals');
+  const confirm = useConfirm();
   const narrow = useIsCompact(900);
   const initialView: ViewMode = search.get('view') === 'kanban' ? 'kanban' : 'list';
   const initialPipelineId = search.get('pipeline_id') || '';
@@ -258,7 +260,15 @@ function DealsListPage() {
 
   const bulkDelete = async () => {
     if (selected.size === 0) return;
-    if (!window.confirm(`Delete ${selected.size} deal${selected.size > 1 ? 's' : ''}? This soft-deletes them and they can be restored from the database if needed.`)) return;
+    const n = selected.size;
+    if (!(await confirm({
+      title: `Delete ${n} deal${n > 1 ? 's' : ''}?`,
+      message: 'This soft-deletes them — rows can be restored from the database if needed',
+      confirmLabel: `Delete ${n > 1 ? `${n} deals` : 'deal'}`,
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     setBulkBusy(true);
     let ok = 0, failed = 0;
     for (const id of Array.from(selected)) {
@@ -336,21 +346,23 @@ function DealsListPage() {
         actions={
           <>
             {view === 'list' && (
-              <ViewCustomizer
-                entityLabel="Deals"
-                // Dealer + Volume (kg) are steel-dealer-only (Tata / BMW / SRS)
-                // columns — don't even offer them as toggles on other tenants
-                // (e.g. the Kinematic admin), matching DealsTable's render gate.
-                columns={(isTataTiscanActive(getStoredUser())
-                  ? DEAL_COLUMNS
-                  : DEAL_COLUMNS.filter((c) => c.key !== 'dealer' && c.key !== 'volume_kg')
-                ) as unknown as { key: string; label: string; locked?: boolean }[]}
-                hidden={dealView.prefs.hidden}
-                mode={dealView.prefs.mode}
-                onToggle={dealView.toggleHidden}
-                onSetMode={dealView.setMode}
-                onReset={dealView.reset}
-              />
+              <>
+                <LayoutModeToggle mode={dealView.prefs.mode} onSetMode={dealView.setMode} />
+                <ViewCustomizer
+                  entityLabel="Deals"
+                  // Dealer + Volume (kg) are steel-dealer-only (Tata / BMW / SRS)
+                  // columns — don't even offer them as toggles on other tenants
+                  // (e.g. the Kinematic admin), matching DealsTable's render gate.
+                  columns={(isTataTiscanActive(getStoredUser())
+                    ? DEAL_COLUMNS
+                    : DEAL_COLUMNS.filter((c) => c.key !== 'dealer' && c.key !== 'volume_kg')
+                  ).filter((c) => !(fieldsLoaded && fields.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
+                  hidden={dealView.prefs.hidden}
+                  mode={dealView.prefs.mode}
+                  onToggle={dealView.toggleHidden}
+                  onReset={dealView.reset}
+                />
+              </>
             )}
             {/* Export CSV is always visible (admin or not). */}
             <Button
@@ -453,7 +465,7 @@ function DealsListPage() {
             filtered={filtersActive}
             onClearFilters={clearFilters}
             hiddenColumns={dealHidden}
-            viewMode={dealView.prefs.mode}
+            viewMode={dealView.prefs.mode === 'cards' ? 'cards' : 'table'}
             sort={sort}
             onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
             onAssign={async (dealId, userId) => {
@@ -467,7 +479,14 @@ function DealsListPage() {
             onToggleAll={toggleAll}
             onEdit={setEditingDeal}
             onDelete={async (id) => {
-              if (!window.confirm('Delete this deal? It will be soft-deleted and can be restored from the database if needed.')) return;
+              if (!(await confirm({
+                title: 'Delete this deal?',
+                message: 'This soft-deletes it — the row can be restored from the database if needed',
+                confirmLabel: 'Delete deal',
+                confirmingLabel: 'Deleting…',
+                tone: 'danger',
+                irreversible: false,
+              }))) return;
               try {
                 await crmDeals.remove(id);
                 toast.success('Deal deleted');

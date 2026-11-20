@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import api from '../lib/api';
+import { useConfirm } from './ConfirmProvider';
 
 // Recipient picker for the notifications composer. Three tabs let the
 // admin scan users by city, by org-hierarchy level, or pick a previously
@@ -48,6 +49,7 @@ interface Props {
 }
 
 export default function RecipientPicker({ users, selectedIds, onChange }: Props) {
+  const confirm = useConfirm();
   const [tab, setTab] = useState<Tab>('city');
   const [levels, setLevels] = useState<HierarchyLevel[]>([]);
   const [groups, setGroups] = useState<NotificationGroup[]>([]);
@@ -140,7 +142,12 @@ export default function RecipientPicker({ users, selectedIds, onChange }: Props)
   }
 
   async function deleteGroup(id: string) {
-    if (!confirm('Delete this group?')) return;
+    const ok = await confirm({
+      title: 'Delete this group?',
+      message: 'This removes the saved recipient group.',
+      confirmLabel: 'Delete group',
+    });
+    if (!ok) return;
     try {
       await api.delete(`/api/v1/notifications/groups/${id}`);
       setGroups(groups.filter((g) => g.id !== id));

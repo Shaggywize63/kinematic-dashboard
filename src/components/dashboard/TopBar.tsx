@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { ChevronRight, Menu, Search } from 'lucide-react';
+import { ChevronRight, Info, Menu, Search } from 'lucide-react';
 import { useClient } from '../../context/ClientContext';
 import { getActingAs } from '../../lib/api';
 import ClientSelect from '../ClientSelect';
@@ -12,7 +12,7 @@ import ThemeToggle from '../shared/ThemeToggle';
 import FontSizeToggle from '../shared/FontSizeToggle';
 import SignedImage from '../shared/SignedImage';
 import { Avatar, IconButton, T } from '../ui';
-import { usePageTitleOverride, type Crumb } from '../../lib/pageTitle';
+import { usePageTitleOverride, usePageTitleInfo, type Crumb } from '../../lib/pageTitle';
 import { TOPBAR_H } from './Sidebar';
 
 // Floating chat launcher (icon button + popup panel). Lazy so @dnd-kit /
@@ -59,6 +59,7 @@ interface Props {
  */
 export default function TopBar(p: Props) {
   const override = usePageTitleOverride();
+  const overrideInfo = usePageTitleInfo();
   const crumbs: Crumb[] = override
     ? [...p.crumbs.slice(0, Math.max(0, p.crumbs.length - 1)).map((c, i, arr) => (i === arr.length - 1 && !c.href ? { ...c } : c)), { label: override }]
     : p.crumbs;
@@ -96,6 +97,17 @@ export default function TopBar(p: Props) {
             );
           })}
         </nav>
+        {overrideInfo && (
+          <span
+            tabIndex={0}
+            role="img"
+            aria-label={overrideInfo}
+            title={overrideInfo}
+            style={{ display: 'inline-flex', color: T.mute, flexShrink: 0, cursor: 'help' }}
+          >
+            <Info size={14} strokeWidth={1.8} />
+          </span>
+        )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: p.isMobile ? 2 : 6, flexShrink: 1, minWidth: 0 }}>

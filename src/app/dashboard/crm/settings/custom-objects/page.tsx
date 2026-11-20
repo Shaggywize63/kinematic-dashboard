@@ -6,6 +6,7 @@ import { crmCustomObjects, crmCustomFields, type CustomObject } from '../../../.
 import type { CustomField } from '../../../../../types/crm';
 import { Boxes, CheckCircle2, ListChecks, Pause, Play, Plus, Table2, Trash2 } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 // Field types offered in the object field editor. A subset of the full
 // crm_custom_field_defs types — the ones that make sense for a record form
@@ -59,6 +60,7 @@ const OBJECT_TEMPLATES: Array<{ id: string; icon: string; label: string; label_p
 ];
 
 export default function CustomObjectsSettings() {
+  const confirm = useConfirm();
   const [objects, setObjects] = useState<CustomObject[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -136,7 +138,14 @@ export default function CustomObjectsSettings() {
   };
 
   const remove = async (o: CustomObject) => {
-    if (!window.confirm(`Delete object "${o.label}"? Its field definitions and records will no longer be shown.`)) return;
+    if (!(await confirm({
+      title: 'Delete this object?',
+      message: 'Its field definitions and records will no longer be shown',
+      itemName: o.label,
+      confirmLabel: 'Delete object',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setBusy((b) => ({ ...b, [o.id + '_d']: true }));
     try {
       await crmCustomObjects.remove(o.id);
@@ -255,6 +264,7 @@ export default function CustomObjectsSettings() {
 
 // ── Per-object field editor (reuses crm_custom_field_defs, entity_type = key) ──
 function FieldEditor({ objectKey }: { objectKey: string }) {
+  const confirm = useConfirm();
   const [fields, setFields] = useState<CustomField[]>([]);
   const [loading, setLoading] = useState(true);
   const [fkey, setFkey] = useState('');
@@ -298,7 +308,14 @@ function FieldEditor({ objectKey }: { objectKey: string }) {
   };
 
   const remove = async (f: CustomField) => {
-    if (!window.confirm(`Remove field "${f.label}"? Stored values on existing records are kept but hidden.`)) return;
+    if (!(await confirm({
+      title: 'Remove this field?',
+      message: 'Stored values on existing records are kept but hidden',
+      itemName: f.label,
+      confirmLabel: 'Remove field',
+      confirmingLabel: 'Removing…',
+      tone: 'danger',
+    }))) return;
     try { await crmCustomFields.remove(f.id); reload(); }
     catch (e: any) { toast.error(e.message || 'Remove failed'); }
   };

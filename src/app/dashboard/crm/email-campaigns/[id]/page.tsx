@@ -18,6 +18,7 @@ import { downloadBlob } from '../../../../../lib/financeFormat';
 import type { LucideIcon } from 'lucide-react';
 import { Ban, BarChart3, Check, CheckCheck, Download, Eye, Inbox, MailX, MousePointerClick, Pause, Play, RotateCcw, Send, SkipForward, Users, XCircle } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -90,6 +91,7 @@ function Stat({ label, value, color, onClick, active, icon }: { label: string; v
 }
 
 export default function EmailCampaignDetailPage() {
+  const confirm = useConfirm();
   const params = useParams();
   const id = String(params?.id || '');
   const [c, setC] = useState<EmailCampaign | null>(null);
@@ -157,7 +159,14 @@ export default function EmailCampaignDetailPage() {
 
   const resendFailed = async () => {
     const plural = failedCount === 1 ? '' : 's';
-    if (!confirm(`Resend this email to the ${failedCount.toLocaleString()} recipient${plural} it failed to reach?\n\nRecipients who already received it, bounced or unsubscribed will not be sent again.`)) return;
+    const ok = await confirm({
+      title: `Resend this email to the ${failedCount.toLocaleString()} recipient${plural} it failed to reach?`,
+      message: 'Recipients who already received it, bounced or unsubscribed will not be sent again.',
+      confirmLabel: 'Resend email',
+      confirmingLabel: 'Resending…',
+      tone: 'default',
+    });
+    if (!ok) return;
     setBusy(true); setErr(''); setNotice('');
     try {
       const r = await crmEmailCampaigns.resendFailed(id);
@@ -192,7 +201,7 @@ export default function EmailCampaignDetailPage() {
           {c.status === 'sending' && <button onClick={() => act(() => crmEmailCampaigns.pause(id))} disabled={busy} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Pause} />Pause</button>}
           {c.status === 'paused' && <button onClick={() => act(() => crmEmailCampaigns.resume(id))} disabled={busy} style={{ background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Play} />Resume</button>}
           {c.status === 'completed' && failedCount > 0 && <button onClick={resendFailed} disabled={busy} title="Send again to only the recipients whose email failed" style={{ background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: busy ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={RotateCcw} />Resend to {failedCount.toLocaleString()} failed</button>}
-          {['sending', 'paused', 'draft'].includes(c.status) && <button onClick={() => { if (confirm('Cancel this campaign? Queued recipients will not be sent.')) act(() => crmEmailCampaigns.cancel(id)); }} disabled={busy} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>}
+          {['sending', 'paused', 'draft'].includes(c.status) && <button onClick={async () => { const ok = await confirm({ title: 'Cancel this campaign?', message: 'Queued recipients will not be sent.', confirmLabel: 'Cancel campaign', confirmingLabel: 'Cancelling…', tone: 'default' }); if (ok) act(() => crmEmailCampaigns.cancel(id)); }} disabled={busy} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>}
         </div>
       </div>
 

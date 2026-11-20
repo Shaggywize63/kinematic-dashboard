@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { Layers, Plus, Trash2, Users, Workflow } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 interface Level {
   id: string;
@@ -74,6 +75,7 @@ const btnGhost: React.CSSProperties = {
 };
 
 export default function HierarchyPage() {
+  const confirm = useConfirm();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [levels, setLevels] = useState<Level[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -160,7 +162,13 @@ export default function HierarchyPage() {
   };
 
   const deleteLevel = async (id: string) => {
-    if (!window.confirm('Delete this level? Users on it must be reassigned first.')) return;
+    if (!(await confirm({
+      title: 'Delete this level?',
+      message: 'Users on it must be reassigned first',
+      confirmLabel: 'Delete level',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     try {
       await api.delete(`/api/v1/crm/hierarchy/levels/${id}`);
       toast.success('Level deleted');

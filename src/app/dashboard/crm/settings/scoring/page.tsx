@@ -6,6 +6,7 @@ import api from '../../../../../lib/api';
 import type { LucideIcon } from 'lucide-react';
 import { Award, Building2, Check, ClipboardCheck, MapPin, MessageCircle, Pencil, Phone, Plus, RefreshCw, RotateCcw, Route, SlidersHorizontal, Target, Timer, User } from 'lucide-react';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 // Score budgets target a strict 100 max. Source weights are treated as
 // mutually exclusive in maxScore (a lead has exactly one source), so
@@ -173,6 +174,7 @@ const emptyProfile = (defaults: Record<string, number>): Profile => ({
 });
 
 export default function ScoringSettingsPage() {
+  const confirm = useConfirm();
   const [businessType, setBusinessType] = useState<'b2b' | 'b2c'>('b2b');
   const [b2b, setB2b] = useState<Profile>(emptyProfile(DEFAULTS_B2B));
   const [b2c, setB2c] = useState<Profile>(emptyProfile(DEFAULTS_B2C));
@@ -315,8 +317,15 @@ export default function ScoringSettingsPage() {
     }
   };
 
-  const reset = () => {
-    if (!window.confirm(`Reset ${businessType.toUpperCase()} scoring to defaults? Unsaved changes for this profile will be lost.`)) return;
+  const reset = async () => {
+    if (!(await confirm({
+      title: `Reset ${businessType.toUpperCase()} scoring to defaults?`,
+      message: 'Unsaved changes for this profile will be lost',
+      confirmLabel: 'Reset to defaults',
+      confirmingLabel: 'Resetting…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     setActive(emptyProfile(defaults));
     toast.success('Reset to defaults — click Save to apply');
   };

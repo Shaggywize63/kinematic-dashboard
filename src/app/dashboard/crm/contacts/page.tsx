@@ -6,14 +6,17 @@ import { crmContacts, crmSettings } from '../../../../lib/crmApi';
 import type { Contact } from '../../../../types/crm';
 import ContactsTable, { CONTACT_COLUMNS } from '../../../../components/crm/ContactsTable';
 import { usePagination } from '../../../../components/shared/Pagination';
-import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { Badge, Button, Input, PageHeader, T, useIsCompact } from '../../../../components/ui';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
 import ContactAccountModal from '../../../../components/crm/spark/ContactAccountModal';
+import { useFieldHelpers } from '../../../../lib/crm/useFieldHelpers';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 export default function ContactsListPage() {
+  const confirm = useConfirm();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
@@ -22,6 +25,7 @@ export default function ContactsListPage() {
   // click sets a real crm_contacts column and refetches.
   const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: '', order: 'asc' });
   const view = useViewPrefs('contacts');
+  const { fields, loaded: fieldsLoaded } = useFieldHelpers('contact');
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
   // Global CRM date range (header picker). City scope is handled by the
   // layout remount; the date range is applied here as created_at from/to.
@@ -57,13 +61,15 @@ export default function ContactsListPage() {
 
   const actions = (
     <>
+      <LayoutModeToggle mode={view.prefs.mode} onSetMode={view.setMode} />
       <ViewCustomizer
         entityLabel="Contacts"
-        columns={(CONTACT_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]).map((c) => (spark && c.key === 'account' ? { ...c, label: 'Company' } : c))}
+        columns={(CONTACT_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[])
+          .filter((c) => !(fieldsLoaded && fields.isHidden(c.key)))
+          .map((c) => (spark && c.key === 'account' ? { ...c, label: 'Company' } : c))}
         hidden={view.prefs.hidden}
         mode={view.prefs.mode}
         onToggle={view.toggleHidden}
-        onSetMode={view.setMode}
         onReset={view.reset}
       />
       <Button href="/dashboard/crm/contacts/import" icon={<Upload size={16} strokeWidth={1.8} />}>Import</Button>
@@ -108,13 +114,20 @@ export default function ContactsListPage() {
         loading={loading}
         isB2C={isB2C}
         hiddenColumns={hiddenSet}
-        viewMode={view.prefs.mode}
+        viewMode={view.prefs.mode === 'cards' ? 'cards' : 'table'}
         sort={sort}
         onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
         onChangeAccount={spark ? setAccountFor : undefined}
         onDelete={async (c) => {
           const label = c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email || 'this contact';
-          if (!window.confirm(`Delete ${label}? This removes the contact from your CRM.`)) return;
+          if (!(await confirm({
+            title: 'Delete this contact?',
+            message: 'This removes the contact from your CRM',
+            itemName: label,
+            confirmLabel: 'Delete contact',
+            confirmingLabel: 'Deleting…',
+            tone: 'danger',
+          }))) return;
           try {
             await crmContacts.remove(c.id);
             toast.success('Contact deleted');

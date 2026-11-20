@@ -140,16 +140,17 @@ export default function LeadAnalyticsSection() {
     dirty.current = true;
   };
 
-  // Pin a widget to the CRM Overview. Hits the backend /overview/pin
-  // helper which appends without disturbing other pinned widgets.
-  const pinToOverview = async (widget: WidgetInstance) => {
+  // Pin a widget to a page's pinned set (CRM Overview or CRM Home). Hits the
+  // backend /:page/pin helper which appends without disturbing other pinned widgets.
+  const pinTo = async (page: 'overview' | 'home', widget: WidgetInstance) => {
     const meta = widgetByType(widget.widget_type);
     const label = (widget.widget_type === 'custom'
       ? (widget.config as { label?: string } | undefined)?.label
       : null) || meta?.title || widget.widget_type;
+    const pageLabel = page === 'home' ? 'CRM Home' : 'CRM Overview';
     try {
-      await crmDashboardLayouts.pinToOverview(widget);
-      toast.success(`Pinned "${label}" to CRM Overview`);
+      await crmDashboardLayouts.pin(page, widget);
+      toast.success(`Pinned "${label}" to ${pageLabel}`);
     } catch (e: unknown) {
       const msg = (e as Error)?.message ?? 'unknown error';
       toast.error(`Failed to pin: ${msg.slice(0, 120)}`);
@@ -318,7 +319,8 @@ export default function LeadAnalyticsSection() {
                 isEditing={editing}
                 onRemove={removeWidget}
                 onChangeChartType={changeChartType}
-                onPinToOverview={pinToOverview}
+                onPinToOverview={(widget) => pinTo('overview', widget)}
+                onPinToHome={(widget) => pinTo('home', widget)}
                 onEdit={editCustom}
               />
             </div>

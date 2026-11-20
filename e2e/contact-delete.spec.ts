@@ -63,12 +63,12 @@ test.describe('Delete a contact', () => {
     const del = page.getByRole('button', { name: 'Delete Ravi Agarwal' });
     await expect(del).toBeVisible({ timeout: 60_000 });
 
-    page.once('dialog', (d) => d.dismiss());
     await del.click();
+    await page.getByTestId('confirm-dialog-cancel').click();
     expect(deletes).toHaveLength(0); // cancelled: nothing deleted
 
-    page.once('dialog', (d) => d.accept());
     await del.click();
+    await page.getByTestId('confirm-dialog-confirm').click();
     await expect.poll(() => deletes.length).toBe(1);
     await expect(page).toHaveURL(/\/dashboard\/crm\/contacts$/);
   });
@@ -78,11 +78,11 @@ test.describe('Delete a contact', () => {
     await page.goto('/dashboard/crm/contacts');
     const del = page.getByRole('button', { name: 'Delete Ravi Agarwal' });
     await expect(del).toBeVisible({ timeout: 60_000 });
-    page.once('dialog', (d) => d.dismiss());
     await del.click();
+    await page.getByTestId('confirm-dialog-cancel').click();
     expect(deletes).toHaveLength(0);
-    page.once('dialog', (d) => d.accept());
     await del.click();
+    await page.getByTestId('confirm-dialog-confirm').click();
     await expect.poll(() => deletes.length).toBe(1);
   });
 
@@ -91,8 +91,8 @@ test.describe('Delete a contact', () => {
     await page.goto('/dashboard/crm/contacts/contact-1');
     const del = page.getByRole('button', { name: 'Delete Ravi Agarwal' });
     await expect(del).toBeVisible({ timeout: 60_000 });
-    page.once('dialog', (d) => d.accept());
     await del.click();
+    await page.getByTestId('confirm-dialog-confirm').click();
     await expect.poll(() => deletes.length).toBe(1);
     await expect(page.getByText(/Not allowed to delete|Could not delete/i).first()).toBeVisible();
     await expect(page).toHaveURL(/contacts\/contact-1$/);

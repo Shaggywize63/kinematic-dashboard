@@ -9,6 +9,7 @@ import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 import { usePagination } from '../../../../../components/shared/Pagination';
 import { Ban, Check, FileSpreadsheet, KeyRound, Pencil, Play, RotateCcw, Trash2, Upload, UserCog, UserPlus } from 'lucide-react';
 import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 // CRM-scoped user management. Module permissions live on the role hierarchy
 // (org_roles.permissions / .permissions_write) — not redefined per-user — so
@@ -160,6 +161,7 @@ function pickedClientId(): string | null {
 }
 
 export default function CrmUsersPage() {
+  const confirm = useConfirm();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<OrgRole[]>([]);
   const [cities, setCities] = useState<CityRow[]>([]);
@@ -401,7 +403,13 @@ export default function CrmUsersPage() {
   // Soft-delete: removes the user from the directory and blocks sign-in. Their
   // owned leads / activities are preserved (not a hard delete).
   const deleteUser = async (u: UserRow) => {
-    if (!confirm(`Delete ${u.name || u.email || 'this user'}?\n\nThey'll be removed from the directory and can no longer sign in. Their leads and activities are kept.`)) return;
+    const ok = await confirm({
+      title: 'Delete this user?',
+      message: "They'll be removed from the directory and can no longer sign in. Their leads and activities are kept.",
+      itemName: u.name || u.email || undefined,
+      confirmLabel: 'Delete user',
+    });
+    if (!ok) return;
     try {
       await api.deleteUser(u.id);
       toast.success('User deleted');
@@ -413,7 +421,16 @@ export default function CrmUsersPage() {
   // own password (backend /users/:id/send-password-reset).
   const sendReset = async (u: UserRow) => {
     if (!u.email) { toast.error('This user has no email on file'); return; }
-    if (!confirm(`Send a password reset email to ${u.email}?`)) return;
+    const ok = await confirm({
+      title: 'Send a password reset email?',
+      message: 'They will receive a one-time link to reset their password.',
+      itemName: u.email,
+      confirmLabel: 'Send reset email',
+      confirmingLabel: 'Sending…',
+      tone: 'default',
+      irreversible: false,
+    });
+    if (!ok) return;
     try {
       await api.sendUserPasswordReset(u.id);
       toast.success(`Reset email sent to ${u.email}`);

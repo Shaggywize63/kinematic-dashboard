@@ -11,6 +11,7 @@ import {
   MessageCircle, Mic, Palette, PhoneCall, Play, Plug, Plus, Send, Settings2, Terminal, Unplug, Webhook, XCircle,
 } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 // ── Provider catalogue ─────────────────────────────────────────────────────────
 const PROVIDERS: Array<{
@@ -132,6 +133,7 @@ export default function IntegrationsPage() {
   const [pickingProvider, setPickingProvider] = useState(false);
   const [connectFor, setConnectFor] = useState<IntegrationProvider | null>(null);
   const [success, setSuccess] = useState<Integration | null>(null);
+  const confirm = useConfirm();
 
   const load = async () => {
     try {
@@ -145,7 +147,16 @@ export default function IntegrationsPage() {
   useEffect(() => { load(); }, []);
 
   const handleDisconnect = async (i: Integration) => {
-    if (!confirm(`Disconnect “${i.label}”? Inbound leads will stop arriving immediately. Existing leads attributed to this source remain in your CRM.`)) return;
+    const ok = await confirm({
+      title: 'Disconnect this integration?',
+      message: 'Inbound leads will stop arriving immediately. Existing leads attributed to this source remain in your CRM.',
+      itemName: i.label,
+      confirmLabel: 'Disconnect',
+      confirmingLabel: 'Disconnecting…',
+      tone: 'default',
+      irreversible: false,
+    });
+    if (!ok) return;
     try {
       await crmIntegrations.remove(i.id);
       toast.success(`${i.label} disconnected`);

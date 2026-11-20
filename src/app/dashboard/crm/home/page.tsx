@@ -22,6 +22,7 @@ import { getStoredUser } from '../../../../lib/auth';
 import { Badge, Button, Card, EmptyState, Eyebrow, PageHeader, T, useIsCompact, type Tone } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
 import MyTargetsCard from '../../../../components/crm/MyTargetsCard';
+import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
 
 // Belt-and-braces gate: the sidebar already hides this entry for Tata
 // Tiscon users via the `hiddenForTata` flag in layout.tsx, but a direct
@@ -158,6 +159,10 @@ export default function CrmHomePage() {
   return (
     <div style={{ maxWidth: 1180, display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 24 }}>
       {header}
+
+      {/* ── Widgets pinned here from Lead Analytics ("Pin to CRM Home") — renders
+          nothing until the rep pins one, so the narrative below is untouched by default. ── */}
+      <PinnedOverviewSection page="home" />
 
       {/* ── Today's target + activity tiles ─────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'minmax(0, 1.4fr) minmax(0, 2fr)', gap: 12, alignItems: 'stretch' }}>
@@ -361,8 +366,8 @@ function GradeBadge({ grade, score }: { grade: string | null | undefined; score:
 function ActivityStat({ label, value, icon, tone }: { label: string; value: number; icon: React.ReactNode; tone: Tone }) {
   return (
     <Card padding={14} style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <Eyebrow style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</Eyebrow>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+        <Eyebrow style={{ flex: '1 1 auto', minWidth: 0, whiteSpace: 'normal', lineHeight: 1.35 }}>{label}</Eyebrow>
         <span style={{ width: 24, height: 24, borderRadius: 6, background: TONE_BG[tone], color: TONE_FG[tone], display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
       </div>
       <div style={{ fontFamily: T.heading, fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{value}</div>

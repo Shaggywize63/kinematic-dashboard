@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CalendarPlus, RefreshCw, Unplug } from 'lucide-react';
 import api from '../../lib/api';
+import { useConfirm } from '../ConfirmProvider';
 
 type Status = { connected: boolean; email?: string; configured?: boolean };
 type SyncResult = { imported: number; updated: number; cancelled: number };
@@ -30,6 +31,7 @@ type SyncResult = { imported: number; updated: number; cancelled: number };
  * OAuth callback and surfaces them as toasts before clearing the URL.
  */
 export default function GoogleCalendarBanner({ onSynced }: { onSynced?: () => void } = {}) {
+  const confirm = useConfirm();
   const [status, setStatus] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -108,7 +110,15 @@ export default function GoogleCalendarBanner({ onSynced }: { onSynced?: () => vo
   };
 
   const disconnect = async () => {
-    if (!confirm('Disconnect Google Calendar? New activities will stop syncing to your calendar.')) return;
+    const ok = await confirm({
+      title: 'Disconnect Google Calendar?',
+      message: 'New activities will stop syncing to your calendar.',
+      confirmLabel: 'Disconnect',
+      confirmingLabel: 'Disconnecting…',
+      tone: 'default',
+      irreversible: false,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await api.delete('/api/v1/integrations/google');

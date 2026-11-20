@@ -124,8 +124,8 @@ test.describe('Client Management: admins per client', () => {
   test('switching an admin off asks first, then calls the server', async ({ page }) => {
     const { patches } = await open(page);
     await openAdmins(page);
-    page.once('dialog', (d) => d.accept());
     await page.getByTestId(`client-admin-off-${OWNER.id}`).click();
+    await page.getByTestId('confirm-dialog-confirm').click();
     await expect.poll(() => patches.length).toBe(1);
     expect(patches[0]).toEqual({ id: OWNER.id, body: { is_active: false } });
     await expect(page.getByTestId(`client-admin-${OWNER.id}`)).toContainText('Switched off');

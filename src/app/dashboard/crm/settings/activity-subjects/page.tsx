@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { Check, Eye, EyeOff, ListChecks, Pencil, Plus, Trash2 } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 // Settings → Activity Subjects — admins curate the dropdown reps see
 // on /crm/activities/new (above the free-text subject input). Backend
@@ -29,6 +30,7 @@ const btn: React.CSSProperties = {
 const btnSec: React.CSSProperties = { ...btn, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)' };
 
 export default function ActivitySubjectsSettingsPage() {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<ActivitySubject[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -112,10 +114,17 @@ export default function ActivitySubjectsSettingsPage() {
     }
   };
 
-  const remove = async (id: string) => {
-    if (!window.confirm('Delete this subject? It will disappear from the dropdown.')) return;
+  const remove = async (row: ActivitySubject) => {
+    if (!(await confirm({
+      title: 'Delete this subject?',
+      message: 'It will disappear from the dropdown',
+      itemName: row.name,
+      confirmLabel: 'Delete subject',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     try {
-      await api.delete(`/api/v1/crm/activity-subjects/${id}`);
+      await api.delete(`/api/v1/crm/activity-subjects/${row.id}`);
       await load();
       toast.success('Subject removed');
     } catch (e: any) {
@@ -219,7 +228,7 @@ export default function ActivitySubjectsSettingsPage() {
                         <button style={btnSec} onClick={() => toggleActive(row)}>
                           <InlineIcon icon={row.is_active === false ? Eye : EyeOff} size={14} />{row.is_active === false ? 'Show' : 'Hide'}
                         </button>
-                        <button style={{ ...btnSec, color: '#ef4444', borderColor: '#ef4444' }} onClick={() => remove(row.id)}><InlineIcon icon={Trash2} size={14} />Delete</button>
+                        <button style={{ ...btnSec, color: '#ef4444', borderColor: '#ef4444' }} onClick={() => remove(row)}><InlineIcon icon={Trash2} size={14} />Delete</button>
                       </>
                     )}
                   </td>

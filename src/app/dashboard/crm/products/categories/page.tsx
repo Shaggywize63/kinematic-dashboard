@@ -6,6 +6,7 @@ import { ArrowLeft, Check, FolderTree, Pencil, Plus, Trash2 } from 'lucide-react
 import { IconTile, InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmProductCategories } from '../../../../../lib/crmApi';
 import type { ProductCategory } from '../../../../../types/crm';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 // Product category management. Backend already exposes /api/v1/crm/product-categories
 // via the attach() pattern (clientScoped, with sort_order ordering). This page
@@ -24,6 +25,7 @@ export default function ProductCategoriesPage() {
   const [editForm, setEditForm] = useState<{ name: string; description: string; parent_category_id: string; color: string; sort_order: number }>({
     name: '', description: '', parent_category_id: '', color: '#6366f1', sort_order: 0,
   });
+  const confirm = useConfirm();
 
   const reload = async () => {
     setLoading(true);
@@ -86,7 +88,13 @@ export default function ProductCategoriesPage() {
   };
 
   const remove = async (c: ProductCategory) => {
-    if (!confirm(`Delete category "${c.name}"? Products mapped to it will be left without a category.`)) return;
+    const ok = await confirm({
+      title: 'Delete this category?',
+      message: 'Products mapped to it will be left without a category.',
+      itemName: c.name,
+      confirmLabel: 'Delete category',
+    });
+    if (!ok) return;
     setBusyId(c.id);
     try {
       await crmProductCategories.remove(c.id);

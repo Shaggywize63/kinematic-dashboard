@@ -7,6 +7,7 @@ import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
 import { AlertTriangle, CheckCircle2, RotateCcw, XCircle } from 'lucide-react';
 import { InlineIcon } from '../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 interface BrandForm {
   name: string;
@@ -18,6 +19,7 @@ interface BrandForm {
 }
 
 export default function BrandsPage() {
+  const confirm = useConfirm();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -93,7 +95,16 @@ export default function BrandsPage() {
 
   // Soft-delete: backend flips is_active=false (preserves SKUs that reference the brand).
   const remove = async (id: string, name: string) => {
-    if (!confirm(`Deactivate "${name}"?\n\nThe brand stays in the system for historical reporting but won't appear in new dropdowns. SKUs already linked to it are unaffected.`)) return;
+    const ok = await confirm({
+      title: 'Deactivate this brand?',
+      message: "The brand stays in the system for historical reporting but won't appear in new dropdowns. SKUs already linked to it are unaffected.",
+      itemName: name,
+      confirmLabel: 'Deactivate',
+      confirmingLabel: 'Deactivating…',
+      tone: 'danger',
+      irreversible: false,
+    });
+    if (!ok) return;
     try {
       await api.deleteBrand(id);
       await load();
@@ -103,7 +114,15 @@ export default function BrandsPage() {
   };
 
   const reactivate = async (id: string, name: string) => {
-    if (!confirm(`Reactivate "${name}"?`)) return;
+    const ok = await confirm({
+      title: 'Reactivate this brand?',
+      message: 'It will appear in dropdowns again.',
+      itemName: name,
+      confirmLabel: 'Reactivate',
+      confirmingLabel: 'Reactivating…',
+      tone: 'default',
+    });
+    if (!ok) return;
     try {
       await api.updateBrand(id, { is_active: true });
       await load();

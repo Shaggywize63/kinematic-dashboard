@@ -60,6 +60,7 @@ interface Props {
   widget: WidgetInstance;
   onRemove?: (id: string) => void;
   onPinToOverview?: (w: WidgetInstance) => void;
+  onPinToHome?: (w: WidgetInstance) => void;
   onChangeChartType?: (id: string, chartType: ChartType) => void;
   onEdit?: (w: WidgetInstance) => void;
   isEditing?: boolean;
@@ -84,7 +85,7 @@ function customMeta(widget: WidgetInstance): WidgetMeta {
   };
 }
 
-export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onChangeChartType, onEdit, pinned = false }: Props) {
+export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onPinToHome, onChangeChartType, onEdit, pinned = false }: Props) {
   const meta = useMemo<WidgetMeta | undefined>(
     () => widget.widget_type === 'custom' ? customMeta(widget) : widgetByType(widget.widget_type),
     [widget],
@@ -169,6 +170,12 @@ export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onC
                 <button onClick={() => { onPinToOverview(widget); setMenuOpen(false); }} style={menuItem}>
                   <Pin size={13} style={{ marginRight: 6, verticalAlign: 'middle' }} />
                   Pin to CRM Overview
+                </button>
+              )}
+              {!pinned && onPinToHome && (
+                <button onClick={() => { onPinToHome(widget); setMenuOpen(false); }} style={menuItem}>
+                  <Pin size={13} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                  Pin to CRM Home
                 </button>
               )}
               {onRemove && (

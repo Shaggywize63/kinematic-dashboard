@@ -6,6 +6,7 @@ import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
 import { CheckCircle2 } from 'lucide-react';
 import { InlineIcon } from '../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 // Type-aware column sorting for the price-list table (raw values per key).
 const priceListVal = (pl: any, key: string): unknown => {
@@ -22,6 +23,7 @@ const priceListVal = (pl: any, key: string): unknown => {
 };
 
 export default function PriceListsPage() {
+  const confirm = useConfirm();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -42,7 +44,15 @@ export default function PriceListsPage() {
   };
 
   const activate = async (id: string) => {
-    if (!confirm('Activate this price list? Any current active list for the same class+region will be deactivated.')) return;
+    const ok = await confirm({
+      title: 'Activate this price list?',
+      message: 'Any current active list for the same class+region will be deactivated.',
+      confirmLabel: 'Activate',
+      confirmingLabel: 'Activating…',
+      tone: 'default',
+      irreversible: false,
+    });
+    if (!ok) return;
     await api.activatePriceList(id); await load();
   };
 

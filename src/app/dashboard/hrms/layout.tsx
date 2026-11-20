@@ -224,7 +224,7 @@ export default function HrmsLayout({ children }: { children: React.ReactNode }) 
           )}
           <Button size="sm" variant="ghost" data-testid="hrms-reset" disabled={isLive}
             title={isLive ? 'Reset is for sample data only. It never touches the server.' : undefined}
-            onClick={() => { if (window.confirm('Reset the sample data to its starting state? Your changes in this browser will be lost.')) { resetAllAreaStores(); resetDb(); } }}>Reset sample data</Button>
+            onClick={() => { resetAllAreaStores(); resetDb(); }}>Reset sample data</Button>
           {isLive && <span data-testid="hrms-reset-reason" style={{ fontSize: 12 }}>Reset is for sample data only. It never touches the server.</span>}
         </div>
       </div>

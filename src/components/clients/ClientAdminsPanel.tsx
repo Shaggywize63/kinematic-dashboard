@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import api, { type ClientAdmin, type ClientAdminsResponse } from '../../lib/api';
+import { useConfirm } from '../ConfirmProvider';
 
 /**
  * Client Management → Admins.
@@ -59,6 +60,7 @@ function formProblem(f: Form): string {
 }
 
 export default function ClientAdminsPanel({ clientId, clientName }: { clientId: string; clientName?: string }) {
+  const confirm = useConfirm();
   const [state, setState] = useState<ClientAdminsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState('');
@@ -104,7 +106,14 @@ export default function ClientAdminsPanel({ clientId, clientName }: { clientId: 
   };
 
   const setActive = async (a: ClientAdmin, next: boolean) => {
-    if (!next && typeof window !== 'undefined' && !window.confirm(`Switch off ${a.name || a.email}? They will be signed out and cannot sign in until you switch them back on.`)) return;
+    if (!next && !(await confirm({
+      title: `Switch off ${a.name || a.email}?`,
+      message: 'They will be signed out and cannot sign in until you switch them back on',
+      confirmLabel: 'Switch off',
+      confirmingLabel: 'Switching off…',
+      tone: 'danger',
+      irreversible: false,
+    }))) return;
     setBusyId(a.id); setErr(''); setNote('');
     try {
       await api.setClientAdminActive(clientId, a.id, next);

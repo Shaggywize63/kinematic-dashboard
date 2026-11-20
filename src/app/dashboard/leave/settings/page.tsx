@@ -11,6 +11,7 @@ import {
   card, input, label, btnPrimary, btnGhost, btnSmallGhost, btnSmallDanger,
   PageHeader, LeaveTabs, Modal, useLeaveRoles, fmtDate,
 } from '../_ui';
+import { useConfirm } from '../../../../components/ConfirmProvider';
 
 const emptyType: LeaveTypeInput = {
   name: '', code: '', is_paid: true, annual_quota: null, allow_half_day: true,
@@ -18,6 +19,7 @@ const emptyType: LeaveTypeInput = {
 };
 
 export default function LeaveSettingsPage() {
+  const confirm = useConfirm();
   const { canManage, canAdmin } = useLeaveRoles();
   const year = new Date().getFullYear();
 
@@ -69,7 +71,14 @@ export default function LeaveSettingsPage() {
   };
 
   const removeType = async (t: LeaveType) => {
-    if (!window.confirm(`Delete leave type "${t.name}"?`)) return;
+    if (!(await confirm({
+      title: 'Delete this leave type?',
+      message: 'This removes it from the list available when applying for leave',
+      itemName: t.name,
+      confirmLabel: 'Delete leave type',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setBusy((s) => ({ ...s, [t.id + '_d']: true }));
     try {
       await leaveApi.deleteType(t.id);
@@ -93,7 +102,14 @@ export default function LeaveSettingsPage() {
   };
 
   const removeHoliday = async (h: Holiday) => {
-    if (!window.confirm(`Delete holiday "${h.name}"?`)) return;
+    if (!(await confirm({
+      title: 'Delete this holiday?',
+      message: 'This removes it from the holiday list',
+      itemName: h.name,
+      confirmLabel: 'Delete holiday',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setBusy((s) => ({ ...s, [h.id]: true }));
     try {
       await leaveApi.deleteHoliday(h.id);

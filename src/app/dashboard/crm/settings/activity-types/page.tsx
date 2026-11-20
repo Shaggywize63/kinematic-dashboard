@@ -6,6 +6,7 @@ import { invalidateActivityTypes } from '../../../../../lib/activityTypes';
 import { useClient } from '../../../../../context/ClientContext';
 import { Check, CheckCircle2, ListChecks, Plus, Trash2 } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 // Settings → Activity Types — manage the dropdown choices on
 // /crm/activities/new. Built-ins (call/meeting/task/note/email/sms/whatsapp)
@@ -40,6 +41,7 @@ export default function ActivityTypesSettingsPage() {
   const [rows, setRows] = useState<ActivityType[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,7 +57,13 @@ export default function ActivityTypesSettingsPage() {
 
   const remove = async (row: ActivityType) => {
     if (row.is_system) { toast.error('Built-in types can’t be deleted'); return; }
-    if (!confirm(`Delete "${row.name}"? Existing activities of this type stay intact.`)) return;
+    const ok = await confirm({
+      title: 'Delete this activity type?',
+      message: 'Existing activities of this type stay intact.',
+      itemName: row.name,
+      confirmLabel: 'Delete type',
+    });
+    if (!ok) return;
     try {
       await api.delete(`/api/v1/crm/activity-types/${row.id}`);
       toast.success('Deleted');

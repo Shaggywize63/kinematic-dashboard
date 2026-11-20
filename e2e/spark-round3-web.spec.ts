@@ -375,8 +375,8 @@ test.describe('5. account Addresses card', () => {
     await expect(card).toContainText('Registered office');
 
     // Delete.
-    page.once('dialog', (d) => d.accept());
     await card.getByRole('button', { name: 'Delete address Registered office' }).click();
+    await page.getByTestId('confirm-dialog-confirm').click();
     await expect.poll(() => writes(reqs, 'DELETE', /\/crm\/sites\/site-1$/).length).toBe(1);
     await expect(card).not.toContainText('Registered office');
     await expect(card).toContainText('Addresses (1)');

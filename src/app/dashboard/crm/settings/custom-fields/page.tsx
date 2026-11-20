@@ -17,6 +17,7 @@ import KiniFormBuilder from './KiniFormBuilder';
 import KiniMascot from './KiniMascot';
 import { Check, ListChecks, Lock, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 const ENTITIES: Array<CustomField['entity_type']> = ['lead', 'contact', 'account', 'deal', 'activity'];
 // Full set of supported input types. Render-side hooks (form renderer
@@ -258,6 +259,7 @@ const overrideKey = (entity: string, key: string) => `${entity}.${key}`;
 // The entity of a row is looked up from the rendered groups, so a drop can never cross entities.
 
 export default function CustomFieldsPage() {
+  const confirm = useConfirm();
   const [items, setItems] = useState<CustomField[]>([]);
   const [overrides, setOverrides] = useState<FieldOverrides>({});
   const [config, setConfig] = useState<Record<string, unknown>>({});
@@ -494,7 +496,14 @@ export default function CustomFieldsPage() {
   };
 
   const remove = async (cf: CustomField) => {
-    if (!window.confirm(`Delete custom field "${cf.label}"? Existing values for this field on records will be lost.`)) return;
+    if (!(await confirm({
+      title: 'Delete this custom field?',
+      message: 'Existing values for this field on records will be lost',
+      itemName: cf.label,
+      confirmLabel: 'Delete field',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setBusy((b) => ({ ...b, [cf.id]: true }));
     try {
       await crmCustomFields.remove(cf.id);
@@ -712,9 +721,23 @@ export default function CustomFieldsPage() {
   };
 
   const resetOverride = async (entityName: string, key: string) => {
-    if (!window.confirm(scope === 'universal'
-      ? 'Reset this field\'s label, required and hidden settings to the system default? Its position in the form order is kept.'
-      : `Reset this field to its universal value (clears the ${scope.toUpperCase()} override only)? Its position in the form order is kept.`)) return;
+    if (!(await confirm(scope === 'universal'
+      ? {
+        title: "Reset this field's label, required and hidden settings to the system default?",
+        message: 'Its position in the form order is kept',
+        confirmLabel: 'Reset field',
+        confirmingLabel: 'Resetting…',
+        tone: 'default',
+        irreversible: false,
+      }
+      : {
+        title: `Reset this field to its universal value (clears the ${scope.toUpperCase()} override only)?`,
+        message: 'Its position in the form order is kept',
+        confirmLabel: 'Reset field',
+        confirmingLabel: 'Resetting…',
+        tone: 'default',
+        irreversible: false,
+      }))) return;
     const k = writeKey(entityName, key);
     // Clears label / required / hidden but KEEPS `order`, so a reset never silently moves the field.
     const next = resetFieldOverride(overrides, entityName, key, scope);

@@ -8,6 +8,7 @@ import { sanitiseEmailHtml } from '../../lib/sanitiseEmailHtml';
 import HtmlEmailEditor from './email/HtmlEmailEditor';
 import { Check, ChevronDown, ChevronRight, Languages, RefreshCw, Trash2, Upload } from 'lucide-react';
 import { InlineIcon } from '../ui/PageIcon';
+import { useConfirm } from '../ConfirmProvider';
 
 export type TemplateDraft = {
   channel: 'email' | 'whatsapp';
@@ -52,6 +53,7 @@ interface Props {
 }
 
 export default function TemplateEditModal({ open, onClose, draft, onSaved }: Props) {
+  const confirm = useConfirm();
   const [form, setForm] = useState<TemplateDraft>({ channel: 'email' });
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -163,7 +165,13 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
 
   const remove = async () => {
     if (!form.id) return;
-    if (!window.confirm('Delete this template? This cannot be undone.')) return;
+    if (!(await confirm({
+      title: 'Delete this template?',
+      message: 'This permanently removes the template',
+      confirmLabel: 'Delete template',
+      confirmingLabel: 'Deleting…',
+      tone: 'danger',
+    }))) return;
     setDeleting(true);
     try {
       if (isEmail) await crmEmailTemplates.remove(form.id);
