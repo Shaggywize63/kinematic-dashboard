@@ -4,6 +4,7 @@ import SignedImage from '@/components/shared/SignedImage';
 import { toast } from 'sonner';
 import { Camera, ExternalLink, Image as ImageIcon, Loader2, Paperclip } from 'lucide-react';
 import { crmCustomFields, crmLookup, crmProducts, crmSettings, type LookupHit } from '../../lib/crmApi';
+import GoogleAddressAutocomplete from './GoogleAddressAutocomplete';
 import { customOrder, extractFieldOverrides, hasFormOrder } from '../../lib/crmFieldOverrides';
 import api from '../../lib/api';
 import { getStoredToken } from '../../lib/auth';
@@ -37,6 +38,7 @@ import { isProductSourceOptions, isSearchableOptions, visibleOptions } from '../
  *   phone       10-digit Indian mobile
  *   image       file picker → /api/v1/upload/photo, stores URL
  *   file        file picker → /api/v1/upload/material, stores URL
+ *   address     Google Places search → { address_line1, city?, state?, postal_code?, latitude?, longitude? }
  */
 interface Props {
   entity: CustomField['entity_type'];
@@ -405,6 +407,15 @@ function FieldInput({ field, value, onChange }: { field: CustomField; value: unk
     return <FileUploader field={field} value={value} onChange={onChange} />;
   }
 
+  // ── Address (Google Places) ──────────────────────────────────────
+  if (t === 'address') {
+    return (
+      <Wrap field={field} fullWidth as="div">
+        <AddressField fieldKey={field.field_key} value={value} onChange={onChange} />
+      </Wrap>
+    );
+  }
+
   // ── Lookup (linked record) ───────────────────────────────────────
   // Stores the picked row's UUID in custom_fields[field_key]. The
   // picker UI calls /api/v1/crm/lookup/search with the field's
@@ -602,6 +613,48 @@ function FileUploader({ field, value, onChange }: { field: CustomField; value: u
         )}
       </div>
     </Wrap>
+  );
+}
+
+/**
+ * Address custom field — a Google Places search box that resolves to a
+ * structured object `{ address_line1, city?, state?, postal_code?,
+ * latitude?, longitude? }` (same shape GoogleAddressAutocomplete already
+ * returns for the built-in lead address). Shows the resolved address as a
+ * summary chip with a clear button once picked; search box otherwise.
+ */
+function AddressField({ fieldKey, value, onChange }: { fieldKey: string; value: unknown; onChange: (v: unknown) => void }) {
+  const stored = (value && typeof value === 'object' && !Array.isArray(value))
+    ? value as { address_line1?: string; city?: string; state?: string; postal_code?: string }
+    : null;
+  if (stored?.address_line1) {
+    const summary = [stored.address_line1, stored.city, stored.state, stored.postal_code].filter(Boolean).join(', ');
+    return (
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 12px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8 }}>
+        <span style={{ flex: 1, fontSize: 13, color: 'var(--text)', lineHeight: 1.4 }}>{summary}</span>
+        <button
+          type="button"
+          onClick={() => onChange(undefined)}
+          title="Clear"
+          style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: 0, fontSize: 16, lineHeight: 1, flexShrink: 0 }}
+        >×</button>
+      </div>
+    );
+  }
+  return (
+    <GoogleAddressAutocomplete
+      id={`cf-address-${fieldKey}`}
+      deviceFill={false}
+      backend
+      onSelect={(p) => onChange({
+        address_line1: p.address_line1,
+        ...(p.city && { city: p.city }),
+        ...(p.state && { state: p.state }),
+        ...(p.postal_code && { postal_code: p.postal_code }),
+        ...(p.latitude && { latitude: p.latitude }),
+        ...(p.longitude && { longitude: p.longitude }),
+      })}
+    />
   );
 }
 
