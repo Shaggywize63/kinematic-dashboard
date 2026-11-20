@@ -3,8 +3,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { Check, Eye, EyeOff, ListChecks, Pencil, Plus, Trash2 } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarLeft } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 // Settings → Activity Subjects — admins curate the dropdown reps see
 // on /crm/activities/new (above the free-text subject input). Backend
@@ -30,6 +32,7 @@ const btn: React.CSSProperties = {
 const btnSec: React.CSSProperties = { ...btn, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)' };
 
 export default function ActivitySubjectsSettingsPage() {
+  usePageTitle('Activity Subjects', 'These are the subject presets reps see on the activity compose screen. The first row (lowest position) is the default — keep "Meeting" at the top.');
   const confirm = useConfirm();
   const [rows, setRows] = useState<ActivitySubject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,17 +139,11 @@ export default function ActivitySubjectsSettingsPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <PageIcon />
-        <h1 style={{ margin: 0, fontSize: 22, color: 'var(--text)' }}>Activity Subjects</h1>
+      <CrmToolbarLeft>
         <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
           {loading ? 'Loading…' : `${sorted.length} subject${sorted.length === 1 ? '' : 's'}`}
         </span>
-      </div>
-      <p style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 18 }}>
-        These are the subject presets reps see on the activity compose screen. The first row
-        (lowest position) is the default — keep &quot;Meeting&quot; at the top.
-      </p>
+      </CrmToolbarLeft>
 
       {/* Add new */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, marginBottom: 18 }}>

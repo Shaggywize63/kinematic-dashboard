@@ -10,7 +10,9 @@ import { PlusDataTable, usePlusTable } from '../../../../../components/crm/analy
 import { useLeadFieldGate } from '../../../../../lib/crm/useLeadFieldGate';
 import { fmtInr, fmtInt, fmtPct, type Column } from '../../../../../lib/crm/plusFormat';
 import { Download } from 'lucide-react';
-import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 // The API now also returns funnel and unit-economics columns. Optional so an older backend / demo data still renders.
 type Row = SourceROIRow & {
@@ -19,6 +21,7 @@ type Row = SourceROIRow & {
 };
 
 export default function LeadSourceRoiPage() {
+  usePageTitle('Lead Source ROI');
   const [data, setData] = useState<SourceROIRow[]>([]);
   const [loading, setLoading] = useState(true);
   const cityKey = useReportCityKey();
@@ -97,17 +100,16 @@ export default function LeadSourceRoiPage() {
 
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}><PageIcon size={32} />Lead Source ROI</h3>
-        {blocked.length === 0 && (
+      {blocked.length === 0 && (
+        <CrmToolbarRight>
           <button
             onClick={() => downloadCsv('lead-source-roi', tbl.csvRows())}
             disabled={loading || rows.length === 0}
             aria-label="Download CSV"
             style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
           ><InlineIcon icon={Download} size={14} />CSV</button>
-        )}
-      </div>
+        </CrmToolbarRight>
+      )}
       {blocked.length > 0 ? (
         <div style={{ color: 'var(--text-dim)', padding: 20, textAlign: 'center' }}>
           Hidden: an admin turned off the {sourceLabel} field in Settings, so leads cannot be grouped by it.

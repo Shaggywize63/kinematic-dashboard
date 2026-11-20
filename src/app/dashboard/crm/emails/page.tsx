@@ -7,6 +7,7 @@ import type { EmailLog } from '../../../../types/crm';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { Mail, PenSquare } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
 const STATUS_COLORS: Record<string, string> = { sent: '#7B61FF', opened: '#00B4D8', clicked: '#28B463', bounced: '#E01E2C', failed: '#E01E2C', queued: '#F7B538' };
 
@@ -41,9 +42,9 @@ export default function EmailsPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+      <CrmToolbarRight>
         <Link href="/dashboard/crm/emails/compose" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={PenSquare} />Compose</Link>
-      </div>
+      </CrmToolbarRight>
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>

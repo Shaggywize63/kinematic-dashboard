@@ -7,7 +7,9 @@ import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 import { Download } from 'lucide-react';
-import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 // Stage funnel = count of deals per stage in pipeline order, plus the
 // conversion ratio from each stage to the next. Strategic report — shows
@@ -47,6 +49,7 @@ const stageVal = (r: StageRow, key: string): unknown => {
 };
 
 export default function StageFunnelPage() {
+  usePageTitle('Stage Funnel', 'Deal count per stage and drop-off between stages. Red drops > 50% flag potential leaks.');
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipeline, setSelectedPipeline] = useState<string>('');
   const [rows, setRows] = useState<StageRow[]>([]);
@@ -150,18 +153,12 @@ export default function StageFunnelPage() {
 
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <div>
-          <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}><PageIcon size={32} />Stage Funnel</h3>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Deal count per stage and drop-off between stages. Red drops &gt; 50% flag potential leaks.</div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <select value={selectedPipeline} onChange={(e) => setSelectedPipeline(e.target.value)} style={sel} disabled={pipelines.length === 0}>
-            {pipelines.map((p) => <option key={p.id} value={p.id}>{(p as any).name}</option>)}
-          </select>
-          <button onClick={() => downloadCsv('stage-funnel', rows)} disabled={loading || rows.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
-        </div>
-      </div>
+      <CrmToolbarRight>
+        <select value={selectedPipeline} onChange={(e) => setSelectedPipeline(e.target.value)} style={sel} disabled={pipelines.length === 0}>
+          {pipelines.map((p) => <option key={p.id} value={p.id}>{(p as any).name}</option>)}
+        </select>
+        <button onClick={() => downloadCsv('stage-funnel', rows)} disabled={loading || rows.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
+      </CrmToolbarRight>
 
       {truncated && (
         <div role="status" style={{ fontSize: 12, color: '#b45309', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>

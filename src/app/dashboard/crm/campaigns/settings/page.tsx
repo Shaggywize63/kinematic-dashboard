@@ -10,7 +10,8 @@ import { crmBroadcasts, type BroadcastSettings, type BroadcastSuppression } from
 import { getStoredUser } from '../../../../../lib/auth';
 import type { LucideIcon } from 'lucide-react';
 import { Ban, Check, Gauge, IndianRupee, MessageCircle, Moon, Plus } from 'lucide-react';
-import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
+import { usePageTitle } from '../../../../../lib/pageTitle';
 
 function SectionTitle({ icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
   return <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, color: C.blue, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={icon} size={16} />{children}</div>;
@@ -28,6 +29,7 @@ const label: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight:
 const numOrNull = (s: string): number | null => { const n = Number(s.replace(/[^0-9]/g, '')); return s.trim() === '' ? null : (Number.isFinite(n) ? n : null); };
 
 export default function CampaignSettingsPage() {
+  usePageTitle('Campaign settings');
   const [f, setF] = useState({
     frequency_cap_max: '', frequency_cap_window_days: '7',
     quiet_hours_start: '', quiet_hours_end: '', quiet_hours_tz: 'Asia/Kolkata',
@@ -105,14 +107,6 @@ export default function CampaignSettingsPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.white, paddingBottom: 60, maxWidth: 760 }}>
-      <div style={{ marginBottom: 20 }}>
-        <Link href="/dashboard/crm/campaigns" style={{ color: C.gray, fontSize: 12, textDecoration: 'none' }}>← Campaigns</Link>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
-          <PageIcon />
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: 0 }}>Campaign settings</h1>
-        </div>
-      </div>
-
       {loading ? <div style={{ ...card, color: C.gray, fontSize: 13 }}>Loading…</div> : (
         <>
           <div style={card}>
