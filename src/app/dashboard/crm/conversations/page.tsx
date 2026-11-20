@@ -23,7 +23,8 @@ import {
   AlertTriangle, ArrowRightCircle, BarChart3, Eye, EyeOff, FileText, Flag, GraduationCap, Handshake, Languages, ListChecks, Mic,
   PenLine, RefreshCw, ScrollText, ShieldAlert, Smile, Swords, ThumbsUp, Timer,
 } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { usePageTitle } from '../../../../lib/pageTitle';
 
 // ── Inline style tokens (mirror the Leave module's _ui.tsx) ──────────────────
 const card: React.CSSProperties = {
@@ -64,6 +65,7 @@ function Chip({ text, bg, fg }: { text: string; bg: string; fg: string }) {
 }
 
 export default function ConversationAnalysisPage() {
+  usePageTitle('Call Insights', 'Consented calls recorded by Consumer Champions — transcribed, diarized and analysed for intent, sentiment and coaching.');
   const isCompact = useIsCompact();
   const { selectedCity } = useCityScope();
 
@@ -152,19 +154,6 @@ export default function ConversationAnalysisPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <PageIcon />
-            <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Call Insights</h1>
-          </div>
-          <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 4 }}>
-            Consented calls recorded by Consumer Champions — transcribed, diarized and analysed for intent, sentiment and coaching.
-          </div>
-        </div>
-      </div>
-
       {/* Tab toggle — Recordings list vs aggregated Analytics */}
       <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
         {(['recordings', 'analytics'] as const).map((tv) => (

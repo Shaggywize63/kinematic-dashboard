@@ -182,7 +182,7 @@ test.describe('Settings -> Industries page', () => {
     await expect(page.getByText('Industries apply to Spark & Ray')).toBeVisible({ timeout: 30_000 });
     await expect(rowsOf(page)).toHaveCount(0);
     await page.goto('/dashboard/crm/settings');
-    await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Appearance')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('a[href="/dashboard/crm/settings/industries"]')).toHaveCount(0);
   });
 

@@ -1,12 +1,11 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Layers } from 'lucide-react';
 import { crmReports, type LeadStructureReportData, type LeadStructureReportRow, type LeadStructureFilters } from '../../../../../lib/crmApi';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import { isManagerOrAdmin } from '../../../../../lib/clientFeatures';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { usePageTitle } from '../../../../../lib/pageTitle';
-import { PageHeader, EmptyState, T, useIsCompact } from '../../../../../components/ui';
+import { EmptyState, T, useIsCompact } from '../../../../../components/ui';
 
 const EMPTY: LeadStructureReportData = { total_leads: 0, by_group: [], by_company: [], by_plant: [], by_make: [], by_product: [] };
 
@@ -39,7 +38,7 @@ function Bar({ row, max, showQty, active, onClick }: { row: LeadStructureReportR
 }
 
 export default function LeadStructureReportPage() {
-  usePageTitle('Lead structure report');
+  usePageTitle('Lead structure report', 'Lead counts by group, company, plant, make and product. Click a bar to drill in.');
   const { user, loading: authLoading } = useAuth();
   const compact = useIsCompact();
   const [data, setData] = useState<LeadStructureReportData>(EMPTY);
@@ -85,11 +84,6 @@ export default function LeadStructureReportPage() {
 
   return (
     <div>
-      <PageHeader
-        title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Layers size={20} /> Lead structure</span>}
-        description="Lead counts by group, company, plant, make and product. Click a bar to drill in."
-      />
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '8px 0 16px' }}>
         <span style={{ fontSize: 13, color: T.dim }}>
           <b style={{ color: T.text, fontSize: 15 }}>{data.total_leads}</b> {data.total_leads === 1 ? 'lead' : 'leads'}{Object.keys(filters).some((k) => filters[k as keyof LeadStructureFilters]) ? ' (filtered)' : ''}

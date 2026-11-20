@@ -93,10 +93,10 @@ export default function FinanceOverviewPage() {
 
   const actions = (
     <>
-      <Button variant="primary" href="/dashboard/finance/invoices/new">New Invoice</Button>
-      <Button href="/dashboard/finance/quotes/new">New Quote</Button>
-      <Button href="/dashboard/finance/payments/new">Record Payment</Button>
-      <Button href="/dashboard/finance/customers/new">New Customer</Button>
+      <Button variant="primary" href="/dashboard/finance/invoices/new" toolbar>New Invoice</Button>
+      <Button href="/dashboard/finance/quotes/new" toolbar>New Quote</Button>
+      <Button href="/dashboard/finance/payments/new" toolbar>Record Payment</Button>
+      <Button href="/dashboard/finance/customers/new" toolbar>New Customer</Button>
     </>
   );
 
@@ -131,9 +131,9 @@ export default function FinanceOverviewPage() {
             Set up your business profile, then create your first invoice. Your receivables and sales will show up here.
           </p>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Button variant="primary" href="/dashboard/finance/settings">Open Finance Settings</Button>
-            <Button href="/dashboard/finance/customers/new">Add a customer</Button>
-            <Button href="/dashboard/finance/invoices/new">Create an invoice</Button>
+            <Button variant="primary" href="/dashboard/finance/settings" toolbar>Open Finance Settings</Button>
+            <Button href="/dashboard/finance/customers/new" toolbar>Add a customer</Button>
+            <Button href="/dashboard/finance/invoices/new" toolbar>Create an invoice</Button>
           </div>
         </Card>
       ) : (

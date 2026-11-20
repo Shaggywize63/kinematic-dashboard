@@ -8,6 +8,8 @@ import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { crmCustomObjects, crmCustomFields, type CustomObject, type CustomRecord } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarLeft, CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 export default function CustomObjectRecordsPage() {
   const confirm = useConfirm();
@@ -21,6 +23,7 @@ export default function CustomObjectRecordsPage() {
   const [q, setQ] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<CustomRecord | null>(null);
+  usePageTitle(obj?.label_plural || key, obj?.description || undefined);
 
   const loadMeta = async () => {
     try {
@@ -62,18 +65,13 @@ export default function CustomObjectRecordsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <CrmToolbarLeft>
+        {!loading && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim)' }}>{records.length}</span>}
+      </CrmToolbarLeft>
+      <CrmToolbarRight>
         <Link href="/dashboard/crm/settings/custom-objects" style={{ ...btnSmallGhost, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ArrowLeft} size={13} />Objects</Link>
-        {obj?.icon ? <span style={{ fontSize: 22 }}>{obj.icon}</span> : <InlineIcon icon={Blocks} size={22} style={{ color: 'var(--primary)' }} />}
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>
-            {obj?.label_plural || key}
-            {!loading && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim)', marginLeft: 8 }}>{records.length}</span>}
-          </div>
-          {obj?.description && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{obj.description}</div>}
-        </div>
         <button onClick={() => { setEditing(null); setShowForm(true); }} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />New {obj?.label || 'record'}</button>
-      </div>
+      </CrmToolbarRight>
 
       <div style={{ position: 'relative', maxWidth: 320 }}>
         <InlineIcon icon={Search} size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-dim)' }} />

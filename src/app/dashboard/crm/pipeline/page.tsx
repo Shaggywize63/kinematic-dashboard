@@ -8,8 +8,9 @@ import type { Pipeline, Deal } from '../../../../types/crm';
 import PipelineCreateModal from '../../../../components/crm/PipelineCreateModal';
 import { formatINR } from '../../../../lib/formatCurrency';
 import { getStoredUser, userHasModule } from '../../../../lib/auth';
-import { Badge, Button, Card, EmptyState, Eyebrow, PageHeader, T, useIsCompact, type Tone } from '../../../../components/ui';
+import { Badge, Button, Card, EmptyState, Eyebrow, T, type Tone } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 import { useConfirm } from '../../../../components/ConfirmProvider';
 
 /**
@@ -23,9 +24,8 @@ import { useConfirm } from '../../../../components/ConfirmProvider';
  * pipeline + stages in one shot.
  */
 export default function PipelinePage() {
-  usePageTitle('Pipelines');
+  usePageTitle('Pipelines', 'An ordered set of stages a deal moves through. Use several for clearly different motions — the board view lives on Deals → Kanban.');
   const confirm = useConfirm();
-  const narrow = useIsCompact(900);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [dealsByPipeline, setDealsByPipeline] = useState<Record<string, Deal[]>>({});
   const [loading, setLoading] = useState(true);
@@ -93,12 +93,9 @@ export default function PipelinePage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <PageHeader
-        title="Pipelines"
-        description={<>An ordered set of stages a deal moves through. Use several for clearly different motions; the board view lives on <Link href="/dashboard/crm/deals?view=kanban" style={{ color: T.info }}>Deals → Kanban</Link>.</>}
-        compact={narrow}
-        actions={<Button variant="primary" onClick={() => setShowCreate(true)} icon={<Plus size={16} strokeWidth={2} />}>New pipeline</Button>}
-      />
+      <CrmToolbarRight>
+        <Button variant="primary" toolbar onClick={() => setShowCreate(true)} icon={<Plus size={16} strokeWidth={2} />}>New pipeline</Button>
+      </CrmToolbarRight>
 
       {loading ? (
         <div style={{ padding: 32, textAlign: 'center', color: T.dim, fontSize: 13.5 }}>Loading pipelines…</div>

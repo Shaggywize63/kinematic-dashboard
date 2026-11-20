@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmLeads, crmContacts, crmAccounts, crmDeals, crmActivities, crmCustomFields, crmSettings } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
@@ -9,7 +8,8 @@ import { resolveStages } from '../../../../../lib/leadStages';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import type { LucideIcon } from 'lucide-react';
 import { ArrowUpDown, Database, Download, FileSearch, Filter, ListChecks, Play, Plus, Sparkles, Table2 } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { usePageTitle } from '../../../../../lib/pageTitle';
 
 type Entity = 'leads' | 'contacts' | 'accounts' | 'deals' | 'activities';
 
@@ -150,6 +150,7 @@ const OP_LABELS: Record<Op, string> = {
 type Filter = { field: string; op: Op; value: string; value2?: string };
 
 export default function ReportBuilderPage() {
+  usePageTitle('Custom Report Builder', 'Pick an entity, select fields, add filters, group, and download as CSV.');
   const [entity, setEntity] = useState<Entity>('leads');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [filters, setFilters] = useState<Filter[]>([]);
@@ -393,16 +394,6 @@ export default function ReportBuilderPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 18, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Custom Report Builder</h2>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-            Pick an entity, select fields, add filters, group, and download as CSV.
-          </div>
-        </div>
-        <Link href="/dashboard/crm/reports" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: 8, fontSize: 12, textDecoration: 'none' }}>← All Reports</Link>
-      </div>
-
       {/* Builder */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 14 }}>
         {/* Entity */}

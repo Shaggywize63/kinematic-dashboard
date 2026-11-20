@@ -3,11 +3,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Brain, ClipboardList, MapPin, MapPinned, PhoneCall, Stethoscope, TrendingUp, Trophy, Users, type LucideIcon } from 'lucide-react';
-import { InlineIcon, PageIcon } from '../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../lib/labelIcons';
 import { crmDesk, crmCustomerIntel } from '../../../../lib/crmApi';
 import type { DeskDaySummary, DeskProductivity, CustomerIntelPayload, SalesTrendsPayload } from '../../../../lib/crmApi';
 import { istToday, istDate } from '../../../../lib/istTime';
+import { usePageTitle } from '../../../../lib/pageTitle';
 
 /**
  * Owner Dashboard — the single pharma command view (Maa Mansha Pharma).
@@ -25,6 +26,7 @@ export default function OwnerDashboardPage() {
   const [trends, setTrends] = useState<SalesTrendsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const today = istToday();
+  usePageTitle('Owner Dashboard', `Business at a glance · ${istDate(today)} (IST)`);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,14 +48,6 @@ export default function OwnerDashboardPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <PageIcon name="dashboard" />
-        <div>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Owner Dashboard</h1>
-        <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>Business at a glance · {istDate(today)} (IST)</p>
-        </div>
-      </div>
-
       <Group title="Today — Desk Calling" icon={PhoneCall}>
         <Kpi label="Customers Assigned" value={desk?.assigned ?? 0} loading={loading} />
         <Kpi label="Called" value={desk?.called ?? 0} loading={loading} />

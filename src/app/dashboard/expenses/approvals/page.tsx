@@ -170,9 +170,9 @@ export default function ApprovalsPage() {
           <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>{pickedIds.length} selected</span>
           <span style={{ flex: 1 }} />
           <Button size="sm" variant="primary" disabled={busy || pickedFlagged}
-            title={pickedFlagged ? 'Some selected claims have flagged points — review those individually' : undefined} onClick={() => approve(pickedIds)}>Approve selected</Button>
-          <Button size="sm" variant="danger" disabled={busy} onClick={() => setRejecting(pickedIds)}>Reject selected</Button>
-          <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())}>Clear</Button>
+            title={pickedFlagged ? 'Some selected claims have flagged points — review those individually' : undefined} onClick={() => approve(pickedIds)} toolbar>Approve selected</Button>
+          <Button size="sm" variant="danger" disabled={busy} onClick={() => setRejecting(pickedIds)} toolbar>Reject selected</Button>
+          <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())} toolbar>Clear</Button>
         </Card>
       )}
 

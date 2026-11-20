@@ -23,7 +23,8 @@ import {
 } from '../../../../../components/crm/reports/ReportFilters';
 import { fmtInr, fmtInt, fmtPct, DASH } from '../../../../../lib/crm/plusFormat';
 import { toCsv, downloadCsv, type CsvColumn } from '../../../../../components/ffm/reports/reportUtils';
-import { PageHeader, Button, EmptyState, T, useIsCompact } from '../../../../../components/ui';
+import { Button, EmptyState, T, useIsCompact } from '../../../../../components/ui';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
 
@@ -72,7 +73,7 @@ const SAVED_QUESTIONS: Array<{ label: string; params: Partial<Record<'group_by' 
  * picker change refetches.
  */
 export default function ManagementDashboardPage() {
-  usePageTitle('Management Dashboard');
+  usePageTitle('Management Dashboard', 'One directors’ overview — headline KPIs, your top engineers, brands and accounts, with saved questions that open the full Business Report.');
   const { user, loading: authLoading } = useAuth();
   const narrow = useIsCompact(760);
   const cityKey = useReportCityKey();
@@ -178,7 +179,6 @@ export default function ManagementDashboardPage() {
   if (!authLoading && !allowed) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }} data-testid="management-dashboard">
-        <PageHeader title="Management Dashboard" description="A directors' overview for the connected-B2B workspace." compact={narrow} />
         <div style={card}>
           <EmptyState
             icon={<LayoutDashboard size={20} />}
@@ -193,12 +193,7 @@ export default function ManagementDashboardPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }} data-testid="management-dashboard">
-      <PageHeader
-        title="Management Dashboard"
-        description="One directors' overview — headline KPIs, your top engineers, brands and accounts, with saved questions that open the full Business Report."
-        actions={headerActions}
-        compact={narrow}
-      />
+      <CrmToolbarRight>{headerActions}</CrmToolbarRight>
 
       {notAvailable ? (
         <div style={card}>

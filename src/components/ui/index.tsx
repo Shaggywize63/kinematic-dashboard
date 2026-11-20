@@ -78,7 +78,14 @@ export function useIsCompact(bp = 900): boolean {
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md';
 
-export function buttonStyle(variant: ButtonVariant = 'secondary', size: ButtonSize = 'md', disabled = false): CSSProperties {
+// Shared minimum width for a row of "toolbar" action buttons (page-header /
+// list-toolbar button clusters: Export, Import, New lead, …) so a row of
+// mixed-length labels lines up into an even grid instead of each button
+// hugging its own text. Opt-in via `toolbar` so every other Button
+// (in-form, inline, row actions) is pixel-identical to before.
+export const TOOLBAR_BTN_MIN_WIDTH = { sm: 92, md: 110 } as const;
+
+export function buttonStyle(variant: ButtonVariant = 'secondary', size: ButtonSize = 'md', disabled = false, toolbar = false): CSSProperties {
   const base: CSSProperties = {
     height: size === 'sm' ? 30 : 34,
     padding: size === 'sm' ? '0 10px' : '0 14px',
@@ -93,6 +100,7 @@ export function buttonStyle(variant: ButtonVariant = 'secondary', size: ButtonSi
     whiteSpace: 'nowrap',
     lineHeight: 1,
     transition: 'background .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease',
+    ...(toolbar ? { minWidth: TOOLBAR_BTN_MIN_WIDTH[size], flex: '0 0 auto' } : null),
   };
   switch (variant) {
     case 'primary': return { ...base, background: T.red, color: '#FFFFFF' };
@@ -109,6 +117,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
    *  lib/labelIcons.ts); pass `null` for no icon. */
   icon?: ReactNode;
   href?: string;
+  /** Part of a page-toolbar button row (list actions, page-header actions) — gives it the shared
+   *  TOOLBAR_BTN_MIN_WIDTH so a row of differently-labelled buttons lines up evenly instead of each
+   *  hugging its own text. Leave unset for an ordinary button (in-form, inline, a row's own actions). */
+  toolbar?: boolean;
 }
 
 const VISUALLY_HIDDEN: CSSProperties = {
@@ -125,9 +137,9 @@ function textOf(children: ReactNode): string | null {
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'secondary', size = 'md', icon: iconProp, href, style, children, disabled, type = 'button', ...rest }, ref,
+  { variant = 'secondary', size = 'md', icon: iconProp, href, toolbar, style, children, disabled, type = 'button', ...rest }, ref,
 ) {
-  const s = { ...buttonStyle(variant, size, !!disabled), ...style };
+  const s = { ...buttonStyle(variant, size, !!disabled, !!toolbar), ...style };
   let icon: ReactNode = iconProp;
   if (iconProp === undefined) {
     const label = textOf(children);

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { messagingApi, type ThreadRow, type MessageRow, type ScopedUser } from '../../../lib/messagingApi';
 import MentionInput, { renderMentions } from '../../../components/messaging/MentionInput';
 import { pushPermission, enableBrowserPush, disableBrowserPush, registerServiceWorker } from '../../../lib/webPush';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../components/ui';
 
 /**
  * Inbox + team chat surface.
@@ -130,6 +131,7 @@ export default function InboxPage() {
               color: pushState === 'granted' ? 'var(--text)' : 'var(--text-dim)',
               border: '1px solid var(--border)', cursor: pushState === 'unsupported' ? 'not-allowed' : 'pointer',
               opacity: pushState === 'unsupported' ? 0.5 : 1,
+              minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center',
             }}
             title={pushState === 'unsupported' ? 'Push not supported in this browser' : 'Toggle browser notifications'}
           >
@@ -137,7 +139,7 @@ export default function InboxPage() {
           </button>
           <button
             onClick={() => setComposeOpen(true)}
-            style={{ padding: '8px 14px', fontSize: 12, fontWeight: 700, borderRadius: 8, background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer' }}
+            style={{ padding: '8px 14px', fontSize: 12, fontWeight: 700, borderRadius: 8, background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}
           >
             New message
           </button>

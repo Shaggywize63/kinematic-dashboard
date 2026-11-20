@@ -9,6 +9,7 @@ import { useClient } from '../../../../context/ClientContext';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { AlertTriangle, Check, CheckCircle2, Clock, Download, Eye, EyeOff, FileText, FolderOpen, Map as MapIcon, MapPin, Pause, Pencil, Play, Plus, PowerOff, RefreshCw, RotateCcw, Search, Store, Trash2, Upload, XCircle, type LucideIcon } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon, type IconTone } from '../../../../components/ui/PageIcon';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
 
 const C = {
   bg: 'var(--bg)', 
@@ -577,21 +578,21 @@ export default function OutletManagementPage() {
             <button onClick={fetchAll}
               style={{ padding:'8px 14px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10,
                 color:C.gray, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-                display:'flex', alignItems:'center', gap:6 }}>
+                display:'flex', alignItems:'center', justifyContent:'center', gap:6, minWidth:TOOLBAR_BTN_MIN_WIDTH.md }}>
               <InlineIcon icon={RefreshCw} />Refresh
             </button>
             {(isPlatformAdmin || user?.role === 'client') && (
               <button onClick={() => setShowBulk(true)}
                 style={{ padding:'8px 14px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10,
                   color:C.blue, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-                  display:'flex', alignItems:'center', gap:6 }}>
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:6, minWidth:TOOLBAR_BTN_MIN_WIDTH.md }}>
                 <InlineIcon icon={Upload} />Bulk Upload
               </button>
             )}
             <button onClick={() => { setForm(emptyForm); setSaveErr(null); setSaveOk(false); setFormErrs({}); setShowAdd(true); }}
               style={{ padding:'8px 16px', background:C.red, border:'none', borderRadius:10,
                 color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-                display:'flex', alignItems:'center', gap:6, boxShadow:`0 4px 16px ${C.redB}` }}>
+                display:'flex', alignItems:'center', justifyContent:'center', gap:6, boxShadow:`0 4px 16px ${C.redB}`, minWidth:TOOLBAR_BTN_MIN_WIDTH.md }}>
               <InlineIcon icon={Plus} />Add Outlet
             </button>
           </div>

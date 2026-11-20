@@ -3,11 +3,13 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { BarChart3, CheckCircle2, Clock, ListPlus, PhoneCall, XCircle } from 'lucide-react';
-import { IconTile, InlineIcon, PageIcon } from '../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../lib/labelIcons';
 import { crmDesk } from '../../../../lib/crmApi';
 import type { DeskCallTask, DeskCallStatus, DeskDaySummary } from '../../../../lib/crmApi';
 import { istToday, istDate, istTime } from '../../../../lib/istTime';
+import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
 /**
  * Calling Desk — the pharma daily tele-calling workflow (Maa Mansha Pharma).
@@ -30,6 +32,7 @@ const inr = (n: number | null | undefined) => `₹${Number(n || 0).toLocaleStrin
 
 export default function CallingDeskPage() {
   const [date, setDate] = useState(istToday);
+  usePageTitle('Calling Desk', `Daily customer calling list — ${istDate(date)} (IST)`);
   const [statusFilter, setStatusFilter] = useState<'' | DeskCallStatus>('');
   const [q, setQ] = useState('');
   const [rows, setRows] = useState<DeskCallTask[]>([]);
@@ -98,30 +101,19 @@ export default function CallingDeskPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <PageIcon name="listChecks" />
-          <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Calling Desk</h1>
-          <p style={{ margin: '4px 0 0', color: 'var(--muted, #6b7280)', fontSize: 13 }}>
-            Daily customer calling list — {istDate(date)} (IST)
-          </p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input type="date" value={date} max={istToday()} onChange={(e) => setDate(e.target.value || istToday())}
-            style={inputStyle} />
-          <button onClick={generate} disabled={generating || date !== istToday()}
-            title={date !== istToday() ? 'You can only generate today’s list' : 'Build today’s calling list from the customer master'}
-            style={{ ...btnStyle, opacity: generating || date !== istToday() ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <InlineIcon icon={ListPlus} />
-            {generating ? 'Generating…' : 'Generate Today’s List'}
-          </button>
-          <Link href="/dashboard/crm/calling-desk/reports" style={{ ...btnStyle, background: '#fff', color: 'var(--primary, #2563eb)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <InlineIcon icon={BarChart3} />Reports →
-          </Link>
-        </div>
-      </div>
+      <CrmToolbarRight>
+        <input type="date" value={date} max={istToday()} onChange={(e) => setDate(e.target.value || istToday())}
+          style={inputStyle} />
+        <button onClick={generate} disabled={generating || date !== istToday()}
+          title={date !== istToday() ? 'You can only generate today’s list' : 'Build today’s calling list from the customer master'}
+          style={{ ...btnStyle, opacity: generating || date !== istToday() ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <InlineIcon icon={ListPlus} />
+          {generating ? 'Generating…' : 'Generate Today’s List'}
+        </button>
+        <Link href="/dashboard/crm/calling-desk/reports" style={{ ...btnStyle, background: '#fff', color: 'var(--primary, #2563eb)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <InlineIcon icon={BarChart3} />Reports →
+        </Link>
+      </CrmToolbarRight>
 
       <SummaryStrip summary={summary} loading={loading} />
 

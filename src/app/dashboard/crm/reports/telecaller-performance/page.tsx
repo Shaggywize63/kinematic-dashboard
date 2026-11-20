@@ -1,13 +1,14 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { TelecallerPerfRow, TelecallerPerfDaily } from '../../../../../types/crm';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
-import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
@@ -32,6 +33,7 @@ const rowVal = (r: TelecallerPerfRow, key: string): unknown =>
   (r as unknown as Record<string, unknown>)[key];
 
 export default function TelecallerPerformancePage() {
+  usePageTitle('Telecaller Performance', 'Calls, connects, interest and scheme ₹ per telecaller — the Call Tracker, live.');
   const [range, setRange] = useState(defaultRange);
   const [rows, setRows] = useState<TelecallerPerfRow[]>([]);
   const [daily, setDaily] = useState<TelecallerPerfDaily[]>([]);
@@ -141,19 +143,10 @@ export default function TelecallerPerformancePage() {
 
 function Header({ range, onChange }: { range: { from: string; to: string }; onChange: (r: { from: string; to: string }) => void }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-      <div>
-        <Link href="/dashboard/crm/reports" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none' }}>← All reports</Link>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Telecaller Performance</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
-          Calls, connects, interest and scheme ₹ per telecaller — the Call Tracker, live.
-        </p>
-      </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <DateInput label="From" value={range.from} onChange={(v) => onChange({ ...range, from: v })} />
-        <DateInput label="To"   value={range.to}   onChange={(v) => onChange({ ...range, to: v })} />
-      </div>
-    </div>
+    <CrmToolbarRight>
+      <DateInput label="From" value={range.from} onChange={(v) => onChange({ ...range, from: v })} />
+      <DateInput label="To"   value={range.to}   onChange={(v) => onChange({ ...range, to: v })} />
+    </CrmToolbarRight>
   );
 }
 

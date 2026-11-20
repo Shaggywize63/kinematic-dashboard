@@ -8,8 +8,10 @@ import type { EmailTemplate } from '../../../../types/crm';
 import HtmlEmailEditor from '../../../../components/crm/email/HtmlEmailEditor';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { BellRing, CalendarClock, Check, Mail, MailPlus, Plus, Send } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
 /**
  * Email alerts inbox — list every planned/sent email, with a composer
@@ -22,6 +24,7 @@ import { useConfirm } from '../../../../components/ConfirmProvider';
  *   4. Set a "Send" mode — Now or Schedule for a future datetime.
  */
 export default function EmailAlertsPage() {
+  usePageTitle('Email alerts', 'Compose a one-off or scheduled email using a template + verified sender.');
   const confirm = useConfirm();
   const [rows, setRows] = useState<EmailAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,20 +80,14 @@ export default function EmailAlertsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <PageIcon />
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Email alerts</h1>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
-            Compose a one-off or scheduled email using a template + verified sender. <Link href="/dashboard/crm/email-senders" style={{ color: 'var(--primary)' }}>Manage senders</Link> · <Link href="/dashboard/crm/email-templates" style={{ color: 'var(--primary)' }}>Manage templates</Link>
-          </div>
-        </div>
-        <button onClick={() => setComposing(true)} style={{ padding: '10px 16px', borderRadius: 8, background: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+        <Link href="/dashboard/crm/email-senders" style={{ color: 'var(--primary)' }}>Manage senders</Link> · <Link href="/dashboard/crm/email-templates" style={{ color: 'var(--primary)' }}>Manage templates</Link>
+      </div>
+      <CrmToolbarRight>
+        <button onClick={() => setComposing(true)} style={{ padding: '10px 16px', borderRadius: 8, background: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           <InlineIcon icon={Plus} />New alert
         </button>
-      </div>
+      </CrmToolbarRight>
 
       {loading ? (
         <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>Loading…</div>

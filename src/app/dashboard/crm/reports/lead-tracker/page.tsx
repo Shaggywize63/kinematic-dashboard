@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmAnalytics, crmSettings } from '../../../../../lib/crmApi';
 import type { LeadTrackerPayload, LeadTrackerBucket } from '../../../../../types/crm';
@@ -10,8 +9,10 @@ import { useLeadFieldGate } from '../../../../../lib/crm/useLeadFieldGate';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { fmtChange, changeTone, monthLabel } from '../../../../../lib/crm/plusFormat';
 import { Download } from 'lucide-react';
-import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
@@ -43,6 +44,7 @@ type TrackerPlus = LeadTrackerPayload & {
  */
 
 export default function LeadTrackerPage() {
+  usePageTitle('Lead Tracker', 'New-lead volume + funnel mix across your hierarchy subtree.');
   const [months, setMonths] = useState(6);
   const [data, setData] = useState<TrackerPlus | null>(null);
   const gate = useLeadFieldGate();
@@ -153,26 +155,17 @@ export default function LeadTrackerPage() {
 
 function Header({ months, onChange, canExport, onExport }: { months: number; onChange: (m: number) => void; canExport: boolean; onExport: () => void }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-      <div>
-        <Link href="/dashboard/crm/reports" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none' }}>← All reports</Link>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Lead Tracker</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
-          New-lead volume + funnel mix across your hierarchy subtree.
-        </p>
-      </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>
-          Range
-          <select value={months} onChange={(e) => onChange(Number(e.target.value))}
-            style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '8px 10px', fontSize: 13 }}>
-            {[3, 6, 12, 24].map((n) => <option key={n} value={n}>Last {n} months</option>)}
-          </select>
-        </label>
-        <button onClick={onExport} disabled={!canExport} aria-label="Download CSV"
-          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} size={14} />CSV</button>
-      </div>
-    </div>
+    <CrmToolbarRight>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>
+        Range
+        <select value={months} onChange={(e) => onChange(Number(e.target.value))}
+          style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '8px 10px', fontSize: 13 }}>
+          {[3, 6, 12, 24].map((n) => <option key={n} value={n}>Last {n} months</option>)}
+        </select>
+      </label>
+      <button onClick={onExport} disabled={!canExport} aria-label="Download CSV"
+        style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} size={14} />CSV</button>
+    </CrmToolbarRight>
   );
 }
 

@@ -25,8 +25,11 @@ import {
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
 import { BookOpen, Check, Download, FileSpreadsheet, Pencil, Plus, Trash2, Upload } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
 
 // One row from /api/v1/crm/locations — the per-tenant city allow-list
 // managed under Settings → Locations. We only care about the city name
@@ -53,6 +56,7 @@ function downloadTemplate() {
 }
 
 export default function PeopleDirectoryPage() {
+  usePageTitle('People Directory', 'Per-client address book — dealers, influencers, referrers. Records here are searchable from any lookup field configured against this object.');
   const confirm = useConfirm();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -274,29 +278,18 @@ export default function PeopleDirectoryPage() {
 
   return (
     <div style={{ maxWidth: 1200 }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <PageIcon />
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>People Directory</h1>
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>
-            Per-client address book — dealers, influencers, referrers. Records here are searchable from any lookup field configured against this object.
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button onClick={handleExport} style={btnSecondary}><InlineIcon icon={Download} />Export CSV</button>
-          <button onClick={downloadTemplate} style={btnSecondary}><InlineIcon icon={FileSpreadsheet} />Download template</button>
-          <Link
-            href="/dashboard/crm/people-directory/import"
-            style={btnSecondary}
-          ><InlineIcon icon={Upload} />Bulk Import</Link>
-          <button
-            onClick={() => setEditing({})}
-            style={btnPrimary}
-          ><InlineIcon icon={Plus} />New Person</button>
-        </div>
-      </header>
+      <CrmToolbarRight>
+        <button onClick={handleExport} style={{ ...btnSecondary, minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}><InlineIcon icon={Download} />Export CSV</button>
+        <button onClick={downloadTemplate} style={{ ...btnSecondary, minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}><InlineIcon icon={FileSpreadsheet} />Download template</button>
+        <Link
+          href="/dashboard/crm/people-directory/import"
+          style={{ ...btnSecondary, minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}
+        ><InlineIcon icon={Upload} />Bulk Import</Link>
+        <button
+          onClick={() => setEditing({})}
+          style={{ ...btnPrimary, minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}
+        ><InlineIcon icon={Plus} />New Person</button>
+      </CrmToolbarRight>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
         <input

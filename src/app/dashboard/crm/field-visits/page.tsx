@@ -5,6 +5,8 @@ import { BarChart3, CheckCircle2, Clock, Footprints, MapPin, RefreshCw, type Luc
 import crmApi, { type MarketingVisit } from '../../../../lib/crmApi';
 import { useAuth } from '../../../../hooks/useAuth';
 import { canViewFieldVisits } from '../../../../lib/clientFeatures';
+import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
 type StatusFilter = 'all' | 'planned' | 'completed';
 
@@ -46,6 +48,7 @@ export default function FieldVisitsPage() {
   const allowed = canViewFieldVisits(user as any);
 
   const [visits, setVisits] = useState<MarketingVisit[]>([]);
+  usePageTitle('Field Visits', 'Ad-hoc Marketing Visits captured from the mobile app — each GPS Start→End tied to a lead.');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
@@ -88,20 +91,14 @@ export default function FieldVisitsPage() {
 
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div>
-          <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Footprints size={18} /> Field Visits
-          </h3>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, maxWidth: 640 }}>
-            Ad-hoc Marketing Visits captured from the mobile app — each GPS Start→End tied to a lead.
-            Showing the most recent {visits.length ? `${visits.length} ` : ''}visits.
-          </div>
-        </div>
+      <CrmToolbarRight>
         <Link href="/dashboard/crm/reports/field-visits" style={{ color: 'var(--primary)', fontSize: 13, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <BarChart3 aria-hidden size={14} strokeWidth={2} />Field-executive rollup →
         </Link>
+      </CrmToolbarRight>
+
+      <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>
+        Showing the most recent {visits.length ? `${visits.length} ` : ''}visits.
       </div>
 
       {/* Summary tiles */}

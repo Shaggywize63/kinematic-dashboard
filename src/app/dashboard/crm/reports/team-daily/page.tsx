@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { TeamDailyCard } from '../../../../../types/crm';
@@ -10,8 +9,10 @@ import { isBmwActive } from '../../../../../lib/clientFeatures';
 import { useLeadFieldGate } from '../../../../../lib/crm/useLeadFieldGate';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { Download, MapPin } from 'lucide-react';
-import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
@@ -39,6 +40,7 @@ function todayIso(): string {
 }
 
 export default function TeamDailyPage() {
+  usePageTitle('Team Daily Activity', 'One CRM-only snapshot per rep — activities, leads, deals, location.');
   const [date, setDate] = useState(todayIso);
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
@@ -201,24 +203,15 @@ function Row({ label, left, right, header }: { label: string; left: string; righ
 
 function Header({ date, onChange, canExport, onExport }: { date: string; onChange: (d: string) => void; canExport: boolean; onExport: () => void }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-      <div>
-        <Link href="/dashboard/crm/reports" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none' }}>← All reports</Link>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Team Daily Activity</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
-          One CRM-only snapshot per rep — activities, leads, deals, location.
-        </p>
-      </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>
-          Date
-          <input type="date" value={date} onChange={(e) => onChange(e.target.value)}
-            style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '8px 10px', fontSize: 13 }} />
-        </label>
-        <button onClick={onExport} disabled={!canExport} aria-label="Download CSV"
-          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} size={14} />CSV</button>
-      </div>
-    </div>
+    <CrmToolbarRight>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>
+        Date
+        <input type="date" value={date} onChange={(e) => onChange(e.target.value)}
+          style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '8px 10px', fontSize: 13 }} />
+      </label>
+      <button onClick={onExport} disabled={!canExport} aria-label="Download CSV"
+        style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} size={14} />CSV</button>
+    </CrmToolbarRight>
   );
 }
 

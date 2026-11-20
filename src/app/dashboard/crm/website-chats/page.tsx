@@ -15,6 +15,8 @@ import {
 import KiniMascot from '../../../../components/crm/KiniMascot';
 import { Building2, CalendarClock, Mail, MapPin, MessageSquareText, Phone, RefreshCw, Users } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
 // Inline style tokens (mirror the CRM Conversations page).
 const card: React.CSSProperties = {
@@ -74,6 +76,7 @@ export default function WebsiteChatsPage() {
 }
 
 function WebsiteChatsPageInner() {
+  usePageTitle('Website Chats', 'Conversations from KINI, the chatbot on kinematicapp.com — what visitors asked, how KINI replied, and the leads it captured.');
   const isCompact = useIsCompact();
   const [rows, setRows] = useState<WebChatRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -125,28 +128,20 @@ function WebsiteChatsPageInner() {
 
   return (
     <div style={{ padding: isCompact ? 12 : 20 }}>
-      <div style={{ marginBottom: 14, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <KiniMascot size={46} />
-        <div style={{ flex: 1 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Website Chats</h1>
-          <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '4px 0 0' }}>
-            Conversations from KINI, the chatbot on kinematicapp.com — what visitors asked, how KINI replied,
-            and the leads it captured.
-          </p>
-        </div>
+      <CrmToolbarRight>
         <button
           onClick={() => load(search)}
           disabled={loading}
           style={{
             border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--text)',
             borderRadius: 9, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0,
           }}
         >
           <span style={{ display: 'inline-flex', transform: loading ? 'rotate(360deg)' : 'none', transition: 'transform .6s' }}><InlineIcon icon={RefreshCw} /></span>
           Refresh
         </button>
-      </div>
+      </CrmToolbarRight>
 
       <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexDirection: isCompact ? 'column' : 'row' }}>
         {/* List */}

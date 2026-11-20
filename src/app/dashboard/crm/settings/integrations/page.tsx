@@ -10,8 +10,11 @@ import {
   AlertTriangle, Check, CheckCircle2, Cloud, Code2, Copy, Database, ExternalLink, Eye, Facebook, FileText, Globe, Link2, ListChecks, Mail,
   MessageCircle, Mic, Palette, PhoneCall, Play, Plug, Plus, Send, Settings2, Terminal, Unplug, Webhook, XCircle,
 } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../../components/ui';
 
 // ── Provider catalogue ─────────────────────────────────────────────────────────
 const PROVIDERS: Array<{
@@ -128,6 +131,7 @@ function genVerifyToken(): string {
 
 // ── Page ────────────────────────────────────────────────────────────────────────
 export default function IntegrationsPage() {
+  usePageTitle('Lead-Source Integrations', 'Connect your website forms, ad platforms, and other CRMs so leads land in Kinematic automatically. Cross-channel duplicates merge by phone or email.');
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loaded, setLoaded]     = useState(false);
   const [pickingProvider, setPickingProvider] = useState(false);
@@ -181,30 +185,14 @@ export default function IntegrationsPage() {
 
   return (
     <div>
-      <Link
-        href="/dashboard/crm/settings"
-        style={{ fontSize: 12, color: 'var(--text-dim)', textDecoration: 'none', marginBottom: 14, display: 'inline-block' }}
-      >
-        ← Back to Settings
-      </Link>
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <PageIcon />
-            <h1 style={{ margin: 0, fontSize: 20, color: 'var(--text)', fontWeight: 800 }}>Lead-Source Integrations</h1>
-          </div>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-dim)', maxWidth: 640 }}>
-            Connect your website forms, ad platforms, and other CRMs so leads land in Kinematic automatically. Cross-channel duplicates merge by phone or email.
-          </p>
-        </div>
+      <CrmToolbarRight>
         <button
           onClick={() => setPickingProvider(true)}
-          style={primaryBtn}
+          style={{ ...primaryBtn, minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}
         >
           <InlineIcon icon={Plus} />Add integration
         </button>
-      </div>
+      </CrmToolbarRight>
 
       {/* ── Active integrations ── */}
       {!loaded ? (

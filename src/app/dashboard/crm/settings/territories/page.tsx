@@ -4,13 +4,13 @@ import { toast } from 'sonner';
 import { Network, Pencil, Plus, Trash2 } from 'lucide-react';
 import { crmTerritories } from '../../../../../lib/crmApi';
 import type { Territory } from '../../../../../types/crm';
-import { Badge, Button, Card, EmptyState, Eyebrow, Field, FormGrid, IconButton, Input, PageHeader, Select, T, useIsCompact } from '../../../../../components/ui';
+import { Badge, Button, Card, EmptyState, Eyebrow, Field, FormGrid, IconButton, Input, Select, T, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import LogoSpinner from '../../../../../components/shared/LogoSpinner';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 export default function TerritoriesPage() {
-  usePageTitle('Territories');
+  usePageTitle('Territories', 'Sales territory hierarchy. Nest regions under a parent to build the tree reps and reports are scoped by.');
   const confirm = useConfirm();
   const narrow = useIsCompact(900);
   const [items, setItems] = useState<Territory[]>([]);
@@ -76,12 +76,6 @@ export default function TerritoriesPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <PageHeader
-        title="Territories"
-        description="Sales territory hierarchy. Nest regions under a parent to build the tree reps and reports are scoped by."
-        compact={narrow}
-      />
-
       <Card padding={20} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <Eyebrow>Add territory</Eyebrow>

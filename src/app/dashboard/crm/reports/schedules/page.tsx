@@ -7,7 +7,6 @@
  * to_emails[] }.
  */
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { toast } from 'sonner';
 import {
   crmReportSchedules,
@@ -15,8 +14,10 @@ import {
   type DigestFrequency,
 } from '../../../../../lib/crmApi';
 import { CalendarClock, Check, Mail, Pause, Pencil, Play, Plus, Send, Trash2 } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -41,6 +42,7 @@ function parseEmails(raw: string): string[] {
 }
 
 export default function ReportSchedulesPage() {
+  usePageTitle('Scheduled Digests', 'Email a report to your team on a recurring schedule. Times are in UTC.');
   const confirm = useConfirm();
   const [items, setItems] = useState<ReportSchedule[]>([]);
   const [catalog, setCatalog] = useState<Array<{ key: string; label: string }>>([]);
@@ -156,21 +158,11 @@ export default function ReportSchedulesPage() {
 
   return (
     <div style={{ padding: 24, maxWidth: 980, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-        <Link href="/dashboard/crm/reports" style={{ color: 'var(--text-dim)', fontSize: 13, textDecoration: 'none' }}>← Reports</Link>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <PageIcon />
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Scheduled Digests</h1>
-          </div>
-          <p style={{ margin: '4px 0 0', color: 'var(--text-dim)', fontSize: 13 }}>
-            Email a report to your team on a recurring schedule. Times are in UTC.
-          </p>
-        </div>
-        {!showForm && <button style={btnPrimary} onClick={startCreate}><InlineIcon icon={Plus} />New digest</button>}
-      </div>
+      {!showForm && (
+        <CrmToolbarRight>
+          <button style={btnPrimary} onClick={startCreate}><InlineIcon icon={Plus} />New digest</button>
+        </CrmToolbarRight>
+      )}
 
       {showForm && (
         <div style={{ ...card, marginBottom: 20 }}>

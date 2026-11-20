@@ -13,6 +13,7 @@ import type {
 import StoreSelect from '../../../../components/StoreSelect';
 import { AlertTriangle, ArrowLeft, Check, FileText, Megaphone, Package, Plus, Store, Tag, Target, Trash2, UserPlus, X } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
 import { PC, SectionCard, StateBlock, useIsCompact, TableScroll, th, thR } from '../_components/planogramUi';
 import { useConfirm } from '../../../../components/ConfirmProvider';
 
@@ -248,13 +249,13 @@ export default function PlanogramDetailPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => setShowAssign(true)} style={btnSecondary}>
+          <button onClick={() => setShowAssign(true)} style={{ ...btnSecondary, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}>
             <InlineIcon icon={UserPlus} size={14} />Assign to store
           </button>
-          <button onClick={() => setShowDelete(true)} style={btnDanger}>
+          <button onClick={() => setShowDelete(true)} style={{ ...btnDanger, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}>
             <InlineIcon icon={Trash2} size={14} />Delete
           </button>
-          <button onClick={save} disabled={!dirty || saving} style={btnPrimary(!dirty || saving)}>
+          <button onClick={save} disabled={!dirty || saving} style={{ ...btnPrimary(!dirty || saving), minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}>
             <InlineIcon icon={Check} size={14} />
             {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
           </button>

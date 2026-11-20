@@ -8,8 +8,11 @@ import { getStoredUser } from '../../../../../lib/auth';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 import { usePagination } from '../../../../../components/shared/Pagination';
 import { Ban, Check, FileSpreadsheet, KeyRound, Pencil, Play, RotateCcw, Trash2, Upload, UserCog, UserPlus } from 'lucide-react';
-import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../../components/ui';
 
 // CRM-scoped user management. Module permissions live on the role hierarchy
 // (org_roles.permissions / .permissions_write) — not redefined per-user — so
@@ -161,6 +164,7 @@ function pickedClientId(): string | null {
 }
 
 export default function CrmUsersPage() {
+  usePageTitle('Team Members', 'Add team members. Module access is inherited from the Hierarchy Role you assign — define permissions once on the role, not per user.');
   const confirm = useConfirm();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<OrgRole[]>([]);
@@ -589,22 +593,10 @@ export default function CrmUsersPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <PageIcon />
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Team Members</h1>
-          </div>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-dim)', maxWidth: 720 }}>
-            Add team members. Module access is inherited from the <Link href="/dashboard/settings/roles" style={{ color: 'var(--primary)' }}>Hierarchy Role</Link> you assign — define permissions once on the role, not per user.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Link href="/dashboard/crm/settings" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none' }}>← Back</Link>
-          <button onClick={() => { setShowBulk((s) => !s); resetBulk(); }} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Upload} />Bulk Upload</button>
-          <button onClick={startCreate} disabled={atLimit} title={atLimit ? `Active-user limit reached (${userLimit}). Deactivate a user first.` : ''} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: atLimit ? 'not-allowed' : 'pointer', opacity: atLimit ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={UserPlus} />Add User</button>
-        </div>
-      </div>
+      <CrmToolbarRight>
+        <button onClick={() => { setShowBulk((s) => !s); resetBulk(); }} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Upload} />Bulk Upload</button>
+        <button onClick={startCreate} disabled={atLimit} title={atLimit ? `Active-user limit reached (${userLimit}). Deactivate a user first.` : ''} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: atLimit ? 'not-allowed' : 'pointer', opacity: atLimit ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={UserPlus} />Add User</button>
+      </CrmToolbarRight>
 
       {showBulk && (
         <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16 }}>

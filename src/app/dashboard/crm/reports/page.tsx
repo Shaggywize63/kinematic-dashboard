@@ -7,7 +7,7 @@ import {
 import { useAuth } from '../../../../hooks/useAuth';
 import { isConsumerChampion, canDownloadSrsReport, canViewFieldVisits, canViewTelecallerReport, leadReportLabel, isManagerOrAdmin } from '../../../../lib/clientFeatures';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
-import { Badge, Eyebrow, PageHeader, T, useIsCompact } from '../../../../components/ui';
+import { Badge, Eyebrow, T } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
 
 type ReportEntry = {
@@ -82,8 +82,7 @@ const CHAMPION_HREFS = new Set([
 ]);
 
 export default function ReportsIndex() {
-  usePageTitle('Reports');
-  const narrow = useIsCompact(900);
+  usePageTitle('Reports', 'Ready-made reports for the team, plus a builder and scheduled digests for anything custom.');
   const { user } = useAuth();
   const champion = isConsumerChampion(user as any);
   const srs = canDownloadSrsReport(user as any);
@@ -121,12 +120,6 @@ export default function ReportsIndex() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <PageHeader
-        title="Reports"
-        description="Ready-made reports for the team, plus a builder and scheduled digests for anything custom."
-        compact={narrow}
-      />
-
       {tools.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <Eyebrow>Tools</Eyebrow>

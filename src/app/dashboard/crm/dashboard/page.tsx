@@ -20,8 +20,9 @@ import { DEFAULT_LEAD_FORM, extractLeadForm, segmentPlural, type LeadFormConfig 
 import { isItemVisible } from '../../../../lib/appCustomization';
 import { useAppUiConfig } from '../../../../lib/useAppUiConfig';
 import { ChartCard, ChartEmpty } from '../../../../lib/chartTheme';
-import { Button, Card, EmptyState, Eyebrow, IconButton, PageHeader, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
+import { Button, Card, EmptyState, Eyebrow, IconButton, Segmented, Select, T } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
 // Weight/INR toggle is bespoke for Tata Tiscon — they bill in metric
 // tonnes of TMT bar so the dashboard re-aggregates monetary numbers as
@@ -114,8 +115,7 @@ function StatTile({ label, value, hint, valueTitle, loading, tone, hintWrap, ico
 }
 
 export default function CrmDashboardPage() {
-  usePageTitle('Dashboard');
-  const narrow = useIsCompact(900);
+  usePageTitle('Dashboard', 'Pipeline, revenue and lead health for the selected window.');
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [funnel, setFunnel] = useState<FunnelPoint[]>([]);
   const [pipelineValue, setPipelineValue] = useState<PipelineValuePoint[]>([]);
@@ -339,30 +339,23 @@ export default function CrmDashboardPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <PageHeader
-        title="Dashboard"
-        description="Pipeline, revenue and lead health for the selected window."
-        compact={narrow}
-        actions={
-          <>
-            {allowWeightToggle && (
-              <div role="tablist" aria-label="Display unit">
-                <Segmented
-                  value={unit}
-                  onChange={(v) => setUnitPersisted(v)}
-                  options={[
-                    { value: 'inr', label: <span title="Show monetary values in rupees">₹ Cost</span> },
-                    { value: 'weight', label: <span title="Show metrics as weight (kg / tonnes), aggregated from deal line items">Weight</span> },
-                  ]}
-                />
-              </div>
-            )}
-            {canCustomize && (
-              <Button onClick={() => setShowCustomizer(true)} icon={<LayoutGrid size={16} strokeWidth={1.6} />}>Customize</Button>
-            )}
-          </>
-        }
-      />
+      <CrmToolbarRight>
+        {allowWeightToggle && (
+          <div role="tablist" aria-label="Display unit">
+            <Segmented
+              value={unit}
+              onChange={(v) => setUnitPersisted(v)}
+              options={[
+                { value: 'inr', label: <span title="Show monetary values in rupees">₹ Cost</span> },
+                { value: 'weight', label: <span title="Show metrics as weight (kg / tonnes), aggregated from deal line items">Weight</span> },
+              ]}
+            />
+          </div>
+        )}
+        {canCustomize && (
+          <Button onClick={() => setShowCustomizer(true)} toolbar icon={<LayoutGrid size={16} strokeWidth={1.6} />}>Customize</Button>
+        )}
+      </CrmToolbarRight>
 
       {/* BMW home — leads whose follow-up date is due. Names link to each lead;
           "View all" opens the leads list pre-filtered to follow-ups due. */}

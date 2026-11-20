@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { FolderTree, Package, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 import { crmProducts, crmProductCategories } from '../../../../lib/crmApi';
 import { formatINR } from '../../../../lib/formatCurrency';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
@@ -89,17 +91,15 @@ export default function ProductsListPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Link href="/dashboard/crm/products/categories" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={FolderTree} />Categories</Link>
-          {b2b && (
-            <button type="button" onClick={() => setImporting(true)}
-              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Upload} />Import from file</button>
-          )}
-          <Link href="/dashboard/crm/products/new"
-            style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />New Product</Link>
-        </div>
-      </div>
+      <CrmToolbarRight>
+        <Link href="/dashboard/crm/products/categories" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={FolderTree} />Categories</Link>
+        {b2b && (
+          <button type="button" onClick={() => setImporting(true)}
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Upload} />Import from file</button>
+        )}
+        <Link href="/dashboard/crm/products/new"
+          style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Plus} />New Product</Link>
+      </CrmToolbarRight>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
           <input placeholder={b2b ? 'Search reference, name...' : 'Search SKU, name...'} aria-label="Search products" value={q} onChange={(e) => setQ(e.target.value)}
             style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 220 }} />

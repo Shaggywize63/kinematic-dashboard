@@ -76,8 +76,8 @@ test.describe('Duplicate accounts', () => {
   test('groups render with names, details and counts, plus the header count', async ({ page }) => {
     await setup(page);
     await page.goto('/dashboard/crm/accounts/duplicates');
-    await expect(page.getByRole('heading', { name: /Duplicate accounts/ })).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByRole('heading', { name: /Duplicate accounts/ })).toContainText('2 groups');
+    await expect(page.getByTestId('dup-group-count')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('dup-group-count')).toContainText('2 groups');
     await expect(group(page, 'ntpc-lara')).toBeVisible();
     await expect(group(page, 'acme-forge')).toBeVisible();
 
@@ -150,7 +150,7 @@ test.describe('Duplicate accounts', () => {
     await expect(group(page, 'ntpc-lara')).toHaveCount(0);
     await expect(group(page, 'acme-forge')).toBeVisible();
     await expect(page.getByTestId('dup-notice')).toContainText('2 contacts look like duplicates: check them in the account');
-    await expect(page.getByRole('heading', { name: /Duplicate accounts/ })).toContainText('1 group');
+    await expect(page.getByTestId('dup-group-count')).toContainText('1 group');
   });
 
   test('un-ticking an account, or changing the kept one, changes merge_ids', async ({ page }) => {
@@ -257,7 +257,7 @@ test.describe('Duplicate accounts', () => {
     await expect(link).toHaveAttribute('href', '/dashboard/crm/accounts/duplicates');
     await link.click();
     await expect(page).toHaveURL(/\/dashboard\/crm\/accounts\/duplicates$/);
-    await expect(page.getByRole('heading', { name: /Duplicate accounts/ })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('dup-group-count')).toBeVisible({ timeout: 60_000 });
   });
 
   test('works at phone width', async ({ page }) => {

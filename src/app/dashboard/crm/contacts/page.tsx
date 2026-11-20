@@ -9,11 +9,13 @@ import { usePagination } from '../../../../components/shared/Pagination';
 import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
-import { Badge, Button, Input, PageHeader, T, useIsCompact } from '../../../../components/ui';
+import { Badge, Button, Input, T } from '../../../../components/ui';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
 import ContactAccountModal from '../../../../components/crm/spark/ContactAccountModal';
 import { useFieldHelpers } from '../../../../lib/crm/useFieldHelpers';
 import { useConfirm } from '../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarLeft, CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
 export default function ContactsListPage() {
   const confirm = useConfirm();
@@ -21,6 +23,9 @@ export default function ContactsListPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [isB2C, setIsB2C] = useState(false);
+  usePageTitle('Contacts', isB2C
+    ? 'Consumer profiles with loyalty tiers and consent flags, linked to their leads and deals.'
+    : 'People at the companies you sell to, with their role, company and owner.');
   // Server-side sort. Empty key = backend default order (created_at). A header
   // click sets a real crm_contacts column and refetches.
   const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: '', order: 'asc' });
@@ -30,7 +35,6 @@ export default function ContactsListPage() {
   // Global CRM date range (header picker). City scope is handled by the
   // layout remount; the date range is applied here as created_at from/to.
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
-  const narrow = useIsCompact(760);
   // Spark & Ray: attach an existing contact to an account (or move it) from the list.
   const spark = isB2bClientActive();
   const [accountFor, setAccountFor] = useState<Contact | null>(null);
@@ -72,26 +76,21 @@ export default function ContactsListPage() {
         onToggle={view.toggleHidden}
         onReset={view.reset}
       />
-      <Button href="/dashboard/crm/contacts/import" icon={<Upload size={16} strokeWidth={1.8} />}>Import</Button>
-      <Button href="/dashboard/crm/contacts/new" variant="primary" icon={<Plus size={16} strokeWidth={2} />}>New contact</Button>
+      <Button href="/dashboard/crm/contacts/import" toolbar icon={<Upload size={16} strokeWidth={1.8} />}>Import</Button>
+      <Button href="/dashboard/crm/contacts/new" variant="primary" toolbar icon={<Plus size={16} strokeWidth={2} />}>New contact</Button>
     </>
   );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <PageHeader
-        title={
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            Contacts
-            {!loading && <Badge mono style={{ fontSize: 11.5 }}>{contacts.length.toLocaleString()} {contacts.length === 1 ? 'contact' : 'contacts'}</Badge>}
-          </span>
-        }
-        description={isB2C
-          ? 'Consumer profiles with loyalty tiers and consent flags, linked to their leads and deals.'
-          : 'People at the companies you sell to, with their role, company and owner.'}
-        actions={actions}
-        compact={narrow}
-      />
+      {/* Title now lives in the TopBar breadcrumb (usePageTitle above); the
+          count badge and actions portal into CrmLayout's scope-badge / city
+          / date-range row so the page starts with the search bar, not a
+          repeated heading row. */}
+      <CrmToolbarLeft>
+        {!loading && <Badge mono style={{ fontSize: 11.5 }}>{contacts.length.toLocaleString()} {contacts.length === 1 ? 'contact' : 'contacts'}</Badge>}
+      </CrmToolbarLeft>
+      <CrmToolbarRight>{actions}</CrmToolbarRight>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: '0 1 320px', minWidth: 220 }}>

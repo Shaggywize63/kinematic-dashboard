@@ -66,7 +66,7 @@ async function setup(page: Page, opts: { rows?: Row[]; queries?: string[]; user?
 
 const open = async (page: Page) => {
   await page.goto('/dashboard/crm/my-tasks');
-  await expect(page.getByRole('heading', { name: 'My Tasks', exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('status-filter')).toBeVisible({ timeout: 30_000 });
 };
 
 test.describe('My Tasks', () => {

@@ -14,7 +14,7 @@ import {
   type ReportRange,
 } from '../../../../../components/crm/reports/ReportFilters';
 import { fmtInr, fmtInt } from '../../../../../lib/crm/plusFormat';
-import { PageHeader, Segmented, EmptyState, Badge, T, useIsCompact } from '../../../../../components/ui';
+import { Segmented, EmptyState, Badge, T, useIsCompact } from '../../../../../components/ui';
 
 /** First day of the current month → today, ISO YYYY-MM-DD. Matches the
  *  backend's default window (current IST month) closely enough for the
@@ -45,7 +45,7 @@ const GRANULARITIES: Array<{ value: ScorecardGranularity; label: string }> = [
  * deps so a picker change refetches.
  */
 export default function EngineerScorecardPage() {
-  usePageTitle('Engineer Scorecard');
+  usePageTitle('Engineer Scorecard', 'Each sales engineer’s leads, orders and value over the chosen window — switch the granularity to see day, week or month buckets.');
   const { user, loading: authLoading } = useAuth();
   const narrow = useIsCompact(760);
   const cityKey = useReportCityKey();
@@ -102,12 +102,6 @@ export default function EngineerScorecardPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }} data-testid="engineer-scorecard">
-      <PageHeader
-        title="Engineer Scorecard"
-        description="Each sales engineer's leads, orders and value over the chosen window — switch the granularity to see day, week or month buckets."
-        compact={narrow}
-      />
-
       {!authLoading && !allowed ? (
         <div style={card}>
           <EmptyState

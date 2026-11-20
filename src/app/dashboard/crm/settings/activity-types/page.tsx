@@ -5,8 +5,10 @@ import api from '../../../../../lib/api';
 import { invalidateActivityTypes } from '../../../../../lib/activityTypes';
 import { useClient } from '../../../../../context/ClientContext';
 import { Check, CheckCircle2, ListChecks, Plus, Trash2 } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 // Settings → Activity Types — manage the dropdown choices on
 // /crm/activities/new. Built-ins (call/meeting/task/note/email/sms/whatsapp)
@@ -37,6 +39,7 @@ const btn: React.CSSProperties = {
 const btnSec: React.CSSProperties = { ...btn, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)' };
 
 export default function ActivityTypesSettingsPage() {
+  usePageTitle('Activity Types', 'What shows up in the type dropdown when someone logs an activity. Seven built-ins are always available; add your own (e.g. "Site Visit", "Demo", "Survey") for this client.');
   const { selectedClientId } = useClient();
   const [rows, setRows] = useState<ActivityType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,15 +86,9 @@ export default function ActivityTypesSettingsPage() {
 
   return (
     <div style={{ color: 'var(--text)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Activity Types</h2>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
-            What shows up in the type dropdown when someone logs an activity. Seven built-ins are always available; add your own (e.g. "Site Visit", "Demo", "Survey") for this client.
-          </div>
-        </div>
+      <CrmToolbarRight>
         <button style={btn} onClick={() => setShowAdd(true)}><InlineIcon icon={Plus} />Add Type</button>
-      </div>
+      </CrmToolbarRight>
 
       <div style={{ marginTop: 16, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '60px 1.4fr 1fr 80px 100px 80px', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: 1 }}>

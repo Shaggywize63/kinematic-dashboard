@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Search } from 'lucide-react';
 import api from '../../../../../lib/api';
-import { PageHeader, T, useIsCompact } from '../../../../../components/ui';
+import { T } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 
 // Salesperson picker (web parity with the mobile apps). Management lands here
@@ -15,8 +15,7 @@ import { usePageTitle } from '../../../../../lib/pageTitle';
 interface PickUser { id: string; name?: string; full_name?: string; email?: string; role?: string }
 
 export default function SalespersonPickerPage() {
-  usePageTitle('Salesperson Sales');
-  const narrow = useIsCompact(900);
+  usePageTitle('Salesperson Sales', 'Pick a salesperson to see their sales target vs achieved, contributing customers, daily & weekly progress, 6-month history and assigned leads.');
   const [users, setUsers] = useState<PickUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
@@ -48,12 +47,6 @@ export default function SalespersonPickerPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <PageHeader
-        title="Salesperson Sales"
-        description="Pick a salesperson to see their sales target vs achieved, contributing customers, daily & weekly progress, 6-month history and assigned leads."
-        compact={narrow}
-      />
-
       <div style={{ position: 'relative', maxWidth: 420 }}>
         <Search size={16} strokeWidth={1.6} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.mute }} />
         <input

@@ -74,14 +74,14 @@ export default function ClaimDetailPage() {
   const claimDate = items[0]?.item_date || (c.submitted_at || c.created_at)?.slice(0, 10) || null;
   const actions = (
     <>
-      <Button variant="ghost" href="/dashboard/expenses" icon={<ArrowLeft size={15} strokeWidth={1.7} />}>All claims</Button>
+      <Button variant="ghost" href="/dashboard/expenses" icon={<ArrowLeft size={15} strokeWidth={1.7} />} toolbar>All claims</Button>
       {mine && c.status === 'draft' && <>
-        <Button href={`/dashboard/expenses/${c.id}/edit`} icon={<Pencil size={14} strokeWidth={1.7} />}>Edit</Button>
-        <Button variant="primary" disabled={busy} onClick={() => act(() => expensesApi.submitClaim(c.id), 'Submitted for approval', 'Could not submit the claim')}>Submit for approval</Button>
+        <Button href={`/dashboard/expenses/${c.id}/edit`} icon={<Pencil size={14} strokeWidth={1.7} />} toolbar>Edit</Button>
+        <Button variant="primary" disabled={busy} onClick={() => act(() => expensesApi.submitClaim(c.id), 'Submitted for approval', 'Could not submit the claim')} toolbar>Submit for approval</Button>
       </>}
-      {mine && c.status === 'rejected' && <Button variant="primary" href={`/dashboard/expenses/${c.id}/edit`} icon={<Pencil size={14} strokeWidth={1.7} />}>Fix and resubmit</Button>}
-      {mine && c.status === 'submitted' && <Button href={`/dashboard/expenses/${c.id}/edit`} icon={<Pencil size={14} strokeWidth={1.7} />}>Edit</Button>}
-      {canAdmin && c.status === 'approved' && <Button variant="primary" icon={<CheckCircle2 size={15} strokeWidth={2} />} onClick={() => setPaying(true)}>Mark reimbursed</Button>}
+      {mine && c.status === 'rejected' && <Button variant="primary" href={`/dashboard/expenses/${c.id}/edit`} icon={<Pencil size={14} strokeWidth={1.7} />} toolbar>Fix and resubmit</Button>}
+      {mine && c.status === 'submitted' && <Button href={`/dashboard/expenses/${c.id}/edit`} icon={<Pencil size={14} strokeWidth={1.7} />} toolbar>Edit</Button>}
+      {canAdmin && c.status === 'approved' && <Button variant="primary" icon={<CheckCircle2 size={15} strokeWidth={2} />} onClick={() => setPaying(true)} toolbar>Mark reimbursed</Button>}
     </>
   );
 

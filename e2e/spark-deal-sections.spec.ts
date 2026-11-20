@@ -275,7 +275,7 @@ test.describe('deal sections: Settings -> Deal sections', () => {
     await scopeToSpark(page);
     await setup(page, seen);
     await page.goto('/dashboard/crm/settings/deal-sections');
-    await expect(page.getByRole('heading', { name: 'Deal sections' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('deal-section-list')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('deal-section-list').locator('> li')).toHaveCount(4);
     const preview = page.getByTestId('deal-sections-preview');
     await expect(preview.locator('section > div:first-child')).toHaveText(['Quotation', 'Pricing', 'Product trial', 'Approvals & people']);
