@@ -68,6 +68,7 @@ export const APP_ITEM_NEEDS: Record<AppUiSection, Record<string, Need>> = {
     face_enrollment: { any: ['face_attendance'] },
   },
   crm_more: {
+    my_tasks: { any: ['crm_activities'] },
     accounts: { any: ['crm_accounts'] },
     pipeline: { any: ['crm_pipeline'] },
     products: { any: ['crm_products'] },

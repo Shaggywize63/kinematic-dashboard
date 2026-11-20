@@ -2,7 +2,7 @@
 import { useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import {
   BarChart3, Banknote, Bell, BookOpen, Boxes, Briefcase, Building2, CalendarCheck, CalendarDays, Camera, ClipboardList,
-  Clock, FileText, Home, Info, Kanban, LayoutDashboard, Layers, Lock, LogOut, Megaphone, Menu as MenuIcon, MapPin,
+  Clock, FileText, Home, Info, Kanban, LayoutDashboard, Layers, ListChecks, Lock, LogOut, Megaphone, Menu as MenuIcon, MapPin,
   MessageSquareWarning, Navigation, OctagonAlert, Package, PackageCheck, Palette, PieChart, Plus, Receipt, Route,
   ScanFace, Settings, ShoppingCart, Smartphone, Sparkles, Store, Target, Trophy, TriangleAlert, Truck, User, Wallet,
   Circle,
@@ -32,7 +32,7 @@ const ICONS: Record<string, LucideIcon> = {
   leaderboard: Trophy, activity_feed: FileText, stock: Package, grievance: MessageSquareWarning, emergency_sos: OctagonAlert,
   planogram: Camera, van_load: Truck, distributor_stock: Boxes, log_damage: TriangleAlert, stock_batches: PackageCheck,
   ask_kini: Sparkles, appearance: Palette, crm_only_mode: Briefcase, app_lock: Lock, about: Info, face_enrollment: ScanFace,
-  accounts: Building2, pipeline: Kanban, products: Package, custom_objects: Layers, nearest_leads: Navigation,
+  my_tasks: ListChecks, accounts: Building2, pipeline: Kanban, products: Package, custom_objects: Layers, nearest_leads: Navigation,
   dashboard: LayoutDashboard, lead_analytics: BarChart3, reports: PieChart, switch_ff: Smartphone,
   stores: Store, visited: MapPin, forms: ClipboardList, todays_route: Route, open_volume: Banknote, my_targets: Target,
 };
