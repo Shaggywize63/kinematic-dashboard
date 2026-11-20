@@ -14,7 +14,10 @@ import { useRouter } from 'next/navigation';
 import { crmEmailCampaigns, type EmailCampaign } from '../../../../lib/crmApi';
 import { getStoredUser } from '../../../../lib/auth';
 import { Link2, Lock, Mail, Plus, Upload } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -68,6 +71,7 @@ function friendlyGoogleError(raw?: string): string {
 }
 
 export default function EmailCampaignsPage() {
+  usePageTitle('Email Campaigns', 'Send a saved email template to a segment of your contacts. Unsubscribed and bounced addresses are skipped automatically, opens & clicks are tracked, and every email carries a one-click unsubscribe.');
   const [rows, setRows] = useState<EmailCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -145,29 +149,24 @@ export default function EmailCampaignsPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.white, paddingBottom: 40 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 22, flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-            <PageIcon />
-            <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: 0 }}>Email Campaigns</h1>
-          </div>
-          <p style={{ color: C.gray, fontSize: 13, margin: 0, maxWidth: 660 }}>
-            Send a saved email template to a segment of your contacts. Unsubscribed and bounced addresses are skipped automatically, opens &amp; clicks are tracked, and every email carries a one-click unsubscribe.
-            {usage && <span> · <b style={{ color: C.white }}>{usage.emails_this_month}</b> sent this month.</span>}
-          </p>
-        </div>
+      {usage && (
+        <p style={{ color: C.gray, fontSize: 13, margin: '0 0 16px' }}>
+          <b style={{ color: C.white }}>{usage.emails_this_month}</b> sent this month.
+        </p>
+      )}
+      <CrmToolbarRight>
         <div style={{ display: 'flex', gap: 8, whiteSpace: 'nowrap', alignItems: 'center', flexWrap: 'wrap' }}>
           {isSuper && <Link href="/dashboard/settings/email-campaigns" style={{ color: C.gray, fontSize: 12, textDecoration: 'none', marginRight: 4 }}>Manage access →</Link>}
           {enabled && <>
             {/* Google Contacts → leads import removed (it flooded the CRM with
                 every auto-collected address). The Google connection control is
                 kept for the OAuth link itself. */}
-            <button onClick={connectGoogle} style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, border: `1px solid ${C.border}`, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Link2} />{gStatus?.connected ? 'Reconnect Google' : 'Connect Google'}</button>
-            <Link href="/dashboard/crm/leads/import" style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: `1px solid ${C.border}`, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Upload} />Import CSV</Link>
-            <Link href="/dashboard/crm/email-campaigns/new" style={{ background: C.red, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />New campaign</Link>
+            <button onClick={connectGoogle} style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, border: `1px solid ${C.border}`, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Link2} />{gStatus?.connected ? 'Reconnect Google' : 'Connect Google'}</button>
+            <Link href="/dashboard/crm/leads/import" style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: `1px solid ${C.border}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Upload} />Import CSV</Link>
+            <Link href="/dashboard/crm/email-campaigns/new" style={{ background: C.red, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Plus} />New campaign</Link>
           </>}
         </div>
-      </div>
+      </CrmToolbarRight>
 
       {notice && <div style={{ ...card, borderColor: 'rgba(0,217,126,0.3)', color: C.green, fontSize: 13, marginBottom: 16, padding: 14 }}>{notice}</div>}
       {gErr && <div style={{ ...card, borderColor: 'rgba(224,30,44,0.3)', color: C.red, fontSize: 13, marginBottom: 16, padding: 14 }}>{gErr}</div>}

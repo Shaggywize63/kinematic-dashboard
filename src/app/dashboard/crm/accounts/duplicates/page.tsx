@@ -8,7 +8,9 @@ import type {
   AccountMergeMoved, AccountMergeResult, SimilarAccount, SimilarAccountGroup,
 } from '../../../../../types/crm';
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
-import { Badge, Button, Card, EmptyState, PageHeader, Select, T, useIsCompact } from '../../../../../components/ui';
+import { Badge, Button, Card, EmptyState, Select, T, useIsCompact } from '../../../../../components/ui';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarLeft, CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 /**
  * Duplicate accounts: groups of accounts with the same or a very similar name ("NTPC Lara" / "NTPC Lara Ltd.").
@@ -85,6 +87,7 @@ type Notice = { id: string; keptId: string; keptName: string; dupes: number; ski
 
 // ── page ──────────────────────────────────────────────────────────────────
 export default function DuplicateAccountsPage() {
+  usePageTitle('Duplicate accounts', 'Accounts with the same or a very similar name. Pick the one to keep, then merge the rest into it.');
   const narrow = useIsCompact(760);
   const [minScore, setMinScore] = useState<string>(DEFAULT_MATCH);
   const [groups, setGroups] = useState<SimilarAccountGroup[]>([]);
@@ -149,31 +152,24 @@ export default function DuplicateAccountsPage() {
         { label: 'Accounts', href: '/dashboard/crm/accounts' },
         { label: 'Duplicate accounts' },
       ]} />
-      <PageHeader
-        compact={narrow}
-        title={
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            Duplicate accounts
-            {!loading && !error && (
-              <Badge mono style={{ fontSize: 11.5 }} >{plural(visible.length, 'group')}</Badge>
-            )}
-          </span>
-        }
-        description="Accounts with the same or a very similar name. Pick the one to keep, then merge the rest into it."
-        actions={
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: T.dim }}>
-            Min match
-            <Select
-              aria-label="Min match"
-              value={minScore}
-              onChange={(e) => setMinScore(e.target.value)}
-              style={{ width: 120 }}
-            >
-              {MATCH_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </Select>
-          </label>
-        }
-      />
+      <CrmToolbarLeft>
+        {!loading && !error && (
+          <Badge mono style={{ fontSize: 11.5 }}>{plural(visible.length, 'group')}</Badge>
+        )}
+      </CrmToolbarLeft>
+      <CrmToolbarRight>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: T.dim }}>
+          Min match
+          <Select
+            aria-label="Min match"
+            value={minScore}
+            onChange={(e) => setMinScore(e.target.value)}
+            style={{ width: 120 }}
+          >
+            {MATCH_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </Select>
+        </label>
+      </CrmToolbarRight>
 
       {notices.map((n) => (
         <div key={n.id} role="status" data-testid="dup-notice" style={noticeStyle}>

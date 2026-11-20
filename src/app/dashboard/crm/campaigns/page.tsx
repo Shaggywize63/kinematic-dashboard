@@ -14,7 +14,10 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { crmBroadcasts, type Broadcast, type BroadcastStatus } from '../../../../lib/crmApi';
 import { Lock, Megaphone, Plus, Settings2 } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -55,6 +58,7 @@ function ProgressBar({ b }: { b: Broadcast }) {
 }
 
 export default function CampaignsPage() {
+  usePageTitle('Campaigns', 'Send an approved WhatsApp template to a segment of your leads. Only opted-in leads are messaged, and sending is paced to protect your number’s quality rating.');
   const [rows, setRows] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -86,24 +90,19 @@ export default function CampaignsPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.white, paddingBottom: 40 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 22, flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-            <PageIcon />
-            <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: 0 }}>Campaigns</h1>
-          </div>
-          <p style={{ color: C.gray, fontSize: 13, margin: 0, maxWidth: 640 }}>
-            Send an approved WhatsApp template to a segment of your leads. Only opted-in leads are messaged, and sending is paced to protect your number&apos;s quality rating.
-            {usage && <span> · <b style={{ color: C.white }}>{usage.sent}</b> sent this month.</span>}
-          </p>
-        </div>
-        {enabled && (
+      {usage && (
+        <p style={{ color: C.gray, fontSize: 13, margin: '0 0 16px' }}>
+          <b style={{ color: C.white }}>{usage.sent}</b> sent this month.
+        </p>
+      )}
+      {enabled && (
+        <CrmToolbarRight>
           <div style={{ display: 'flex', gap: 8, whiteSpace: 'nowrap' }}>
-            <Link href="/dashboard/crm/campaigns/settings" style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: `1px solid ${C.border}`, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Settings2} />Settings</Link>
-            <Link href="/dashboard/crm/campaigns/new" style={{ background: C.red, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />New campaign</Link>
+            <Link href="/dashboard/crm/campaigns/settings" style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: `1px solid ${C.border}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Settings2} />Settings</Link>
+            <Link href="/dashboard/crm/campaigns/new" style={{ background: C.red, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Plus} />New campaign</Link>
           </div>
-        )}
-      </div>
+        </CrmToolbarRight>
+      )}
 
       {err && <div style={{ ...card, borderColor: 'rgba(224,30,44,0.3)', color: C.red, fontSize: 13, marginBottom: 16 }}>{err}</div>}
 
