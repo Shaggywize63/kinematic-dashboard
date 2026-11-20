@@ -15,6 +15,7 @@ import {
   ThumbsUp, Trash2, Type, type LucideIcon,
 } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon, type IconTone } from '../../../components/ui/PageIcon';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../components/ui';
 import { 
   DndContext, 
   closestCenter,
@@ -471,10 +472,10 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
           </div>
         </div>
         <div style={{ display:'flex', gap:12 }}>
-          <button onClick={() => setShowAIGen(true)} style={{ padding:'10px 20px', background:`linear-gradient(135deg, ${C.blue}, ${C.purple})`, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:8, boxShadow:`0 4px 18px ${C.blue}25` }}>
+          <button onClick={() => setShowAIGen(true)} style={{ padding:'10px 20px', background:`linear-gradient(135deg, ${C.blue}, ${C.purple})`, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:`0 4px 18px ${C.blue}25`, minWidth:TOOLBAR_BTN_MIN_WIDTH.md }}>
             <KiniMascot size={16} /> KINI Magic
           </button>
-          <button onClick={onCreate} style={{ padding:'10px 20px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:8, boxShadow:`0 4px 18px ${C.redB}` }}>
+          <button onClick={onCreate} style={{ padding:'10px 20px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:`0 4px 18px ${C.redB}`, minWidth:TOOLBAR_BTN_MIN_WIDTH.md }}>
             <InlineIcon icon={Plus} />New Form
           </button>
         </div>

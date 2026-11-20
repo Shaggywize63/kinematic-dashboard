@@ -8,6 +8,7 @@
  */
 import { useEffect, useState, useCallback } from 'react';
 import api from '../../../../lib/api';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
 
 type ConnType = 'cloud_api' | 'bsp';
 type Conn = {
@@ -211,9 +212,9 @@ export default function WhatsappSettingsPage() {
             {msg && <div style={{ marginTop: 16, padding: '10px 12px', borderRadius: 8, fontSize: 13, background: msg.ok ? 'rgba(0,217,126,0.10)' : 'rgba(224,30,44,0.10)', border: `1px solid ${msg.ok ? 'rgba(0,217,126,0.3)' : 'rgba(224,30,44,0.3)'}`, color: msg.ok ? C.green : C.red }}>{msg.text}</div>}
 
             <div style={{ display: 'flex', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
-              <button onClick={save} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>{saving ? 'Saving…' : 'Save connection'}</button>
-              <button onClick={test} disabled={testing || !conn} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: testing || !conn ? 'not-allowed' : 'pointer' }}>{testing ? 'Testing…' : 'Test connection'}</button>
-              {cloud && <button onClick={sync} disabled={syncing || !conn} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: syncing || !conn ? 'not-allowed' : 'pointer' }}>{syncing ? 'Syncing…' : 'Sync templates from Meta'}</button>}
+              <button onClick={save} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}>{saving ? 'Saving…' : 'Save connection'}</button>
+              <button onClick={test} disabled={testing || !conn} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: testing || !conn ? 'not-allowed' : 'pointer', minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}>{testing ? 'Testing…' : 'Test connection'}</button>
+              {cloud && <button onClick={sync} disabled={syncing || !conn} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: syncing || !conn ? 'not-allowed' : 'pointer', minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}>{syncing ? 'Syncing…' : 'Sync templates from Meta'}</button>}
             </div>
           </>
         )}

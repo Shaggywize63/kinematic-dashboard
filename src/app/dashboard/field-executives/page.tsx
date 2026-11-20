@@ -5,6 +5,7 @@ import { getStoredIndustryScope } from '../../../context/IndustryScopeContext';
 import CitySelect from '../../../components/CitySelect';
 import { AlertTriangle, CalendarDays, Check, CheckCircle2, FileText, FolderOpen, Landmark, LocateFixed, Map as MapIcon, MapPin, Phone, Plus, Power, RefreshCw, Upload, UserX, Users, X, type LucideIcon } from 'lucide-react';
 import { IconTile, InlineIcon, type IconTone } from '../../../components/ui/PageIcon';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../components/ui';
 
 // Demo insurance vertical relabels the field-force "TFF" metric to "Meetings".
 const tffLabel = () => (getStoredIndustryScope() === 'insurance' ? 'Meetings Today' : 'TFF Today');
@@ -347,19 +348,19 @@ export default function FieldExecutivesPage() {
             <div style={{display:'flex',gap:8,flexShrink:0}}>
               {/* Export */}
               <button onClick={()=>exportCSV(shown,supMap)} title="Download current view as CSV"
-                style={{display:'flex',alignItems:'center',gap:7,padding:'9px 14px',background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,color:C.green,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap' as const}}>
+                style={{display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:'9px 14px',background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,color:C.green,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap' as const,minWidth:TOOLBAR_BTN_MIN_WIDTH.md}}>
                 <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.3} strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Export CSV
               </button>
               {/* Bulk upload */}
               <button onClick={()=>setShowBulk(true)}
-                style={{display:'flex',alignItems:'center',gap:7,padding:'9px 14px',background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,color:C.blue,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap' as const}}>
+                style={{display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:'9px 14px',background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,color:C.blue,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap' as const,minWidth:TOOLBAR_BTN_MIN_WIDTH.md}}>
                 <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.3} strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 Bulk Upload
               </button>
               {/* Add */}
               <button onClick={()=>{setForm(EMPTY_FORM);setFErr('');setShowAdd(true);}}
-                style={{display:'flex',alignItems:'center',gap:8,padding:'9px 18px',background:C.red,border:'none',borderRadius:10,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",boxShadow:`0 4px 16px rgba(224,30,44,0.3)`,whiteSpace:'nowrap' as const}}>
+                style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'9px 18px',background:C.red,border:'none',borderRadius:10,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",boxShadow:`0 4px 16px rgba(224,30,44,0.3)`,whiteSpace:'nowrap' as const,minWidth:TOOLBAR_BTN_MIN_WIDTH.md}}>
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add Executive
               </button>

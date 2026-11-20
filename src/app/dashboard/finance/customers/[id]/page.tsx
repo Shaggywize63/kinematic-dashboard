@@ -71,12 +71,12 @@ export default function CustomerDetailPage() {
       description={c.company_name && c.company_name !== c.display_name ? c.company_name : undefined}
       actions={
         <>
-          <Button href={`/dashboard/finance/customers/${c.id}/edit`}>Edit</Button>
-          <Button variant="primary" href={`/dashboard/finance/invoices/new?${q}`}>New Invoice</Button>
-          <Button href={`/dashboard/finance/quotes/new?${q}`}>New Quote</Button>
-          <Button href={`/dashboard/finance/payments/new?${q}`}>Record Payment</Button>
-          <Button onClick={toggleActive} disabled={busy}>{c.is_active ? 'Mark inactive' : 'Mark active'}</Button>
-          <Button variant="danger" onClick={remove} disabled={busy}>Delete</Button>
+          <Button href={`/dashboard/finance/customers/${c.id}/edit`} toolbar>Edit</Button>
+          <Button variant="primary" href={`/dashboard/finance/invoices/new?${q}`} toolbar>New Invoice</Button>
+          <Button href={`/dashboard/finance/quotes/new?${q}`} toolbar>New Quote</Button>
+          <Button href={`/dashboard/finance/payments/new?${q}`} toolbar>Record Payment</Button>
+          <Button onClick={toggleActive} disabled={busy} toolbar>{c.is_active ? 'Mark inactive' : 'Mark active'}</Button>
+          <Button variant="danger" onClick={remove} disabled={busy} toolbar>Delete</Button>
         </>
       }>
       {dialog}

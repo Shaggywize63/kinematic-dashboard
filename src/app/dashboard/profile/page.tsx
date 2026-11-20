@@ -6,6 +6,7 @@ import { getStoredToken, getStoredUser } from '../../../lib/auth';
 import SignedImage from '../../../components/shared/SignedImage';
 import ChangePasswordCard from '../../../components/account/ChangePasswordCard';
 import { downscaleToJpeg } from '../../../lib/imageResize';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../components/ui';
 
 // "My account": the signed-in user's profile picture and password. Name, role and email are
 // admin-managed elsewhere. A picked photo is downscaled in the browser, uploaded with
@@ -148,14 +149,14 @@ export default function ProfilePage() {
             type="button"
             onClick={() => galleryRef.current?.click()}
             disabled={uploading}
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: uploading ? 'wait' : 'pointer' }}
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: uploading ? 'wait' : 'pointer', minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}
           >📎 {avatarUrl ? 'Change picture' : 'Upload picture'}</button>
           {avatarUrl && (
             <button
               type="button"
               onClick={removeAvatar}
               disabled={uploading}
-              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}
+              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}
             >Remove</button>
           )}
           {uploading && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Saving…</span>}

@@ -121,8 +121,8 @@ function Viewer({ meta }: { meta: ReportMeta }) {
 
   const actions = (
     <span className="fin-noprint" style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap' }}>
-      <Button onClick={exportCsv} disabled={exporting || loading || !!rangeError}>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
-      <Button onClick={() => window.print()} disabled={!data}>Print</Button>
+      <Button onClick={exportCsv} disabled={exporting || loading || !!rangeError} toolbar>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
+      <Button onClick={() => window.print()} disabled={!data} toolbar>Print</Button>
     </span>
   );
 

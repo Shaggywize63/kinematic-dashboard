@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import api from '../../../lib/api';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../components/ui';
 
 const C = {
   bg: 'var(--bg)',
@@ -222,6 +223,7 @@ const inputStyle: React.CSSProperties = {
 const btnStyle: React.CSSProperties = {
   background: '#E01E2C', border: 'none', color: '#fff', padding: '8px 16px',
   borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+  minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center',
 };
 const pageBtn = (disabled: boolean): React.CSSProperties => ({
   background: 'transparent', border: '1px solid var(--border)',

@@ -67,10 +67,10 @@ export default function PaymentDetailPage() {
       description={p.customer ? <>Received from <Link href={`/dashboard/finance/customers/${p.customer.id}`} style={{ color: T.info }}>{p.customer.display_name}</Link></> : undefined}
       actions={
         <>
-          <Button href="/dashboard/finance/payments">All payments</Button>
-          {unused > EPS && <Button variant="primary" onClick={() => setApplyOpen(true)}>Apply to invoices</Button>}
-          <Button onClick={() => setEditOpen(true)}>Edit</Button>
-          <Button variant="danger" onClick={remove} disabled={busy}>Delete</Button>
+          <Button href="/dashboard/finance/payments" toolbar>All payments</Button>
+          {unused > EPS && <Button variant="primary" onClick={() => setApplyOpen(true)} toolbar>Apply to invoices</Button>}
+          <Button onClick={() => setEditOpen(true)} toolbar>Edit</Button>
+          <Button variant="danger" onClick={remove} disabled={busy} toolbar>Delete</Button>
         </>
       }>
       {dialog}

@@ -540,11 +540,11 @@ export default function SettingsPage() {
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {isSuperAdmin && (
-              <Button href="/dashboard/settings/ai-assistant" size="sm" icon={<Bot size={15} strokeWidth={1.6} />}>AI assistant access</Button>
+              <Button href="/dashboard/settings/ai-assistant" size="sm" icon={<Bot size={15} strokeWidth={1.6} />} toolbar>AI assistant access</Button>
             )}
-            <Button href="/dashboard/profile" size="sm" icon={<UserIcon size={15} strokeWidth={1.6} />}>My account</Button>
-            <Button href="/dashboard/settings/whatsapp" size="sm" icon={<MessageCircle size={15} strokeWidth={1.6} />}>WhatsApp</Button>
-            <Button href="/dashboard/settings/roles" size="sm" icon={<Network size={15} strokeWidth={1.6} />}>Role hierarchy</Button>
+            <Button href="/dashboard/profile" size="sm" icon={<UserIcon size={15} strokeWidth={1.6} />} toolbar>My account</Button>
+            <Button href="/dashboard/settings/whatsapp" size="sm" icon={<MessageCircle size={15} strokeWidth={1.6} />} toolbar>WhatsApp</Button>
+            <Button href="/dashboard/settings/roles" size="sm" icon={<Network size={15} strokeWidth={1.6} />} toolbar>Role hierarchy</Button>
           </div>
         </div>
 
@@ -566,8 +566,8 @@ export default function SettingsPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <div style={{ fontSize: 13, color: T.dim }}>Administrative accounts and their module permissions.</div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <Button size="sm" onClick={() => { resetRoleForm(); setShowRoleAdd(true); }} icon={<Plus size={14} strokeWidth={2} />}>Create role</Button>
-                <Button size="sm" onClick={() => { setForm({ name: '', email: '', role: 'sub_admin', password: '', mobile: '', employee_id: '', zone_id: '', city: '', client_id: '', permissions: ROLE_DEFAULTS['sub_admin'], assigned_cities: [] }); setShowAdd(true); }} icon={<Plus size={14} strokeWidth={2} />}>
+                <Button size="sm" onClick={() => { resetRoleForm(); setShowRoleAdd(true); }} icon={<Plus size={14} strokeWidth={2} />} toolbar>Create role</Button>
+                <Button size="sm" onClick={() => { setForm({ name: '', email: '', role: 'sub_admin', password: '', mobile: '', employee_id: '', zone_id: '', city: '', client_id: '', permissions: ROLE_DEFAULTS['sub_admin'], assigned_cities: [] }); setShowAdd(true); }} icon={<Plus size={14} strokeWidth={2} />} toolbar>
                   Add administrator
                 </Button>
               </div>
