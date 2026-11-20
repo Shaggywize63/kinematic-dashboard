@@ -430,7 +430,8 @@ export interface CustomField {
     | 'url' | 'email' | 'phone'
     | 'image' | 'file'
     | 'lookup'
-    | 'formula';
+    | 'formula'
+    | 'address';
   options?: string[] | null; required?: boolean; position?: number;
   // Hides the field from create / edit forms without deleting stored
   // values. Existing rows keep their data; flipping back to visible

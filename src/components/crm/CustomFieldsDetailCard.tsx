@@ -193,6 +193,11 @@ function formatValue(v: unknown, type: CustomField['field_type']): React.ReactNo
         ? <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{obj.id}</span>
         : String(v));
   }
+  if (type === 'address') {
+    const obj = (v && typeof v === 'object') ? v as { address_line1?: string; city?: string; state?: string; postal_code?: string } : null;
+    const parts = [obj?.address_line1, obj?.city, obj?.state, obj?.postal_code].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : String(v);
+  }
   if (typeof v === 'object') return JSON.stringify(v);
   return String(v);
 }

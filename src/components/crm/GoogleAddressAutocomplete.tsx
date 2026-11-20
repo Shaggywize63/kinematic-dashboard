@@ -43,7 +43,7 @@ export interface PlaceResult {
   longitude?: string;
 }
 
-export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true, backend = false }: { onSelect: (p: PlaceResult) => void; deviceFill?: boolean; backend?: boolean }) {
+export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true, backend = false, id = 'lead-address-search' }: { onSelect: (p: PlaceResult) => void; deviceFill?: boolean; backend?: boolean; id?: string }) {
   // The Maps SDK failed (rejected key, API not enabled, request error): fall back to the backend Places proxy.
   const [sdkBroken, setSdkBroken] = useState(false);
   const backendMode = addressSearchMode({ hasKey: !!KEY, backendOptIn: backend, sdkBroken }) === 'backend';
@@ -298,9 +298,9 @@ export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true,
 
   return (
     <div style={{ gridColumn: '1 / -1', position: 'relative', display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label htmlFor="lead-address-search" style={{ fontSize: 12.5, color: 'var(--text-dim)', fontWeight: 500 }}>Search address</label>
+      <label htmlFor={id} style={{ fontSize: 12.5, color: 'var(--text-dim)', fontWeight: 500 }}>Search address</label>
       <input
-        id="lead-address-search"
+        id={id}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => suggestions.length > 0 && setOpen(true)}

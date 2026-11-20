@@ -527,5 +527,10 @@ function formatCustomValue(v: unknown, type: CustomField['field_type']): React.R
     const obj = v as { label?: string; id?: string };
     return obj && typeof obj === 'object' && obj.label ? obj.label : (obj?.id ? <Mono>{obj.id}</Mono> : String(v));
   }
+  if (type === 'address') {
+    const obj = (v && typeof v === 'object') ? v as { address_line1?: string; city?: string; state?: string; postal_code?: string } : null;
+    const parts = [obj?.address_line1, obj?.city, obj?.state, obj?.postal_code].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : String(v);
+  }
   return String(v);
 }

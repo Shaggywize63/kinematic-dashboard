@@ -18,6 +18,7 @@ import KiniMascot from './KiniMascot';
 import { Check, ListChecks, Lock, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import FieldTypePicker from '../../../../../components/crm/shared/FieldTypePicker';
 
 const ENTITIES: Array<CustomField['entity_type']> = ['lead', 'contact', 'account', 'deal', 'activity'];
 // Full set of supported input types. Render-side hooks (form renderer
@@ -59,7 +60,16 @@ const TYPE_LABELS: Record<CustomField['field_type'], string> = {
   file:        'File upload',
   lookup:      'Linked record (lookup)',
   formula:     'Formula (computed)',
+  // Early-rollout type (see isMasterAdmin below) — not yet in TYPES, so it
+  // never appears in the plain <select> other admins see.
+  address:     'Address (Google Places)',
 };
+
+// Early-rollout: the master admin's grouped FieldTypePicker additionally
+// offers 'address' (Google Places autocomplete, see GoogleAddressAutocomplete)
+// while it's being verified on one client. Everyone else keeps exactly
+// today's TYPES list in the plain <select> below.
+const TYPES_WITH_ADDRESS: Array<CustomField['field_type']> = [...TYPES, 'address'];
 
 const TYPES_REQUIRING_OPTIONS = new Set<CustomField['field_type']>(['select', 'multiselect', 'radio']);
 
@@ -873,9 +883,13 @@ export default function CustomFieldsPage() {
           </select>
           <input ref={fieldKeyRef} value={fieldKey} onChange={(e) => setFieldKey(e.target.value.toLowerCase())} placeholder="field_key (e.g. tax_id)" style={input} />
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Display label" style={input} />
-          <select value={fieldType} onChange={(e) => setFieldType(e.target.value as CustomField['field_type'])} style={input}>
-            {TYPES.map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
-          </select>
+          {isMasterAdmin ? (
+            <FieldTypePicker value={fieldType} onChange={setFieldType} types={TYPES_WITH_ADDRESS} />
+          ) : (
+            <select value={fieldType} onChange={(e) => setFieldType(e.target.value as CustomField['field_type'])} style={input}>
+              {TYPES.map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
+            </select>
+          )}
         </div>
         {TYPES_REQUIRING_OPTIONS.has(fieldType) && !(fieldType === 'select' && fromProducts) && (
           <input value={optionsRaw} onChange={(e) => setOptionsRaw(e.target.value)} placeholder="Comma-separated options (e.g. Hot, Warm, Cold)" style={{ ...input, width: '100%', marginBottom: 8 }} />
@@ -1439,13 +1453,21 @@ export default function CustomFieldsPage() {
               </div>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Input Type</div>
-                <select
-                  value={editingCustom.field_type}
-                  onChange={(e) => setEditingCustom({ ...editingCustom, field_type: e.target.value as CustomField['field_type'] })}
-                  style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }}
-                >
-                  {TYPES.map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
-                </select>
+                {isMasterAdmin ? (
+                  <FieldTypePicker
+                    value={editingCustom.field_type}
+                    onChange={(t) => setEditingCustom({ ...editingCustom, field_type: t })}
+                    types={TYPES_WITH_ADDRESS}
+                  />
+                ) : (
+                  <select
+                    value={editingCustom.field_type}
+                    onChange={(e) => setEditingCustom({ ...editingCustom, field_type: e.target.value as CustomField['field_type'] })}
+                    style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }}
+                  >
+                    {TYPES.map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
+                  </select>
+                )}
               </div>
             </div>
 
