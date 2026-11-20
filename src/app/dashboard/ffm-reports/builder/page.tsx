@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import api from '../../../../lib/api';
 import { ArrowUpDown, CalendarCheck, ClipboardCheck, Columns3, Database, Download, Filter, Inbox, MapPin, Play, Plus, Trash2, Users, type LucideIcon } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
 
 /**
  * Field-Force Report Builder. Mirrors the UX of the Lead Management
@@ -413,6 +414,7 @@ export default function FfmReportBuilderPage() {
             background: 'var(--primary)', color: '#fff', border: 'none', padding: '10px 18px',
             borderRadius: 8, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', fontSize: 13,
             opacity: loading ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6,
+            minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center',
           }}
         >
           <InlineIcon icon={Play} />
@@ -426,6 +428,7 @@ export default function FfmReportBuilderPage() {
             padding: '10px 18px', borderRadius: 8, fontWeight: 700,
             cursor: rows.length ? 'pointer' : 'not-allowed', fontSize: 13,
             opacity: rows.length ? 1 : 0.5, display: 'inline-flex', alignItems: 'center', gap: 6,
+            minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center',
           }}
         >
           <InlineIcon icon={Download} />

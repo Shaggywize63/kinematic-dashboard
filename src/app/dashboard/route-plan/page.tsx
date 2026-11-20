@@ -6,6 +6,7 @@ import { api } from '../../../lib/api';
 import { userHasModule, getStoredUser } from '../../../lib/auth';
 import { AlertTriangle, Car, Check, CheckCircle2, Clock, Download, FileText, FolderOpen, Link2, ListOrdered, MessageSquareText, RotateCcw, Route as RouteIcon, StickyNote, Target, Timer, User, X, Zap, type LucideIcon } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../components/ui/PageIcon';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../components/ui';
 import { useConfirm } from '../../../components/ConfirmProvider';
 
 // Leaflet-based map of a single plan's stops; client-only (ssr:false).
@@ -717,21 +718,21 @@ function RoutePlanContent() {
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
             style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '9px 12px', color: C.white, fontSize: 13, outline: 'none', cursor: 'pointer' }} />
           <button onClick={() => fetchData()}
-            style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.gray, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
+            style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.gray, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}>
             <Icon d={IC.refresh} s={15} c={C.gray} /> Refresh
           </button>
           <button onClick={() => { setModal('import'); setImportResult(null); setImportRows([]); }}
-            style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.white, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
+            style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.white, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}>
             <Icon d={IC.upload} s={15} c={C.blue} /> Bulk Import
           </button>
           {canAutoPlan && (
             <button onClick={() => { setAutoForm(f => ({ ...f, plan_date: date, replace: false })); setAutoErr(null); setModal('auto'); }}
-              style={{ background: C.purpleD, border: `1px solid ${C.purple}55`, borderRadius: 10, padding: '9px 14px', color: C.purple, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, fontFamily: "'Syne',sans-serif" }}>
+              style={{ background: C.purpleD, border: `1px solid ${C.purple}55`, borderRadius: 10, padding: '9px 14px', color: C.purple, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: "'Syne',sans-serif", minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}>
               <Icon d={IC.spark} s={15} c={C.purple} /> Auto Plan
             </button>
           )}
           <button onClick={() => { resetForm(); setModal('create'); }}
-            style={{ background: C.red, border: 'none', borderRadius: 10, padding: '9px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, fontFamily: "'Syne',sans-serif" }}>
+            style={{ background: C.red, border: 'none', borderRadius: 10, padding: '9px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: "'Syne',sans-serif", minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}>
             <Icon d={IC.plus} s={15} c="#fff" /> New Plan
           </button>
         </div>
@@ -1301,12 +1302,12 @@ function RoutePlanContent() {
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button onClick={handleOptimize} disabled={optimizing}
-                    style={{ background: optimizing ? C.s3 : C.greenD, border: `1px solid ${optimizing ? C.border : C.greenB}`, borderRadius: 8, padding: '6px 13px', color: optimizing ? C.gray : C.green, fontSize: 12, fontWeight: 600, cursor: optimizing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                    style={{ background: optimizing ? C.s3 : C.greenD, border: `1px solid ${optimizing ? C.border : C.greenB}`, borderRadius: 8, padding: '6px 13px', color: optimizing ? C.gray : C.green, fontSize: 12, fontWeight: 600, cursor: optimizing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.sm }}
                     title="Reorder stops with nearest-neighbour + 2-opt (haversine)">
                     {optimizing ? '…' : <InlineIcon icon={Zap} size={13} />} Optimise Order
                   </button>
                   <button onClick={addOutlet}
-                    style={{ background: C.blueD, border: `1px solid ${C.blueB}`, borderRadius: 8, padding: '6px 13px', color: C.blue, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    style={{ background: C.blueD, border: `1px solid ${C.blueB}`, borderRadius: 8, padding: '6px 13px', color: C.blue, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.sm }}>
                     <Icon d={IC.plus} s={13} c={C.blue} /> Add Stop
                   </button>
                 </div>

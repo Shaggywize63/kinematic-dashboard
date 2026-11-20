@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { api } from '../../../lib/api';
 import { AlertTriangle, Building2, Check, CheckCircle2, Eye, Gauge, History, MapPin, Plus, SlidersHorizontal, Sparkles, Users, type LucideIcon } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../components/ui/PageIcon';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../components/ui';
 
 /**
  * Automated Route Plans — the manager picks an auto-assignment METHOD; the
@@ -307,17 +308,17 @@ export default function RouteAutomationPage() {
             )}
 
             <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-              <button onClick={saveMethod} disabled={saving} style={{ ...(dirty ? btn(C.blue, saving) : ghostBtn), display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <button onClick={saveMethod} disabled={saving} style={{ ...(dirty ? btn(C.blue, saving) : ghostBtn), display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}>
                 <InlineIcon icon={Check} />
                 {saving ? 'Saving…' : dirty ? 'Save method' : 'Method saved'}
               </button>
               {!isManual && (
                 <>
-                  <button onClick={runPreview} disabled={previewing} style={{ ...ghostBtn, opacity: previewing ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <button onClick={runPreview} disabled={previewing} style={{ ...ghostBtn, opacity: previewing ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}>
                     <InlineIcon icon={Eye} />
                     {previewing ? 'Previewing…' : 'Preview assignment'}
                   </button>
-                  <button onClick={runAssign} disabled={running} style={{ ...btn(C.red, running), display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <button onClick={runAssign} disabled={running} style={{ ...btn(C.red, running), display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }}>
                     <InlineIcon icon={Sparkles} />
                     {running ? 'Assigning…' : 'Generate & assign'}
                   </button>
