@@ -19,6 +19,7 @@ import {
 } from '../../../../lib/crm/leadViews';
 import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable, { LEAD_COLUMNS } from '../../../../components/crm/LeadsTable';
+import { CrmToolbarLeft, CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 import LeadEditModal from '../../../../components/crm/LeadEditModal';
 import { STATUS_OPTIONS, type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../lib/crmLeadStatuses';
@@ -221,8 +222,6 @@ export default function LeadsListPage() {
   // button can end up below the fold, so a sticky FAB keeps the primary
   // action one tap away.
   const isCompact = useIsCompact(640);
-  // Tablet-and-below flag for the header / toolbar wrapping.
-  const narrow = useIsCompact(900);
   // Below this width the preview panel slides over the list instead of docking beside it.
   const overlayPreview = useIsCompact(1440);
   // Phone-only: the dedicated single-column LeadCardStack layout. The explicit
@@ -706,6 +705,7 @@ export default function LeadsListPage() {
           title="Recompute the AI score for every open lead in view"
           aria-label={isCompact ? 'Update scores' : undefined}
           icon={<RefreshCw size={16} strokeWidth={1.8} style={rescoring ? { animation: 'spin 0.8s linear infinite' } : undefined} />}
+          toolbar={!isCompact}
           style={{ cursor: rescoring ? 'wait' : undefined, ...(isCompact ? iconBtn : {}) }}
         >
           {isCompact ? null : rescoring ? 'Starting…' : 'Update scores'}
@@ -721,6 +721,7 @@ export default function LeadsListPage() {
         title="Download leads as CSV (current filters apply)"
         aria-label={isCompact ? 'Export' : undefined}
         icon={exporting ? <Loader2 size={16} strokeWidth={1.8} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Download size={16} strokeWidth={1.8} />}
+        toolbar={!isCompact}
         style={{ cursor: exporting ? 'wait' : undefined, ...(isCompact ? iconBtn : {}) }}
       >
         {isCompact ? null : exporting ? <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>Exporting… {exportElapsed}s</span> : 'Export'}
@@ -730,24 +731,22 @@ export default function LeadsListPage() {
           <Upload size={16} strokeWidth={1.8} />
         </Link>
       ) : (
-        <Button href="/dashboard/crm/leads/import" icon={<Upload size={16} strokeWidth={1.8} />}>Import</Button>
+        <Button href="/dashboard/crm/leads/import" toolbar icon={<Upload size={16} strokeWidth={1.8} />}>Import</Button>
       )}
-      <Button href={newLeadHref} variant="primary" icon={<Plus size={16} strokeWidth={2} />}>New lead</Button>
+      <Button href={newLeadHref} variant="primary" toolbar icon={<Plus size={16} strokeWidth={2} />}>New lead</Button>
     </>
   );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Title + description now live in the TopBar breadcrumb (see
-          usePageTitle above, hover the (i) icon for the description) — this
-          slim row just carries the live count and the page's actions, in
-          place of the old full-height PageHeader block. */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: narrow ? 'wrap' : 'nowrap' }}>
-        <Badge mono style={{ fontSize: 11.5 }}>{totalCount.toLocaleString()} leads</Badge>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {headerActions}
-        </div>
-      </div>
+          usePageTitle above, hover the (i) icon for the description). The
+          live count and the page's actions portal into CrmLayout's own
+          scope-badge / city / date-range row (see CrmPageToolbar) so
+          everything CRM-wide reads as one line instead of a second row
+          repeated on every page. */}
+      <CrmToolbarLeft><Badge mono style={{ fontSize: 11.5 }}>{totalCount.toLocaleString()} leads</Badge></CrmToolbarLeft>
+      <CrmToolbarRight>{headerActions}</CrmToolbarRight>
 
       {campaignSections && (
         /* Telecaller phase 3 — campaign sections. Each is a view of the same
