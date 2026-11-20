@@ -83,6 +83,7 @@ export const TAB_ITEMS: AppItem[] = [
 /** CRM "More" tab destinations. Activities, Appearance, Security and Sign Out
  *  are essential and omitted. */
 export const CRM_MORE_ITEMS: AppItem[] = [
+  { id: 'my_tasks',       label: 'My Tasks', note: 'the rep’s own assigned tasks & activities (needs crm_activities)' },
   { id: 'accounts',       label: 'Accounts' },
   { id: 'pipeline',       label: 'Pipeline' },
   { id: 'products',       label: 'Products' },

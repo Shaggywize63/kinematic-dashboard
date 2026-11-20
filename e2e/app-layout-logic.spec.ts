@@ -135,6 +135,15 @@ test.describe('ordered lists and reset', () => {
     expect(l.rows.map((r) => r.id)).toEqual(['about', 'appearance', 'crm_only_mode', 'app_lock']);
     expect(l.rows.find((r) => r.id === 'app_lock')?.hidden).toBe(true);
   });
+  test('crm_more: My Tasks is an editable option when the client has crm_activities, unavailable otherwise', () => {
+    const withAct = heldFrom(['crm_activities', 'crm_leads']);
+    const l = listOf({}, withAct, 'crm_more');
+    expect(l.rows.map((r) => r.id)).toContain('my_tasks');
+    const noAct = heldFrom(['crm_leads']);
+    const l2 = listOf({}, noAct, 'crm_more');
+    expect(l2.rows.map((r) => r.id)).not.toContain('my_tasks');
+    expect(l2.unavailable.map((u) => u.id)).toContain('my_tasks');
+  });
   test('reset drops the layout but keeps hides and labels', () => {
     const cfg = resetLayout({ layout: { menu: ['leave'] }, menu: { leave: false }, labels: { menu: { leave: 'X' } }, tabs: { expenses: true } });
     expect(cfg.layout).toBeUndefined();
