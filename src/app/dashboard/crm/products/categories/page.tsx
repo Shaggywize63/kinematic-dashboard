@@ -3,10 +3,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { ArrowLeft, Check, FolderTree, Pencil, Plus, Trash2 } from 'lucide-react';
-import { IconTile, InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 import { crmProductCategories } from '../../../../../lib/crmApi';
 import type { ProductCategory } from '../../../../../types/crm';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../../components/ui';
 
 // Product category management. Backend already exposes /api/v1/crm/product-categories
 // via the attach() pattern (clientScoped, with sort_order ordering). This page
@@ -14,6 +17,7 @@ import { useConfirm } from '../../../../../components/ConfirmProvider';
 // delete and a simple parent picker so categories can nest.
 
 export default function ProductCategoriesPage() {
+  usePageTitle('Product Categories', 'Group products into a category tree. Used in the products list and on deal line items.');
   const [items, setItems] = useState<ProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -108,19 +112,10 @@ export default function ProductCategoriesPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <PageIcon name="tags" />
-          <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Product Categories</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-dim)', maxWidth: 640 }}>Group products into a category tree. Used in the products list and on deal line items.</p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Link href="/dashboard/crm/products" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ArrowLeft} />Back to Products</Link>
-          <button onClick={() => { resetAdd(); setShowAdd(true); }} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />New Category</button>
-        </div>
-      </div>
+      <CrmToolbarRight>
+        <Link href="/dashboard/crm/products" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={ArrowLeft} />Back to Products</Link>
+        <button onClick={() => { resetAdd(); setShowAdd(true); }} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Plus} />New Category</button>
+      </CrmToolbarRight>
 
       {showAdd && (
         <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 14 }}>

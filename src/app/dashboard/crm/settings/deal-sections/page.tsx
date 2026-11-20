@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { crmSettings } from '../../../../../lib/crmApi';
@@ -11,8 +10,9 @@ import {
   moveDealSection, resolveDealSections, type DealSectionKey, type ResolvedDealSection,
 } from '../../../../../lib/sparkDealSections';
 import DealSections from '../../../../../components/crm/spark/DealSections';
-import { Button, Card, EmptyState, Eyebrow, Input, PageHeader, T } from '../../../../../components/ui';
+import { Button, Card, EmptyState, Eyebrow, Input, T } from '../../../../../components/ui';
 import { apiErrorText } from '../../../../../lib/sparkAccounts';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 // Settings -> Deal sections (Spark & Ray): choose which of the four deal sections show on the deal create / edit /
 // detail pages, rename them and put them in order. Saved as crm_settings.config.deal_sections; the deal forms
@@ -21,7 +21,7 @@ import { apiErrorText } from '../../../../../lib/sparkAccounts';
 const same = (a: ResolvedDealSection[], b: ResolvedDealSection[]) => JSON.stringify(buildDealSectionsConfig(a)) === JSON.stringify(buildDealSectionsConfig(b));
 
 export default function DealSectionsSettingsPage() {
-  usePageTitle('Deal sections');
+  usePageTitle('Deal sections', 'Choose which sections appear on deals, rename them and set their order. A disabled section is hidden on the deal form and detail, and its fields are not saved.');
   // Read after mount: the gate looks at localStorage.
   const [spark, setSpark] = useState<boolean | null>(null);
   useEffect(() => { setSpark(isB2bClientActive()); }, []);
@@ -60,12 +60,9 @@ export default function DealSectionsSettingsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 960 }}>
-      <PageHeader
-        eyebrow={<Link href="/dashboard/crm/settings" style={{ color: 'inherit', textDecoration: 'none' }}>Settings</Link>}
-        title="Deal sections"
-        description="Choose which sections appear on deals, rename them and set their order. A disabled section is hidden on the deal form and detail, and its fields are not saved."
-        actions={<Button variant="primary" onClick={save} disabled={!spark || !dirty || saving}>{saving ? 'Saving…' : 'Save changes'}</Button>}
-      />
+      <CrmToolbarRight>
+        <Button variant="primary" toolbar onClick={save} disabled={!spark || !dirty || saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
+      </CrmToolbarRight>
 
       {spark === false && (
         <Card>

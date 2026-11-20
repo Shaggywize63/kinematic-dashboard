@@ -19,7 +19,7 @@ import {
   type ReportRange,
 } from '../../../../../components/crm/reports/ReportFilters';
 import { fmtInr, fmtInt, DASH } from '../../../../../lib/crm/plusFormat';
-import { PageHeader, Segmented, Select, EmptyState, Badge, T, useIsCompact } from '../../../../../components/ui';
+import { Segmented, Select, EmptyState, Badge, T, useIsCompact } from '../../../../../components/ui';
 
 /** First day of the current month → today, ISO YYYY-MM-DD. Matches the
  *  backend's default window (current IST month) closely enough for the picker
@@ -81,7 +81,7 @@ export default function BusinessReportPage() {
 }
 
 function BusinessReportInner() {
-  usePageTitle('Business Report');
+  usePageTitle('Business Report', 'Deal value, orders and cost grouped by engineer, industry, brand, product or account over the chosen window.');
   const { user, loading: authLoading } = useAuth();
   const narrow = useIsCompact(760);
   const cityKey = useReportCityKey();
@@ -169,12 +169,6 @@ function BusinessReportInner() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }} data-testid="business-report">
-      <PageHeader
-        title="Business Report"
-        description="Deal value, orders and cost grouped by engineer, industry, brand, product or account over the chosen window."
-        compact={narrow}
-      />
-
       {!authLoading && !allowed ? (
         <div style={card}>
           <EmptyState

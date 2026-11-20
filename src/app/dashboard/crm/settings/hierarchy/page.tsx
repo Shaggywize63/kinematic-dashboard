@@ -12,8 +12,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { Layers, Plus, Trash2, Users, Workflow } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../../lib/pageTitle';
 
 interface Level {
   id: string;
@@ -75,6 +76,7 @@ const btnGhost: React.CSSProperties = {
 };
 
 export default function HierarchyPage() {
+  usePageTitle('Org Hierarchy', 'Define your management levels (e.g. Director → RSM → ASM → Sales Executive) and assign each user to a level plus their direct supervisor. Reads in the CRM (leads, contacts, accounts, deals, activities) are scoped to the caller’s subtree — i.e. themselves plus everyone reporting to them transitively.');
   const confirm = useConfirm();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [levels, setLevels] = useState<Level[]>([]);
@@ -226,7 +228,6 @@ export default function HierarchyPage() {
           padding: 24,
         }}
       >
-        <h2 style={{ margin: '0 0 8px', color: C.text, fontSize: 18, display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Org Hierarchy</h2>
         <p style={{ margin: 0, color: C.dim, fontSize: 13, lineHeight: 1.6 }}>
           Hierarchy-based RBAC isn&apos;t enabled for this client yet. Existing role-based
           user management (city manager / supervisor / sub-admin) is in effect — and the
@@ -246,8 +247,7 @@ export default function HierarchyPage() {
           padding: 18,
         }}
       >
-        <h2 style={{ margin: 0, color: C.text, fontSize: 18, display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Org Hierarchy</h2>
-        <p style={{ margin: '4px 0 0', color: C.dim, fontSize: 12, lineHeight: 1.6 }}>
+        <p style={{ margin: 0, color: C.dim, fontSize: 12, lineHeight: 1.6 }}>
           Define your management levels (e.g. Director → RSM → ASM → Sales Executive) and
           assign each user to a level plus their direct supervisor. Reads in the CRM
           (leads, contacts, accounts, deals, activities) are scoped to the caller&apos;s

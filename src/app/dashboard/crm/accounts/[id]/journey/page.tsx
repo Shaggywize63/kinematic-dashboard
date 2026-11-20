@@ -106,8 +106,8 @@ export default function AccountJourneyPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Button href={`/dashboard/crm/accounts/${id}`} icon={<Building2 size={15} strokeWidth={2} />}>Account</Button>
-          <Button variant="primary" href={`/dashboard/crm/deals/new?account_id=${id}`}>New deal</Button>
+          <Button href={`/dashboard/crm/accounts/${id}`} toolbar icon={<Building2 size={15} strokeWidth={2} />}>Account</Button>
+          <Button variant="primary" toolbar href={`/dashboard/crm/deals/new?account_id=${id}`}>New deal</Button>
         </div>
       </div>
 

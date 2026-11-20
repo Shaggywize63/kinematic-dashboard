@@ -25,7 +25,8 @@ import { ChartCard, ChartTooltip, ChartEmpty, GradientDefs, grad, CHART, CHART_P
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import type { LucideIcon } from 'lucide-react';
 import { Radar, Swords, TrendingDown } from 'lucide-react';
-import { PageIcon, IconTile } from '../../../../components/ui/PageIcon';
+import { IconTile } from '../../../../components/ui/PageIcon';
+import { usePageTitle } from '../../../../lib/pageTitle';
 
 const BRAND = CHART_SEMANTIC.lost;
 const WIN = CHART_SEMANTIC.won;
@@ -53,6 +54,7 @@ function Kpi({ label, value, accent, icon }: { label: string; value: string | nu
 }
 
 export default function MarketIntelligencePage() {
+  usePageTitle('Market Intelligence', 'Competitive ground-truth mined automatically from your reps’ field notes — who’s winning which city, the price gaps, stock-outs and buying signals. Respects the global city & date filters.');
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
   const { selectedCity } = useCityScope();
 
@@ -118,17 +120,6 @@ export default function MarketIntelligencePage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <PageIcon />
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Market Intelligence</h1>
-        </div>
-        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '6px 0 0', maxWidth: 760 }}>
-          Competitive ground-truth mined automatically from your reps&apos; field notes — who&apos;s winning which
-          city, the price gaps, stock-outs and buying signals. Respects the global city &amp; date filters.
-        </p>
-      </div>
-
       {loading ? (
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-dim)' }}>Loading market signals…</div>
       ) : !hasAny ? (

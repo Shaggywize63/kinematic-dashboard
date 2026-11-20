@@ -2,10 +2,11 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Activity, Moon, TrendingDown, TrendingUp, UserPlus, Users, UserX, X } from 'lucide-react';
-import { InlineIcon, PageIcon } from '../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
 import { crmCustomerIntel } from '../../../../lib/crmApi';
 import type { CustomerIntelPayload, SalesTrendsPayload, CustomerLifecycle } from '../../../../lib/crmApi';
 import { istDate } from '../../../../lib/istTime';
+import { usePageTitle } from '../../../../lib/pageTitle';
 
 /**
  * Customer Intelligence — pharma RFM + sales analytics (Maa Mansha Pharma).
@@ -28,6 +29,7 @@ export default function CustomerIntelligencePage() {
   const [lifecycle, setLifecycle] = useState<'' | CustomerLifecycle>('');
   const [q, setQ] = useState('');
   const [intel, setIntel] = useState<CustomerIntelPayload | null>(null);
+  usePageTitle('Customer Intelligence', `Ordering patterns, retention & at-risk customers${intel ? ` · as of ${istDate(intel.today)} (IST)` : ''}`);
   const [trends, setTrends] = useState<SalesTrendsPayload | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -48,16 +50,6 @@ export default function CustomerIntelligencePage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <PageIcon name="analytics" />
-        <div>
-        <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Customer Intelligence</h1>
-        <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>
-          Ordering patterns, retention &amp; at-risk customers{intel ? ` · as of ${istDate(intel.today)} (IST)` : ''}
-        </p>
-        </div>
-      </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
         {[
           { key: '', label: 'All', value: s.total_customers ?? 0, color: '#111827', icon: Users },

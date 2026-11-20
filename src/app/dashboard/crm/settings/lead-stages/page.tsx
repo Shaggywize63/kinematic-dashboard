@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { ArrowDown, ArrowUp, Layers, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { crmSettings } from '../../../../../lib/crmApi';
@@ -12,8 +11,9 @@ import {
   moveStage, resolveStages, slugifyStage, stagesSnapshot, validateStages, type StageDef, type StageKind,
 } from '../../../../../lib/leadStages';
 import LeadNumbersPanel from '../../../../../components/crm/spark/LeadNumbersPanel';
-import { Badge, Button, Card, EmptyState, Eyebrow, Input, PageHeader, Select, T } from '../../../../../components/ui';
+import { Badge, Button, Card, EmptyState, Eyebrow, Input, Select, T } from '../../../../../components/ui';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 // Settings -> Lead Stages (connected-B2B / Spark & Ray): the stages a lead moves through (crm_settings.config.lead_statuses),
 // the one-click "combined" Spark list, and the panel that numbers the leads that predate lead numbers. Every lead screen
@@ -35,7 +35,7 @@ const KIND_HINT: Record<StageKind, string> = {
 const NEW_COLORS = ['#DB2777', '#0D9488', '#9333EA', '#EA580C', '#4F46E5', '#65A30D', '#CA8A04', '#0284C7'];
 
 export default function LeadStagesSettingsPage() {
-  usePageTitle('Lead stages');
+  usePageTitle('Lead stages', 'The stages a lead moves through, in order. Every lead screen (the list, filters, the lead page and the edit form) uses this list, with the names and colours set here.');
   const confirm = useConfirm();
   // Read after mount: the gate looks at localStorage.
   const [spark, setSpark] = useState<boolean | null>(null);
@@ -159,19 +159,11 @@ export default function LeadStagesSettingsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 960 }}>
-      <PageHeader
-        eyebrow={<Link href="/dashboard/crm/settings" style={{ color: 'inherit', textDecoration: 'none' }}>Settings</Link>}
-        title="Lead stages"
-        description="The stages a lead moves through, in order. Every lead screen (the list, filters, the lead page and the edit form) uses this list, with the names and colours set here."
-        actions={(
-          <>
-            {dirty && <Badge tone="warn" dot><span data-testid="stages-unsaved">Unsaved changes</span></Badge>}
-            <Button onClick={discard} disabled={!spark || !dirty || saving} icon={<RotateCcw size={14} strokeWidth={1.8} />}>Discard changes</Button>
-            <Button variant="primary" onClick={save} disabled={!spark || !dirty || saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
-          </>
-        )}
-        compact
-      />
+      <CrmToolbarRight>
+        {dirty && <Badge tone="warn" dot><span data-testid="stages-unsaved">Unsaved changes</span></Badge>}
+        <Button toolbar onClick={discard} disabled={!spark || !dirty || saving} icon={<RotateCcw size={14} strokeWidth={1.8} />}>Discard changes</Button>
+        <Button variant="primary" toolbar onClick={save} disabled={!spark || !dirty || saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
+      </CrmToolbarRight>
 
       {spark === false && (
         <Card>

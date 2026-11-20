@@ -4,8 +4,11 @@ import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { useClient } from '../../../../../context/ClientContext';
 import { Check, CheckCircle2, MapPinned, Plus, Trash2, Upload } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../../components/ui';
 
 // Settings → Locations — manage the State / City / District / Block master
 // list per client. Powers the cascading filters on the Leads page. Supports
@@ -62,6 +65,7 @@ function pickedClientId(): string | null {
 }
 
 export default function LocationsSettingsPage() {
+  usePageTitle('Locations', 'State → City → District → Block master list. The Block field is driven by the tenant’s block catalogue so the same picker shows up on the lead form, scoped to each rep’s assigned cities.');
   const { selectedClientId } = useClient();
   const [rows, setRows] = useState<Location[]>([]);
   // Catalogue blocks (talukas) merged into the grid as synthetic rows.
@@ -157,20 +161,10 @@ export default function LocationsSettingsPage() {
 
   return (
     <div style={{ color: 'var(--text)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Locations</h2>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
-            State → City → District → Block master list. The Block field is driven by the
-            tenant&apos;s block catalogue so the same picker shows up on the lead form, scoped
-            to each rep&apos;s assigned cities.
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button style={btnSec} onClick={() => setShowBulk(true)}><InlineIcon icon={Upload} />Bulk Import</button>
-          <button style={btn}    onClick={() => setShowAdd(true)}><InlineIcon icon={Plus} />Add Location</button>
-        </div>
-      </div>
+      <CrmToolbarRight>
+        <button style={{ ...btnSec, minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }} onClick={() => setShowBulk(true)}><InlineIcon icon={Upload} />Bulk Import</button>
+        <button style={{ ...btn, minWidth: TOOLBAR_BTN_MIN_WIDTH.md, justifyContent: 'center' }} onClick={() => setShowAdd(true)}><InlineIcon icon={Plus} />Add Location</button>
+      </CrmToolbarRight>
 
       <input
         style={{ ...inputStyle, marginTop: 14, maxWidth: 360 }}

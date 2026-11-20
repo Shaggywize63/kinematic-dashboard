@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CheckCircle2, Download, FileText, History, Minus, MessageSquareText, PenLine, Plus, ShoppingBag, SkipForward, Upload, UserCheck, UserRound, XCircle, type LucideIcon } from 'lucide-react';
-import { InlineIcon, PageIcon } from '../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../components/ui/PageIcon';
+import { usePageTitle } from '../../../../lib/pageTitle';
 import { crmAfterSales } from '../../../../lib/crmApi';
 import type {
   AfterSalesConfig, AfterSalesRecordInput, AfterSalesImportResult, AfterSalesRecordRow,
@@ -51,6 +52,7 @@ const emptyRecord = (): AfterSalesRecordInput => ({
 });
 
 export default function AfterSalesPage() {
+  usePageTitle('After-Sales Feedback', 'Add after-sales customers for the telecaller to call. Each record is auto-assigned and appears in the telecaller’s My Calls.');
   const { user } = useAuth();
   // Resolve the tenant gate after mount (reads the super-admin client picker off
   // localStorage, which is SSR-unsafe). Starting null avoids a hydration flash.
@@ -69,16 +71,6 @@ export default function AfterSalesPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <PageIcon name="chatText" />
-        <div>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px' }}>After-Sales Feedback</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
-          Add after-sales customers for the telecaller to call. Each record is auto-assigned and appears in the telecaller&rsquo;s My Calls.
-        </p>
-        </div>
-      </div>
-
       <AssignmentCard />
 
       <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, overflowX: 'auto' }}>

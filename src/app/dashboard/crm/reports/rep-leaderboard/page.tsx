@@ -9,8 +9,10 @@ import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 import { Download } from 'lucide-react';
-import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
@@ -63,6 +65,7 @@ export default function RepLeaderboardPage() {
   const [rows, setRows] = useState<RepRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'revenue' | 'won' | 'win_rate' | 'avg_deal'>('revenue');
+  usePageTitle('Rep Leaderboard');
   // The deals list is fetched 1,000 at a time: say so when the page may be looking at part of the book.
   const [truncated, setTruncated] = useState(false);
   // Refetch when the global city picker changes — crmDeals.list is
@@ -163,19 +166,16 @@ export default function RepLeaderboardPage() {
 
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}><PageIcon size={32} />Rep Leaderboard</h3>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Sort by</span>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} style={sel}>
-            <option value="revenue">Revenue</option>
-            <option value="won">Deals Won</option>
-            <option value="win_rate">Win Rate</option>
-            <option value="avg_deal">Avg Deal Size</option>
-          </select>
-          <button onClick={() => downloadCsv('rep-leaderboard', sorted as any)} disabled={loading || sorted.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
-        </div>
-      </div>
+      <CrmToolbarRight>
+        <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Sort by</span>
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} style={sel}>
+          <option value="revenue">Revenue</option>
+          <option value="won">Deals Won</option>
+          <option value="win_rate">Win Rate</option>
+          <option value="avg_deal">Avg Deal Size</option>
+        </select>
+        <button onClick={() => downloadCsv('rep-leaderboard', sorted as any)} disabled={loading || sorted.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
+      </CrmToolbarRight>
 
       {/* Headline KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>

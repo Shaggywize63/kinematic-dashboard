@@ -16,8 +16,9 @@ import type { BusinessType } from '../../../../types/crm';
 import { useAuth } from '../../../../hooks/useAuth';
 import { isTataTiscanActive } from '../../../../lib/clientFeatures';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
-import { Button, Card, Eyebrow, Field, PageHeader, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
+import { Button, Card, Eyebrow, Field, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
 const ICON_PROPS = { size: 18, strokeWidth: 1.6 } as const;
 
@@ -59,7 +60,7 @@ function applyTheme(t: ThemeChoice) {
 }
 
 export default function SettingsIndex() {
-  usePageTitle('Settings');
+  usePageTitle('Settings', 'Workspace-wide CRM configuration. Changes here apply to every user on this client.');
   const narrow = useIsCompact(900);
   // Weight/tonnage is a steel-dealer (Tata / BMW) concept only — the
   // Weight-based Pricing card is hidden for Kinematic and every other tenant.
@@ -185,12 +186,9 @@ export default function SettingsIndex() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <PageHeader
-        title="Settings"
-        description="Workspace-wide CRM configuration. Changes here apply to every user on this client."
-        compact={narrow}
-        actions={<Button onClick={seed} icon={<Database size={16} strokeWidth={1.6} />} title="Seed the default pipeline, stages and lead sources">Seed defaults</Button>}
-      />
+      <CrmToolbarRight>
+        <Button toolbar onClick={seed} icon={<Database size={16} strokeWidth={1.6} />} title="Seed the default pipeline, stages and lead sources">Seed defaults</Button>
+      </CrmToolbarRight>
 
       <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 12, alignItems: 'stretch' }}>
         {/* Theme — same toggle as the org Settings page, surfaced here so

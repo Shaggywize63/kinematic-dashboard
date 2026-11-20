@@ -5,8 +5,9 @@ import { toast } from 'sonner';
 import { crmCustomObjects, crmCustomFields, type CustomObject } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
 import { Boxes, CheckCircle2, ListChecks, Pause, Play, Plus, Table2, Trash2 } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../../lib/pageTitle';
 
 // Field types offered in the object field editor. A subset of the full
 // crm_custom_field_defs types — the ones that make sense for a record form
@@ -60,6 +61,7 @@ const OBJECT_TEMPLATES: Array<{ id: string; icon: string; label: string; label_p
 ];
 
 export default function CustomObjectsSettings() {
+  usePageTitle('Custom Objects', 'Model record types unique to your business — Properties, Vehicles, Policies, Tickets — each with its own fields, records, search, and mobile parity. Start from a template below or build one from scratch.');
   const confirm = useConfirm();
   const [objects, setObjects] = useState<CustomObject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,17 +159,6 @@ export default function CustomObjectsSettings() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <PageIcon />
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Custom Objects</h1>
-        </div>
-        <p style={{ fontSize: 12.5, color: 'var(--text-dim)', margin: '4px 0 0', maxWidth: 640 }}>
-          Model record types unique to your business — Properties, Vehicles, Policies, Tickets — each with its own
-          fields, records, search, and mobile parity. Start from a template below or build one from scratch.
-        </p>
-      </div>
-
       {/* One-tap object templates */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
         {OBJECT_TEMPLATES.map((tpl) => {

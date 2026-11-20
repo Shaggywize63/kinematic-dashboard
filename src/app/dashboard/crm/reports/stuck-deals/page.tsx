@@ -9,8 +9,10 @@ import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 import { Download } from 'lucide-react';
-import { PageIcon, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
@@ -59,6 +61,7 @@ export default function StuckDealsPage() {
   const [rows, setRows] = useState<DealRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [threshold, setThreshold] = useState<number>(14);
+  usePageTitle('Stuck Deals', `Open deals that have not changed stage in ${threshold}+ days. Sorted by oldest first.`);
   // The deals list is fetched 1,000 at a time: say so when the page may be looking at part of the book.
   const [truncated, setTruncated] = useState(false);
   const cityKey = useReportCityKey();
@@ -129,25 +132,19 @@ export default function StuckDealsPage() {
 
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <div>
-          <h3 style={{ color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}><PageIcon size={32} />Stuck Deals</h3>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Open deals that have not changed stage in {threshold}+ days. Sorted by oldest first.</div>
+      <CrmToolbarRight>
+        <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Threshold</span>
+        <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 2 }}>
+          {PRESETS.map((n) => (
+            <button key={n} onClick={() => setThreshold(n)} style={{
+              padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              border: 'none', background: threshold === n ? 'var(--primary)' : 'transparent',
+              color: threshold === n ? '#fff' : 'var(--text-dim)',
+            }}>{n}d</button>
+          ))}
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Threshold</span>
-          <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 2 }}>
-            {PRESETS.map((n) => (
-              <button key={n} onClick={() => setThreshold(n)} style={{
-                padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                border: 'none', background: threshold === n ? 'var(--primary)' : 'transparent',
-                color: threshold === n ? '#fff' : 'var(--text-dim)',
-              }}>{n}d</button>
-            ))}
-          </div>
-          <button onClick={() => downloadCsv(`stuck-deals-${threshold}d`, rows)} disabled={loading || rows.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
-        </div>
-      </div>
+        <button onClick={() => downloadCsv(`stuck-deals-${threshold}d`, rows)} disabled={loading || rows.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
+      </CrmToolbarRight>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
         <Kpi label="Stuck deals" value={rows.length} />

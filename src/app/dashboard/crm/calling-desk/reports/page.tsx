@@ -3,11 +3,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { ArrowLeft, TrendingUp, Trophy, Users, type LucideIcon } from 'lucide-react';
-import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
+import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
 import { crmDesk } from '../../../../../lib/crmApi';
 import type { DeskReport, DeskProductivity } from '../../../../../lib/crmApi';
 import { istToday, istDate } from '../../../../../lib/istTime';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../../components/ui';
 
 /**
  * Calling Desk — Reports. Daily / weekly / monthly calling performance
@@ -24,6 +27,7 @@ function defaultRange() {
 
 export default function CallingDeskReportsPage() {
   const [range, setRange] = useState(defaultRange);
+  usePageTitle('Calling Desk — Reports', `${istDate(range.from)} – ${istDate(range.to)} (IST)`);
   const [granularity, setGranularity] = useState<'day' | 'week' | 'month'>('day');
   const [report, setReport] = useState<DeskReport | null>(null);
   const [prod, setProd] = useState<DeskProductivity | null>(null);
@@ -46,16 +50,9 @@ export default function CallingDeskReportsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <PageIcon name="fileSheet" />
-          <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Calling Desk — Reports</h1>
-          <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>{istDate(range.from)} – {istDate(range.to)} (IST)</p>
-          </div>
-        </div>
-        <Link href="/dashboard/crm/calling-desk" style={{ ...btn, background: '#fff', color: 'var(--primary,#2563eb)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ArrowLeft} />Back to Desk</Link>
-      </div>
+      <CrmToolbarRight>
+        <Link href="/dashboard/crm/calling-desk" style={{ ...btn, background: '#fff', color: 'var(--primary,#2563eb)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={ArrowLeft} />Back to Desk</Link>
+      </CrmToolbarRight>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <input type="date" value={range.from} max={range.to} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} style={input} />

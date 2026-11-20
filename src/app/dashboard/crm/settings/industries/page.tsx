@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { ArrowDown, ArrowUp, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { crmSettings } from '../../../../../lib/crmApi';
@@ -10,9 +9,10 @@ import {
   HEX_COLOR, INDUSTRY_UNKNOWN_COLOR, MAX_INDUSTRY_NAME, MAX_SUB_INDUSTRY_NAME, buildIndustriesConfig, defaultIndustries,
   extractIndustries, invalidateIndustries, moveIndustry, resolveIndustries, validateIndustries, type IndustryDef,
 } from '../../../../../lib/industries';
-import { Badge, Button, Card, EmptyState, Eyebrow, Input, PageHeader, T } from '../../../../../components/ui';
+import { Badge, Button, Card, EmptyState, Eyebrow, Input, T } from '../../../../../components/ui';
 import { apiErrorText } from '../../../../../lib/sparkAccounts';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 // Settings -> Industries (Spark & Ray): the list of industries every dropdown, badge and map pin uses — name, colour
 // and optional sub-industries — in display order. Saved whole as crm_settings.config.industries (the settings config
@@ -29,7 +29,7 @@ const toDefs = (rows: readonly Row[]): IndustryDef[] => rows.map((r) => ({ name:
 const snapshot = (rows: readonly Row[]) => JSON.stringify(buildIndustriesConfig(toDefs(rows)));
 
 export default function IndustriesSettingsPage() {
-  usePageTitle('Industries');
+  usePageTitle('Industries', 'The industries a lead can be filed under. Each has a colour (used on badges and map pins) and optional sub-industries. The order here is the order in every dropdown and on the map legend.');
   const confirm = useConfirm();
   // Read after mount: the gate looks at localStorage.
   const [spark, setSpark] = useState<boolean | null>(null);
@@ -147,19 +147,11 @@ export default function IndustriesSettingsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 960 }}>
-      <PageHeader
-        eyebrow={<Link href="/dashboard/crm/settings" style={{ color: 'inherit', textDecoration: 'none' }}>Settings</Link>}
-        title="Industries"
-        description="The industries a lead can be filed under. Each has a colour (used on badges and map pins) and optional sub-industries. The order here is the order in every dropdown and on the map legend."
-        actions={(
-          <>
-            {dirty && <Badge tone="warn" dot><span data-testid="industries-unsaved">Unsaved changes</span></Badge>}
-            <Button onClick={reset} disabled={!spark || saving || (!custom && !dirty)} icon={<RotateCcw size={14} strokeWidth={1.8} />}>Reset to defaults</Button>
-            <Button variant="primary" onClick={save} disabled={!spark || !dirty || saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
-          </>
-        )}
-        compact
-      />
+      <CrmToolbarRight>
+        {dirty && <Badge tone="warn" dot><span data-testid="industries-unsaved">Unsaved changes</span></Badge>}
+        <Button toolbar onClick={reset} disabled={!spark || saving || (!custom && !dirty)} icon={<RotateCcw size={14} strokeWidth={1.8} />}>Reset to defaults</Button>
+        <Button variant="primary" toolbar onClick={save} disabled={!spark || !dirty || saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
+      </CrmToolbarRight>
 
       {spark === false && (
         <Card>

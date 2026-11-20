@@ -10,7 +10,8 @@ import { Segmented } from '../../../../../components/ui';
 import RupeeTargets from '../../../../../components/crm/RupeeTargets';
 import CallsTargets from '../../../../../components/crm/CallsTargets';
 import { Check, IndianRupee, Layers, Phone, Target, UserCog, UserPlus, Wallet } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { usePageTitle } from '../../../../../lib/pageTitle';
 
 interface U {
   id: string; name: string; role: string;
@@ -54,6 +55,7 @@ export default function TargetsSettingsPage() {
     window.addEventListener('resize', f);
     return () => window.removeEventListener('resize', f);
   }, []);
+  usePageTitle(champion ? 'My weekly target' : 'Targets');
 
   const load = async () => {
     setLoading(true);
@@ -159,7 +161,6 @@ export default function TargetsSettingsPage() {
   if (champion) {
     return (
       <div style={{ maxWidth: 760, width: '100%' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />My weekly target</h1>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 18px' }}>
           Your weekly lead target is set by your manager. Track progress here and on the home dashboard.
         </p>
@@ -185,7 +186,6 @@ export default function TargetsSettingsPage() {
 
   return (
     <div style={{ maxWidth: rupee ? 980 : 760, width: '100%' }}>
-      <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Targets</h1>
       <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 18px' }}>
         {rupee
           ? `Set the monthly ${rupee.label.toLowerCase()} in rupees for each hierarchy level. Everyone at that level inherits it. You can override individuals below. Progress is what your team logs each month.`

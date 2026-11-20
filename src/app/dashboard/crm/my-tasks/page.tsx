@@ -3,9 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CalendarClock, CalendarDays, CalendarOff, CheckCircle2, ListChecks, RotateCcw, type LucideIcon } from 'lucide-react';
 import { crmTasks, type MyTask, type Pagination } from '../../../../lib/crmApi';
-import { Badge, Card, EmptyState, PageHeader, Select, T, type Tone, useIsCompact } from '../../../../components/ui';
+import { Badge, Card, EmptyState, Select, T, type Tone, useIsCompact } from '../../../../components/ui';
 import { formatDate, formatTime } from '../../../../lib/utils';
 import { prettifySlug } from '../../../../lib/activityTypes';
+import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
 // "My Tasks" — the signed-in user's OWN assigned tasks (owner_id OR
 // assigned_to = me), grouped by urgency, each showing who assigned it.
@@ -136,6 +138,7 @@ function TaskRow({ t, compact }: { t: MyTask; compact: boolean }) {
 }
 
 export default function MyTasksPage() {
+  usePageTitle('My Tasks', 'Your own assigned tasks, grouped by urgency — and who assigned each one.');
   const compact = useIsCompact(560);
   const [status, setStatus] = useState<'' | 'open' | 'in_progress' | 'completed'>('');
   const [overdueOnly, setOverdueOnly] = useState(false);
@@ -183,35 +186,27 @@ export default function MyTasksPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 820 }}>
-      <PageHeader
-        eyebrow="CRM"
-        title="My Tasks"
-        description="Your own assigned tasks, grouped by urgency — and who assigned each one."
-        compact
-        actions={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Select
-              data-testid="status-filter"
-              aria-label="Status filter"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as typeof status)}
-              style={{ height: 34, width: compact ? 130 : 150 }}
-            >
-              {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </Select>
-            <button
-              type="button"
-              data-testid="overdue-toggle"
-              aria-pressed={overdueOnly}
-              onClick={() => setOverdueOnly((v) => !v)}
-              style={{ ...toggleBase, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              <AlertTriangle aria-hidden size={14} strokeWidth={2} />
-              Overdue only
-            </button>
-          </div>
-        }
-      />
+      <CrmToolbarRight>
+        <Select
+          data-testid="status-filter"
+          aria-label="Status filter"
+          value={status}
+          onChange={(e) => setStatus(e.target.value as typeof status)}
+          style={{ height: 34, width: compact ? 130 : 150 }}
+        >
+          {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </Select>
+        <button
+          type="button"
+          data-testid="overdue-toggle"
+          aria-pressed={overdueOnly}
+          onClick={() => setOverdueOnly((v) => !v)}
+          style={{ ...toggleBase, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+        >
+          <AlertTriangle aria-hidden size={14} strokeWidth={2} />
+          Overdue only
+        </button>
+      </CrmToolbarRight>
 
       {loading ? (
         <Card><div style={{ padding: 8, fontSize: 13, color: T.dim }}>Loading your tasks…</div></Card>

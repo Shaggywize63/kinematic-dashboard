@@ -1,11 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { CampaignBlock, CampaignInsightsPayload } from '../../../../../types/crm';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
-import { PageIcon } from '../../../../../components/ui/PageIcon';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 
 /**
  * Campaign Insights — per-campaign (General Calls / App & DigiGold /
@@ -30,6 +30,7 @@ function defaultRange(): { from: string; to: string } {
 }
 
 export default function CampaignInsightsPage() {
+  usePageTitle('Campaign Insights', 'DigiGold enrolment, app ratings and after-sales satisfaction per calling campaign.');
   const [range, setRange] = useState(defaultRange);
   const [campaigns, setCampaigns] = useState<CampaignBlock[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,19 +54,10 @@ export default function CampaignInsightsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <Link href="/dashboard/crm/reports" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none' }}>← All reports</Link>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: '6px 0 4px', display: 'flex', alignItems: 'center', gap: 12 }}><PageIcon />Campaign Insights</h1>
-          <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
-            DigiGold enrolment, app ratings and after-sales satisfaction per calling campaign.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <DateInput label="From" value={range.from} onChange={(v) => setRange({ ...range, from: v })} />
-          <DateInput label="To"   value={range.to}   onChange={(v) => setRange({ ...range, to: v })} />
-        </div>
-      </div>
+      <CrmToolbarRight>
+        <DateInput label="From" value={range.from} onChange={(v) => setRange({ ...range, from: v })} />
+        <DateInput label="To"   value={range.to}   onChange={(v) => setRange({ ...range, to: v })} />
+      </CrmToolbarRight>
 
       {loading && campaigns.length === 0 && (
         <div style={{ color: 'var(--text-dim)', padding: 24, textAlign: 'center' }}>Loading…</div>

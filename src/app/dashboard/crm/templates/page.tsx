@@ -7,6 +7,8 @@ import TemplateEditModal, { type TemplateDraft } from '../../../../components/cr
 import AiTemplateModal from '../../../../components/crm/AiTemplateModal';
 import { MessageCircle, Plus, Sparkles } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
+import { CrmToolbarLeft, CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
 // Email templates were removed. This page now manages WhatsApp templates only;
 // the previous email/WhatsApp tab toggle has been collapsed accordingly.
@@ -47,13 +49,13 @@ export default function TemplatesPage() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>{waTemplates.length} WhatsApp template{waTemplates.length === 1 ? '' : 's'}</div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setAiOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Sparkles} />AI Generate</button>
-          <button onClick={openNew} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />New Template</button>
-        </div>
-      </div>
+      <CrmToolbarLeft>
+        <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{waTemplates.length} WhatsApp template{waTemplates.length === 1 ? '' : 's'}</span>
+      </CrmToolbarLeft>
+      <CrmToolbarRight>
+        <button onClick={() => setAiOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Sparkles} />AI Generate</button>
+        <button onClick={openNew} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Plus} />New Template</button>
+      </CrmToolbarRight>
 
       {loading ? <div style={{ color: 'var(--text-dim)', padding: 24 }}>Loading...</div> : (
         waTemplates.length === 0 ? (

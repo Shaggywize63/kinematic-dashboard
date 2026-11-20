@@ -6,8 +6,9 @@ import { verifiedSendersApi, type VerifiedSender } from '../../../../lib/emailAl
 import { API_BASE_URL } from '../../../../lib/api';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { CheckCircle2, Hourglass, MailCheck, MailPlus, RotateCcw, Send, Star, Trash2 } from 'lucide-react';
-import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../components/ConfirmProvider';
+import { usePageTitle } from '../../../../lib/pageTitle';
 
 /**
  * Verified sender addresses for outbound email.
@@ -24,6 +25,7 @@ import { useConfirm } from '../../../../components/ConfirmProvider';
  * user knows what happened.
  */
 export default function EmailSendersPage() {
+  usePageTitle('Verified sender addresses', 'Only verified addresses can be used as the From on email alerts. Add an address, then click the verification link sent to its inbox.');
   const confirm = useConfirm();
   const params = useSearchParams();
   const [rows, setRows] = useState<VerifiedSender[]>([]);
@@ -152,16 +154,6 @@ export default function EmailSendersPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <PageIcon />
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Verified sender addresses</h1>
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
-          Only verified addresses can be used as the From on email alerts. Add an address, then click the verification link sent to its inbox.
-        </div>
-      </div>
-
       <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, background: 'var(--s2)' }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={MailPlus} size={14} />Add address</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'end' }}>
