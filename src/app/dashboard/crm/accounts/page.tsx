@@ -10,6 +10,7 @@ import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/sha
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { useFieldHelpers } from '../../../../lib/crm/useFieldHelpers';
+import { isB2bClientActive } from '../../../../lib/b2bClient';
 import { Badge, Button, Input, PageHeader, T, useIsCompact } from '../../../../components/ui';
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -27,6 +28,11 @@ export default function AccountsListPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  // Spark & Ray: the "Parent companies" tab lists only group accounts (is_group=true);
+  // the default "Accounts" tab excludes them (both are the same /crm/accounts endpoint).
+  const [tab, setTab] = useState<'accounts' | 'groups'>('accounts');
+  const [b2b, setB2b] = useState(false);
+  useEffect(() => { setB2b(isB2bClientActive()); }, []);
   // Server-side sort. Empty key = backend default order (created_at). A header
   // click sets a real crm_accounts column and refetches.
   const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: '', order: 'asc' });
@@ -40,7 +46,7 @@ export default function AccountsListPage() {
   // Debounce the search (350ms), like the deals and leads lists, so the server is not hit on every keystroke.
   useEffect(() => { const t = setTimeout(() => setDebouncedQ(q.trim()), 350); return () => clearTimeout(t); }, [q]);
   // A stricter filter while on page 5 would land on an empty page: go back to page 1 when the filter set changes.
-  useEffect(() => { setPage(1); }, [debouncedQ, range.from, range.to, sort.key, sort.order, pageSize]);
+  useEffect(() => { setPage(1); }, [debouncedQ, range.from, range.to, sort.key, sort.order, pageSize, tab]);
 
   useEffect(() => {
     let alive = true;
@@ -52,6 +58,7 @@ export default function AccountsListPage() {
         if (range.to) params.to = range.to;
         if (debouncedQ) params.q = debouncedQ;
         if (sort.key) { params.sort = sort.key; params.order = sort.order; }
+        if (tab === 'groups') params.group = 1;
         const r = await crmAccounts.list(params);
         if (!alive) return;
         const rows = r.data || [];
@@ -64,7 +71,7 @@ export default function AccountsListPage() {
       }
     })();
     return () => { alive = false; };
-  }, [page, pageSize, debouncedQ, range.from, range.to, sort.key, sort.order]);
+  }, [page, pageSize, debouncedQ, range.from, range.to, sort.key, sort.order, tab]);
 
   const total = pagination?.total ?? 0;
   const clearSearch = () => { setQ(''); setDebouncedQ(''); };
@@ -99,6 +106,18 @@ export default function AccountsListPage() {
         compact={narrow}
       />
 
+      {b2b && (
+        <div role="tablist" aria-label="Accounts view" style={{ display: 'inline-flex', gap: 4, padding: 3, background: 'var(--s3)', borderRadius: 10, alignSelf: 'flex-start' }}>
+          {([['accounts', 'Accounts'], ['groups', 'Parent companies']] as const).map(([key, label]) => (
+            <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+              style={{ border: 0, cursor: 'pointer', fontSize: 13, fontWeight: 600, padding: '6px 14px', borderRadius: 8,
+                background: tab === key ? 'var(--s1)' : 'transparent', color: tab === key ? T.text : T.mute }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: '0 1 320px', minWidth: 220 }}>
           <Search size={15} strokeWidth={1.8} aria-hidden style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: T.mute, pointerEvents: 'none' }} />
@@ -119,7 +138,7 @@ export default function AccountsListPage() {
       <AccountsTable
         accounts={accounts}
         loading={loading || !fieldsLoaded}
-        hiddenColumns={hiddenSet}
+        hiddenColumns={tab === 'groups' ? new Set<string>([...hiddenSet, 'contacts', 'open_deals', 'won']) : hiddenSet}
         viewMode={view.prefs.mode === 'cards' ? 'cards' : 'table'}
         sort={sort}
         onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
