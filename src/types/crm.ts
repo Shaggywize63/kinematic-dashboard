@@ -54,6 +54,8 @@ export interface Lead extends B2CFields {
   /** Lead-detail GET only, structured leads: the names behind the header breadcrumb. */
   account_name?: string | null;
   site_name?: string | null;
+  /** Spark & Ray: the parent company (group) this lead's account maps up to. Stamped by the API. */
+  parent_company?: string | null;
   /** Lead-detail GET only, structured leads: the primary (nodal) customer contact. */
   primary_contact?: { contact_id: string; name: string; title?: string | null; phone?: string | null } | null;
   /** Lead-detail GET only, structured leads: sum of the product lines' values (INR). */
