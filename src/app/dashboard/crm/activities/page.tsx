@@ -9,6 +9,7 @@ import {
   Link2, List, Pencil, Play, PlayCircle, Plus, RotateCcw, Search, ShieldCheck, Upload, UserRound, X, XCircle, type LucideIcon,
 } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
 import { crmAccounts, crmActivities, crmLeads, type Pagination, type ActivityView, type ActivitySummary } from '../../../../lib/crmApi';
 import api, { EXPORT_TIMEOUT_MS } from '../../../../lib/api';
 import { downloadBlob } from '../../../../lib/financeFormat';
@@ -695,13 +696,13 @@ function ActivitiesPageInner() {
             onClick={handleExport}
             disabled={exporting}
             title="Download activities as CSV (current filters apply)"
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: exporting ? 'not-allowed' : 'pointer', opacity: exporting ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: exporting ? 'not-allowed' : 'pointer', opacity: exporting ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}
           >
             <InlineIcon icon={Download} />
             {exporting ? 'Exporting…' : 'Export CSV'}
           </button>
-          <Link href="/dashboard/crm/activities/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Upload} />Import</Link>
-          <Link href="/dashboard/crm/activities/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Plus} />Log Activity</Link>
+          <Link href="/dashboard/crm/activities/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Upload} />Import</Link>
+          <Link href="/dashboard/crm/activities/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Plus} />Log Activity</Link>
         </div>
       </div>
 

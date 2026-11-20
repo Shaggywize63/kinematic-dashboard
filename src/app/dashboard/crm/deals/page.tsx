@@ -15,7 +15,8 @@ import { getStoredUser, canAccess, userHasModule } from '../../../../lib/auth';
 import { isKinematicTenant, isTataTiscanActive } from '../../../../lib/clientFeatures';
 import api, { EXPORT_TIMEOUT_MS } from '../../../../lib/api';
 import { downloadBlob } from '../../../../lib/financeFormat';
-import { Button, Card, EmptyState, Input, PageHeader, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
+import { Button, Card, EmptyState, Input, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
+import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 import { usePageTitle } from '../../../../lib/pageTitle';
 import { formatINR, formatINRCompact } from '../../../../lib/formatCurrency';
 import { useFieldHelpers } from '../../../../lib/crm/useFieldHelpers';
@@ -48,7 +49,7 @@ export default function DealsListPageWrapper() {
 function DealsListPage() {
   const router = useRouter();
   const search = useSearchParams();
-  usePageTitle('Deals');
+  usePageTitle('Deals', 'Revenue opportunities moving through your pipeline. Kanban drags deals between stages; List is for filters, sorting and bulk edits.');
   const confirm = useConfirm();
   const narrow = useIsCompact(900);
   const initialView: ViewMode = search.get('view') === 'kanban' ? 'kanban' : 'list';
@@ -339,44 +340,42 @@ function DealsListPage() {
       {/* New Deal button intentionally absent — deals are created
           exclusively via the lead-conversion flow (Lead detail → Convert)
           so the deal inherits the lead's qualification, source, and history. */}
-      <PageHeader
-        title="Deals"
-        description="Revenue opportunities moving through your pipeline. Kanban drags deals between stages; List is for filters, sorting and bulk edits."
-        compact={narrow}
-        actions={
+      {/* Title now lives in the TopBar breadcrumb (usePageTitle above);
+          actions portal into CrmLayout's scope-badge / city / date-range
+          row so the page starts with the metric tiles, not a repeated
+          heading row. */}
+      <CrmToolbarRight>
+        {view === 'list' && (
           <>
-            {view === 'list' && (
-              <>
-                <LayoutModeToggle mode={dealView.prefs.mode} onSetMode={dealView.setMode} />
-                <ViewCustomizer
-                  entityLabel="Deals"
-                  // Dealer + Volume (kg) are steel-dealer-only (Tata / BMW / SRS)
-                  // columns — don't even offer them as toggles on other tenants
-                  // (e.g. the Kinematic admin), matching DealsTable's render gate.
-                  columns={(isTataTiscanActive(getStoredUser())
-                    ? DEAL_COLUMNS
-                    : DEAL_COLUMNS.filter((c) => c.key !== 'dealer' && c.key !== 'volume_kg')
-                  ).filter((c) => !(fieldsLoaded && fields.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
-                  hidden={dealView.prefs.hidden}
-                  mode={dealView.prefs.mode}
-                  onToggle={dealView.toggleHidden}
-                  onReset={dealView.reset}
-                />
-              </>
-            )}
-            {/* Export CSV is always visible (admin or not). */}
-            <Button
-              type="button"
-              onClick={handleExport}
-              disabled={exporting}
-              title="Download deals as CSV (respects current search / status filter)"
-              icon={<Download size={16} strokeWidth={1.6} />}
-            >
-              {exporting ? 'Exporting…' : 'Export CSV'}
-            </Button>
+            <LayoutModeToggle mode={dealView.prefs.mode} onSetMode={dealView.setMode} />
+            <ViewCustomizer
+              entityLabel="Deals"
+              // Dealer + Volume (kg) are steel-dealer-only (Tata / BMW / SRS)
+              // columns — don't even offer them as toggles on other tenants
+              // (e.g. the Kinematic admin), matching DealsTable's render gate.
+              columns={(isTataTiscanActive(getStoredUser())
+                ? DEAL_COLUMNS
+                : DEAL_COLUMNS.filter((c) => c.key !== 'dealer' && c.key !== 'volume_kg')
+              ).filter((c) => !(fieldsLoaded && fields.isHidden(c.key))) as unknown as { key: string; label: string; locked?: boolean }[]}
+              hidden={dealView.prefs.hidden}
+              mode={dealView.prefs.mode}
+              onToggle={dealView.toggleHidden}
+              onReset={dealView.reset}
+            />
           </>
-        }
-      />
+        )}
+        {/* Export CSV is always visible (admin or not). */}
+        <Button
+          type="button"
+          onClick={handleExport}
+          disabled={exporting}
+          title="Download deals as CSV (respects current search / status filter)"
+          icon={<Download size={16} strokeWidth={1.6} />}
+          toolbar
+        >
+          {exporting ? 'Exporting…' : 'Export CSV'}
+        </Button>
+      </CrmToolbarRight>
 
       {/* Count + value by status across every page of the current filter; in List each tile is also the status filter. */}
       <MetricTiles tiles={tiles} loading={summaryLoading} />

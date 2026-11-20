@@ -11,7 +11,9 @@ import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { useFieldHelpers } from '../../../../lib/crm/useFieldHelpers';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
-import { Badge, Button, Input, PageHeader, T, useIsCompact } from '../../../../components/ui';
+import { Badge, Button, Input, T } from '../../../../components/ui';
+import { usePageTitle } from '../../../../lib/pageTitle';
+import { CrmToolbarLeft, CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -21,6 +23,7 @@ const DEFAULT_PAGE_SIZE = 50;
  * open / won deal and contact rollups from the same call.
  */
 export default function AccountsListPage() {
+  usePageTitle('Accounts', 'Companies you work with. Each account groups its contacts, deals and activity; the list shows what is open and won with each.');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
@@ -41,7 +44,6 @@ export default function AccountsListPage() {
   const { fields, loaded: fieldsLoaded } = useFieldHelpers('account');
   // Global CRM date range (header). City scope is handled by the layout remount.
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
-  const narrow = useIsCompact(760);
 
   // Debounce the search (350ms), like the deals and leads lists, so the server is not hit on every keystroke.
   useEffect(() => { const t = setTimeout(() => setDebouncedQ(q.trim()), 350); return () => clearTimeout(t); }, [q]);
@@ -87,24 +89,21 @@ export default function AccountsListPage() {
         onToggle={view.toggleHidden}
         onReset={view.reset}
       />
-      <Button href="/dashboard/crm/accounts/duplicates" icon={<GitMerge size={16} strokeWidth={2} />}>Find duplicates</Button>
-      <Button href="/dashboard/crm/accounts/new" variant="primary" icon={<Plus size={16} strokeWidth={2} />}>New account</Button>
+      <Button href="/dashboard/crm/accounts/duplicates" toolbar icon={<GitMerge size={16} strokeWidth={2} />}>Find duplicates</Button>
+      <Button href="/dashboard/crm/accounts/new" variant="primary" toolbar icon={<Plus size={16} strokeWidth={2} />}>New account</Button>
     </>
   );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <PageHeader
-        title={
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            Accounts
-            {pagination && <span data-testid="accounts-total"><Badge mono style={{ fontSize: 11.5 }}>{total.toLocaleString('en-IN')} {total === 1 ? 'account' : 'accounts'}</Badge></span>}
-          </span>
-        }
-        description="Companies you work with. Each account groups its contacts, deals and activity; the list shows what is open and won with each."
-        actions={actions}
-        compact={narrow}
-      />
+      {/* Title now lives in the TopBar breadcrumb (usePageTitle above); the
+          count badge and actions portal into CrmLayout's scope-badge / city
+          / date-range row so the page starts with the tab strip / search,
+          not a repeated heading row. */}
+      <CrmToolbarLeft>
+        {pagination && <span data-testid="accounts-total"><Badge mono style={{ fontSize: 11.5 }}>{total.toLocaleString('en-IN')} {total === 1 ? 'account' : 'accounts'}</Badge></span>}
+      </CrmToolbarLeft>
+      <CrmToolbarRight>{actions}</CrmToolbarRight>
 
       {b2b && (
         <div role="tablist" aria-label="Accounts view" style={{ display: 'inline-flex', gap: 4, padding: 3, background: 'var(--s3)', borderRadius: 10, alignSelf: 'flex-start' }}>
