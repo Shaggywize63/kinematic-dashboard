@@ -7,7 +7,6 @@ import { crmAccounts } from '../../../../../lib/crmApi';
 import type {
   AccountMergeMoved, AccountMergeResult, SimilarAccount, SimilarAccountGroup,
 } from '../../../../../types/crm';
-import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import { Badge, Button, Card, EmptyState, Select, T, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { CrmToolbarLeft, CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
@@ -147,14 +146,9 @@ export default function DuplicateAccountsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <Breadcrumbs items={[
-        { label: 'CRM', href: '/dashboard/crm/dashboard' },
-        { label: 'Accounts', href: '/dashboard/crm/accounts' },
-        { label: 'Duplicate accounts' },
-      ]} />
       <CrmToolbarLeft>
         {!loading && !error && (
-          <Badge mono style={{ fontSize: 11.5 }}>{plural(visible.length, 'group')}</Badge>
+          <span data-testid="dup-group-count"><Badge mono style={{ fontSize: 11.5 }}>{plural(visible.length, 'group')}</Badge></span>
         )}
       </CrmToolbarLeft>
       <CrmToolbarRight>
