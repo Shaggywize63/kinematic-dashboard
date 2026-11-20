@@ -10,6 +10,7 @@ import { renderMentions } from '../../messaging/MentionInput';
 import { Button, T } from '../../ui';
 import ContactCard from './ContactCard';
 import LeadContactsCard from './LeadContactsCard';
+import LeadRequirementCard from './LeadRequirementCard';
 import { ActivityRow } from './FeedItems';
 import SectionCard from './SectionCard';
 import type { Contact } from '../../../types/crm';
@@ -176,6 +177,11 @@ export default function OverviewTab({
         displayName={displayName}
         campaigns={campaigns}
       />
+
+      {/* The lead's own requirement + its make/product/qty lines (Spark & Ray) —
+          surfaced on the detail page for any lead type, since the header only
+          shows the requirement abbreviated. Renders nothing without one. */}
+      <LeadRequirementCard leadId={lead.id} requirement={lead.requirement} fields={fields} />
 
       {/* Contact-persons + requirements captured on this lead — the revisit
           view, so opening an already-visited lead shows who was logged on it. */}
