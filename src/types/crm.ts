@@ -56,6 +56,9 @@ export interface Lead extends B2CFields {
   site_name?: string | null;
   /** Spark & Ray: the parent company (group) this lead's account maps up to. Stamped by the API. */
   parent_company?: string | null;
+  /** Spark & Ray: the primary (nodal) customer contact's name, stamped on the leads list
+   *  (the structured lead row itself carries no first/last). Lets the list & activity picker show who. */
+  contact_name?: string | null;
   /** Lead-detail GET only, structured leads: the primary (nodal) customer contact. */
   primary_contact?: { contact_id: string; name: string; title?: string | null; phone?: string | null } | null;
   /** Lead-detail GET only, structured leads: sum of the product lines' values (INR). */

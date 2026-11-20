@@ -15,14 +15,20 @@ const LEADS = [
 const R1 = 'New business opportunities and feedback of previous supply.';
 const R2 = 'Replace ASCO pulse valves with MAC pulse valves.';
 
-async function setup(page: Page, o: { spark?: boolean } = {}) {
+// A structured Spark lead: no first/last on the row (the form links an existing
+// contact); the customer name is stamped as `contact_name` by the API.
+const STRUCTURED = [
+  { id: 'lead-3', first_name: null, last_name: null, company: 'Tata Steel - Meramandali', contact_name: 'Sandip Kundu', requirement: 'Pulse valves for the ESP revamp.' },
+];
+
+async function setup(page: Page, o: { spark?: boolean; leads?: unknown[] } = {}) {
   if (o.spark !== false) await scopeToSpark(page);
   await seedSession(page, SEED_USER);
   await mockApi(page, {
     settings: { success: true, data: { business_type: 'b2b', config: {} } },
     onRequest: async (route, url, method) => {
       const p = apiPath(url);
-      if (method === 'GET' && p === '/api/v1/crm/leads') return ok(route, LEADS);
+      if (method === 'GET' && p === '/api/v1/crm/leads') return ok(route, o.leads ?? LEADS);
       return false;
     },
   });
@@ -46,6 +52,13 @@ test.describe('Activity → Lead picker shows the requirement', () => {
     await expect(page.getByText(R2)).toBeVisible();
     // The person's name is still shown (em-dash joins name — requirement).
     await expect(page.getByText(/Sandip Kundu — /).first()).toBeVisible();
+  });
+
+  test('Spark: a structured lead shows the stamped customer contact name (no first/last on the row)', async ({ page }) => {
+    await setup(page, { leads: STRUCTURED });
+    await openLeadPicker(page);
+    // The customer name comes from the API-stamped contact_name, joined to the requirement.
+    await expect(page.getByText('Sandip Kundu — Pulse valves for the ESP revamp.')).toBeVisible({ timeout: 15_000 });
   });
 
   test('another tenant: name · phone, no requirement', async ({ page }) => {
