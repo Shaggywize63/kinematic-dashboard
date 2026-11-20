@@ -11,18 +11,25 @@ function firstRequirement(req?: string | null): string {
 
 /**
  * Label for a lead in an entity picker — e.g. choosing the lead an activity is
- * logged against. On the connected-B2B (Spark & Ray) workspace the person's name
- * is shown **with their requirement**, because one person can have several
- * leads/requirements and the name alone doesn't tell them apart. Every other
- * tenant keeps the previous "Name · phone".
+ * logged against. On the connected-B2B (Spark & Ray) workspace the **customer's
+ * name** is shown **with their requirement**, because one person can have several
+ * leads/requirements and the name alone doesn't tell them apart. A structured
+ * Spark lead carries no first/last on the row (the form links an existing
+ * contact), so the customer name comes from the stamped `contact_name` (leads
+ * list) or `primary_contact.name` (single lead GET); the account is the last
+ * resort. Every other tenant keeps the previous "Name · phone".
  */
 export function leadOptionLabel(
-  x: Pick<Lead, 'first_name' | 'last_name' | 'email' | 'phone' | 'requirement'>,
+  x: Pick<Lead, 'first_name' | 'last_name' | 'email' | 'phone' | 'requirement' | 'contact_name' | 'company' | 'primary_contact'>,
 ): string {
-  const name = [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Lead';
+  const own = [x.first_name, x.last_name].filter(Boolean).join(' ').trim();
+  // The customer: the lead's own name, else the stamped nodal-contact name.
+  const customer = own || x.contact_name?.trim() || x.primary_contact?.name?.trim() || '';
   if (isB2bClientActive()) {
     const req = firstRequirement(x.requirement);
-    if (req) return `${name} — ${req}`;
+    const who = customer || x.company?.trim() || x.email || 'Lead';
+    return req ? `${who} — ${req}` : who;
   }
+  const name = own || x.email || 'Lead';
   return x.phone ? `${name} · ${x.phone}` : name;
 }
