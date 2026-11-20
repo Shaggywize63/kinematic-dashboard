@@ -290,8 +290,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           }
         }
       } catch { /* no sites */ }
-      // Parent Company / Group is its own lead field — it is NOT auto-filled from the linked account's parent
-      // (the rep sets it explicitly), so no derivation from crm_accounts.parent_account_id here.
+      // Parent Company / Group is prefilled from the lead's `parent_company` (stamped by the API from the
+      // linked account's parent group) in the initial form above, so it round-trips on reopen.
     })();
     return () => { off = true; };
   }, [open, lead, sparkStructured]);
@@ -1036,7 +1036,9 @@ function seed(l: Lead) {
     // seed from the row; group and plant NAMES are resolved after open (from the
     // account's parent group and its sites).
     department: l.department || '', requirement: l.requirement || '', site_id: l.site_id || '',
-    group: '', plant: '',
+    // Parent Company / Group round-trips: the API stamps `parent_company` (the linked
+    // account's parent group), so reopening the lead shows what was saved.
+    group: (l as { parent_company?: string | null }).parent_company || '', plant: '',
   };
 }
 // One make/product/qty line under the lead's requirement (Spark & Ray), mirroring

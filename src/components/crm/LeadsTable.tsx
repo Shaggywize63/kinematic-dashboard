@@ -123,6 +123,7 @@ function SortTh({ label, sortKey, sort, onSort, align = 'left' }: {
 export const LEAD_COLUMNS = [
   { key: 'name', label: 'Name', locked: true },
   { key: 'company', label: 'Company' },
+  { key: 'parent_company', label: 'Parent company' },
   { key: 'phone', label: 'Phone' },
   { key: 'status', label: 'Status' },
   { key: 'score', label: 'Score' },
@@ -183,9 +184,12 @@ export default function LeadsTable({
   const showScore = isVisible('score') && !hid('score');
   const showSource = isVisible('source') && !hid('source_id');
   const showOwner = isVisible('owner') && !hid('owner_id');
+  // Spark & Ray: the parent company (the lead's account → its parent group) as its own column.
+  const showParent = isB2bClientActive() && isVisible('parent_company') && !hid('parent_company');
 
-  // Cells before the last: checkbox, lead, [status], [score], … + the zero-width actions anchor.
+  // Cells before the last: checkbox, lead, [parent], [status], [score], … + the zero-width actions anchor.
   let colCount = 3;
+  if (showParent) colCount += 1;
   if (showStatus) colCount += 1;
   if (showScore) colCount += 1;
   if (isVisible('latest_update')) colCount += 1;
@@ -203,6 +207,7 @@ export default function LeadsTable({
               <input ref={headCheck} type="checkbox" checked={allSelected} onChange={onToggleAll} aria-label="Select all on this page" style={{ width: 15, height: 15, display: 'block' }} />
             </th>
             <SortTh label="Lead" sortKey="name" sort={sort} onSort={onSort} />
+            {showParent && <th style={thStyle}>Parent company</th>}
             {showStatus && <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} />}
             {showScore && <SortTh label={label('score', 'Score')} sortKey="score" sort={sort} onSort={onSort} />}
             {isVisible('latest_update') && <th style={thStyle}>Latest update</th>}
@@ -240,6 +245,7 @@ export default function LeadsTable({
               statusLookup={statusLookup}
               fieldHelpers={fieldHelpers}
               showIndustry={showIndustry}
+              showParent={showParent}
             />
           ))}
         </tbody>
@@ -267,10 +273,12 @@ interface LeadRowProps {
   fieldHelpers?: FieldHelpers;
   /** Spark & Ray: show the lead's coloured industry badge beside its name. */
   showIndustry?: boolean;
+  /** Spark & Ray: show the parent-company column (must match the header's flag). */
+  showParent?: boolean;
 }
 
 const LeadRow = memo(function LeadRow({
-  lead: l, isSelected, isOpen, dim, onToggle, onPreview, onScoreClick, onAssign, onEdit, onApprove, onToggleImportant, isB2C, hidden, statusLookup, fieldHelpers, showIndustry,
+  lead: l, isSelected, isOpen, dim, onToggle, onPreview, onScoreClick, onAssign, onEdit, onApprove, onToggleImportant, isB2C, hidden, statusLookup, fieldHelpers, showIndustry, showParent,
 }: LeadRowProps) {
   const fullName = leadDisplayName(l);
   const handleToggle = useCallback(() => onToggle(l.id), [onToggle, l.id]);
@@ -380,6 +388,8 @@ const LeadRow = memo(function LeadRow({
           </div>
         </div>
       </td>
+
+      {showParent && <td style={{ ...tdStyle, color: T.dim, whiteSpace: 'nowrap' }} data-label="Parent company">{l.parent_company || <Dash />}</td>}
 
       {showStatus && (
         <td style={tdStyle} data-label="Status">

@@ -351,6 +351,11 @@ test.describe('Lead type: edit modal', () => {
     await expect(dialog.getByPlaceholder(/Requirement to Replace ASCO/)).toBeVisible();
   });
 
+  test('Parent Company / Group prefills from the lead\'s parent_company (round-trips)', async ({ page }) => {
+    const { dialog } = await openEdit(page, { lead: { parent_company: 'Tata Steel Limited' } });
+    await expect(dialog.getByPlaceholder('e.g. Tata Steel Limited')).toHaveValue('Tata Steel Limited');
+  });
+
   test('relabelled: the new label shows in the modal', async ({ page }) => {
     const { dialog } = await openEdit(page, { overrides: { 'lead.city': { hidden: true }, 'lead.lead_type': { label: 'Enquiry type' } } });
     await expect(dialog.locator('[data-field="lead_type"] label')).toContainText('Enquiry type');
