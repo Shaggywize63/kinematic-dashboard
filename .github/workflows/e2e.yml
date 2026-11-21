@@ -10,12 +10,16 @@ jobs:
   # Pinned to Ubuntu 24.04: the `ubuntu-latest` image moved to 26.04, which this Playwright version does not support
   # ("Playwright does not support chromium on ubuntu26.04-x64"), so every browser install failed before any test ran.
   e2e:
-    name: Playwright E2E
+    name: Playwright E2E (${{ matrix.shard }}/4)
     runs-on: ubuntu-24.04
-    # Backstop: cap the whole job so a stalled step fails fast (and is
-    # diagnosable) instead of hanging for hours. The serial suite now runs
-    # ~33 min, so keep comfortable headroom above the E2E step's own cap.
-    timeout-minutes: 50
+    # Sharded 4 ways (Playwright --shard) so the core suite runs in parallel across
+    # four runners instead of one serial ~33–40 min job — the merge-gating wall-clock
+    # drops to ~10 min. Backstop cap per shard with headroom above the E2E step's cap.
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -63,24 +67,22 @@ jobs:
           echo "install-deps did not complete; continuing (runner likely already has the libs)"
 
       - name: Run E2E tests
-        # The suite runs serially (workers: 1, one shared dev server) and has grown with the app: it was
-        # ~8 min, then ~12 min, then ~15 min (599 specs), ~24 to 26 min (about 900 specs), and with the
-        # deals-per-lead and sample-invoice specs it reached ~33 min and tipped over the old 33-minute cap
-        # (every spec passing). 40 leaves headroom inside the 50-minute job limit. Splitting the suite into
-        # shards is the next step if it keeps growing.
-        timeout-minutes: 40
+        # Each shard runs ~1/4 of the core suite (Playwright --shard splits by test), so the
+        # ~33–40 min serial run becomes four parallel ~10 min runs. HRMS and report/widget specs
+        # run in their own jobs below (PW_SKIP_*), so this covers the rest of the suite.
+        timeout-minutes: 20
         env:
-          # HRMS specs and the report/widget specs run in their own jobs below so this one keeps its headroom.
           PW_SKIP_HRMS: '1'
           PW_SKIP_PLUS: '1'
-        run: npx playwright test --reporter=list
+        run: npx playwright test --shard=${{ matrix.shard }}/4 --reporter=list
 
       - name: Upload report
         if: always()
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          # Artifact names must be unique per shard or the upload collides.
+          name: playwright-report-${{ matrix.shard }}
           path: playwright-report
           if-no-files-found: ignore
           retention-days: 14
