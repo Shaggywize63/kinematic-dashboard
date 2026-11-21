@@ -114,6 +114,12 @@ export const crmLeads = {
   // refreshed people list, primary first.
   setPrimaryPerson: (id: string, linkId: string) =>
     api.post<Wrapped<LeadContactLink[]>>(`${BASE}/leads/${id}/people/${linkId}/primary`, {}),
+  // Tag another customer person onto the lead (link an existing contact). Returns the refreshed people list.
+  addPerson: (id: string, body: { contact_id: string; role?: string | null }) =>
+    api.post<Wrapped<LeadContactLink[]>>(`${BASE}/leads/${id}/people`, body),
+  // Remove a customer person from the lead. `linkId` is a LeadContactLink.id (from people()).
+  removePerson: (id: string, linkId: string) =>
+    api.delete<Wrapped<LeadContactLink[]>>(`${BASE}/leads/${id}/people/${linkId}`),
   // AI Smart Filters — plain-English → validated lead-list filter params. The
   // page applies the returned params to the normal list fetch (all tenant
   // scoping stays server-side). `explanation` is a human-readable summary.
