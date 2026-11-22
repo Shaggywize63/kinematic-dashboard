@@ -793,7 +793,11 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
         background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
         borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)',
       }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Route your enquiry emails here:</div>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>
+          {integration.inbound_email_alias
+            ? 'Prefer to route through your own mail provider instead? Use a webhook:'
+            : 'Route your enquiry emails here:'}
+        </div>
         <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
           <li>In your mail provider, set up an <strong>inbound parse / route</strong> that POSTs each message as <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>application/json</code> to the <em>Webhook URL</em> below.
             <span style={{ color: 'var(--text-dim)' }}> Mailgun Routes, AWS SES→SNS, or a Zapier/Make “new email → POST” step all work.</span>
@@ -814,6 +818,24 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
       subtitle="Copy your webhook URL now — the secret is only shown once. We auto-created a matching lead source you'll see in reports."
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {provider === 'email_inbound' && integration.inbound_email_alias && (
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.35)',
+            borderRadius: 10, padding: 14,
+          }}>
+            <label style={{ ...fieldLabel, color: 'rgb(59, 130, 246)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={Mail} size={14} />Easiest — just forward enquiry emails here
+            </label>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.5 }}>
+              Forward or CC any enquiry email to this address — no mail-provider setup needed. KINI reads it and creates the lead automatically.
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input value={integration.inbound_email_alias} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
+              <button onClick={() => copy(integration.inbound_email_alias!, 'Inbound email address')} style={ghostBtn}><InlineIcon icon={Copy} />Copy</button>
+            </div>
+          </div>
+        )}
+
         {setupSteps}
 
         <div>

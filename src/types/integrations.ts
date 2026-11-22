@@ -39,6 +39,13 @@ export interface Integration {
    *  field (e.g. Meta App dashboard). Constructed server-side from
    *  API_PUBLIC_URL + provider slug + integration id + ?key=. */
   webhook_url?: string;
+  /** email_inbound only: the dedicated <token>@inbox.kinematicapp.com alias
+   *  the admin forwards/CCs enquiry mail to — zero mail-provider setup
+   *  needed. Secret-ish like webhook_secret (the unguessable token IS the
+   *  auth), so it's included on get-by-id/create but stripped from the
+   *  list response. Backend-gated: present only when the integration's
+   *  tenant has the backing column (Kinematic today). */
+  inbound_email_alias?: string | null;
   /** The crm_lead_sources row the server auto-created and linked at
    *  integration-create time, so admins can see how inbound leads will
    *  appear in reports. */
