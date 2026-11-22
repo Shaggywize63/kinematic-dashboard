@@ -1079,12 +1079,70 @@ function ActivityCalendar({
     byDay.set(key, arr);
   }
 
+  // ── View: Month (grid) · Week (7-day) · Day (agenda). ────────────────────
+  // Month view follows the parent's `month`; Week/Day pivot on an internal
+  // `pivot` date so paging weeks/days never disturbs the month last browsed.
+  // Switching keeps continuity: entering Week/Day lands on today (or the 1st
+  // of the month you were on); returning to Month shows the pivot's month.
+  const [view, setView] = useState<'month' | 'week' | 'day'>('month');
+  const [pivot, setPivot] = useState<Date>(() => new Date());
+
+  const addDays = (d: Date, n: number) => {
+    const x = new Date(d);
+    x.setDate(d.getDate() + n);
+    return x;
+  };
+
+  const switchView = (next: 'month' | 'week' | 'day') => {
+    if (next !== 'month' && view === 'month') {
+      const t = new Date();
+      const sameMonth = month.getFullYear() === t.getFullYear() && month.getMonth() === t.getMonth();
+      setPivot(sameMonth ? t : new Date(month.getFullYear(), month.getMonth(), 1));
+    } else if (next === 'month' && view !== 'month') {
+      onMonthChange(new Date(pivot.getFullYear(), pivot.getMonth(), 1));
+    }
+    setView(next);
+  };
+  const openDay = (d: Date) => {
+    setPivot(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+    setView('day');
+  };
+
+  // Week containing the pivot (Sun → Sat) and the pivot day itself.
+  const weekStart = addDays(pivot, -pivot.getDay());
+  const weekDays: Date[] = [];
+  for (let i = 0; i < 7; i++) weekDays.push(addDays(weekStart, i));
+  const weekEnd = weekDays[6];
+  const dayKey = `${pivot.getFullYear()}-${pivot.getMonth()}-${pivot.getDate()}`;
+  const activityTime = (a: Activity) => {
+    const iso = a.completed_at || a.due_at;
+    const t = iso ? new Date(iso).getTime() : 0;
+    return Number.isNaN(t) ? 0 : t;
+  };
+  const dayList = (byDay.get(dayKey) ?? []).slice().sort((x, y) => activityTime(x) - activityTime(y));
+
   const monthLabel = monthStart.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
-  const goPrev = () => onMonthChange(new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1));
-  const goNext = () => onMonthChange(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1));
+  const weekLabel = (() => {
+    const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
+    const left = weekStart.toLocaleDateString('en-IN', sameMonth ? { day: 'numeric' } : { day: 'numeric', month: 'short' });
+    const right = weekEnd.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    return `${left} – ${right}`;
+  })();
+  const dayLabel = pivot.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const headerLabel = view === 'month' ? monthLabel : view === 'week' ? weekLabel : dayLabel;
+
+  const goPrev = () => {
+    if (view === 'month') onMonthChange(new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1));
+    else setPivot((p) => addDays(p, view === 'week' ? -7 : -1));
+  };
+  const goNext = () => {
+    if (view === 'month') onMonthChange(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1));
+    else setPivot((p) => addDays(p, view === 'week' ? 7 : 1));
+  };
   const goToday = () => {
     const t = new Date();
-    onMonthChange(new Date(t.getFullYear(), t.getMonth(), 1));
+    if (view === 'month') onMonthChange(new Date(t.getFullYear(), t.getMonth(), 1));
+    else setPivot(t);
   };
 
   const todayKey = (() => {
@@ -1116,19 +1174,131 @@ function ActivityCalendar({
     .map((k) => ({ key: k, activities: byDay.get(k) ?? [] }))
     .filter((g) => g.activities.length > 0);
 
+  const viewToggle = (
+    <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+      {(['month', 'week', 'day'] as const).map((v) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => switchView(v)}
+          aria-pressed={view === v}
+          style={{
+            padding: '4px 12px', fontSize: 11, fontWeight: 700, textTransform: 'capitalize',
+            border: 'none', borderLeft: v === 'month' ? 'none' : '1px solid var(--border)',
+            cursor: 'pointer', fontFamily: 'inherit',
+            background: view === v ? 'var(--primary)' : 'var(--s3)',
+            color: view === v ? '#fff' : 'var(--text-dim)',
+          }}
+        >
+          {v}
+        </button>
+      ))}
+    </div>
+  );
+
   const calendarHeader = (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <button type="button" onClick={goPrev} style={calNavBtn} title="Previous month">‹</button>
-        <strong style={{ fontSize: 14, color: 'var(--text)', minWidth: 160, textAlign: 'center' }}>{monthLabel}</strong>
-        <button type="button" onClick={goNext} style={calNavBtn} title="Next month">›</button>
+        <button type="button" onClick={goPrev} style={calNavBtn} title={`Previous ${view}`}>‹</button>
+        <strong style={{ fontSize: 14, color: 'var(--text)', minWidth: view === 'day' ? 200 : 160, textAlign: 'center' }}>{headerLabel}</strong>
+        <button type="button" onClick={goNext} style={calNavBtn} title={`Next ${view}`}>›</button>
         <button type="button" onClick={goToday} style={{ ...calNavBtn, padding: '4px 12px', fontSize: 11 }}>Today</button>
       </div>
-      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-        {activities.length} activit{activities.length === 1 ? 'y' : 'ies'} on this page · only those with a date are placed on the grid
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        {viewToggle}
+        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+          {activities.length} activit{activities.length === 1 ? 'y' : 'ies'} on this page
+        </div>
       </div>
     </div>
   );
+
+  // ── Day view: a single day's activities as a vertical agenda. ────────────
+  if (view === 'day') {
+    const isToday = dayKey === todayKey;
+    return (
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
+        {calendarHeader}
+        {isToday && (
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--primary)', letterSpacing: 0.4, marginBottom: 8 }}>TODAY</div>
+        )}
+        {dayList.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', padding: 24 }}>
+            No activities on this day. Use ‹ / › to browse other days.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {dayList.map((a) => <AgendaRow key={a.id} a={a} />)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Week view: seven day-columns (wide) or a stacked agenda (narrow). ────
+  if (view === 'week') {
+    const weekCells = weekDays.map((d) => {
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      return {
+        d,
+        key,
+        isToday: key === todayKey,
+        list: (byDay.get(key) ?? []).slice().sort((x, y) => activityTime(x) - activityTime(y)),
+      };
+    });
+    if (isNarrow) {
+      const withActivity = weekCells.filter((c) => c.list.length > 0);
+      return (
+        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
+          {calendarHeader}
+          {withActivity.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', padding: 20 }}>
+              No activities this week. Use ‹ / › to browse other weeks.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {withActivity.map(({ d, key, isToday, list }) => (
+                <div key={key} style={{ background: 'var(--s3)', borderRadius: 8, padding: 10, borderLeft: isToday ? '4px solid var(--primary)' : '4px solid transparent' }}>
+                  <button type="button" onClick={() => openDay(d)} style={{ ...calDayHeaderBtn, color: isToday ? 'var(--primary)' : 'var(--text)' }}>
+                    {d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    {isToday && ' · TODAY'}
+                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                    {list.map((a) => <AgendaRow key={a.id} a={a} />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    return (
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
+        {calendarHeader}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, background: 'var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          {weekCells.map(({ d, key, isToday, list }) => (
+            <div key={key} style={{
+              background: 'var(--s2)', minHeight: 320, padding: '6px 6px 8px',
+              borderTop: isToday ? '2px solid var(--primary)' : 'none',
+              display: 'flex', flexDirection: 'column', gap: 4,
+            }}>
+              <button type="button" onClick={() => openDay(d)} title="Open day" style={{ ...calDayHeaderBtn, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, color: isToday ? 'var(--primary)' : 'var(--text-dim)' }}>
+                  {d.toLocaleDateString('en-IN', { weekday: 'short' })}
+                </span>
+                <span style={{ fontSize: 15, fontWeight: isToday ? 800 : 700, color: isToday ? 'var(--primary)' : 'var(--text)' }}>{d.getDate()}</span>
+              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, overflowY: 'auto' }}>
+                {list.map((a) => <ActivityChip key={a.id} a={a} />)}
+                {list.length === 0 && <span style={{ fontSize: 10, color: 'var(--text-dim)', opacity: 0.5, padding: '2px 4px' }}>—</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (isNarrow) {
     if (monthDaysWithActivity.length === 0) {
@@ -1199,61 +1369,18 @@ function ActivityCalendar({
               display: 'flex', flexDirection: 'column', gap: 3,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 11, fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--primary)' : 'var(--text-dim)' }}>
+                <button type="button" onClick={() => openDay(d)} title="Open day" style={{ ...calDayHeaderBtn, fontSize: 11, fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--primary)' : 'var(--text-dim)' }}>
                   {d.getDate()}
-                </span>
+                </button>
                 {list.length > 0 && (
                   <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-dim)' }}>{list.length}</span>
                 )}
               </div>
-              {list.slice(0, 3).map((a) => {
-                const overdue = a.due_at && !a.completed_at && new Date(a.due_at) < new Date();
-                const done = !!a.completed_at;
-                const chipBg = done ? 'rgba(16,185,129,0.16)' : overdue ? 'rgba(239,68,68,0.16)' : 'rgba(62,158,255,0.16)';
-                const chipFg = done ? '#10b981' : overdue ? '#ef4444' : '#3E9EFF';
-                const href = a.lead_id
-                  ? `/dashboard/crm/leads/${a.lead_id}`
-                  : a.contact_id
-                  ? `/dashboard/crm/contacts/${a.contact_id}`
-                  : a.deal_id
-                  ? `/dashboard/crm/deals/${a.deal_id}`
-                  : a.account_id
-                  ? `/dashboard/crm/accounts/${a.account_id}`
-                  : '/dashboard/crm/activities';
-                return (
-                  <Link
-                    key={a.id}
-                    href={href}
-                    title={`${activityCalendarLabel(a)}${a.body ? ` — ${a.body}` : ''}`}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 4,
-                      fontSize: 10, fontWeight: 700,
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      background: chipBg,
-                      color: chipFg,
-                      textDecoration: 'none',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    <ActivityTypeIcon
-                      type={a.type}
-                      size={14}
-                      date={a.due_at || a.completed_at}
-                      completed={!!a.completed_at}
-                    />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {activityCalendarLabel(a)}
-                    </span>
-                  </Link>
-                );
-              })}
+              {list.slice(0, 3).map((a) => <ActivityChip key={a.id} a={a} />)}
               {list.length > 3 && (
-                <div style={{ fontSize: 9, color: 'var(--text-dim)', padding: '0 6px' }}>
+                <button type="button" onClick={() => openDay(d)} style={{ ...calDayHeaderBtn, fontSize: 9, fontWeight: 600, color: 'var(--text-dim)', padding: '0 6px' }}>
                   +{list.length - 3} more
-                </div>
+                </button>
               )}
             </div>
           );
@@ -1316,6 +1443,45 @@ function AgendaRow({ a }: { a: Activity }) {
         background: chipBg, color: chipFg, textTransform: 'uppercase', letterSpacing: 0.4,
       }}>
         {done ? 'Done' : overdue ? 'Overdue' : 'Open'}
+      </span>
+    </Link>
+  );
+}
+
+/**
+ * One compact activity chip (type icon + "subject — customer") that links to the
+ * parent record. Colour encodes status: green = done, red = overdue, blue =
+ * open/upcoming. Shared by the month grid and the week view so a chip looks and
+ * behaves the same in both.
+ */
+function ActivityChip({ a }: { a: Activity }) {
+  const overdue = a.due_at && !a.completed_at && new Date(a.due_at) < new Date();
+  const done = !!a.completed_at;
+  const chipBg = done ? 'rgba(16,185,129,0.16)' : overdue ? 'rgba(239,68,68,0.16)' : 'rgba(62,158,255,0.16)';
+  const chipFg = done ? '#10b981' : overdue ? '#ef4444' : '#3E9EFF';
+  const href = a.lead_id
+    ? `/dashboard/crm/leads/${a.lead_id}`
+    : a.contact_id
+    ? `/dashboard/crm/contacts/${a.contact_id}`
+    : a.deal_id
+    ? `/dashboard/crm/deals/${a.deal_id}`
+    : a.account_id
+    ? `/dashboard/crm/accounts/${a.account_id}`
+    : '/dashboard/crm/activities';
+  return (
+    <Link
+      href={href}
+      title={`${activityCalendarLabel(a)}${a.body ? ` — ${a.body}` : ''}`}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+        background: chipBg, color: chipFg, textDecoration: 'none',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}
+    >
+      <ActivityTypeIcon type={a.type} size={14} date={a.due_at || a.completed_at} completed={!!a.completed_at} />
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {activityCalendarLabel(a)}
       </span>
     </Link>
   );
@@ -1442,4 +1608,17 @@ const calNavBtn: React.CSSProperties = {
   borderRadius: 6,
   fontSize: 13,
   cursor: 'pointer',
+};
+
+// Reset-styled button used where a calendar day label/number doubles as a
+// "jump to Day view" affordance (month grid date, week-column header, "+N more").
+const calDayHeaderBtn: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  padding: 0,
+  margin: 0,
+  cursor: 'pointer',
+  textAlign: 'left',
+  fontFamily: 'inherit',
+  lineHeight: 1.2,
 };
