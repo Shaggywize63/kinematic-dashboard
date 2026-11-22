@@ -1021,6 +1021,29 @@ const btnDelete: React.CSSProperties = {
  * when present (those become a green tick chip), else due_at (red /
  * amber chip). Clicking an activity opens its parent record.
  */
+/** The customer an activity is for — the Spark & Ray company, else the linked lead / account /
+ *  contact / deal name the API stamps. Lets the calendar show "Industry Visit — Budge Budge
+ *  Refineries" instead of a bare activity type. Empty when the activity is linked to nothing. */
+function activityCustomer(a: Activity): string {
+  const x = a as unknown as Record<string, unknown>;
+  const name = (
+    (x.company_name as string) ||
+    (a.lead_id    && (x.lead_name as string))    ||
+    (a.account_id && (x.account_name as string)) ||
+    (a.contact_id && (x.contact_name as string)) ||
+    (a.deal_id    && (x.deal_name as string))    ||
+    ''
+  );
+  return (typeof name === 'string' ? name : '').trim();
+}
+
+/** Calendar label: the activity's subject/type, with the customer appended when we know it. */
+function activityCalendarLabel(a: Activity): string {
+  const base = a.subject || prettifySlug(a.type);
+  const who = activityCustomer(a);
+  return who ? `${base} — ${who}` : base;
+}
+
 function ActivityCalendar({
   month, onMonthChange, activities,
 }: {
@@ -1201,7 +1224,7 @@ function ActivityCalendar({
                   <Link
                     key={a.id}
                     href={href}
-                    title={`${a.subject || prettifySlug(a.type)}${a.body ? ` — ${a.body}` : ''}`}
+                    title={`${activityCalendarLabel(a)}${a.body ? ` — ${a.body}` : ''}`}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 4,
                       fontSize: 10, fontWeight: 700,
@@ -1222,7 +1245,7 @@ function ActivityCalendar({
                       completed={!!a.completed_at}
                     />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {a.subject || prettifySlug(a.type)}
+                      {activityCalendarLabel(a)}
                     </span>
                   </Link>
                 );
@@ -1280,7 +1303,7 @@ function AgendaRow({ a }: { a: Activity }) {
       />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {a.subject || prettifySlug(a.type)}
+          {activityCalendarLabel(a)}
         </div>
         {(a.body || a.description) && (
           <div style={{ fontSize: 11, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
