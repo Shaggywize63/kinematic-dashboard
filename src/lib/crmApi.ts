@@ -1404,6 +1404,12 @@ export const crmIntegrations = {
   test: (id: string) => api.post<Wrapped<{ ok: boolean; status: string }>>(`${INTEGRATIONS_BASE}/${id}/test`, {}),
   events: (id: string, limit: number = 50) =>
     api.get<Wrapped<InboundEvent[]>>(`${INTEGRATIONS_BASE}/${id}/events?limit=${limit}`),
+  /** "Connect with Facebook" — same shape as crmEmailCampaigns.googleAuthorize:
+   *  returns the Meta consent URL to redirect the browser to. The backend
+   *  signs org/user/project/client into the state so the public callback
+   *  (no auth header — Meta redirects there directly) can attribute the
+   *  connected Page(s) to the right tenant. */
+  metaAuthorize: () => api.get<{ url: string }>(`${INTEGRATIONS_BASE}/meta/authorize`),
 };
 
 // --- Consent ledger (DPDP §6/§7/§9) ---
