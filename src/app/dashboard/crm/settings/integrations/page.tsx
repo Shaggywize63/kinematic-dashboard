@@ -150,6 +150,26 @@ export default function IntegrationsPage() {
 
   useEffect(() => { load(); }, []);
 
+  // Land here after the Meta OAuth redirect-back (see metaOAuthCallback in
+  // the backend) — toast the result once, then strip the params so a
+  // refresh doesn't re-show it.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get('meta_connected');
+    const err = params.get('meta_error');
+    if (!connected && !err) return;
+    if (connected) {
+      const n = Number(connected) || 0;
+      toast.success(n > 0 ? `Connected ${n} Facebook Page${n === 1 ? '' : 's'} for Lead Ads` : 'Connected to Facebook');
+    } else if (err) {
+      toast.error(`Facebook connection failed: ${err}`, { duration: 8000 });
+    }
+    params.delete('meta_connected');
+    params.delete('meta_error');
+    const qs = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }, []);
+
   const handleDisconnect = async (i: Integration) => {
     const ok = await confirm({
       title: 'Disconnect this integration?',
@@ -335,6 +355,26 @@ function ConnectModal({
   // into Meta's webhook subscription. Memoised so re-renders don't
   // reroll the token while the modal is open.
   const verifyToken = useMemo(() => provider === 'meta_lead_ads' ? genVerifyToken() : '', [provider]);
+  // Meta Lead Ads defaults to the OAuth path ("Connect with Facebook") —
+  // no App Secret / Page Access Token to hunt down, no App Dashboard
+  // webhook config, just a consent screen + Page picker Meta itself shows.
+  // The old bring-your-own-App form below still works for anyone who'd
+  // rather not use Kinematic's shared Meta App — toggled via metaManual.
+  const [metaManual, setMetaManual] = useState(false);
+  const [metaConnecting, setMetaConnecting] = useState(false);
+  const connectWithFacebook = async () => {
+    setMetaConnecting(true);
+    try {
+      const r = await crmIntegrations.metaAuthorize();
+      const url = (r as any)?.url ?? (r as any)?.data?.url;
+      if (url) { window.location.href = url; return; }
+      toast.error('Meta OAuth is not configured on the server.');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not start the Facebook connection');
+    } finally {
+      setMetaConnecting(false);
+    }
+  };
 
   const submit = async () => {
     if (!label.trim()) {
@@ -392,6 +432,35 @@ function ConnectModal({
     }
   };
 
+  if (provider === 'meta_lead_ads' && !metaManual) {
+    return (
+      <Modal onClose={onClose} title="Connect Meta Lead Ads" subtitle="Facebook + Instagram lead forms, connected through your own Facebook login.">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.35)',
+            borderRadius: 10, padding: 16, textAlign: 'center',
+          }}>
+            <IconTile icon={Facebook} tone="brand" size={40} iconSize={20} style={{ margin: '0 auto 10px' }} />
+            <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 14, lineHeight: 1.5 }}>
+              Log in with Facebook, pick the Page(s) your lead forms are on, and we handle the
+              rest — no App Secret, no Graph API Explorer, no webhook setup. Every Page you
+              select starts sending leads immediately.
+            </div>
+            <button onClick={connectWithFacebook} disabled={metaConnecting} style={{ ...primaryBtn, width: '100%', justifyContent: 'center' }}>
+              <InlineIcon icon={Facebook} />{metaConnecting ? 'Redirecting…' : 'Connect with Facebook'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button onClick={() => setMetaManual(true)} style={{ fontSize: 11, color: 'var(--text-dim)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>
+              Have your own Meta App? Configure it manually instead
+            </button>
+            <button onClick={onClose} style={ghostBtn}>Cancel</button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal onClose={onClose} title={`Connect ${meta.label}`} subtitle={meta.desc}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -415,9 +484,15 @@ function ConnectModal({
           </div>
         </div>
 
-        {/* Meta-specific credential inputs */}
+        {/* Meta-specific credential inputs — the bring-your-own-App path.
+            Only reachable via "Configure it manually instead" above, now
+            that Connect with Facebook is the default. */}
         {provider === 'meta_lead_ads' && (
           <>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+              Advanced: use this only if you&rsquo;d rather run your own Meta Developer App
+              instead of Kinematic&rsquo;s shared one.
+            </div>
             <div>
               <label style={fieldLabel}>App Secret</label>
               <input
@@ -793,7 +868,11 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
         background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
         borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)',
       }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Route your enquiry emails here:</div>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>
+          {integration.inbound_email_alias
+            ? 'Prefer to route through your own mail provider instead? Use a webhook:'
+            : 'Route your enquiry emails here:'}
+        </div>
         <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
           <li>In your mail provider, set up an <strong>inbound parse / route</strong> that POSTs each message as <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>application/json</code> to the <em>Webhook URL</em> below.
             <span style={{ color: 'var(--text-dim)' }}> Mailgun Routes, AWS SES→SNS, or a Zapier/Make “new email → POST” step all work.</span>
@@ -814,6 +893,24 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
       subtitle="Copy your webhook URL now — the secret is only shown once. We auto-created a matching lead source you'll see in reports."
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {provider === 'email_inbound' && integration.inbound_email_alias && (
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.35)',
+            borderRadius: 10, padding: 14,
+          }}>
+            <label style={{ ...fieldLabel, color: 'rgb(59, 130, 246)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={Mail} size={14} />Easiest — just forward enquiry emails here
+            </label>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.5 }}>
+              Forward or CC any enquiry email to this address — no mail-provider setup needed. KINI reads it and creates the lead automatically.
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input value={integration.inbound_email_alias} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
+              <button onClick={() => copy(integration.inbound_email_alias!, 'Inbound email address')} style={ghostBtn}><InlineIcon icon={Copy} />Copy</button>
+            </div>
+          </div>
+        )}
+
         {setupSteps}
 
         <div>
