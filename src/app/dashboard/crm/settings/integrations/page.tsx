@@ -951,6 +951,61 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
           </div>
         )}
 
+        {hostedFormUrl && (
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.35)',
+            borderRadius: 10, padding: 14,
+          }}>
+            <label style={{ ...fieldLabel, color: 'rgb(59, 130, 246)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={Link2} size={14} />Easiest — share a link, no website needed
+            </label>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.5 }}>
+              Kinematic hosts the form for you. Share the link in WhatsApp, email, or your bio. Or print the QR for a poster / business card.
+              Every submission lands in your CRM with the right tenant scope.
+            </div>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>Share link</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input value={hostedFormUrl} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
+                  <button onClick={() => copy(hostedFormUrl, 'Form link')} style={ghostBtn}><InlineIcon icon={Copy} />Copy</button>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <a
+                    href={hostedFormUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
+                  >
+                    <InlineIcon icon={ExternalLink} />Open form
+                  </a>
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(hostedFormUrl)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
+                  >
+                    <InlineIcon icon={MessageCircle} />Share on WhatsApp
+                  </a>
+                </div>
+              </div>
+              {hostedFormUrl && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>QR code</div>
+                  <div ref={qrCanvasRef} role="img" aria-label="Form QR code"
+                       style={{ display: 'inline-block', borderRadius: 8, background: '#fff', padding: 6, border: '1px solid var(--border)', lineHeight: 0 }}>
+                    <QRCodeCanvas value={hostedFormUrl} size={140} level="M" includeMargin={false} />
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <button type="button" onClick={downloadQr}
+                            style={{ fontSize: 11, color: 'var(--text-dim)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>Download PNG</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {setupSteps}
 
         <div>
@@ -1068,61 +1123,6 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
             <div style={{ marginTop: 10 }}>
               <label style={fieldLabel}>Redirect after submit <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(optional, https://)</span></label>
               <input value={dRedirect} onChange={(e) => { setDRedirect(e.target.value); setFormDirty(true); }} placeholder="https://yoursite.com/thank-you" style={input} />
-            </div>
-          </div>
-        )}
-
-        {hostedFormUrl && (
-          <div style={{
-            background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.35)',
-            borderRadius: 10, padding: 14,
-          }}>
-            <label style={{ ...fieldLabel, color: 'rgb(59, 130, 246)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <InlineIcon icon={Link2} size={14} />Easiest — share a link, no website needed
-            </label>
-            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.5 }}>
-              Kinematic hosts the form for you. Share the link in WhatsApp, email, or your bio. Or print the QR for a poster / business card.
-              Every submission lands in your CRM with the right tenant scope.
-            </div>
-            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>Share link</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input value={hostedFormUrl} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
-                  <button onClick={() => copy(hostedFormUrl, 'Form link')} style={ghostBtn}><InlineIcon icon={Copy} />Copy</button>
-                </div>
-                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                  <a
-                    href={hostedFormUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
-                  >
-                    <InlineIcon icon={ExternalLink} />Open form
-                  </a>
-                  <a
-                    href={`https://wa.me/?text=${encodeURIComponent(hostedFormUrl)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
-                  >
-                    <InlineIcon icon={MessageCircle} />Share on WhatsApp
-                  </a>
-                </div>
-              </div>
-              {hostedFormUrl && (
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>QR code</div>
-                  <div ref={qrCanvasRef} role="img" aria-label="Form QR code"
-                       style={{ display: 'inline-block', borderRadius: 8, background: '#fff', padding: 6, border: '1px solid var(--border)', lineHeight: 0 }}>
-                    <QRCodeCanvas value={hostedFormUrl} size={140} level="M" includeMargin={false} />
-                  </div>
-                  <div style={{ marginTop: 4 }}>
-                    <button type="button" onClick={downloadQr}
-                            style={{ fontSize: 11, color: 'var(--text-dim)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>Download PNG</button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
