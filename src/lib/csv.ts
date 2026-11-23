@@ -58,7 +58,7 @@ function detectDelimiter(s: string): string {
 
 export const PRODUCT_IMPORT_MAX_ROWS = 2000;
 
-export type ProductImportField = 'reference' | 'name' | 'make' | 'brand' | 'unit' | 'price' | 'category' | 'description';
+export type ProductImportField = 'reference' | 'name' | 'make' | 'brand' | 'unit' | 'price' | 'category' | 'description' | 'tax_rate_pct';
 
 /** Accepted header names (compared lower-case, with spaces / underscores / hyphens collapsed to one space). */
 export const PRODUCT_HEADER_ALIASES: Record<ProductImportField, string[]> = {
@@ -70,6 +70,7 @@ export const PRODUCT_HEADER_ALIASES: Record<ProductImportField, string[]> = {
   price: ['price', 'rate', 'unit price'],
   category: ['category'],
   description: ['description', 'desc', 'details'],
+  tax_rate_pct: ['tax', 'tax %', 'tax rate', 'tax rate %', 'gst', 'gst %', 'tax_rate_pct'],
 };
 
 const normHeader = (h: string) => h.replace(/^﻿/, '').trim().toLowerCase().replace(/[_\-\s]+/g, ' ');
@@ -78,6 +79,7 @@ export interface ProductImportRow {
   /** 1-based product row number, not counting the header line (the first product is row 1). The server numbers its error rows the same way. */
   row: number;
   reference: string; name: string; make?: string; brand?: string; unit?: string; price?: number; category?: string; description?: string;
+  tax_rate_pct?: number;
 }
 
 export interface ProductImportParse {
@@ -100,6 +102,14 @@ export function parsePrice(raw: string): number | null {
   if (!/^-?(\d+(\.\d+)?|\.\d+)$/.test(t)) return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
+}
+
+/** A tax-rate cell like "18", "18%", "18.5 %" to a 0-100 number; null when it is not a number in range. */
+export function parsePercent(raw: string): number | null {
+  const t = raw.trim().replace(/%$/, '').replace(/\s/g, '');
+  if (!/^\d+(\.\d+)?$/.test(t)) return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
 }
 
 /** Map a parsed sheet (header row first) onto product rows, resolving header aliases. */
@@ -132,9 +142,13 @@ export function mapProductRows(table: string[][]): ProductImportParse {
     const priceRaw = cell(r, 'price');
     const price = priceRaw ? parsePrice(priceRaw) : null;
     if (priceRaw && price === null) out.warnings.push(`Row ${row}: "${priceRaw}" is not a number, so the price is left out.`);
+    const taxRaw = cell(r, 'tax_rate_pct');
+    const taxPct = taxRaw ? parsePercent(taxRaw) : null;
+    if (taxRaw && taxPct === null) out.warnings.push(`Row ${row}: "${taxRaw}" is not a tax rate between 0 and 100, so it is left out.`);
     const item: ProductImportRow = { row, reference, name };
     (['make', 'brand', 'unit', 'category', 'description'] as const).forEach((f) => { const v = cell(r, f); if (v) item[f] = v; });
     if (price !== null) item.price = price;
+    if (taxPct !== null) item.tax_rate_pct = taxPct;
     out.rows.push(item);
   });
   if (out.rows.length === 0) out.problems.push('The file has a header but no product rows.');
@@ -152,6 +166,6 @@ export function toBulkRows(rows: ProductImportRow[]) {
 }
 
 export const PRODUCT_TEMPLATE_CSV =
-  'Reference,Name,Make,Brand,Unit,Price,Category,Description\r\n'
-  + '13280,Pneumatic cylinder 32mm,Festo,MAC,each,4250,Cylinders,Double acting\r\n'
-  + '20415,"Vacuum cup, 40mm",Piab,PIAB,each,1180.50,Vacuum,"Flat cup, NBR"\r\n';
+  'Reference,Name,Make,Brand,Unit,Price,Tax %,Category,Description\r\n'
+  + '13280,Pneumatic cylinder 32mm,Festo,MAC,each,4250,18,Cylinders,Double acting\r\n'
+  + '20415,"Vacuum cup, 40mm",Piab,PIAB,each,1180.50,18,Vacuum,"Flat cup, NBR"\r\n';

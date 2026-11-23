@@ -853,6 +853,7 @@ export type Brand = NamedListItem;
 /** One spreadsheet row sent to POST /crm/products/bulk. */
 export interface ProductBulkRow {
   reference: string; name: string; make?: string; brand?: string; unit?: string; price?: number; category?: string; description?: string;
+  tax_rate_pct?: number;
 }
 /** `errors` lists every row that was not imported; rows passed over on purpose are also counted in `skipped` (do not add the two). */
 export interface ProductBulkResult {

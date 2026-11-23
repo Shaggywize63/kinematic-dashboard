@@ -22,8 +22,10 @@ export default function ProductsListPage() {
   const [catFilter, setCatFilter] = useState<string>('');
   const [showInactive, setShowInactive] = useState(false);
   const [loading, setLoading] = useState(true);
-  // Connected-B2B (Spark & Ray) only: a free-text Make column, "Reference" wording and the spreadsheet import.
-  // No Brand / Category for Spark. `null` until read after mount, so other clients load exactly as before.
+  // Connected-B2B (Spark & Ray) only: a free-text Make column and "Reference" wording instead of
+  // Category/Weight/Tax/HSN columns. No Brand / Category for Spark. `null` until read after mount, so other
+  // clients load exactly as before. The spreadsheet import (below) is NOT part of this — ProductImportModal and
+  // POST /crm/products/bulk are plain tenant-scoped CRUD with no B2B-specific behaviour, so every client gets it.
   const [b2b, setB2b] = useState<boolean | null>(null);
   useEffect(() => { setB2b(isB2bClientActive()); }, []);
   const [importing, setImporting] = useState(false);
@@ -93,10 +95,8 @@ export default function ProductsListPage() {
     <div>
       <CrmToolbarRight>
         <Link href="/dashboard/crm/products/categories" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={FolderTree} />Categories</Link>
-        {b2b && (
-          <button type="button" onClick={() => setImporting(true)}
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Upload} />Import from file</button>
-        )}
+        <button type="button" onClick={() => setImporting(true)}
+          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Upload} />Import from file</button>
         <Link href="/dashboard/crm/products/new"
           style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: TOOLBAR_BTN_MIN_WIDTH.md }}><InlineIcon icon={Plus} />New Product</Link>
       </CrmToolbarRight>
