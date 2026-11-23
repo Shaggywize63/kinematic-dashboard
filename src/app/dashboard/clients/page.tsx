@@ -419,7 +419,7 @@ export default function ClientManagement() {
   // Shared column template for the list header + rows (kept in one place so they stay aligned).
   // All tracks are minmax(0, …fr) so the row always fits the window — it never forces a horizontal
   // scrollbar; columns share the width and long values truncate with an ellipsis instead.
-  const COLS = 'minmax(0,2.4fr) minmax(0,1.4fr) minmax(0,0.8fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.7fr)';
+  const COLS = 'minmax(0,2.2fr) minmax(0,1.3fr) minmax(0,0.72fr) minmax(0,1.3fr) minmax(0,1.2fr) minmax(0,0.95fr) minmax(0,1.45fr)';
 
   return (
     <div>
@@ -484,6 +484,7 @@ export default function ClientManagement() {
             { h: 'Modules', k: 'modules' },
             { h: 'Users', k: null },
             { h: 'Next Payment', k: null },
+            { h: 'Renewal', k: null },
             { h: 'Trial', k: null },
             { h: 'Actions', k: null },
           ] as { h: string; k: string | null }[]).map(col => (
@@ -542,19 +543,61 @@ export default function ClientManagement() {
                   );
                 })()}
               </div>
-              {/* Next payment: the linked finance customer's next unpaid invoice. */}
+              {/* Next payment: the linked finance customer's next unpaid invoice, with an overdue
+                  warning (precise day-count) and the 30-day deactivation notice once past due. */}
               <div style={{ fontSize: 13, minWidth: 0 }}>
                 {(() => {
                   const np = (c as { next_payment?: { number?: string; due_date?: string | null; balance?: number } | null }).next_payment;
                   if (!np) return <span style={{ color: C.grayd }}>—</span>;
-                  const today = new Date().toISOString().slice(0, 10);
-                  const overdue = !!np.due_date && String(np.due_date).slice(0, 10) < today;
+                  // Prefer the server-derived overdue day-count (only set for a REAL unpaid invoice
+                  // past its due date — never a scheduled projection).
+                  const od = (c as { overdue?: { days_overdue?: number } | null }).overdue;
+                  const daysOverdue = od?.days_overdue ?? null;
+                  const overdue = daysOverdue != null && daysOverdue > 0;
+                  const graceGone = overdue && daysOverdue > 30;
                   return (
                     <>
                       <div style={{ fontWeight: 700, color: overdue ? C.red : C.white }}>{np.due_date ? fmtDate(np.due_date) : 'On receipt'}</div>
                       <div style={{ fontSize: 10, color: C.grayd, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        ₹{Number(np.balance ?? 0).toLocaleString('en-IN')}{np.number ? ` · ${np.number}` : ''}{overdue ? ' · overdue' : ''}
+                        ₹{Number(np.balance ?? 0).toLocaleString('en-IN')}{np.number ? ` · ${np.number}` : ''}
                       </div>
+                      {overdue && (
+                        <div style={{ fontSize: 10.5, marginTop: 4, fontWeight: 700, color: C.red }}>
+                          Overdue by {daysOverdue}d
+                        </div>
+                      )}
+                      {overdue && (
+                        <div title={graceGone
+                          ? 'Payment is more than 30 days overdue — this account is due for deactivation.'
+                          : `Account will be deactivated if payment goes beyond 30 days overdue (${30 - daysOverdue!}d left).`}
+                          style={{ fontSize: 9.5, marginTop: 3, fontWeight: 600, lineHeight: 1.3, color: graceGone ? C.red : '#E8A13B',
+                            whiteSpace: 'normal', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                          {graceGone
+                            ? '⚠ Past 30-day grace — subject to deactivation'
+                            : `⚠ Deactivates if 30d+ overdue · ${30 - daysOverdue!}d left`}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+              {/* Renewal: days left in the current billing cycle (from the linked recurring
+                  invoice). Red once 90%+ of the cycle is consumed. "—" when not finance-linked. */}
+              <div style={{ fontSize: 13, minWidth: 0 }}>
+                {(() => {
+                  const r = (c as { renewal?: { cycle_end?: string; days_left?: number; percent_consumed?: number } | null }).renewal;
+                  if (!r?.cycle_end) return <span style={{ color: C.grayd }}>—</span>;
+                  const left = r.days_left ?? 0;
+                  const pct = r.percent_consumed ?? 0;
+                  const ended = left <= 0;
+                  const hot = pct >= 90 || ended; // ≥90% consumed → highlight red
+                  return (
+                    <>
+                      <div style={{ fontWeight: 700, color: hot ? C.red : C.white }}>{fmtDate(r.cycle_end)}</div>
+                      <div style={{ fontSize: 11, marginTop: 2, fontWeight: 600, color: hot ? C.red : C.green }}>
+                        {ended ? (left === 0 ? 'Renews today' : `Overdue ${Math.abs(left)}d`) : `${left}d left`}
+                      </div>
+                      <div style={{ fontSize: 9.5, color: C.grayd, marginTop: 2 }}>{pct}% of cycle used</div>
                     </>
                   );
                 })()}
