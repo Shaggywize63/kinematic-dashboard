@@ -19,6 +19,34 @@ export interface SpeechRecognitionApi {
   cancel: () => void;
   level: number;   // 0…1 smoothed mic amplitude
   interim: string; // live partial transcript
+  // Set when the recogniser reports an error (denied mic permission, no
+  // speech detected, network issue, …) — null otherwise. Without this a
+  // failure just flips `listening` back to false with no way for the caller
+  // to know why, which reads as "I held the mic and nothing happened".
+  error: string | null;
+}
+
+// Maps the Web Speech API's `SpeechRecognitionErrorEvent.error` code to a
+// line a rep can act on. `undefined`/unknown codes that aren't worth
+// surfacing (e.g. a harmless already-running race) return null.
+function speechErrorMessage(code: string | undefined): string | null {
+  switch (code) {
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return 'Microphone access is blocked for this site. Allow it in your browser’s site settings, then try again.';
+    case 'audio-capture':
+      return 'No microphone found. Check your device’s microphone and try again.';
+    case 'network':
+      return 'Voice service network error. Check your connection and try again.';
+    case 'no-speech':
+      return 'Didn’t hear anything — hold the mic and try again.';
+    case 'aborted':
+      return null; // the rep cancelled — not a failure worth surfacing
+    case undefined:
+      return null;
+    default:
+      return 'Voice input error. Try again, or type the details in.';
+  }
 }
 
 export function useSpeechRecognition(
@@ -28,6 +56,7 @@ export function useSpeechRecognition(
   const [supported, setSupported] = useState(false);
   const [level, setLevel] = useState(0);      // 0…1 smoothed mic amplitude
   const [interim, setInterim] = useState(''); // live partial transcript
+  const [error, setError] = useState<string | null>(null);
   const recRef = useRef<any>(null);
   // Keep the latest onResult in a ref so the recogniser is set up once (no
   // teardown on every render) while still calling the current callback.
@@ -103,14 +132,16 @@ export function useSpeechRecognition(
       if (finalText.trim()) { setInterim(''); onResultRef.current(finalText.trim()); }
     };
     rec.onend = () => { setListening(false); setInterim(''); stopMeter(); };
-    rec.onerror = () => { setListening(false); setInterim(''); stopMeter(); };
+    rec.onerror = (e: any) => { setListening(false); setInterim(''); stopMeter(); setError(speechErrorMessage(e?.error)); };
     recRef.current = rec;
     return () => { try { rec.abort(); } catch { /* */ } stopMeter(); };
   }, [stopMeter]);
 
   const start = useCallback(() => {
     if (!recRef.current || listening) return;
-    try { recRef.current.start(); setListening(true); void startMeter(); } catch { /* already running */ }
+    setError(null);
+    try { recRef.current.start(); setListening(true); void startMeter(); }
+    catch (e: any) { setError(speechErrorMessage(e?.name === 'InvalidStateError' ? undefined : 'start-failed')); }
   }, [listening, startMeter]);
   const stop = useCallback(() => {
     // Finalise — flush whatever was captured (fires onresult → onend).
@@ -127,5 +158,5 @@ export function useSpeechRecognition(
     setInterim('');
   }, [stopMeter]);
 
-  return { listening, supported, start, stop, cancel, level, interim };
+  return { listening, supported, start, stop, cancel, level, interim, error };
 }
