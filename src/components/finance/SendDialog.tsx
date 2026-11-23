@@ -4,7 +4,7 @@
 // when the message was really delivered. When the email provider is not configured the dialog
 // stays open with a clear warning so nobody believes the customer got an email.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button, Field, Input, Textarea, T } from '../ui';
 import { Modal, fail } from './ui';
@@ -12,6 +12,12 @@ import { financeApi, SendResult } from '../../lib/financeApi';
 import { downloadBlob } from '../../lib/financeFormat';
 
 const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+
+/** Fill {{var}} placeholders from `vars`; any placeholder we can't fill (e.g. {{total}}) becomes empty
+ *  so raw braces never reach the customer. Collapses the blank lines that leaves behind. */
+function fillTemplate(tpl: string, vars: Record<string, string>): string {
+  return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k: string) => vars[k] ?? '').replace(/[ \t]+\n/g, '\n').trim();
+}
 
 export interface SendDialogProps {
   type: 'invoice' | 'quote';
@@ -44,6 +50,29 @@ export default function SendDialog({ type, doc, onClose, onSent }: SendDialogPro
   const [dl, setDl] = useState(false);
 
   const api = type === 'invoice' ? financeApi.invoices : financeApi.quotes;
+
+  // Pre-fill a relevant subject + message so nothing goes out blank. Uses the admin's configured
+  // templates (Finance settings) when set, otherwise a sensible default, with {{customer_name}},
+  // {{number}} and {{business_name}} filled in. The user can still edit or clear before sending.
+  useEffect(() => {
+    let off = false;
+    const Label = `${label[0].toUpperCase()}${label.slice(1)}`;
+    const applyDefaults = (business: string, subjTpl?: string | null, bodyTpl?: string | null) => {
+      const vars = { customer_name: doc.customer_snapshot?.name || 'there', number: doc.number, business_name: business };
+      const subject = (subjTpl && subjTpl.trim())
+        || `${Label} {{number}}${business ? ' from {{business_name}}' : ''}`;
+      const body = (bodyTpl && bodyTpl.trim())
+        || `Dear {{customer_name}},\n\nThank you for your business. Please find your ${label} {{number}} attached — you can also view it any time using the link below.\n\nIf you have any questions about this ${label}, just reply to this email.\n\nWarm regards,${business ? `\n{{business_name}}` : ''}`;
+      setSubject(fillTemplate(subject, vars));
+      setMessage(fillTemplate(body, vars));
+    };
+    financeApi.settings.get()
+      .then((r) => { if (!off) applyDefaults(r.data?.business_name?.trim() || '', r.data?.email_subject_template, r.data?.email_body_template); })
+      .catch(() => { if (!off) applyDefaults(''); });
+    return () => { off = true; };
+    // Pre-fill once when the dialog opens for this document.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Download the PDF before sending — lets the user review / keep a copy first.
   const download = async () => {
@@ -126,11 +155,11 @@ export default function SendDialog({ type, doc, onClose, onSent }: SendDialogPro
         <Field label="CC" htmlFor="send-cc" error={errors.cc} hint="Up to 5 addresses, separated by commas.">
           <Input id="send-cc" value={cc} invalid={!!errors.cc} onChange={(e) => setCc(e.target.value)} placeholder="accounts@example.com, boss@example.com" />
         </Field>
-        <Field label="Subject" htmlFor="send-subject" hint="Leave blank to use the default subject from Finance settings.">
+        <Field label="Subject" htmlFor="send-subject" hint="Pre-filled — edit as needed before sending.">
           <Input id="send-subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={`${label[0].toUpperCase()}${label.slice(1)} ${doc.number}`} />
         </Field>
-        <Field label="Message" htmlFor="send-message" hint="Leave blank to use the default message. A link to view the document is always included.">
-          <Textarea id="send-message" rows={5} value={message} onChange={(e) => setMessage(e.target.value)} />
+        <Field label="Message" htmlFor="send-message" hint="Pre-filled — edit as needed. A link to view the document is always included below your message.">
+          <Textarea id="send-message" rows={6} value={message} onChange={(e) => setMessage(e.target.value)} />
         </Field>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text, cursor: 'pointer' }}>
           <input type="checkbox" checked={attach} onChange={(e) => setAttach(e.target.checked)} />
