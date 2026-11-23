@@ -275,7 +275,7 @@ test.describe('Products list', () => {
     expect(await makes()).toEqual(['Festo', 'Piab', '—']);
   });
 
-  test('another client: the table is unchanged (SKU, Category, weight, tax, HSN), no make/brand filters, no import', async ({ page }) => {
+  test('another client: the table is unchanged (SKU, Category, weight, tax, HSN), no make/brand filters, but import is still offered', async ({ page }) => {
     const calls = await setup(page, { spark: false });
     await page.goto('/dashboard/crm/products');
     await expect(page.getByRole('cell', { name: '13280' })).toBeVisible({ timeout: 60_000 });
@@ -283,7 +283,10 @@ test.describe('Products list', () => {
     await expect(page.getByPlaceholder('Search SKU, name...')).toBeVisible();
     await expect(page.getByLabel('Make')).toHaveCount(0);
     await expect(page.getByLabel('Brand')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Import from file' })).toHaveCount(0);
+    // Unlike the b2b-only columns above, "Import from file" has no B2B-specific logic
+    // (ProductImportModal / POST /products/bulk are plain tenant-scoped CRUD), so every
+    // client gets it — not just the connected-B2B tenant.
+    await expect(page.getByRole('button', { name: 'Import from file' })).toBeVisible();
     expect(calls.lists.makes).toHaveLength(0);
     expect(calls.lists.brands).toHaveLength(0);
     expect(calls.lists.products.every((u) => !/make_id|brand_id/.test(u))).toBe(true);
@@ -547,7 +550,7 @@ test.describe('Import from file', () => {
     const stream = await download.createReadStream();
     let text = '';
     for await (const chunk of stream) text += chunk.toString('utf8');
-    expect(text.split(/\r?\n/)[0]).toBe('Reference,Name,Make,Brand,Unit,Price,Category,Description');
+    expect(text.split(/\r?\n/)[0]).toBe('Reference,Name,Make,Brand,Unit,Price,Tax %,Category,Description');
     expect(text).toContain('13280');
   });
 

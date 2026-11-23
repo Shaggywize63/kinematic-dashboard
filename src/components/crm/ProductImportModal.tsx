@@ -83,7 +83,7 @@ export default function ProductImportModal({ onClose, onImported }: { onClose: (
           <div>
             <h2 style={{ margin: 0, fontSize: 18, color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}><Upload aria-hidden size={18} strokeWidth={2} style={{ color: T.dim, flexShrink: 0 }} />Import products from a file</h2>
             <div style={{ fontSize: 13, color: T.dim, marginTop: 4, lineHeight: 1.45 }}>
-              A CSV file with one product per line. Columns: Reference and Name are required; Make, Brand, Unit, Price, Category and Description are optional.
+              A CSV file with one product per line. Columns: Reference and Name are required; Make, Brand, Unit, Price, Tax %, Category and Description are optional.
             </div>
           </div>
           <Button size="sm" variant="ghost" onClick={downloadTemplate}>Download template</Button>
@@ -127,7 +127,7 @@ export default function ProductImportModal({ onClose, onImported }: { onClose: (
                 <div style={{ overflowX: 'auto', border: `1px solid ${T.border}`, borderRadius: T.radius.md }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
                     <thead><tr>
-                      {['Row', 'Reference', 'Name', 'Make', 'Brand', 'Unit', 'Price', 'Category'].map((h) => <th key={h} style={th}>{h}</th>)}
+                      {['Row', 'Reference', 'Name', 'Make', 'Brand', 'Unit', 'Price', 'Tax %', 'Category'].map((h) => <th key={h} style={th}>{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {rows.slice(0, PREVIEW_ROWS).map((r) => (
@@ -139,6 +139,7 @@ export default function ProductImportModal({ onClose, onImported }: { onClose: (
                           <td style={td}>{r.brand || '—'}</td>
                           <td style={td}>{r.unit || '—'}</td>
                           <td style={td}>{r.price != null ? r.price : '—'}</td>
+                          <td style={td}>{r.tax_rate_pct != null ? r.tax_rate_pct : '—'}</td>
                           <td style={td}>{r.category || '—'}</td>
                         </tr>
                       ))}

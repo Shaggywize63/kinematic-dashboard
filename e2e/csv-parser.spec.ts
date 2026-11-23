@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { PRODUCT_TEMPLATE_CSV, mapProductRows, parseCsv, parsePrice, parseProductCsv, toBulkRows } from '../src/lib/csv';
+import { PRODUCT_TEMPLATE_CSV, mapProductRows, parseCsv, parsePercent, parsePrice, parseProductCsv, toBulkRows } from '../src/lib/csv';
 
 /** Pure tests for the small CSV reader and the product-import mapping (no browser, no API). */
 
@@ -55,15 +55,39 @@ test.describe('parsePrice', () => {
   });
 });
 
+test.describe('parsePercent', () => {
+  test('a plain or %-suffixed number in range', () => {
+    expect(parsePercent('18')).toBe(18);
+    expect(parsePercent('18%')).toBe(18);
+    expect(parsePercent(' 12.5 % ')).toBe(12.5);
+    expect(parsePercent('0')).toBe(0);
+    expect(parsePercent('100')).toBe(100);
+  });
+  test('out of range or not a number gives null', () => {
+    expect(parsePercent('')).toBeNull();
+    expect(parsePercent('abc')).toBeNull();
+    expect(parsePercent('-5')).toBeNull();
+    expect(parsePercent('101')).toBeNull();
+  });
+});
+
 test.describe('product import mapping', () => {
   test('the template parses cleanly with every column mapped', () => {
     const r = parseProductCsv(PRODUCT_TEMPLATE_CSV);
     expect(r.problems).toEqual([]);
     expect(r.warnings).toEqual([]);
     expect(r.rows).toHaveLength(2);
-    expect(r.rows[0]).toEqual({ row: 1, reference: '13280', name: 'Pneumatic cylinder 32mm', make: 'Festo', brand: 'MAC', unit: 'each', price: 4250, category: 'Cylinders', description: 'Double acting' });
-    expect(r.rows[1]).toMatchObject({ row: 2, reference: '20415', name: 'Vacuum cup, 40mm', description: 'Flat cup, NBR', price: 1180.5 });
-    expect(Object.keys(r.mapped).sort()).toEqual(['brand', 'category', 'description', 'make', 'name', 'price', 'reference', 'unit']);
+    expect(r.rows[0]).toEqual({ row: 1, reference: '13280', name: 'Pneumatic cylinder 32mm', make: 'Festo', brand: 'MAC', unit: 'each', price: 4250, tax_rate_pct: 18, category: 'Cylinders', description: 'Double acting' });
+    expect(r.rows[1]).toMatchObject({ row: 2, reference: '20415', name: 'Vacuum cup, 40mm', description: 'Flat cup, NBR', price: 1180.5, tax_rate_pct: 18 });
+    expect(Object.keys(r.mapped).sort()).toEqual(['brand', 'category', 'description', 'make', 'name', 'price', 'reference', 'tax_rate_pct', 'unit']);
+  });
+
+  test('a Tax % / GST column is recognised and a bad value is dropped with a warning', () => {
+    const r = parseProductCsv('Reference,Name,GST\n1,A,18\n2,B,120');
+    expect(r.mapped.tax_rate_pct).toBe('GST');
+    expect(r.rows[0].tax_rate_pct).toBe(18);
+    expect(r.rows[1].tax_rate_pct).toBeUndefined();
+    expect(r.warnings).toEqual(['Row 2: "120" is not a tax rate between 0 and 100, so it is left out.']);
   });
 
   test('header aliases are case-insensitive and tolerate spaces / underscores', () => {
