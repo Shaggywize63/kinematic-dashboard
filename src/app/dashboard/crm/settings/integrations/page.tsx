@@ -10,7 +10,13 @@ import {
   AlertTriangle, Check, CheckCircle2, Cloud, Code2, Copy, Database, ExternalLink, Eye, Facebook, FileText, Globe, Link2, ListChecks, Mail,
   MessageCircle, Mic, Palette, PhoneCall, Play, Plug, Plus, Send, Settings2, Terminal, Unplug, Webhook, XCircle,
 } from 'lucide-react';
+// Real brand marks (Simple Icons via react-icons) for third-party providers —
+// never hand-redraw a trademarked logo; these are official, single-colour
+// paths. Salesforce has no entry in Simple Icons (not distributed there), so
+// it keeps a generic Lucide glyph below rather than an invented approximation.
+import { SiMeta, SiFacebook, SiGoogleads, SiZoho } from 'react-icons/si';
 import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { ICON_SIZE } from '../../../../../lib/labelIcons';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
@@ -102,6 +108,35 @@ function providerLabel(id: string): string {
 
 function providerIcon(id: string): LucideIcon {
   return PROVIDERS.find((p) => p.id === id)?.icon ?? Plug;
+}
+
+// Real brand colour per provider (Simple Icons' own hex) — only set for
+// providers that have an official mark; everything else falls through to
+// the generic tinted Lucide tile below.
+const PROVIDER_BRAND: Partial<Record<IntegrationProvider, { Icon: typeof SiMeta; color: string }>> = {
+  meta_lead_ads: { Icon: SiMeta, color: '#0467DF' },
+  google_ads: { Icon: SiGoogleads, color: '#4285F4' },
+  zoho: { Icon: SiZoho, color: '#E42527' },
+};
+
+/** Provider tile: the real brand mark in its own colour when one exists,
+ *  else the generic brand-tinted Lucide tile. Bypasses IconTile's tone
+ *  recolouring for brand marks — a logo rendered in the app's own accent
+ *  colour isn't the "exact logo" the brand owns. */
+function ProviderTile({ id, icon, size = 28, iconSize = ICON_SIZE.stat, style }: {
+  id: IntegrationProvider; icon: LucideIcon; size?: number; iconSize?: number; style?: React.CSSProperties;
+}) {
+  const brand = PROVIDER_BRAND[id];
+  if (!brand) return <IconTile icon={icon} tone="brand" size={size} iconSize={iconSize} style={style} />;
+  const { Icon } = brand;
+  return (
+    <span aria-hidden style={{
+      width: size, height: size, borderRadius: 8, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      background: 'var(--s3)', ...style,
+    }}>
+      <Icon size={iconSize} color={brand.color} />
+    </span>
+  );
 }
 
 function formatLastEvent(when: string | null, count: number): string {
@@ -239,7 +274,7 @@ export default function IntegrationsPage() {
                 padding: 16, display: 'flex', flexDirection: 'column', gap: 12,
               }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <IconTile icon={providerIcon(i.provider)} tone="brand" size={36} iconSize={18} />
+                  <ProviderTile id={i.provider} icon={providerIcon(i.provider)} size={36} iconSize={18} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {i.label}
@@ -296,7 +331,7 @@ export default function IntegrationsPage() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <IconTile icon={p.icon} tone="brand" />
+                  <ProviderTile id={p.id} icon={p.icon} />
                   <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>{p.label}</span>
                   {!p.available && (
                     <span style={{
@@ -440,14 +475,19 @@ function ConnectModal({
             background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.35)',
             borderRadius: 10, padding: 16, textAlign: 'center',
           }}>
-            <IconTile icon={Facebook} tone="brand" size={40} iconSize={20} style={{ margin: '0 auto 10px' }} />
+            <span aria-hidden style={{
+              width: 40, height: 40, borderRadius: 8, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              background: 'var(--s3)', margin: '0 auto 10px',
+            }}>
+              <SiFacebook size={20} color="#0866FF" />
+            </span>
             <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 14, lineHeight: 1.5 }}>
               Log in with Facebook, pick the Page(s) your lead forms are on, and we handle the
               rest — no App Secret, no Graph API Explorer, no webhook setup. Every Page you
               select starts sending leads immediately.
             </div>
             <button onClick={connectWithFacebook} disabled={metaConnecting} style={{ ...primaryBtn, width: '100%', justifyContent: 'center' }}>
-              <InlineIcon icon={Facebook} />{metaConnecting ? 'Redirecting…' : 'Connect with Facebook'}
+              <SiFacebook aria-hidden size={ICON_SIZE.button} style={{ flexShrink: 0 }} />{metaConnecting ? 'Redirecting…' : 'Connect with Facebook'}
             </button>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -911,6 +951,61 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
           </div>
         )}
 
+        {hostedFormUrl && (
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.35)',
+            borderRadius: 10, padding: 14,
+          }}>
+            <label style={{ ...fieldLabel, color: 'rgb(59, 130, 246)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={Link2} size={14} />Easiest — share a link, no website needed
+            </label>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.5 }}>
+              Kinematic hosts the form for you. Share the link in WhatsApp, email, or your bio. Or print the QR for a poster / business card.
+              Every submission lands in your CRM with the right tenant scope.
+            </div>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>Share link</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input value={hostedFormUrl} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
+                  <button onClick={() => copy(hostedFormUrl, 'Form link')} style={ghostBtn}><InlineIcon icon={Copy} />Copy</button>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <a
+                    href={hostedFormUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
+                  >
+                    <InlineIcon icon={ExternalLink} />Open form
+                  </a>
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(hostedFormUrl)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
+                  >
+                    <InlineIcon icon={MessageCircle} />Share on WhatsApp
+                  </a>
+                </div>
+              </div>
+              {hostedFormUrl && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>QR code</div>
+                  <div ref={qrCanvasRef} role="img" aria-label="Form QR code"
+                       style={{ display: 'inline-block', borderRadius: 8, background: '#fff', padding: 6, border: '1px solid var(--border)', lineHeight: 0 }}>
+                    <QRCodeCanvas value={hostedFormUrl} size={140} level="M" includeMargin={false} />
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <button type="button" onClick={downloadQr}
+                            style={{ fontSize: 11, color: 'var(--text-dim)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>Download PNG</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {setupSteps}
 
         <div>
@@ -1028,61 +1123,6 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
             <div style={{ marginTop: 10 }}>
               <label style={fieldLabel}>Redirect after submit <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(optional, https://)</span></label>
               <input value={dRedirect} onChange={(e) => { setDRedirect(e.target.value); setFormDirty(true); }} placeholder="https://yoursite.com/thank-you" style={input} />
-            </div>
-          </div>
-        )}
-
-        {hostedFormUrl && (
-          <div style={{
-            background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.35)',
-            borderRadius: 10, padding: 14,
-          }}>
-            <label style={{ ...fieldLabel, color: 'rgb(59, 130, 246)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <InlineIcon icon={Link2} size={14} />Easiest — share a link, no website needed
-            </label>
-            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.5 }}>
-              Kinematic hosts the form for you. Share the link in WhatsApp, email, or your bio. Or print the QR for a poster / business card.
-              Every submission lands in your CRM with the right tenant scope.
-            </div>
-            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>Share link</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input value={hostedFormUrl} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
-                  <button onClick={() => copy(hostedFormUrl, 'Form link')} style={ghostBtn}><InlineIcon icon={Copy} />Copy</button>
-                </div>
-                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                  <a
-                    href={hostedFormUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
-                  >
-                    <InlineIcon icon={ExternalLink} />Open form
-                  </a>
-                  <a
-                    href={`https://wa.me/?text=${encodeURIComponent(hostedFormUrl)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
-                  >
-                    <InlineIcon icon={MessageCircle} />Share on WhatsApp
-                  </a>
-                </div>
-              </div>
-              {hostedFormUrl && (
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>QR code</div>
-                  <div ref={qrCanvasRef} role="img" aria-label="Form QR code"
-                       style={{ display: 'inline-block', borderRadius: 8, background: '#fff', padding: 6, border: '1px solid var(--border)', lineHeight: 0 }}>
-                    <QRCodeCanvas value={hostedFormUrl} size={140} level="M" includeMargin={false} />
-                  </div>
-                  <div style={{ marginTop: 4 }}>
-                    <button type="button" onClick={downloadQr}
-                            style={{ fontSize: 11, color: 'var(--text-dim)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>Download PNG</button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}

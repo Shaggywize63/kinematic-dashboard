@@ -6,9 +6,25 @@
  * a BSP, or an existing WABA (same fields as whichever it's on).
  * Wired to /api/v1/crm/whatsapp/connection (+ /test, /templates/sync).
  */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../../../../lib/api';
 import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
+import WhatsAppLogo from '../../../../components/icons/WhatsAppLogo';
+
+const FB_SDK_VERSION = 'v21.0';
+
+declare global {
+  interface Window {
+    FB?: {
+      init: (opts: { appId: string; autoLogAppEvents?: boolean; xfbml?: boolean; version: string }) => void;
+      login: (
+        callback: (response: { authResponse?: { code?: string } }) => void,
+        opts: Record<string, unknown>,
+      ) => void;
+    };
+    fbAsyncInit?: () => void;
+  }
+}
 
 type ConnType = 'cloud_api' | 'bsp';
 type Conn = {
@@ -45,6 +61,19 @@ export default function WhatsappSettingsPage() {
   const [syncing, setSyncing] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // Embedded Signup — connect through Meta's own hosted WhatsApp onboarding
+  // UI instead of hand-typing Phone Number ID / WABA ID / access token.
+  // waConfig is null until the backend confirms META_WHATSAPP_CONFIG_ID is
+  // set; until then the page only shows the manual form (unchanged default).
+  const [waConfig, setWaConfig] = useState<{ app_id: string; config_id: string } | null>(null);
+  const [useManual, setUseManual] = useState(false);
+  const [embeddedConnecting, setEmbeddedConnecting] = useState(false);
+  // Meta's embedded-signup flow delivers phone_number_id/waba_id via a
+  // postMessage event, not via FB.login's own callback — captured here so
+  // whichever resolves second (the event or the callback's `code`) can see
+  // the other's result without a render race.
+  const signupIdsRef = useRef<{ phone_number_id?: string; waba_id?: string }>({});
+
   const [f, setF] = useState({
     connection_type: 'cloud_api' as ConnType,
     bsp_name: '360dialog',
@@ -79,6 +108,87 @@ export default function WhatsappSettingsPage() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // Fetch whether Embedded Signup is configured server-side. A 404/error (or
+  // config: null) just means META_WHATSAPP_CONFIG_ID isn't set yet — the
+  // page falls back to manual-only, same as before this feature existed.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r: any = await api.get('/api/v1/crm/whatsapp/embedded-signup/config');
+        const cfg = r && typeof r === 'object' && 'data' in r ? r.data : r;
+        if (cfg?.app_id && cfg?.config_id) setWaConfig(cfg);
+      } catch { /* not configured — manual form only */ }
+    })();
+  }, []);
+
+  // Load the Facebook JS SDK lazily, only once we know Embedded Signup is
+  // actually configured (no point loading a third-party script otherwise).
+  useEffect(() => {
+    if (!waConfig || typeof window === 'undefined') return;
+    if (window.FB) { window.FB.init({ appId: waConfig.app_id, version: FB_SDK_VERSION }); return; }
+    window.fbAsyncInit = () => { window.FB?.init({ appId: waConfig.app_id, version: FB_SDK_VERSION }); };
+    if (document.getElementById('facebook-jssdk')) return;
+    const script = document.createElement('script');
+    script.id = 'facebook-jssdk';
+    script.src = `https://connect.facebook.net/en_US/sdk.js`;
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+  }, [waConfig]);
+
+  // Meta posts phone_number_id/waba_id via this event during the signup
+  // popup flow — the documented way to get them (FB.login's own callback
+  // only carries the auth code). Scoped to facebook.com origins only.
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (!/\.facebook\.com$/.test(new URL(event.origin).hostname) && event.origin !== 'https://www.facebook.com') return;
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (data?.type === 'WA_EMBEDDED_SIGNUP' && data?.event === 'FINISH' && data?.data) {
+          signupIdsRef.current = {
+            phone_number_id: String(data.data.phone_number_id || ''),
+            waba_id: String(data.data.waba_id || ''),
+          };
+        }
+      } catch { /* not a JSON postMessage we care about */ }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const connectEmbedded = () => {
+    if (!waConfig || !window.FB) { setMsg({ ok: false, text: 'WhatsApp connect is still loading — try again in a moment.' }); return; }
+    signupIdsRef.current = {};
+    setEmbeddedConnecting(true);
+    setMsg(null);
+    window.FB.login(
+      async (response) => {
+        const code = response?.authResponse?.code;
+        if (!code) {
+          setEmbeddedConnecting(false);
+          setMsg({ ok: false, text: 'WhatsApp connection was cancelled or did not complete.' });
+          return;
+        }
+        try {
+          const { phone_number_id, waba_id } = signupIdsRef.current;
+          await api.post('/api/v1/crm/whatsapp/embedded-signup', { code, phone_number_id, waba_id });
+          setMsg({ ok: true, text: 'WhatsApp connected. Run a connection test to verify.' });
+          await load();
+        } catch (e: any) {
+          setMsg({ ok: false, text: e?.message || 'Could not complete the WhatsApp connection.' });
+        } finally {
+          setEmbeddedConnecting(false);
+        }
+      },
+      {
+        config_id: waConfig.config_id,
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: { sessionInfoVersion: '3' },
+      },
+    );
+  };
 
   const save = async () => {
     setSaving(true); setMsg(null);
@@ -135,7 +245,15 @@ export default function WhatsappSettingsPage() {
     <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.white, paddingBottom: 40, maxWidth: 760 }}>
       <div style={{ marginBottom: 24 }}>
         <a href="/dashboard/settings" style={{ color: C.gray, fontSize: 12, textDecoration: 'none' }}>← Settings</a>
-        <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: '6px 0 4px' }}>WhatsApp Business</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '6px 0 4px' }}>
+          <span aria-hidden style={{
+            width: 36, height: 36, borderRadius: 8, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(37, 211, 102, 0.12)',
+          }}>
+            <WhatsAppLogo size={20} />
+          </span>
+          <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: 0 }}>WhatsApp Business</h1>
+        </div>
         <p style={{ color: C.gray, fontSize: 13, margin: 0, maxWidth: 640 }}>
           Connect this organisation&apos;s WhatsApp number so Kinematic can send messages, templates, and broadcasts from it. Connect via a <b style={{ color: C.white }}>BSP</b>, the <b style={{ color: C.white }}>Direct Cloud API</b>, or your <b style={{ color: C.white }}>existing WhatsApp Business account</b> — enter whichever credentials you have.
         </p>
@@ -155,7 +273,36 @@ export default function WhatsappSettingsPage() {
         </div>
       )}
 
+      {waConfig && !useManual && (
+        <div style={{ ...card, marginBottom: 16, textAlign: 'center' }}>
+          <div style={{ fontSize: 13, color: C.white, marginBottom: 14, lineHeight: 1.5, maxWidth: 480, margin: '0 auto 14px' }}>
+            Connect through Meta&rsquo;s own WhatsApp setup — verify your number, create or pick a WhatsApp
+            Business Account, and we handle the rest. No Phone Number ID, WABA ID, or access token to hunt down.
+          </div>
+          <button
+            onClick={connectEmbedded}
+            disabled={embeddedConnecting}
+            style={{ background: C.red, border: 'none', color: '#fff', padding: '12px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: embeddedConnecting ? 'not-allowed' : 'pointer', minWidth: 220 }}
+          >
+            {embeddedConnecting ? 'Connecting…' : conn ? 'Reconnect WhatsApp' : 'Connect WhatsApp'}
+          </button>
+          <div style={{ marginTop: 10 }}>
+            <button onClick={() => setUseManual(true)} style={{ fontSize: 11, color: C.gray, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>
+              Already have a Phone Number ID / access token? Enter it manually instead
+            </button>
+          </div>
+        </div>
+      )}
+
+      {(!waConfig || useManual) && (
       <div style={card}>
+        {waConfig && useManual && (
+          <div style={{ marginBottom: 16 }}>
+            <button onClick={() => setUseManual(false)} style={{ fontSize: 11, color: C.gray, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>
+              ← Use the guided Connect WhatsApp flow instead
+            </button>
+          </div>
+        )}
         {loading ? <div style={{ color: C.gray, fontSize: 13 }}>Loading…</div> : (
           <>
             <span style={label}>Connection type</span>
@@ -219,6 +366,7 @@ export default function WhatsappSettingsPage() {
           </>
         )}
       </div>
+      )}
 
       <div style={{ fontSize: 12, color: C.gray, marginTop: 14, lineHeight: 1.6 }}>
         Secrets are encrypted at rest and never shown again — leave a token field blank to keep the saved value. Message sending stays inert until a connection is saved and active.
