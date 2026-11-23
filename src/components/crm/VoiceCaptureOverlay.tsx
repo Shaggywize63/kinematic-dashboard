@@ -259,6 +259,21 @@ export function InlineLeadVoiceCapture({
   // Cleanup on unmount — drop the mic and any pending success timer.
   useEffect(() => () => { clearSuccessTimer(); try { speech.cancel(); } catch { /* */ } }, [speech]);
 
+  // The recogniser can die mid-hold (mic permission blocked, no mic found, a
+  // network hiccup) without the rep ever releasing. Without this, `phase`
+  // stays frozen at 'listening' forever — the orb just sits there with no
+  // feedback, which reads as "I held the mic and nothing happened". Surface
+  // whatever `useSpeechRecognition` reports and drop back to idle/error so
+  // the rep sees why and can retry or type the details in.
+  useEffect(() => {
+    if (!speech.error) return;
+    if (phase !== 'listening' && phase !== 'processing') return;
+    holdingRef.current = false;
+    submitRef.current = false;
+    setError(speech.error);
+    setPhase('error');
+  }, [speech.error, phase]);
+
   const beginHold = useCallback(() => {
     if (!speech.supported) return;
     if (holdingRef.current || phase === 'processing') return;
