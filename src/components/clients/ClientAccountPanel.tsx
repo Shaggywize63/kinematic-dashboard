@@ -19,10 +19,16 @@ interface NextPayment {
   invoice_id: string | null; number: string | null; due_date: string | null; total: number | null; balance: number | null;
   status: string; share_token: string | null; scheduled: boolean;
 }
+interface RenewalInfo {
+  cycle_start: string; cycle_end: string; cycle_days: number; days_left: number; percent_consumed: number;
+}
+interface OverdueInfo {
+  invoice_id: string; number: string | null; due_date: string; balance: number | null; days_overdue: number;
+}
 interface Account {
   name: string; contact_person: string | null; contact_email: string | null; allocated: number | null; active: number;
   finance_customer_id: string | null; next_payment: NextPayment | null; price_per_user: number | null;
-  detected_price_per_user: number | null;
+  detected_price_per_user: number | null; renewal: RenewalInfo | null; overdue: OverdueInfo | null;
 }
 interface Customer { id: string; display_name: string; email?: string | null; company_name?: string | null; gstin?: string | null }
 interface SeatCharge {
@@ -36,8 +42,6 @@ function fmtDate(iso?: string | null): string {
   const d = new Date(`${String(iso).slice(0, 10)}T00:00:00Z`);
   return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
 const box: React.CSSProperties = { background: 'var(--s3)', borderRadius: 16, padding: 16, border: '1px solid var(--border)' };
 const ACCENT = '#3E9EFF';
 
@@ -173,7 +177,12 @@ export default function ClientAccountPanel({ clientId }: { clientId: string }) {
   if (!acct) return <div style={{ ...box, fontSize: 12, color: '#E01E2C' }} role="alert">{err || 'Account info is unavailable.'}</div>;
 
   const np = acct.next_payment;
-  const overdue = !!np?.due_date && String(np.due_date).slice(0, 10) < todayIso();
+  // Server-derived overdue day-count (only present for a real unpaid invoice past due).
+  const daysOverdue = acct.overdue?.days_overdue ?? null;
+  const overdue = daysOverdue != null && daysOverdue > 0;
+  const graceGone = overdue && daysOverdue > 30;
+  const renewal = acct.renewal;
+  const renewalHot = !!renewal && (renewal.percent_consumed >= 90 || renewal.days_left <= 0);
   const noEmail = !acct.contact_email;
 
   const tile = (label: string, value: React.ReactNode, hint?: React.ReactNode, valueColor?: string) => (
@@ -208,10 +217,34 @@ export default function ClientAccountPanel({ clientId }: { clientId: string }) {
         {tile(np?.scheduled ? 'Next payment (scheduled)' : 'Next payment',
           np ? fmtDate(np.due_date) : '—',
           np
-            ? (np.scheduled ? 'Not yet invoiced — recurring invoice due around this date' : <>Invoice {np.number} · {inr(np.balance)} due{overdue ? ' · overdue' : ''}</>)
+            ? (np.scheduled ? 'Not yet invoiced — recurring invoice due around this date' : <>Invoice {np.number} · {inr(np.balance)} due{overdue ? ` · overdue ${daysOverdue}d` : ''}</>)
             : (acct.finance_customer_id ? 'No unpaid or recurring invoice' : 'Link a customer'),
           np ? (!np.scheduled && overdue ? '#E01E2C' : undefined) : undefined)}
+        {tile('Renewal',
+          renewal ? fmtDate(renewal.cycle_end) : '—',
+          renewal
+            ? (renewal.days_left <= 0
+                ? (renewal.days_left === 0 ? 'Renews today' : `Cycle ended ${Math.abs(renewal.days_left)}d ago`)
+                : `${renewal.days_left}d left · ${renewal.percent_consumed}% of cycle used`)
+            : (acct.finance_customer_id ? 'No recurring invoice' : 'Link a customer'),
+          renewalHot ? '#E01E2C' : undefined)}
       </div>
+
+      {/* Overdue → deactivation notice. Display only: this is a warning, not an automatic action —
+          an admin still deactivates manually from the client's Active toggle. */}
+      {overdue && (
+        <div role="alert" style={{
+          background: graceGone ? 'rgba(224,30,44,0.12)' : 'rgba(232,161,59,0.12)',
+          border: `1px solid ${graceGone ? 'rgba(224,30,44,0.4)' : 'rgba(232,161,59,0.4)'}`,
+          borderRadius: 12, padding: '11px 14px', fontSize: 12.5, lineHeight: 1.45,
+          color: graceGone ? '#E01E2C' : '#B45309', fontWeight: 600,
+        }}>
+          <strong>Payment overdue by {daysOverdue} day{daysOverdue === 1 ? '' : 's'}.</strong>{' '}
+          {graceGone
+            ? 'This is more than 30 days past due — the account is subject to deactivation. Review and deactivate it manually if appropriate.'
+            : `This account will be deactivated if payment goes beyond 30 days overdue — ${30 - daysOverdue!} day${30 - daysOverdue! === 1 ? '' : 's'} remain before it crosses the grace period.`}
+        </div>
+      )}
 
       {/* Billing link */}
       <div>
