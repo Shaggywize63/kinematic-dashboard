@@ -10,7 +10,13 @@ import {
   AlertTriangle, Check, CheckCircle2, Cloud, Code2, Copy, Database, ExternalLink, Eye, Facebook, FileText, Globe, Link2, ListChecks, Mail,
   MessageCircle, Mic, Palette, PhoneCall, Play, Plug, Plus, Send, Settings2, Terminal, Unplug, Webhook, XCircle,
 } from 'lucide-react';
+// Real brand marks (Simple Icons via react-icons) for third-party providers —
+// never hand-redraw a trademarked logo; these are official, single-colour
+// paths. Salesforce has no entry in Simple Icons (not distributed there), so
+// it keeps a generic Lucide glyph below rather than an invented approximation.
+import { SiMeta, SiFacebook, SiGoogleads, SiZoho } from 'react-icons/si';
 import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
+import { ICON_SIZE } from '../../../../../lib/labelIcons';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
@@ -102,6 +108,35 @@ function providerLabel(id: string): string {
 
 function providerIcon(id: string): LucideIcon {
   return PROVIDERS.find((p) => p.id === id)?.icon ?? Plug;
+}
+
+// Real brand colour per provider (Simple Icons' own hex) — only set for
+// providers that have an official mark; everything else falls through to
+// the generic tinted Lucide tile below.
+const PROVIDER_BRAND: Partial<Record<IntegrationProvider, { Icon: typeof SiMeta; color: string }>> = {
+  meta_lead_ads: { Icon: SiMeta, color: '#0467DF' },
+  google_ads: { Icon: SiGoogleads, color: '#4285F4' },
+  zoho: { Icon: SiZoho, color: '#E42527' },
+};
+
+/** Provider tile: the real brand mark in its own colour when one exists,
+ *  else the generic brand-tinted Lucide tile. Bypasses IconTile's tone
+ *  recolouring for brand marks — a logo rendered in the app's own accent
+ *  colour isn't the "exact logo" the brand owns. */
+function ProviderTile({ id, icon, size = 28, iconSize = ICON_SIZE.stat, style }: {
+  id: IntegrationProvider; icon: LucideIcon; size?: number; iconSize?: number; style?: React.CSSProperties;
+}) {
+  const brand = PROVIDER_BRAND[id];
+  if (!brand) return <IconTile icon={icon} tone="brand" size={size} iconSize={iconSize} style={style} />;
+  const { Icon } = brand;
+  return (
+    <span aria-hidden style={{
+      width: size, height: size, borderRadius: 8, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      background: 'var(--s3)', ...style,
+    }}>
+      <Icon size={iconSize} color={brand.color} />
+    </span>
+  );
 }
 
 function formatLastEvent(when: string | null, count: number): string {
@@ -239,7 +274,7 @@ export default function IntegrationsPage() {
                 padding: 16, display: 'flex', flexDirection: 'column', gap: 12,
               }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <IconTile icon={providerIcon(i.provider)} tone="brand" size={36} iconSize={18} />
+                  <ProviderTile id={i.provider} icon={providerIcon(i.provider)} size={36} iconSize={18} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {i.label}
@@ -296,7 +331,7 @@ export default function IntegrationsPage() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <IconTile icon={p.icon} tone="brand" />
+                  <ProviderTile id={p.id} icon={p.icon} />
                   <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>{p.label}</span>
                   {!p.available && (
                     <span style={{
@@ -440,14 +475,19 @@ function ConnectModal({
             background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.35)',
             borderRadius: 10, padding: 16, textAlign: 'center',
           }}>
-            <IconTile icon={Facebook} tone="brand" size={40} iconSize={20} style={{ margin: '0 auto 10px' }} />
+            <span aria-hidden style={{
+              width: 40, height: 40, borderRadius: 8, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              background: 'var(--s3)', margin: '0 auto 10px',
+            }}>
+              <SiFacebook size={20} color="#0866FF" />
+            </span>
             <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 14, lineHeight: 1.5 }}>
               Log in with Facebook, pick the Page(s) your lead forms are on, and we handle the
               rest — no App Secret, no Graph API Explorer, no webhook setup. Every Page you
               select starts sending leads immediately.
             </div>
             <button onClick={connectWithFacebook} disabled={metaConnecting} style={{ ...primaryBtn, width: '100%', justifyContent: 'center' }}>
-              <InlineIcon icon={Facebook} />{metaConnecting ? 'Redirecting…' : 'Connect with Facebook'}
+              <SiFacebook aria-hidden size={ICON_SIZE.button} style={{ flexShrink: 0 }} />{metaConnecting ? 'Redirecting…' : 'Connect with Facebook'}
             </button>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

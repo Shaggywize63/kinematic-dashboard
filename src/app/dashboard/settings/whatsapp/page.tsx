@@ -9,6 +9,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../../../../lib/api';
 import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
+import WhatsAppLogo from '../../../../components/icons/WhatsAppLogo';
 
 const FB_SDK_VERSION = 'v21.0';
 
@@ -244,7 +245,15 @@ export default function WhatsappSettingsPage() {
     <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.white, paddingBottom: 40, maxWidth: 760 }}>
       <div style={{ marginBottom: 24 }}>
         <a href="/dashboard/settings" style={{ color: C.gray, fontSize: 12, textDecoration: 'none' }}>← Settings</a>
-        <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: '6px 0 4px' }}>WhatsApp Business</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '6px 0 4px' }}>
+          <span aria-hidden style={{
+            width: 36, height: 36, borderRadius: 8, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(37, 211, 102, 0.12)',
+          }}>
+            <WhatsAppLogo size={20} />
+          </span>
+          <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: 0 }}>WhatsApp Business</h1>
+        </div>
         <p style={{ color: C.gray, fontSize: 13, margin: 0, maxWidth: 640 }}>
           Connect this organisation&apos;s WhatsApp number so Kinematic can send messages, templates, and broadcasts from it. Connect via a <b style={{ color: C.white }}>BSP</b>, the <b style={{ color: C.white }}>Direct Cloud API</b>, or your <b style={{ color: C.white }}>existing WhatsApp Business account</b> — enter whichever credentials you have.
         </p>
