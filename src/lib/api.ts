@@ -292,6 +292,18 @@ export interface ClientAdminsResponse {
   project: string;
   seats: { allocated: number | null; active: number };
 }
+
+export interface ClientDocument {
+  id: string;
+  name: string;
+  file_name: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  bucket: string;
+  path: string;
+  uploaded_by: string | null;
+  created_at: string;
+}
 const httpError = (message: string, status: number, body?: unknown): ApiError => Object.assign(new Error(message), { status, body });
 
 /** A unique Idempotency-Key for a POST that must be a safe no-op on retry
@@ -684,6 +696,21 @@ class ApiClient {
   /** Switch one of a client's admins on or off. */
   async setClientAdminActive(clientId: string, userId: string, isActive: boolean): Promise<ClientAdmin> {
     return unwrapData<ClientAdmin>(await this.patch(`/api/v1/clients/${clientId}/admins/${userId}`, { is_active: isActive }));
+  }
+
+  /** Client Management → Documents: reference files (e.g. the client's own price list) attached to this client row. */
+  async listClientDocuments(clientId: string): Promise<ClientDocument[]> {
+    const r = unwrapData<ClientDocument[] | null>(await this.get(`/api/v1/clients/${clientId}/documents`, { noCache: true } as RequestInit));
+    return Array.isArray(r) ? r : [];
+  }
+
+  /** Records a file already uploaded via POST /api/v1/upload/material (field `file`) against this client. */
+  async addClientDocument(clientId: string, payload: { name: string; file_name: string; content_type?: string | null; size_bytes?: number | null; path: string }): Promise<ClientDocument> {
+    return unwrapData<ClientDocument>(await this.post(`/api/v1/clients/${clientId}/documents`, payload));
+  }
+
+  async deleteClientDocument(clientId: string, documentId: string): Promise<void> {
+    await this.delete(`/api/v1/clients/${clientId}/documents/${documentId}`);
   }
 
   private getUserEmail(): string | null {

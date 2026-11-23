@@ -10,6 +10,7 @@ import ClientNotificationsPanel from '../../../components/clients/ClientNotifica
 import ClientWhatsappAlertsPanel, { type WhatsappAlertsHandle } from '../../../components/clients/ClientWhatsappAlertsPanel';
 import ClientAccountPanel from '../../../components/clients/ClientAccountPanel';
 import ClientAdminsPanel from '../../../components/clients/ClientAdminsPanel';
+import ClientDocumentsPanel from '../../../components/clients/ClientDocumentsPanel';
 import AppLayoutEditor from '../../../components/clients/AppLayoutEditor';
 import api, { setActingAs } from '../../../lib/api';
 import { getStoredProjectKey, DEFAULT_PROJECT, setStoredProjectKey } from '../../../lib/projects';
@@ -821,6 +822,17 @@ export default function ClientManagement() {
                 : (
                   <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}`, fontSize: 12, color: C.grayd }}>
                     The Email Address and Login Password above become this client&apos;s first admin. Create the client, then reopen it to add more admins.
+                  </div>
+                )}
+            </div>
+
+            <div id="client-section-documents" style={{ marginBottom: 28, scrollMarginTop: 12 }}>
+              <Label t="Documents" />
+              {editing && !provisionMode
+                ? <ClientDocumentsPanel key={editing.id} clientId={editing.id} />
+                : (
+                  <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}`, fontSize: 12, color: C.grayd }}>
+                    Reference files like a price list or contract. Create the client, then reopen it to attach documents.
                   </div>
                 )}
             </div>
