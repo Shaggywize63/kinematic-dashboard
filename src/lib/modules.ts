@@ -108,6 +108,7 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'distribution_payments',       l: 'Payments',     group: 'Distribution', package: 'distribution' },
   { id: 'distribution_returns',        l: 'Returns',      group: 'Distribution', package: 'distribution' },
   { id: 'distribution_ledger',         l: 'Ledger',       group: 'Distribution', package: 'distribution' },
+  { id: 'distribution_incentives',     l: 'Incentives',   group: 'Distribution', package: 'distribution' },
   { id: 'distribution_consumer',       l: 'Consumer',     group: 'Distribution', package: 'distribution' },
   // Last-mile (Phase 1) — surfaces the new tertiary_sales +
   // consumer_registrations data. Shares the distribution_consumer SKU on
