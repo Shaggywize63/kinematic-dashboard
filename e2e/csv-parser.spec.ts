@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { PRODUCT_TEMPLATE_CSV, mapProductRows, parseCsv, parsePercent, parsePrice, parseProductCsv, toBulkRows } from '../src/lib/csv';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  PRODUCT_TEMPLATE_CSV, buildProductTemplateCsv, mapProductRows, parseCsv, parsePercent, parsePrice,
+  parseProductCsv, suggestProductColumns, toBulkRows, toFieldKey, type ProductCustomColumn,
+} from '../src/lib/csv';
 
 /** Pure tests for the small CSV reader and the product-import mapping (no browser, no API). */
 
@@ -158,5 +163,205 @@ test.describe('product import mapping', () => {
     const lines = ['Reference,Name'];
     for (let i = 1; i <= 2001; i++) lines.push(`${i},Item ${i}`);
     expect(parseProductCsv(lines.join('\r\n')).rows).toHaveLength(2001);
+  });
+});
+
+/**
+ * The client's OWN product columns (crm_custom_field_defs, entity_type 'product'). The import and the
+ * template are driven by this list, so adding a column in Settings -> Custom Fields needs no code change.
+ */
+test.describe('product import: the client\'s own columns', () => {
+  const COLS: ProductCustomColumn[] = [
+    { field_key: 'mrp', label: 'MRP', field_type: 'currency', position: 1 },
+    { field_key: 'dp_with_gst', label: 'DP With GST', field_type: 'currency', position: 2 },
+    { field_key: 'is_imported', label: 'Imported item', field_type: 'boolean', position: 3 },
+    { field_key: 'fitments', label: 'Fitments', field_type: 'multiselect', options: ['Rifle', 'Tripod'], position: 4 },
+    { field_key: 'launch_on', label: 'Launch date', field_type: 'date', position: 5 },
+    { field_key: 'grade', label: 'Grade', field_type: 'select', options: ['A', 'B'], required: true, position: 6 },
+  ];
+
+  test('a column is matched by its label or by its field_key, and typed by its definition', () => {
+    const csv = 'Reference,Name,MRP,dp_with_gst,Imported item,Fitments,Launch date,Grade\n'
+      + '1,Binocular,"4,300.00",2950,yes,Rifle; Tripod,20/04/2026,A';
+    const r = parseProductCsv(csv, COLS);
+    expect(r.problems).toEqual([]);
+    expect(r.ignoredColumns).toEqual([]);
+    expect(r.customColumns).toEqual({
+      mrp: 'MRP', dp_with_gst: 'dp_with_gst', is_imported: 'Imported item',
+      fitments: 'Fitments', launch_on: 'Launch date', grade: 'Grade',
+    });
+    expect(r.rows[0].custom_fields).toEqual({
+      mrp: 4300, dp_with_gst: 2950, is_imported: true,
+      fitments: ['Rifle', 'Tripod'], launch_on: '2026-04-20', grade: 'A',
+    });
+    // custom_fields rides along in the request body.
+    expect(toBulkRows(r.rows)[0].custom_fields).toEqual(r.rows[0].custom_fields);
+  });
+
+  test('a bad value in a typed column is dropped with a note naming the row and column; the row still imports', () => {
+    const r = parseProductCsv('Reference,Name,MRP,Imported item,Launch date\n1,Cyl,n/a,maybe,someday', COLS);
+    expect(r.problems).toEqual([]);
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0].custom_fields).toBeUndefined();
+    expect(r.warnings).toEqual([
+      'Row 1, MRP: "n/a" is not a number, so it is left out.',
+      'Row 1, Imported item: "maybe" is not a yes / no value, so it is left out.',
+      'Row 1, Launch date: "someday" is not a date (use 2026-04-20), so it is left out.',
+    ]);
+  });
+
+  test('a built-in column always wins over a custom column with the same label', () => {
+    const clash: ProductCustomColumn[] = [{ field_key: 'their_price', label: 'Price', field_type: 'currency' }];
+    const r = parseProductCsv('Reference,Name,Price\n1,Cyl,99', clash);
+    expect(r.mapped.price).toBe('Price');
+    expect(r.rows[0].price).toBe(99);
+    expect(r.rows[0].custom_fields).toBeUndefined();
+  });
+
+  test('a header that matches nothing is still reported as ignored', () => {
+    const r = parseProductCsv('Reference,Name,MRP,Colour\n1,Cyl,100,Red', COLS);
+    expect(r.ignoredColumns).toEqual(['Colour']);
+    expect(r.rows[0].custom_fields).toEqual({ mrp: 100 });
+  });
+
+  test('no column list = the old behaviour: the same headers read as ignored', () => {
+    const r = parseProductCsv('Reference,Name,MRP\n1,Cyl,100');
+    expect(r.ignoredColumns).toEqual(['MRP']);
+    expect(r.rows[0].custom_fields).toBeUndefined();
+    expect(r.customColumns).toEqual({});
+  });
+
+  test('the template carries the client\'s columns, marks required ones, and re-parses with everything mapped', () => {
+    const csv = buildProductTemplateCsv(COLS);
+    const header = csv.split('\r\n')[0];
+    expect(header).toBe('Reference,Name,Make,Brand,Unit,Price,Tax %,Category,Description,MRP,DP With GST,Imported item,Fitments,Launch date,Grade *');
+    const r = parseProductCsv(csv, COLS);
+    expect(r.problems).toEqual([]);
+    // "Grade *" still resolves to the Grade column — the marker is not part of the name.
+    expect(Object.keys(r.customColumns).sort()).toEqual(['dp_with_gst', 'fitments', 'grade', 'is_imported', 'launch_on', 'mrp']);
+    expect(r.ignoredColumns).toEqual([]);
+    expect(r.rows).toHaveLength(2);
+  });
+
+  test('a computed or hidden column is never asked for in the template and is not accepted from a file', () => {
+    const cols: ProductCustomColumn[] = [
+      { field_key: 'margin', label: 'Margin', field_type: 'formula', position: 1 },
+      { field_key: 'old_code', label: 'Old code', field_type: 'text', hidden: true, position: 2 },
+      { field_key: 'mrp', label: 'MRP', field_type: 'currency', position: 3 },
+    ];
+    expect(buildProductTemplateCsv(cols).split('\r\n')[0]).toBe('Reference,Name,Make,Brand,Unit,Price,Tax %,Category,Description,MRP');
+    const r = parseProductCsv('Reference,Name,Margin,Old code,MRP\n1,Cyl,50,X1,100', cols);
+    expect(r.ignoredColumns).toEqual(['Margin', 'Old code']);
+    expect(r.rows[0].custom_fields).toEqual({ mrp: 100 });
+  });
+
+  test('the built-in-only template is unchanged for a client with no columns of its own', () => {
+    expect(PRODUCT_TEMPLATE_CSV).toBe(buildProductTemplateCsv([]));
+    expect(PRODUCT_TEMPLATE_CSV.split('\r\n')[0]).toBe('Reference,Name,Make,Brand,Unit,Price,Tax %,Category,Description');
+  });
+
+  test('mapProductRows takes the column list on an already parsed table', () => {
+    const r = mapProductRows([['Reference', 'Name', 'MRP'], ['1', 'a', '10']], COLS);
+    expect(r.rows[0].custom_fields).toEqual({ mrp: 10 });
+  });
+});
+
+/** Turning a header the client has not defined yet into one of its own columns. */
+test.describe('product import: suggesting a new column', () => {
+  test('a header becomes a legal field_key', () => {
+    expect(toFieldKey('DP With GST')).toBe('dp_with_gst');
+    expect(toFieldKey('MRP')).toBe('mrp');
+    expect(toFieldKey('Margin %')).toBe('margin_pct');
+    expect(toFieldKey('  Lead time (days) ')).toBe('lead_time_days');
+    expect(toFieldKey('Grade *')).toBe('grade');
+    expect(toFieldKey('2026 price')).toBe('f_2026_price');
+    expect(toFieldKey('!!!')).toBe('');
+  });
+
+  test('the type is guessed from the column\'s own values', () => {
+    const csv = 'Reference,Name,MRP,Qty,Imported,Launch,Notes\n'
+      + '1,A,"1,699.00",5,yes,2026-04-20,blue\n'
+      + '2,B,"2,199.00",7,no,20/05/2026,red';
+    const sug = suggestProductColumns(csv);
+    expect(sug.map((s) => [s.header, s.field_key, s.field_type])).toEqual([
+      ['MRP', 'mrp', 'currency'],
+      ['Qty', 'qty', 'number'],
+      ['Imported', 'imported', 'boolean'],
+      ['Launch', 'launch', 'date'],
+      ['Notes', 'notes', 'text'],
+    ]);
+    expect(sug[0].samples).toEqual(['1,699.00', '2,199.00']);
+  });
+
+  test('a column the client already has is not suggested again — by label or by field_key', () => {
+    const byLabel: ProductCustomColumn[] = [{ field_key: 'mrp', label: 'MRP', field_type: 'currency' }];
+    expect(suggestProductColumns('Reference,Name,MRP\n1,A,10', byLabel)).toEqual([]);
+    // The header matches the field_key even though the label reads differently, so it maps rather
+    // than being offered as new (field_key matching is deliberate: a sheet can use either name).
+    const byKey: ProductCustomColumn[] = [{ field_key: 'mrp', label: 'List price', field_type: 'currency' }];
+    expect(suggestProductColumns('Reference,Name,MRP\n1,A,10', byKey)).toEqual([]);
+  });
+
+  test('a derived key that is already taken gets a numbered suffix', () => {
+    // "Margin %" derives margin_pct, which this column holds under an unrelated label, so the header
+    // matches nothing and is offered as new — but it cannot reuse the key.
+    const taken: ProductCustomColumn[] = [{ field_key: 'margin_pct', label: 'Markup', field_type: 'number' }];
+    const sug = suggestProductColumns('Reference,Name,Margin %\n1,A,12', taken);
+    expect(sug).toHaveLength(1);
+    expect(sug[0].header).toBe('Margin %');
+    expect(sug[0].field_key).toBe('margin_pct_2');
+  });
+
+  test('built-in columns are never suggested', () => {
+    expect(suggestProductColumns('Reference,Name,Price,Tax %,Category\n1,A,10,18,X')).toEqual([]);
+  });
+});
+
+/**
+ * The real Vanrakshak dealer price list (68 rows transcribed from "Final Binocular MRP Vanrakshak"),
+ * imported with the two columns that sheet needs beyond the built-ins.
+ */
+test.describe('product import: the Vanrakshak dealer price list', () => {
+  const csv = readFileSync(join(__dirname, 'fixtures/vanrakshak-dealer-price-list.csv'), 'utf8');
+  const COLS: ProductCustomColumn[] = [
+    { field_key: 'mrp', label: 'MRP', field_type: 'currency', position: 1 },
+    { field_key: 'dp_with_gst', label: 'DP With GST', field_type: 'currency', position: 2 },
+  ];
+
+  test('every row maps, with no ignored column and no warning', () => {
+    const r = parseProductCsv(csv, COLS);
+    expect(r.problems).toEqual([]);
+    expect(r.warnings).toEqual([]);
+    expect(r.ignoredColumns).toEqual([]);
+    expect(r.rows).toHaveLength(68);
+    expect(r.customColumns).toEqual({ mrp: 'MRP', dp_with_gst: 'DP With GST' });
+    // Reference and Name are present on every row, so nothing is reported as an error row.
+    expect(r.rows.filter((row) => !row.reference || !row.name)).toEqual([]);
+    // References are unique, so no row supersedes another.
+    expect(new Set(r.rows.map((row) => row.reference.toLowerCase())).size).toBe(68);
+  });
+
+  test('prices, tax and the two own columns land as numbers', () => {
+    const r = parseProductCsv(csv, COLS);
+    const first = r.rows[0];
+    expect(first.reference).toBe('FL-ZH01');
+    expect(first.price).toBe(800);
+    expect(first.tax_rate_pct).toBe(18);
+    expect(first.custom_fields).toEqual({ mrp: 1699, dp_with_gst: 944 });
+    // Every row is 18% GST and carries a DP; MRP is absent only where the PDF does not print one.
+    expect(r.rows.every((row) => row.tax_rate_pct === 18)).toBe(true);
+    expect(r.rows.every((row) => typeof row.price === 'number' && (row.price as number) > 0)).toBe(true);
+    expect(r.rows.filter((row) => (row.custom_fields?.mrp ?? null) === null).map((row) => row.reference))
+      .toEqual(['VNK-DRONE-RAPTOR-10T', 'KHU73']);
+  });
+
+  test('without the two columns defined, the sheet still imports and both are offered as new columns', () => {
+    const r = parseProductCsv(csv);
+    expect(r.rows).toHaveLength(68);
+    expect(r.ignoredColumns).toEqual(['MRP', 'DP With GST']);
+    expect(suggestProductColumns(csv).map((s) => [s.header, s.field_key, s.field_type])).toEqual([
+      ['MRP', 'mrp', 'currency'],
+      ['DP With GST', 'dp_with_gst', 'currency'],
+    ]);
   });
 });

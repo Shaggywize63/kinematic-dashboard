@@ -20,7 +20,11 @@ import { IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
 import FieldTypePicker from '../../../../../components/crm/shared/FieldTypePicker';
 
-const ENTITIES: Array<CustomField['entity_type']> = ['lead', 'contact', 'account', 'deal', 'activity'];
+// 'product' has NO entry in BUILTIN_FIELDS below on purpose: product forms do not consult the built-in
+// field-override resolver, so offering hide / relabel toggles for Reference, Price, Tax % etc. would show
+// controls that change nothing. Admins can add their OWN product columns here, and those are fully wired —
+// product create / edit render them, and the CSV import template picks them up automatically.
+const ENTITIES: Array<CustomField['entity_type']> = ['lead', 'contact', 'account', 'deal', 'activity', 'product'];
 // Full set of supported input types. Render-side hooks (form renderer
 // in CustomFieldsSection) know what to do with each. Keep in lockstep
 // with the backend zod enum in crm.validators.ts.

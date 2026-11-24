@@ -6,10 +6,10 @@ import { FolderTree, Package, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
 import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
-import { crmProducts, crmProductCategories } from '../../../../lib/crmApi';
+import { crmCustomFields, crmProducts, crmProductCategories } from '../../../../lib/crmApi';
 import { formatINR } from '../../../../lib/formatCurrency';
 import { isB2bClientActive } from '../../../../lib/b2bClient';
-import type { Product, ProductCategory } from '../../../../types/crm';
+import type { CustomField, Product, ProductCategory } from '../../../../types/crm';
 import ProductImportModal from '../../../../components/crm/ProductImportModal';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
@@ -29,7 +29,24 @@ export default function ProductsListPage() {
   const [b2b, setB2b] = useState<boolean | null>(null);
   useEffect(() => { setB2b(isB2bClientActive()); }, []);
   const [importing, setImporting] = useState(false);
+  // The client's OWN product columns (Settings -> Custom Fields, entity "product"), shown after the built-ins
+  // so an imported value is visible on the list and not only on the detail page. Hidden ones are left out.
+  const [customCols, setCustomCols] = useState<CustomField[]>([]);
   const confirm = useConfirm();
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await crmCustomFields.list({ entity_type: 'product' });
+        if (alive) {
+          setCustomCols((r.data || []).filter((f) => f.hidden !== true)
+            .slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0)));
+        }
+      } catch { if (alive) setCustomCols([]); }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const reload = async () => {
     if (b2b === null) return;
@@ -67,8 +84,18 @@ export default function ProductsListPage() {
 
   const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
   const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700 };
-  const colCount = b2b ? 6 : 10;
+  const colCount = (b2b ? 6 : 10) + customCols.length;
   const catName = (id?: string | null) => cats.find((c) => c.id === id)?.name ?? '—';
+
+  /** One of the client's own values as list text, formatted by the column's type. */
+  const showCustom = (f: CustomField, v: unknown): string => {
+    if (v === undefined || v === null || v === '') return '—';
+    if (Array.isArray(v)) return v.length ? v.join(', ') : '—';
+    if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+    if (f.field_type === 'currency' && typeof v === 'number') return formatINR(v);
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
+  };
 
   // Type-aware client-side column sorting. Raw values per column (price, weight,
   // price/tonne and tax as numbers; category by its resolved name; Active bool).
@@ -85,7 +112,14 @@ export default function ProductsListPage() {
       case 'tax': return p.tax_rate_pct ?? 0;
       case 'hsn': return p.hsn_code;
       case 'active': return p.is_active;
-      default: return (p as unknown as Record<string, unknown>)[key];
+      default: {
+        // cf:<field_key> sorts on the stored value, so a number column sorts numerically.
+        if (key.startsWith('cf:')) {
+          const v = (p.custom_fields ?? {})[key.slice(3)];
+          return Array.isArray(v) ? v.join(', ') : (v ?? null);
+        }
+        return (p as unknown as Record<string, unknown>)[key];
+      }
     }
   }, [cats]);
   const { sorted, sort, toggle } = useTableSort<Product>(items, productVal, { key: null, dir: 'asc' });
@@ -114,7 +148,7 @@ export default function ProductsListPage() {
             <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> Show inactive
           </label>
       </div>
-      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
             <th style={th}><SortLabel label={b2b ? 'Reference' : 'SKU'} sortKey="sku" sort={sort} onToggle={toggle} /></th>
@@ -127,6 +161,11 @@ export default function ProductsListPage() {
             {!b2b && <th style={th}><SortLabel label="Tax %" sortKey="tax" sort={sort} onToggle={toggle} /></th>}
             {!b2b && <th style={th}><SortLabel label="HSN" sortKey="hsn" sort={sort} onToggle={toggle} /></th>}
             <th style={th}><SortLabel label="Active" sortKey="active" sort={sort} onToggle={toggle} /></th>
+            {customCols.map((f) => (
+              <th key={f.id} style={th} data-testid="product-custom-col">
+                <SortLabel label={f.label} sortKey={`cf:${f.field_key}`} sort={sort} onToggle={toggle} />
+              </th>
+            ))}
             <th style={{ ...th, textAlign: 'right' }}>Actions</th>
           </tr></thead>
           <tbody>
@@ -147,6 +186,7 @@ export default function ProductsListPage() {
                 {!b2b && <td style={td}>{p.tax_rate_pct ?? 0}%</td>}
                 {!b2b && <td style={td}>{p.hsn_code || '—'}</td>}
                 <td style={td}>{p.is_active ? 'Yes' : <span style={{ color: 'var(--text-dim)' }}>No</span>}</td>
+                {customCols.map((f) => <td key={f.id} style={td}>{showCustom(f, (p.custom_fields ?? {})[f.field_key])}</td>)}
                 <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
                   <Link href={`/dashboard/crm/products/${p.id}`} style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 12, marginRight: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}><InlineIcon icon={Pencil} size={13} />Edit</Link>
                   <button type="button" onClick={() => handleDelete(p)} style={{ background: 'transparent', border: '1px solid #E01E2C', color: '#E01E2C', padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}><InlineIcon icon={Trash2} size={13} />Delete</button>

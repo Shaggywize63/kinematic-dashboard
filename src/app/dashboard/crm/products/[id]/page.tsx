@@ -6,6 +6,7 @@ import { ArrowLeft, Check, Trash2 } from 'lucide-react';
 import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmProducts, crmProductCategories } from '../../../../../lib/crmApi';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import type { Product, ProductCategory } from '../../../../../types/crm';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
 
@@ -48,6 +49,9 @@ export default function ProductDetailPage() {
         weight_kg: product.weight_kg != null ? Number(product.weight_kg) : null,
         currency: product.currency, tax_rate_pct: Number(product.tax_rate_pct ?? 0),
         hsn_code: product.hsn_code, image_url: product.image_url, is_active: product.is_active,
+        // The client's own product columns. Sent whole: the server coerces, stamps formulas and drops
+        // keys the admin has hidden, so what comes back is the canonical set.
+        custom_fields: product.custom_fields ?? {},
       } as any);
       setProduct(r.data);
       toast.success('Product saved');
@@ -111,6 +115,12 @@ export default function ProductDetailPage() {
             <input type="checkbox" checked={product.is_active} onChange={(e) => setProduct({ ...product, is_active: e.target.checked })} /> Available for selection on deals
           </label>
         </Field>
+        {/* This client's own product columns, inline in the same grid so they read as part of the form. */}
+        <CustomFieldsSection
+          entity="product"
+          values={product.custom_fields ?? {}}
+          onChange={(cf) => setProduct({ ...product, custom_fields: cf })}
+        />
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end' }}>
         <button type="button" onClick={() => router.back()} style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={ArrowLeft} />Back</button>

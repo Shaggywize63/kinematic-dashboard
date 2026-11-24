@@ -62,6 +62,35 @@ account form, the PR MUST include three things:
 2. `labelFor(key, default)` for the label so admins can relabel it.
 3. `requiredFor(key, defaultRequired)` for required-marker support.
 
+## Product columns are per client — never hard-code a client's column
+
+The products module has nine built-in columns (Reference, Name, Make, Brand,
+Unit, Price, Tax %, Category, Description). Everything beyond those is the
+client's own: a `crm_custom_field_defs` row with `entity_type: 'product'`,
+client-scoped, persisted in `crm_products.custom_fields`. Vanrakshak, for
+example, needs MRP and DP With GST; another client needs neither.
+
+If you are about to add a named column for one client, stop — add it as a
+product custom field instead. The whole chain already follows that list:
+
+- `src/lib/csv.ts` — `parseProductCsv(text, cols)` maps a header to a column
+  by label **or** field_key and types the cell by the column's own type;
+  `buildProductTemplateCsv(cols)` writes the template from the same list, so
+  a column added in Settings appears in the next template download;
+  `suggestProductColumns(text, cols, taken)` reports the headers a file has
+  that nothing matches yet.
+- `ProductImportModal` — loads the list, previews the matched columns, and
+  offers an unmatched header as "Add column" (one POST to `/custom-fields`),
+  after which it maps on the spot.
+- Product create / edit / list — `CustomFieldsSection entity="product"` on
+  both forms; the list renders a column per def and sorts on `cf:<field_key>`.
+- Backend — `productImport.service` loads the defs once per file and coerces
+  per row (a bad value fails that row only, and an update MERGES rather than
+  replaces `custom_fields`); `POST`/`PATCH /products` run the same coercion.
+
+A formula column is computed server-side, and a hidden one is never asked
+for or stored — both are left out of the template.
+
 ## Brand logo — use the real artwork, never hand-render
 
 The official Kinematic mark lives in `public/` as PNG artwork. **Always render
