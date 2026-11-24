@@ -105,9 +105,16 @@ test.describe('Dashboard leads map (Spark & Ray)', () => {
     await page.goto('/dashboard/crm/dashboard');
     const filter = page.getByTestId('map-industry-filter');
     await expect(filter).toBeVisible({ timeout: 30_000 });
+    // Pin the starting point: the five pins must be on the map before the filter
+    // empties it, or the "no pins left" check below passes on an empty map.
+    await expect.poll(async () => (await markers(page)).length, { timeout: 30_000 }).toBe(5);
     await filter.selectOption('Power & Energy');
     await expect.poll(() => seen.length).toBe(2);
     await expect(filter).toBeVisible();
+    // No matches means the page swaps the map for its empty state, unmounting it.
+    // Every pin has to come off with it: a map that leaves them behind comes back
+    // with ten when the filter is reset, because the new instance adds its own.
+    await expect.poll(async () => (await markers(page)).length).toBe(0);
     await filter.selectOption('');
     await expect.poll(async () => (await markers(page)).length).toBe(5);
   });

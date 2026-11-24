@@ -378,8 +378,6 @@ export default function LeadsGeoMap({ leads, height = 620, colorBy = 'status' }:
   useEffect(() => {
     const map = mapInst.current;
     if (!maps || !map) return;
-    markersRef.current.forEach((m) => m.setMap(null));
-    markersRef.current = [];
     for (const lead of pinnedLeads) {
       const statusCol = statusColor(lead.status, theme);
       // Spark & Ray: the marker takes the lead's industry colour; the popup keeps the status pill.
@@ -396,6 +394,15 @@ export default function LeadsGeoMap({ leads, height = 620, colorBy = 'status' }:
       });
       markersRef.current.push(marker);
     }
+    // Markers hang off the map object, not off React's tree, so they have to be
+    // detached by hand — before a rebuild AND on unmount. The dashboard swaps
+    // the map for an empty state when a filter matches nothing, and without this
+    // cleanup that instance's pins and click listeners stay alive; when the
+    // filter is reset a fresh instance adds its own on top of them.
+    return () => {
+      markersRef.current.forEach((m) => m.setMap(null));
+      markersRef.current = [];
+    };
   }, [maps, pinnedLeads, theme, byIndustry, industries]);
 
   const flyTo = (h: { lat: number; lng: number; zoom: number }) => {
