@@ -5,6 +5,8 @@ import {
 } from '../src/lib/appLayout';
 import { ALL_MODULES } from '../src/lib/modules';
 import type { AppCustomization } from '../src/lib/appCustomization';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 /** Pure logic behind Client Management → App layout. No browser. */
 
@@ -20,6 +22,18 @@ test.describe('which screens a client\'s ticked modules provide', () => {
       }
     }
   });
+  // The nav groups in dashboard/layout.tsx carry a KEEP-IN-SYNC comment: a menu item
+  // whose module id is missing from ALL_MODULES cannot be granted to anyone and
+  // silently disappears from the sidebar for every non-super-admin. That is invisible
+  // in review and invisible at runtime, so read the ids straight out of the file.
+  test('every module id in the sidebar exists in the catalogue', () => {
+    const ids = new Set(ALL_MODULES.map((m) => m.id));
+    const src = readFileSync(join(__dirname, '../src/app/dashboard/layout.tsx'), 'utf8');
+    const used = [...src.matchAll(/\bmodule:\s*'([a-z0-9_]+)'/g)].map((m) => m[1]);
+    expect(used.length).toBeGreaterThan(40);
+    expect([...new Set(used)].filter((m) => !ids.has(m))).toEqual([]);
+  });
+
   test('a package need is met by any module of that package', () => {
     expect(needMet({ package: 'crm' }, heldFrom(['crm_leads']))).toBe(true);
     expect(needMet({ package: 'crm' }, heldFrom(['attendance']))).toBe(false);
