@@ -54,6 +54,7 @@ export const ROUTE_ICONS: ReadonlyArray<readonly [string, NavIconName]> = [
   ['/dashboard/distribution/last-mile', 'route'],
   ['/dashboard/distribution/last-mile/consumers', 'users'],
   ['/dashboard/distribution/last-mile/tertiary-sales', 'check'],
+  ['/dashboard/distribution/incentives', 'award'],
   ['/dashboard/distribution/ledger', 'book'],
   ['/dashboard/distribution/orders', 'cart'],
   ['/dashboard/distribution/payments', 'creditCard'],

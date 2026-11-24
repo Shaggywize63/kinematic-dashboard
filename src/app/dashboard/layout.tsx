@@ -698,6 +698,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/distribution/payments',         label: 'Payments',     icon: 'creditCard', module: 'distribution_payments' },
       { href: '/dashboard/distribution/returns',          label: 'Returns',      icon: 'undo', module: 'distribution_returns' },
       { href: '/dashboard/distribution/ledger',           label: 'Ledger',       icon: 'book', module: 'distribution_ledger' },
+      { href: '/dashboard/distribution/incentives',       label: 'Incentives',   icon: 'award', module: 'distribution_incentives' },
       { href: '/dashboard/distribution/van-loads',        label: 'Van Sales',    icon: 'truck', module: 'distribution_van' },
       { href: '/dashboard/distribution/claims',           label: 'Claims',       icon: 'claims', module: 'distribution_claims' },
       { href: '/dashboard/distribution/reconciliation',   label: 'Reconciliation', icon: 'swap', module: 'distribution_reconciliation' },

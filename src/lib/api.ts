@@ -1494,6 +1494,24 @@ class ApiClient {
   // ── Distribution: Distributors ───────────────────────────────────────
   getDistributors(params?: Record<string, string>) { return this.get(`/api/v1/distribution/distributors${this.sanitizeParams(params)}`); }
   getDistributor(id: string) { return this.get(`/api/v1/distribution/distributors/${id}`); }
+
+  // ── Incentives ────────────────────────────────────────────────────────────
+  // A configurable commission on sales orders. `period` is one of
+  // today | week | month | all, resolved in IST server-side.
+  getIncentiveDashboard(period = 'month') {
+    return this.get(`/api/v1/distribution/incentives/dashboard${this.sanitizeParams({ period })}`);
+  }
+  getIncentiveLeaderboard(period = 'month', limit = 20) {
+    return this.get(`/api/v1/distribution/incentives/leaderboard${this.sanitizeParams({ period, limit: String(limit) })}`);
+  }
+  getMyIncentives(period = 'month') {
+    return this.get(`/api/v1/distribution/incentives/me${this.sanitizeParams({ period })}`);
+  }
+  getIncentiveEntries(params?: Record<string, string>) {
+    return this.get(`/api/v1/distribution/incentives/entries${this.sanitizeParams(params)}`);
+  }
+  getIncentiveRule() { return this.get('/api/v1/distribution/incentives/rule'); }
+  saveIncentiveRule(data: object) { return this.put('/api/v1/distribution/incentives/rule', data); }
   createDistributor(data: object) { return this.post('/api/v1/distribution/distributors', data); }
   importDistributors(rows: Record<string, unknown>[]) { return this.post('/api/v1/distribution/distributors/import', { rows }); }
   updateDistributor(id: string, data: object) { return this.patch(`/api/v1/distribution/distributors/${id}`, data); }
