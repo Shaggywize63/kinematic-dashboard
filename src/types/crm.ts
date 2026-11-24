@@ -840,6 +840,9 @@ export interface Product {
   make?: string | null;
   make_id?: string | null; brand_id?: string | null;
   make_name?: string | null; brand_name?: string | null;
+  // The client's OWN product columns, keyed by field_key. Defined in Settings -> Custom Fields with
+  // entity "product" (client-scoped, so each client has its own set) and persisted as jsonb on the row.
+  custom_fields?: Record<string, unknown> | null;
 }
 
 /** A manufacturer ("Make") or a product brand: the same small master-list shape. A brand is not a make. */
@@ -854,6 +857,8 @@ export type Brand = NamedListItem;
 export interface ProductBulkRow {
   reference: string; name: string; make?: string; brand?: string; unit?: string; price?: number; category?: string; description?: string;
   tax_rate_pct?: number;
+  /** The client's own product columns (crm_custom_field_defs, entity_type 'product'), keyed by field_key. */
+  custom_fields?: Record<string, unknown>;
 }
 /** `errors` lists every row that was not imported; rows passed over on purpose are also counted in `skipped` (do not add the two). */
 export interface ProductBulkResult {

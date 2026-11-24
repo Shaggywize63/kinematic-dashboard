@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api, { OrderCatalogue, OrderCatalogueItem, OrderPreview, OrderCredit } from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Btn, Th, Td, inr } from '../../../../../components/distribution/Atoms';
@@ -39,7 +39,14 @@ export default function NewOrderPage() {
 
   // Order target: an outlet (beat/retail model) or a dealer/distributor
   // (dealer-direct model, e.g. Solar Seeds — the dealer IS the customer).
+  //
+  // The screen OPENS on whichever target the tenant actually sells through: a tenant
+  // that has dealers but no outlets is dealer-direct, and opening on Outlet there just
+  // shows an empty picker and a dead end. That is derived below from the tenant's own
+  // data, not from a hard-coded client id, so every outlet-using tenant is untouched.
   const [mode, setMode] = useState<OrderMode>('outlet');
+  // Set as soon as the operator picks a mode, so the derived default never overrides them.
+  const modePicked = useRef(false);
 
   const [outletId, setOutletId] = useState('');
   const [outletLabel, setOutletLabel] = useState('');
@@ -98,18 +105,35 @@ export default function NewOrderPage() {
   // Refetch the catalogue whenever the picked target (outlet or dealer) changes.
   useEffect(() => { if (targetId) loadCatalogue(mode, targetId); }, [mode, targetId, loadCatalogue]);
 
-  // Load the dealer list once, when the operator first switches to dealer mode.
+  // Load the dealer list on mount (not lazily on first switch), because the opening mode
+  // is derived from it. Both probes are allSettled: a tenant without the distribution
+  // package can 403 on one of them, and that must not blank the other or the page.
   useEffect(() => {
-    if (mode !== 'dealer' || dealers.length || dealersLoading) return;
+    let cancelled = false;
     setDealersLoading(true);
-    api.getDistributors({ limit: '500', is_active: 'true' })
-      .then((r: any) => {
-        const rows = (r?.data ?? r ?? []) as any[];
-        setDealers(rows.map((d) => ({ id: d.id, name: d.name, code: d.code })));
+    const asList = (v: any): any[] => (
+      Array.isArray(v?.data) ? v.data
+        : Array.isArray(v?.data?.data) ? v.data.data
+        : Array.isArray(v) ? v : []
+    );
+    Promise.allSettled([
+      api.getDistributors({ limit: '500', is_active: 'true' }),
+      api.getStores(),
+    ])
+      .then(([dealerRes, outletRes]) => {
+        if (cancelled) return;
+        const dealerRows = dealerRes.status === 'fulfilled' ? asList(dealerRes.value) : [];
+        const outletRows = outletRes.status === 'fulfilled' ? asList(outletRes.value) : [];
+        setDealers(dealerRows.map((d) => ({ id: d.id, name: d.name, code: d.code })));
+        // Dealer-direct tenant: it has dealers and no outlets at all. Only then do we move
+        // off the Outlet default — and never over a mode the operator already chose.
+        if (!modePicked.current && dealerRows.length > 0 && outletRows.length === 0) {
+          setMode('dealer');
+        }
       })
-      .catch(() => { /* leave empty; the picker shows "none" */ })
-      .finally(() => setDealersLoading(false));
-  }, [mode, dealers.length, dealersLoading]);
+      .finally(() => { if (!cancelled) setDealersLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const onOutletChange = (id: string, label: string) => {
     setOutletId(id);
@@ -117,6 +141,7 @@ export default function NewOrderPage() {
   };
 
   const switchMode = (m: OrderMode) => {
+    modePicked.current = true;
     if (m === mode) return;
     setMode(m);
     // Clear the other target + cart so we never place against a stale id.

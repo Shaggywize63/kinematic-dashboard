@@ -6,6 +6,7 @@ import { Check } from 'lucide-react';
 import { InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmProducts, crmProductCategories } from '../../../../../lib/crmApi';
 import { isB2bClientActive } from '../../../../../lib/b2bClient';
+import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import type { ProductCategory } from '../../../../../types/crm';
 
 export default function NewProductPage() {
@@ -15,6 +16,9 @@ export default function NewProductPage() {
   // Connected-B2B (Spark & Ray): a free-text Make and "Product reference" wording; no Brand / Category.
   const [b2b, setB2b] = useState(false);
   const [refError, setRefError] = useState('');
+  // The client's OWN product columns (Settings -> Custom Fields, entity "product"). Rendered by
+  // CustomFieldsSection, which loads the defs itself, so this form needs no per-client code.
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({});
   const [form, setForm] = useState({
     sku: '', name: '', description: '', category_id: '', make: '', unit: 'each',
     price: '', weight_kg: '', currency: 'INR', tax_rate_pct: '18', hsn_code: '', image_url: '', is_active: true,
@@ -55,6 +59,7 @@ export default function NewProductPage() {
         hsn_code: form.hsn_code || undefined,
         image_url: form.image_url || undefined,
         is_active: form.is_active,
+        custom_fields: customFields,
       } as any);
       toast.success('Product created');
       // Land back on the products list so the rep can see the new row in
@@ -99,6 +104,8 @@ export default function NewProductPage() {
             <input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} /> Available for selection on deals
           </label>
         </Field>
+        {/* This client's own product columns, inline in the same grid so they read as part of the form. */}
+        <CustomFieldsSection entity="product" values={customFields} onChange={setCustomFields} />
       </div>
       {weightNum > 0 && priceNum > 0 && (
         <div style={{ marginTop: 14, padding: '10px 14px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
