@@ -822,6 +822,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/audit-log', label: 'Activity Log', icon: 'audit', module: 'audit_log', superAdminOnly: true },
       { href: '/dashboard/audit-log/messages', label: 'Message Log', icon: 'chat', module: 'audit_log', superAdminOnly: true },
     ]},
+    // Help & Support — raise / follow support tickets with the Kinematic team. Deliberately ungated: no `package`
+    // (sectionVisible() always shows a package-less section, and the CRM-only / tenant hide lists only act on
+    // packaged sections) and no `module` (hasModule('') and the acting-as scope both pass an item without one), so
+    // every signed-in dashboard user can reach support. The platform operator gets the same page as the
+    // cross-customer "Support inbox" (the API's `is_operator`), so there is no separate operator entry.
+    { label: 'Support', items: [
+      { href: '/dashboard/support', label: 'Help & Support', icon: 'help' },
+    ]},
   ];
 
   const navGroups = !navReady ? [] : rawNavGroups

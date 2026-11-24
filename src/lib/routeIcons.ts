@@ -144,6 +144,7 @@ export const ROUTE_ICONS: ReadonlyArray<readonly [string, NavIconName]> = [
   ['/dashboard/route-priorities', 'listChecks'],
   ['/dashboard/security-alerts', 'shield'],
   ['/dashboard/settings', 'settings'],
+  ['/dashboard/support', 'help'],
   ['/dashboard/travel-report', 'route'],
   ['/dashboard/visit-logs', 'mapPin'],
   ['/dashboard/warehouse', 'warehouse'],
