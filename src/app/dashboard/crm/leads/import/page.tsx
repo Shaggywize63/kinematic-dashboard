@@ -317,6 +317,37 @@ export default function LeadImportPage() {
     void tick();
   };
 
+  // The "assign all imported leads to one team member" control. Admin-only
+  // (null when the client restricts owner assignment and the viewer is not an
+  // admin). Shown on BOTH the upload screen and the final preview, so it is
+  // discoverable up front and confirmable before commit; it is the same state
+  // throughout. Rendered even before the team list has loaded, so a slow or
+  // empty users fetch can never make the whole option disappear silently.
+  const assignAllBlock = !ownerBlocked ? (
+    <div style={{ marginTop: 16, padding: 14, background: 'var(--s3)', borderRadius: 10, border: '1px solid var(--border)', textAlign: 'left', maxWidth: 520, marginLeft: 'auto', marginRight: 'auto' }}>
+      <label htmlFor="assign-all" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
+        <InlineIcon icon={UserPlus} /> Assign all imported leads to
+      </label>
+      <select
+        id="assign-all"
+        value={assignAllTo}
+        onChange={(e) => setAssignAllTo(e.target.value)}
+        disabled={teamMembers.length === 0}
+        style={{ width: '100%', maxWidth: 360, padding: '8px 10px', fontSize: 13, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--text)' }}
+      >
+        <option value="">Keep each lead&apos;s own owner (file column / rules)</option>
+        {teamMembers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+      </select>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+        {assignAllTo
+          ? 'Every lead in this file will be assigned to this team member, overriding any owner column.'
+          : teamMembers.length === 0
+            ? 'Loading your team… (or no assignable team members were found).'
+            : 'Leave as is to use the owner column in your file, or your assignment rules.'}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 900 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
@@ -338,6 +369,7 @@ export default function LeadImportPage() {
         ))}
       </div>
       {step === 1 && (
+        <>
         <div
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) upload(f); }}
@@ -354,6 +386,8 @@ export default function LeadImportPage() {
             against your existing leads. You&rsquo;ll see the create-vs-merge breakdown after import.
           </div>
         </div>
+        {assignAllBlock}
+        </>
       )}
       {step === 2 && (
         <div>
@@ -392,27 +426,7 @@ export default function LeadImportPage() {
               <div style={{ color: 'var(--primary)', marginTop: 6 }}>{job.errors.length} validation issues found.</div>
             )}
           </div>
-          {!ownerBlocked && teamMembers.length > 0 && !busy && (
-            <div style={{ marginBottom: 16, padding: 14, background: 'var(--s3)', borderRadius: 10, border: '1px solid var(--border)' }}>
-              <label htmlFor="assign-all" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
-                <InlineIcon icon={UserPlus} /> Assign all imported leads to
-              </label>
-              <select
-                id="assign-all"
-                value={assignAllTo}
-                onChange={(e) => setAssignAllTo(e.target.value)}
-                style={{ width: '100%', maxWidth: 360, padding: '8px 10px', fontSize: 13, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--text)' }}
-              >
-                <option value="">Keep each lead&apos;s own owner (file column / rules)</option>
-                {teamMembers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
-                {assignAllTo
-                  ? 'Every lead in this file will be assigned to this team member, overriding any owner column.'
-                  : 'Leave as is to use the owner column in your file, or your assignment rules.'}
-              </div>
-            </div>
-          )}
+          {!busy && assignAllBlock}
           {busy && (() => {
             // Progress is updated by the backend every 25 rows; reads
             // straight off the polled job. Falls back to 0 / total when
