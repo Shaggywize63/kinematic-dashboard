@@ -155,36 +155,48 @@ export default function Sidebar(p: Props) {
     const active = p.isActive(i.href);
     const badge = badgeFor(i.href);
     const pinned = isPinned(i.href);
+    // The row is a container, not the link itself: the pin <button> is a
+    // sibling of the <Link>, never a child. Nesting a button inside an anchor
+    // is invalid HTML, and it also folds the button's label into the link's
+    // accessible name (e.g. "Attendance Pin Attendance"), which breaks
+    // getByRole('link', { name: 'Attendance', exact: true }).
     return (
-      <Link
+      <div
         key={i.href}
-        href={i.href}
-        aria-current={active ? 'page' : undefined}
         className="km-navrow"
         data-active={active ? 'true' : undefined}
         style={{ ...rowBase, color: active ? T.text : T.dim, background: active ? 'var(--s3)' : 'transparent', boxShadow: active ? `inset 2px 0 0 ${T.red}` : 'none' }}
       >
-        <span style={{ position: 'relative', display: 'flex', flexShrink: 0, color: active ? T.text : T.dim }}>
-          <NavIcon name={i.icon} size={18} />
-        </span>
-        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.label}</span>
-        <NewBadge href={i.href} />
-        {badge > 0 && (
-          <span style={{ fontFamily: T.mono, fontSize: 11, color: '#fff', background: T.red, borderRadius: 999, padding: '1px 6px', lineHeight: 1.4 }}>{badge > 99 ? '99+' : badge}</span>
-        )}
+        <Link
+          href={i.href}
+          aria-current={active ? 'page' : undefined}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, textDecoration: 'none', color: 'inherit' }}
+        >
+          <span style={{ position: 'relative', display: 'flex', flexShrink: 0, color: active ? T.text : T.dim }}>
+            <NavIcon name={i.icon} size={18} />
+          </span>
+          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.label}</span>
+          <NewBadge href={i.href} />
+          {badge > 0 && (
+            <span style={{ fontFamily: T.mono, fontSize: 11, color: '#fff', background: T.red, borderRadius: 999, padding: '1px 6px', lineHeight: 1.4 }}>{badge > 99 ? '99+' : badge}</span>
+          )}
+        </Link>
         {showPin && (
           <button
             type="button"
             className={`nav-pin${pinned ? ' on' : ''}`}
-            aria-label={pinned ? `Unpin ${i.label}` : `Pin ${i.label}`}
+            // Generic accessible name on purpose: an item-named label like
+            // "Pin Pipeline" collides with page controls under getByLabel()
+            // (substring match) — the item name lives in the title tooltip.
+            aria-label={pinned ? 'Remove from pinned' : 'Add to pinned'}
             aria-pressed={pinned}
-            title={pinned ? 'Unpin from top' : 'Pin to top'}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); p.onTogglePin(i.href); }}
+            title={pinned ? `Unpin ${i.label}` : `Pin ${i.label}`}
+            onClick={() => p.onTogglePin(i.href)}
           >
             <Star size={13} strokeWidth={1.7} fill={pinned ? 'currentColor' : 'none'} />
           </button>
         )}
-      </Link>
+      </div>
     );
   }
 
