@@ -16,9 +16,10 @@ const R1 = 'New business opportunities and feedback of previous supply.';
 const R2 = 'Replace ASCO pulse valves with MAC pulse valves.';
 
 // A structured Spark lead: no first/last on the row (the form links an existing
-// contact); the customer name is stamped as `contact_name` by the API.
+// contact); the customer name is stamped as `contact_name` by the API, and the
+// company comes from the linked account (`account_name`) or the free-text company.
 const STRUCTURED = [
-  { id: 'lead-3', first_name: null, last_name: null, company: 'Tata Steel - Meramandali', contact_name: 'Sandip Kundu', requirement: 'Pulse valves for the ESP revamp.' },
+  { id: 'lead-3', first_name: null, last_name: null, company: 'Budge Budge Refineries', account_name: 'Tata Steel - Meramandali', contact_name: 'Sandip Kundu', requirement: 'Pulse valves for the ESP revamp.' },
 ];
 
 async function setup(page: Page, o: { spark?: boolean; leads?: unknown[] } = {}) {
@@ -54,11 +55,24 @@ test.describe('Activity → Lead picker shows the requirement', () => {
     await expect(page.getByText(/Sandip Kundu — /).first()).toBeVisible();
   });
 
-  test('Spark: a structured lead shows the stamped customer contact name (no first/last on the row)', async ({ page }) => {
+  test('Spark: a structured lead shows company · customer — requirement (account name wins)', async ({ page }) => {
     await setup(page, { leads: STRUCTURED });
     await openLeadPicker(page);
-    // The customer name comes from the API-stamped contact_name, joined to the requirement.
-    await expect(page.getByText('Sandip Kundu — Pulse valves for the ESP revamp.')).toBeVisible({ timeout: 15_000 });
+    // The company (linked account name) leads, then the stamped contact, then the requirement —
+    // so the rep sees WHICH customer the lead is for, not just a person who may recur elsewhere.
+    await expect(page.getByText('Tata Steel - Meramandali · Sandip Kundu — Pulse valves for the ESP revamp.')).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('Spark: picking a lead shows the "this activity is for" Company → Lead → Contact context', async ({ page }) => {
+    await setup(page, { leads: STRUCTURED });
+    await openLeadPicker(page);
+    await page.getByText('Tata Steel - Meramandali · Sandip Kundu — Pulse valves for the ESP revamp.').click();
+    const ctx = page.getByTestId('activity-linked-context');
+    await expect(ctx).toBeVisible();
+    await expect(ctx).toContainText('This activity is for');
+    await expect(ctx).toContainText('Tata Steel - Meramandali'); // Company
+    await expect(ctx).toContainText('Sandip Kundu');             // Contact
+    await expect(ctx).toContainText('Pulse valves for the ESP revamp.'); // Lead (requirement)
   });
 
   test('another tenant: name · phone, no requirement', async ({ page }) => {
