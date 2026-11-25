@@ -854,13 +854,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const orderedNavGroups = applyNavOrder(navGroups, navPrefs);
   // Header breadcrumb: derived from the route + the user's own nav labels.
   const crumbs = deriveCrumbs(pathname, navReady ? orderedNavGroups : rawNavGroups);
-  // Sidebar menu search — filter items by label; drop groups with no match.
-  const navFilter = navQuery.trim().toLowerCase();
-  const displayNavGroups = navFilter
-    ? orderedNavGroups
-        .map((g) => ({ ...g, items: (g.items as any[]).filter((i: any) => (i.label || '').toLowerCase().includes(navFilter)) }))
-        .filter((g) => g.items.length > 0)
-    : orderedNavGroups;
+  // Pinned nav items (per-user). The Sidebar now owns menu search + the
+  // workspace switcher, so it receives the full entitled group set and filters
+  // internally; pins are a flat list of hrefs it resolves against that set.
+  const pinnedHrefs = navPrefs.pinned ?? [];
+  const togglePin = (href: string) => {
+    const cur = navPrefs.pinned ?? [];
+    const next = cur.includes(href) ? cur.filter((h) => h !== href) : [...cur, href];
+    saveNavPrefs({ ...navPrefs, pinned: next });
+  };
 
   // Collapsible nav sections (Field Force, Lead Management, …). Per-section
   // open/closed state persisted to localStorage so it survives reloads.
@@ -933,7 +935,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
 
         <Sidebar
-          groups={displayNavGroups as any}
+          groups={orderedNavGroups as any}
           hasAnyGroups={orderedNavGroups.length > 0}
           navReady={navReady}
           isMobile={isMobile}
@@ -951,6 +953,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           isActive={isActive}
           webChatUnread={webChatUnread}
           inboundLeadsCount={inboundLeadsCount}
+          pinned={pinnedHrefs}
+          onTogglePin={togglePin}
           user={user}
           roleLabel={hierarchyRoleName || getDesignationLabel(user)}
           onLogout={handleLogout}
@@ -1029,7 +1033,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               label: g.label,
               items: g.items.map((i: any) => ({ href: i.href, label: i.label, icon: i.icon })),
             }))}
-            onSave={saveNavPrefs}
+            onSave={(prefs) => saveNavPrefs({ ...prefs, pinned: navPrefs.pinned })}
             onReset={resetNavPrefs}
             onClose={() => setEditingNav(false)}
           />
