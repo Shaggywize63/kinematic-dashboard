@@ -18,8 +18,12 @@ test.describe('who can see HRMS', () => {
     await seedSession(page, MASTER_USER);
     await mockApi(page, { me: { success: true, data: MASTER_USER } });
     await page.goto('/dashboard');
-    await expect(page.getByText('HRMS (Preview)')).toBeVisible({ timeout: 45_000 });
-    await expect(page.getByText('HRMS · Field force')).toBeVisible();
+    // The sidebar scopes to one workspace at a time; the HRMS areas are offered
+    // in the workspace switcher (not as always-visible group headings).
+    await page.getByTestId('workspace-switcher').click();
+    await expect(page.getByRole('menuitem', { name: /HRMS \(Preview\)/ })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByRole('menuitem', { name: /HRMS · Field force/ })).toBeVisible();
+    await page.keyboard.press('Escape');
     await openHrms(page);
     await expect(page.getByTestId('hrms-preview-banner')).toBeVisible();
   });
@@ -35,8 +39,12 @@ test.describe('who can see HRMS', () => {
     await seedSession(page, OTHER_ADMIN);
     await mockApi(page, { me: { success: true, data: OTHER_ADMIN } });
     await page.goto('/dashboard');
-    await expect(page.getByRole('link', { name: /Finance|Overview/ }).first()).toBeVisible({ timeout: 45_000 });
-    await expect(page.getByText('HRMS (Preview)')).toHaveCount(0);
+    // Sidebar has loaded (its workspace switcher is present), but HRMS is not an
+    // option for this admin — not in the switcher and not reachable by deep link.
+    await expect(page.getByTestId('workspace-switcher')).toBeVisible({ timeout: 45_000 });
+    await page.getByTestId('workspace-switcher').click();
+    await expect(page.getByRole('menuitem', { name: /HRMS/ })).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await page.goto('/dashboard/hrms/payroll');
     await bounced(page);
   });
@@ -52,8 +60,12 @@ test.describe('who can see HRMS', () => {
     await seedSession(page, MASTER_VIEWING_AS_CLIENT);
     await mockApi(page, { me: { success: true, data: MASTER_VIEWING_AS_CLIENT } });
     await page.goto('/dashboard');
-    await expect(page.getByRole('link', { name: /Overview|Analytics/ }).first()).toBeVisible({ timeout: 45_000 });
-    await expect(page.getByText('HRMS (Preview)')).toHaveCount(0);
+    // Viewing as a client: the sidebar loads but HRMS is not offered in the
+    // workspace switcher, and the deep link bounces.
+    await expect(page.getByTestId('workspace-switcher')).toBeVisible({ timeout: 45_000 });
+    await page.getByTestId('workspace-switcher').click();
+    await expect(page.getByRole('menuitem', { name: /HRMS/ })).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await page.goto('/dashboard/hrms');
     await bounced(page);
   });

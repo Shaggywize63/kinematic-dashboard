@@ -29,7 +29,7 @@ test.describe('Leads list (demo mode)', () => {
   });
 
   test('search box filters the visible rows', async ({ page }) => {
-    const search = page.getByPlaceholder('Search name, email, company...');
+    const search = page.getByLabel('Search leads');
     await expect(page.getByRole('link', { name: 'Vikram Reddy' })).toBeVisible();
 
     await search.fill('Anjali');

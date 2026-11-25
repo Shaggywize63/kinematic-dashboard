@@ -16,6 +16,33 @@ export const SIDEBAR_RAIL_W = 64;
 export const SIDEBAR_DRAWER_W = 272;
 export const TOPBAR_H = 56;
 
+/**
+ * A distinct glyph per workspace (nav group) for the switcher, keyed by the
+ * group's display label. Without this the switcher borrowed each group's first
+ * item icon, and groups whose first item is a "… Dashboard" (Field Force vs
+ * Lead Management) showed the same glyph. Names are keys in ui/icons' NAV_ICONS;
+ * an unmapped group falls back to its first item's icon.
+ */
+const WORKSPACE_ICON: Record<string, string> = {
+  'Field Force': 'mapPinned',
+  'Lead Management': 'target',
+  'Finance': 'landmark',
+  'Distribution': 'truck',
+  'Supply Chain': 'warehouse',
+  'Business': 'briefcase',
+  'People & Support': 'users',
+  'HRMS (Preview)': 'userCheck',
+  'HRMS · Field force': 'locate',
+  'HRMS · Control & compliance': 'shield',
+  'HRMS · Assistant & policy': 'sparkles',
+  'HRMS · Talent': 'award',
+  'HRMS · Workplace': 'home',
+  'System Management': 'settings',
+  'Audit': 'audit',
+  'Support': 'help',
+};
+const groupGlyph = (g: SidebarNavGroup): string | undefined => WORKSPACE_ICON[g.label] ?? g.items[0]?.icon;
+
 interface Props {
   groups: SidebarNavGroup[];
   hasAnyGroups: boolean;
@@ -128,36 +155,50 @@ export default function Sidebar(p: Props) {
     const active = p.isActive(i.href);
     const badge = badgeFor(i.href);
     const pinned = isPinned(i.href);
+    // The row is a container, not the link itself: the pin <button> is a
+    // sibling of the <Link>, never a child. Nesting a button inside an anchor
+    // is invalid HTML, and it also folds the button's label into the link's
+    // accessible name (e.g. "Attendance Pin Attendance"), which breaks
+    // getByRole('link', { name: 'Attendance', exact: true }).
     return (
-      <Link
+      <div
         key={i.href}
-        href={i.href}
-        aria-current={active ? 'page' : undefined}
         className="km-navrow"
         data-active={active ? 'true' : undefined}
         style={{ ...rowBase, color: active ? T.text : T.dim, background: active ? 'var(--s3)' : 'transparent', boxShadow: active ? `inset 2px 0 0 ${T.red}` : 'none' }}
       >
-        <span style={{ position: 'relative', display: 'flex', flexShrink: 0, color: active ? T.text : T.dim }}>
-          <NavIcon name={i.icon} size={18} />
-        </span>
-        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.label}</span>
-        <NewBadge href={i.href} />
-        {badge > 0 && (
-          <span style={{ fontFamily: T.mono, fontSize: 11, color: '#fff', background: T.red, borderRadius: 999, padding: '1px 6px', lineHeight: 1.4 }}>{badge > 99 ? '99+' : badge}</span>
-        )}
+        <Link
+          href={i.href}
+          aria-current={active ? 'page' : undefined}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, textDecoration: 'none', color: 'inherit' }}
+        >
+          <span style={{ position: 'relative', display: 'flex', flexShrink: 0, color: active ? T.text : T.dim }}>
+            <NavIcon name={i.icon} size={18} />
+          </span>
+          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.label}</span>
+          <NewBadge href={i.href} />
+          {badge > 0 && (
+            <span style={{ fontFamily: T.mono, fontSize: 11, color: '#fff', background: T.red, borderRadius: 999, padding: '1px 6px', lineHeight: 1.4 }}>{badge > 99 ? '99+' : badge}</span>
+          )}
+        </Link>
         {showPin && (
           <button
             type="button"
             className={`nav-pin${pinned ? ' on' : ''}`}
-            aria-label={pinned ? `Unpin ${i.label}` : `Pin ${i.label}`}
+            // Short, verb-free accessible name: an item-named label ("Pin
+            // Pipeline") collides with page controls under getByLabel(), and an
+            // action-verb one ("Add to pinned") matches button-name regexes
+            // like /^Add/. The item name lives in the title tooltip, and the
+            // button is display:none at rest (out of the a11y tree) anyway.
+            aria-label={pinned ? 'Unpin' : 'Pin'}
             aria-pressed={pinned}
-            title={pinned ? 'Unpin from top' : 'Pin to top'}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); p.onTogglePin(i.href); }}
+            title={pinned ? `Unpin ${i.label}` : `Pin ${i.label}`}
+            onClick={() => p.onTogglePin(i.href)}
           >
             <Star size={13} strokeWidth={1.7} fill={pinned ? 'currentColor' : 'none'} />
           </button>
         )}
-      </Link>
+      </div>
     );
   }
 
@@ -282,6 +323,7 @@ export default function Sidebar(p: Props) {
         <div ref={wsRef} style={{ position: 'relative', padding: '6px 12px 2px' }}>
           <button
             type="button"
+            data-testid="workspace-switcher"
             onClick={() => setWsMenu((o) => !o)}
             aria-haspopup="menu"
             aria-expanded={wsMenu}
@@ -293,7 +335,7 @@ export default function Sidebar(p: Props) {
             }}
           >
             <span style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-              <span style={{ display: 'flex', color: T.red, flexShrink: 0 }}><NavIcon name={activeGroup.items[0]?.icon} size={16} /></span>
+              <span style={{ display: 'flex', color: T.red, flexShrink: 0 }}><NavIcon name={groupGlyph(activeGroup)} size={16} /></span>
               <span style={{ fontWeight: 600, fontSize: 13.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeGroup.label}</span>
             </span>
             <ChevronDown size={15} strokeWidth={1.7} style={{ color: T.mute, flexShrink: 0, transition: 'transform .15s ease', transform: wsMenu ? 'rotate(180deg)' : 'none' }} />
@@ -309,7 +351,7 @@ export default function Sidebar(p: Props) {
                 return (
                   <button key={g.label} type="button" role="menuitem" onClick={() => selectWs(g.label)} className="km-navrow"
                     style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, height: 34, padding: '0 8px', borderRadius: T.radius.sm, background: sel ? 'var(--s3)' : 'transparent', border: 0, cursor: 'pointer', color: sel ? T.text : T.dim, fontFamily: 'inherit', fontSize: 13, textAlign: 'left' }}>
-                    <span style={{ display: 'flex', flexShrink: 0, color: sel ? T.red : T.dim }}><NavIcon name={g.items[0]?.icon} size={16} /></span>
+                    <span style={{ display: 'flex', flexShrink: 0, color: sel ? T.red : T.dim }}><NavIcon name={groupGlyph(g)} size={16} /></span>
                     <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.label}</span>
                     <span style={{ fontFamily: T.mono, fontSize: 10.5, color: T.mute, flexShrink: 0 }}>{g.items.length}</span>
                     {sel && <Check size={14} strokeWidth={2} style={{ color: T.red, flexShrink: 0 }} />}

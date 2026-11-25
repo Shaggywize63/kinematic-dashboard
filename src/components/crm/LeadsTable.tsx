@@ -65,11 +65,11 @@ interface Props {
 
 // Table header cell — mono eyebrow, 12px vertical padding, hairline below.
 const thStyle: React.CSSProperties = {
-  padding: '12px 14px', textAlign: 'left', whiteSpace: 'nowrap',
+  padding: '12px 14px', textAlign: 'left',
   fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.mute, fontWeight: 500,
   borderBottom: `1px solid ${T.border}`, background: T.card,
 };
-const tdStyle: React.CSSProperties = { padding: '11px 14px', fontSize: 13.5, color: T.text, borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle' };
+const tdStyle: React.CSSProperties = { padding: '11px 14px', fontSize: 13.5, color: T.text, borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle', overflowWrap: 'anywhere' };
 
 // Lead status → badge tone. Unknown statuses fall back to neutral.
 function statusTone(status?: string | null): Tone {
@@ -198,9 +198,27 @@ export default function LeadsTable({
   if (isVisible('created_by')) colCount += 1;
   if (isVisible('created_at')) colCount += 1;
 
+  // Fixed column layout so the desktop table always fits its container (no
+  // horizontal scroll) and cells wrap instead of overflowing. The widths are
+  // relative weights the browser scales to fill 100%; they must stay in the
+  // same order as the header / body cells below. The responsive-cards and
+  // cards-view layouts set display:block, which ignores the colgroup and
+  // table-layout entirely, so this only shapes the real desktop table.
+  const colWidths: string[] = ['42px', '24%']; // select · Lead
+  if (showParent) colWidths.push('11%');
+  if (showStatus) colWidths.push('9%');
+  if (showScore) colWidths.push('8%');
+  if (isVisible('latest_update')) colWidths.push('18%');
+  if (showSource) colWidths.push('10%');
+  if (showOwner) colWidths.push('12%');
+  if (isVisible('created_by')) colWidths.push('11%');
+  if (isVisible('created_at')) colWidths.push('11%');
+  colWidths.push('0'); // zero-width actions anchor
+
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table className={`responsive-cards lead-table${viewMode === 'cards' ? ' cards-view' : ''}`} style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <table className={`responsive-cards lead-table${viewMode === 'cards' ? ' cards-view' : ''}`} style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+        <colgroup>{colWidths.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
         <thead>
           <tr>
             <th style={{ ...thStyle, width: 40, paddingRight: 0 }}>
@@ -341,7 +359,7 @@ const LeadRow = memo(function LeadRow({
                 // Structured names are longer by design — wrap to two lines rather than cut the requirement off.
                 style={structured
                   ? { minWidth: 0, overflowWrap: 'anywhere', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
-                  : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}
+                  : { minWidth: 0, overflowWrap: 'anywhere', lineHeight: 1.3 }}
               >{fullName}</Link>
               {/* Mark-important star. Filled/gold when custom_fields.__important is
                   set; click toggles it. Sits right after the name (an
@@ -366,7 +384,7 @@ const LeadRow = memo(function LeadRow({
               {l.approval_status === 'rejected' && <Badge tone="red" style={{ height: 20, fontSize: 11, flexShrink: 0 }}>Rejected</Badge>}
             </div>
             {(subline || (showPhone && l.phone) || (showIndustry && l.ref_no)) && (
-              <div style={{ marginTop: 2, fontSize: 12, color: T.dim, display: 'flex', gap: 6, alignItems: 'center', minWidth: 0, whiteSpace: 'nowrap' }}>
+              <div style={{ marginTop: 2, fontSize: 12, color: T.dim, display: 'flex', gap: 6, alignItems: 'center', minWidth: 0, flexWrap: 'wrap' }}>
                 {/* Lead serial (connected-B2B / Spark only) — its unique, human-readable id maps the form back to the lead. */}
                 {structured ? (
                   <>

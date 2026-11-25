@@ -151,12 +151,17 @@ button, [role="button"] { font-family: inherit; }
 .km-btn[data-variant="danger"]:not(:disabled):hover { filter: brightness(1.05); }
 .km-btn:focus-visible, .km-iconbtn:focus-visible, .km-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
 .km-iconbtn:hover { background: var(--s3) !important; color: var(--text) !important; }
-/* Pin toggle on a sidebar nav row — hidden until the row is hovered; always
-   shown (red) when the item is pinned. */
-.nav-pin { opacity: 0; transition: opacity .12s ease; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; border: 0; cursor: pointer; padding: 2px; border-radius: 4px; color: var(--mute); }
-.km-navrow:hover .nav-pin { opacity: .6; }
-.nav-pin:hover, .nav-pin:focus-visible { opacity: 1 !important; color: var(--red); outline: none; }
-.nav-pin.on { opacity: 1; color: var(--red); }
+/* Pin toggle on a sidebar nav row. display:none at rest so it stays OUT of the
+   accessibility tree — otherwise ~one button per nav item shows up in every
+   getByRole/getByLabel query (breaking read-only button-count assertions and
+   label lookups). Revealed on hover or keyboard focus-within, and shown always
+   once the item is pinned. */
+.nav-pin { display: none; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; border: 0; cursor: pointer; padding: 2px; border-radius: 4px; color: var(--mute); }
+.km-navrow:hover .nav-pin,
+.km-navrow:focus-within .nav-pin,
+.nav-pin.on { display: inline-flex; }
+.nav-pin.on { color: var(--red); }
+.nav-pin:hover, .nav-pin:focus-visible { color: var(--red); outline: none; }
 .km-chip:hover { border-color: var(--border-l) !important; color: var(--text) !important; }
 a.km-btn { text-decoration: none !important; }
 
@@ -979,6 +984,14 @@ table.responsive-cards tbody tr.km-row td { transition: background-color .12s ea
    Call / WhatsApp / Edit don't cost a column. `.always` keeps them up while an
    approval decision is pending. The open row (quick preview) gets an accent
    rail. Skeleton rows shimmer unless the user prefers reduced motion. */
+/* Leads desktop table uses fixed column widths that always fit the viewport,
+   so the latest-update cell wraps within its column instead of truncating to
+   one line (no horizontal scroll). */
+table.lead-table:not(.cards-view) .latest-update-cell { max-width: none; }
+table.lead-table:not(.cards-view) .latest-update-cell .latest-update-body {
+  overflow: visible; text-overflow: clip; white-space: normal; word-break: break-word;
+}
+
 .lead-row .row-actions {
   position: absolute; right: 12px; top: 50%; transform: translateY(-50%); z-index: 2;
   display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 10px;
