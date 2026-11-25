@@ -1188,7 +1188,7 @@ export const crmImport = {
       `${BASE}/import/preview`,
       body
     ),
-  commit: (body: { job_id: string }) =>
+  commit: (body: { job_id: string; default_owner_id?: string }) =>
     api.post<Wrapped<ImportJob>>(`${BASE}/import/commit`, body),
   getJob: (id: string) => api.get<Wrapped<ImportJob>>(`${BASE}/import/jobs/${id}`),
   listJobs: () => api.get<Wrapped<ImportJob[]>>(`${BASE}/import/jobs`),
