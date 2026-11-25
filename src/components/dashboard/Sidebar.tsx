@@ -185,10 +185,12 @@ export default function Sidebar(p: Props) {
           <button
             type="button"
             className={`nav-pin${pinned ? ' on' : ''}`}
-            // Generic accessible name on purpose: an item-named label like
-            // "Pin Pipeline" collides with page controls under getByLabel()
-            // (substring match) — the item name lives in the title tooltip.
-            aria-label={pinned ? 'Remove from pinned' : 'Add to pinned'}
+            // Short, verb-free accessible name: an item-named label ("Pin
+            // Pipeline") collides with page controls under getByLabel(), and an
+            // action-verb one ("Add to pinned") matches button-name regexes
+            // like /^Add/. The item name lives in the title tooltip, and the
+            // button is display:none at rest (out of the a11y tree) anyway.
+            aria-label={pinned ? 'Unpin' : 'Pin'}
             aria-pressed={pinned}
             title={pinned ? `Unpin ${i.label}` : `Pin ${i.label}`}
             onClick={() => p.onTogglePin(i.href)}

@@ -151,12 +151,17 @@ button, [role="button"] { font-family: inherit; }
 .km-btn[data-variant="danger"]:not(:disabled):hover { filter: brightness(1.05); }
 .km-btn:focus-visible, .km-iconbtn:focus-visible, .km-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
 .km-iconbtn:hover { background: var(--s3) !important; color: var(--text) !important; }
-/* Pin toggle on a sidebar nav row — hidden until the row is hovered; always
-   shown (red) when the item is pinned. */
-.nav-pin { opacity: 0; transition: opacity .12s ease; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; border: 0; cursor: pointer; padding: 2px; border-radius: 4px; color: var(--mute); }
-.km-navrow:hover .nav-pin { opacity: .6; }
-.nav-pin:hover, .nav-pin:focus-visible { opacity: 1 !important; color: var(--red); outline: none; }
-.nav-pin.on { opacity: 1; color: var(--red); }
+/* Pin toggle on a sidebar nav row. display:none at rest so it stays OUT of the
+   accessibility tree — otherwise ~one button per nav item shows up in every
+   getByRole/getByLabel query (breaking read-only button-count assertions and
+   label lookups). Revealed on hover or keyboard focus-within, and shown always
+   once the item is pinned. */
+.nav-pin { display: none; align-items: center; justify-content: center; flex-shrink: 0; background: transparent; border: 0; cursor: pointer; padding: 2px; border-radius: 4px; color: var(--mute); }
+.km-navrow:hover .nav-pin,
+.km-navrow:focus-within .nav-pin,
+.nav-pin.on { display: inline-flex; }
+.nav-pin.on { color: var(--red); }
+.nav-pin:hover, .nav-pin:focus-visible { color: var(--red); outline: none; }
 .km-chip:hover { border-color: var(--border-l) !important; color: var(--text) !important; }
 a.km-btn { text-decoration: none !important; }
 
