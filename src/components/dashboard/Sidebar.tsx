@@ -323,6 +323,7 @@ export default function Sidebar(p: Props) {
         <div ref={wsRef} style={{ position: 'relative', padding: '6px 12px 2px' }}>
           <button
             type="button"
+            data-testid="workspace-switcher"
             onClick={() => setWsMenu((o) => !o)}
             aria-haspopup="menu"
             aria-expanded={wsMenu}
