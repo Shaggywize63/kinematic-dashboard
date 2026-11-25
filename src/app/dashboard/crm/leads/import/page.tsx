@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { ArrowLeftRight, CheckCircle2, Download, Eye, FileText, FileUp, GitMerge, Lightbulb, RotateCcw, Upload, UserPlus, XCircle, type LucideIcon } from 'lucide-react';
 import { IconTile, InlineIcon, PageIcon } from '../../../../../components/ui/PageIcon';
 import { crmImport, crmSettings, crmCustomFields } from '../../../../../lib/crmApi';
+import api from '../../../../../lib/api';
 import { extractFieldOverrides, buildFieldHelpers, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
 import type { ImportJob, CustomField } from '../../../../../types/crm';
@@ -129,6 +130,30 @@ export default function LeadImportPage() {
   // Admin-only owner assignment: a non-admin can neither map a column to the owner nor have one auto-mapped.
   const ownerAccess = useLeadOwnerAccess();
   const ownerBlocked = ownerAccess.adminOnly && !ownerAccess.canAssign;
+  // "Assign all imported leads to one team member" — an admin-only override that
+  // sends the whole file to the chosen user, regardless of any owner column.
+  // Only offered when the signed-in user may actually assign owners (same gate
+  // as the owner columns); the backend drops it otherwise.
+  const [teamMembers, setTeamMembers] = useState<Array<{ id: string; name: string }>>([]);
+  const [assignAllTo, setAssignAllTo] = useState('');
+  useEffect(() => {
+    if (ownerBlocked) { setTeamMembers([]); setAssignAllTo(''); return; }
+    let live = true;
+    (async () => {
+      try {
+        const r = await api.getUsers({ limit: '500', scope: 'assignable' }) as { data?: unknown } | unknown;
+        const raw = (((r as { data?: unknown }).data ?? r) as Array<Record<string, unknown>>) || [];
+        const list = raw.map((x) => ({
+          id: String(x.id),
+          name: String(x.name || x.full_name || x.email || 'User'),
+        }));
+        if (live) setTeamMembers(list);
+      } catch {
+        if (live) setTeamMembers([]);
+      }
+    })();
+    return () => { live = false; };
+  }, [ownerBlocked]);
   const targetFields = useMemo(
     () => (ownerBlocked ? allTargetFields.filter((t) => !OWNER_TARGET_KEYS.includes(t.key)) : allTargetFields),
     [allTargetFields, ownerBlocked],
@@ -244,7 +269,7 @@ export default function LeadImportPage() {
       // Backend now kicks off the import in the background and returns
       // immediately with status='running'. We poll /jobs/:id every 1.5s
       // to drive the progress bar and detect completion.
-      await crmImport.commit({ job_id: job.id });
+      await crmImport.commit({ job_id: job.id, default_owner_id: assignAllTo || undefined });
       pollJobUntilDone(job.id);
     } catch (e: any) {
       toast.error(e.message || 'Commit failed');
@@ -367,6 +392,27 @@ export default function LeadImportPage() {
               <div style={{ color: 'var(--primary)', marginTop: 6 }}>{job.errors.length} validation issues found.</div>
             )}
           </div>
+          {!ownerBlocked && teamMembers.length > 0 && !busy && (
+            <div style={{ marginBottom: 16, padding: 14, background: 'var(--s3)', borderRadius: 10, border: '1px solid var(--border)' }}>
+              <label htmlFor="assign-all" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
+                <InlineIcon icon={UserPlus} /> Assign all imported leads to
+              </label>
+              <select
+                id="assign-all"
+                value={assignAllTo}
+                onChange={(e) => setAssignAllTo(e.target.value)}
+                style={{ width: '100%', maxWidth: 360, padding: '8px 10px', fontSize: 13, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--text)' }}
+              >
+                <option value="">Keep each lead&apos;s own owner (file column / rules)</option>
+                {teamMembers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+                {assignAllTo
+                  ? 'Every lead in this file will be assigned to this team member, overriding any owner column.'
+                  : 'Leave as is to use the owner column in your file, or your assignment rules.'}
+              </div>
+            </div>
+          )}
           {busy && (() => {
             // Progress is updated by the backend every 25 rows; reads
             // straight off the polled job. Falls back to 0 / total when
