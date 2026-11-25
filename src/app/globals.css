@@ -979,6 +979,14 @@ table.responsive-cards tbody tr.km-row td { transition: background-color .12s ea
    Call / WhatsApp / Edit don't cost a column. `.always` keeps them up while an
    approval decision is pending. The open row (quick preview) gets an accent
    rail. Skeleton rows shimmer unless the user prefers reduced motion. */
+/* Leads desktop table uses fixed column widths that always fit the viewport,
+   so the latest-update cell wraps within its column instead of truncating to
+   one line (no horizontal scroll). */
+table.lead-table:not(.cards-view) .latest-update-cell { max-width: none; }
+table.lead-table:not(.cards-view) .latest-update-cell .latest-update-body {
+  overflow: visible; text-overflow: clip; white-space: normal; word-break: break-word;
+}
+
 .lead-row .row-actions {
   position: absolute; right: 12px; top: 50%; transform: translateY(-50%); z-index: 2;
   display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 10px;
