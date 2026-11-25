@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, Download, Loader2, Plus, RefreshCw, Search, SlidersHorizontal, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Loader2, Plus, RefreshCw, Search, Sparkles, SlidersHorizontal, Upload } from 'lucide-react';
 import { crmLeads, crmLeadSources, crmSettings, type Pagination } from '../../../../lib/crmApi';
 import api, { EXPORT_TIMEOUT_MS, getRequestClientId } from '../../../../lib/api';
 import { downloadBlob } from '../../../../lib/financeFormat';
@@ -23,7 +23,6 @@ import { CrmToolbarLeft, CrmToolbarRight } from '../../../../components/crm/layo
 import LeadEditModal from '../../../../components/crm/LeadEditModal';
 import { STATUS_OPTIONS, type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../lib/crmLeadStatuses';
-import SmartFilterBar from '../../../../components/crm/SmartFilterBar';
 import ViewCustomizer, { LayoutModeToggle } from '../../../../components/crm/shared/ViewCustomizer';
 import LeadKanban from '../../../../components/crm/LeadKanban';
 import LeadsPipeline, { type PipelineTab } from '../../../../components/crm/leads/LeadsPipeline';
@@ -262,7 +261,11 @@ export default function LeadsListPage() {
   // export. Keyed on the filter VALUES (not object identity) so unrelated re-renders don't refetch.
   const filtersKey = JSON.stringify({ ...filters, q: undefined });
   const baseParams = useMemo(() => {
-    const p: Record<string, string | number> = leadFilterParams(filters, { q: debouncedQ, approval: approvalFilter, campaign: campaignSection });
+    // When an AI Smart Filter is active the typed text IS the natural-language
+    // query (interpreted into smartParams below), so it must NOT also be sent as
+    // the free-text `q` — that would match the sentence against name/company and
+    // wipe the results. Suppress `q` whenever smartParams are in effect.
+    const p: Record<string, string | number> = leadFilterParams(filters, { q: Object.keys(smartParams).length ? undefined : debouncedQ, approval: approvalFilter, campaign: campaignSection });
     if (range.from) p.from = range.from;
     if (range.to)   p.to   = range.to;
     // AI Smart Filter params (plain-English → validated filters) win over the manual
@@ -489,7 +492,7 @@ export default function LeadsListPage() {
     }
     for (const { v, patch } of viewDefs) {
       const p: Record<string, string | number> = {
-        ...leadFilterParams({ ...filters, status: undefined, ...patch }, { q: debouncedQ, approval: approvalFilter, campaign: campaignSection }),
+        ...leadFilterParams({ ...filters, status: undefined, ...patch }, { q: Object.keys(smartParams).length ? undefined : debouncedQ, approval: approvalFilter, campaign: campaignSection }),
       };
       if (range.from) p.from = range.from;
       if (range.to) p.to = range.to;
@@ -776,22 +779,41 @@ export default function LeadsListPage() {
 
       <LeadQuickViews chips={viewChips} />
 
-      {/* Toolbar — search-first row (free-text search, the Filters drawer
-          trigger, the approval toggle, the sort order and the column
-          customiser), then the KINI smart filter gets its own full-width row
-          below so it reads as the standout feature rather than competing with
-          the other controls for space. */}
+      {/* Toolbar — one search-first row: the search box doubles as the KINI AI
+          Smart Filter (type to search live, or press Enter / tap ✨ Smart Filter
+          to interpret the text as a plain-English query), followed by the
+          Filters drawer trigger, the approval toggle, the sort order and the
+          column customiser. The resolved AI params render compactly below. */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 180 }}>
+        <div style={{ position: 'relative', flex: '1 1 260px', minWidth: 200 }}>
           <Search size={15} strokeWidth={1.8} aria-hidden style={{ position: 'absolute', left: 11, top: 10.5, color: T.mute, pointerEvents: 'none' }} />
           <Input
             value={filters.q || ''}
-            onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value || undefined }))}
-            placeholder={b2bLeads ? 'Search name, email, company, lead no...' : 'Search name, email, company...'}
-            aria-label="Search leads"
+            onChange={(e) => {
+              setFilters((f) => ({ ...f, q: e.target.value || undefined }));
+              // Editing the box returns to plain text search; drop any active AI interpretation.
+              if (Object.keys(smartParams).length) { setSmartParams({}); setSmartExplain(''); }
+            }}
+            onKeyDown={(e) => {
+              // Enter = interpret the current text with AI (text search is already live as you type).
+              if (e.key === 'Enter' && (filters.q || '').trim()) { e.preventDefault(); runSmartFilter((filters.q || '').trim()); }
+            }}
+            placeholder={b2bLeads ? 'Search name, company, lead no — or ask in plain English' : 'Search name, email, company — or ask in plain English'}
+            aria-label="Search leads, or describe the leads you want in plain English"
             style={{ paddingLeft: 33 }}
           />
         </div>
+        <Button
+          onClick={() => runSmartFilter((filters.q || '').trim())}
+          disabled={smartLoading || !(filters.q || '').trim()}
+          title="Ask in plain English — e.g. 'hot B2C leads in Mumbai not contacted in 30 days'"
+          icon={smartLoading
+            ? <Loader2 size={15} strokeWidth={1.8} style={{ animation: 'spin 0.7s linear infinite' }} />
+            : <Sparkles size={15} strokeWidth={1.8} style={{ color: 'var(--primary)' }} />}
+          style={{ height: 36 }}
+        >
+          {smartLoading ? 'Thinking…' : 'Smart Filter'}
+        </Button>
         <Button
           onClick={() => setDrawerOpen(true)}
           aria-haspopup="dialog"
@@ -851,15 +873,21 @@ export default function LeadsListPage() {
         )}
       </div>
 
-      <SmartFilterBar
-        query={smartQuery}
-        setQuery={setSmartQuery}
-        onRun={runSmartFilter}
-        onClear={clearSmartFilter}
-        loading={smartLoading}
-        explanation={smartExplain}
-        params={smartParams}
-      />
+      {/* AI Smart Filter is now folded into the single search box above; when a
+          query has been interpreted, show the resolved params compactly here. */}
+      {smartActive && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--textSec)', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 10px' }}>
+          <Sparkles size={14} strokeWidth={1.8} aria-hidden style={{ color: 'var(--primary)' }} />
+          <span>Interpreted as: <strong style={{ color: 'var(--text)' }}>{smartExplain || 'your query'}</strong></span>
+          {Object.entries(smartParams).map(([k, v]) => (
+            <span key={k} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 6, padding: '1px 7px', fontSize: 11, color: 'var(--text)', fontWeight: 600 }}>{k}: {v}</span>
+          ))}
+          <button
+            onClick={() => { clearSmartFilter(); setDebouncedQ(''); setFilters((f) => ({ ...f, q: undefined })); }}
+            style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border)', color: 'var(--textSec)', padding: '3px 11px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
+          >Clear</button>
+        </div>
+      )}
 
       <LeadFilterChips chips={appliedChips} onClearAll={clearAll} />
 

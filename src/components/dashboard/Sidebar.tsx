@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronsUpDown, LogOut, PanelLeftClose, PanelLeftOpen, Pencil, Search, User as UserIcon, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronsUpDown, LogOut, PanelLeftClose, PanelLeftOpen, Pencil, Search, Star, User as UserIcon, X } from 'lucide-react';
 import BrandLogo from '../shared/BrandLogo';
 import SignedImage from '../shared/SignedImage';
 import NewBadge from '../shared/NewBadge';
@@ -30,6 +30,8 @@ interface Props {
   onNavQuery: (q: string) => void;
   onOpenSearch: () => void;
   onEditNav: () => void;
+  /** @deprecated kept for API compatibility — the workspace switcher replaced
+   *  per-section collapse, so these are no longer read. */
   collapsedSections: Record<string, boolean>;
   onToggleSection: (label: string) => void;
   isActive: (href: string) => boolean;
@@ -37,6 +39,11 @@ interface Props {
   /** Count of new inbound leads (Google Ads / website forms / …) — badged on
    *  the "Leads" nav item so arrivals are noticed from anywhere. */
   inboundLeadsCount: number;
+  /** Pinned item hrefs (per-user) shown in a Pinned section above the
+   *  workspace, so a few favourites are always one click away whatever area
+   *  the user is in. */
+  pinned: string[];
+  onTogglePin: (href: string) => void;
   user: { name?: string; email?: string; avatar_url?: string } | null;
   roleLabel: string;
   onLogout: () => void;
@@ -45,16 +52,18 @@ interface Props {
 
 /**
  * The dashboard's left navigation. One 240px panel (64px icon rail when
- * collapsed, a 272px drawer on phones): brand row, ⌘K search, nav groups
- * under mono eyebrows, and the signed-in user at the bottom. Purely
- * presentational — every list, filter and preference is computed by the
- * layout and handed in.
+ * collapsed, a 272px drawer on phones): brand row, ⌘K search, a Pinned
+ * shortcut list, a workspace switcher that scopes the menu to one area, then
+ * that area's pages. Purely presentational — every list, filter and preference
+ * is computed by the layout and handed in.
  */
 export default function Sidebar(p: Props) {
   const rail = p.collapsed && !p.isMobile;
   const width = p.isMobile ? SIDEBAR_DRAWER_W : (p.collapsed ? SIDEBAR_RAIL_W : SIDEBAR_W);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [wsMenu, setWsMenu] = useState(false);
+  const wsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -65,6 +74,42 @@ export default function Sidebar(p: Props) {
     return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!wsMenu) return;
+    const onDoc = (e: MouseEvent) => { if (wsRef.current && !wsRef.current.contains(e.target as Node)) setWsMenu(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setWsMenu(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [wsMenu]);
+
+  // ── Flat index over every entitled item (for pin resolution + search) ──
+  const allItems: SidebarNavItem[] = [];
+  const byHref = new Map<string, SidebarNavItem>();
+  for (const g of p.groups) for (const it of g.items) { allItems.push(it); byHref.set(it.href, it); }
+  const isPinned = (href: string) => p.pinned.includes(href);
+  const pinnedItems = p.pinned.map((h) => byHref.get(h)).filter(Boolean) as SidebarNavItem[];
+
+  // ── Workspace = the nav group. The switcher scopes the list to one group;
+  //    it follows the route (so a jump from search / a pin / a deep link moves
+  //    the switcher to that page's area), and a manual pick holds until the
+  //    next navigation. ──
+  const wsExists = (l: string | null | undefined): l is string => !!l && p.groups.some((g) => g.label === l);
+  const routeWs = p.groups.find((g) => g.items.some((i) => p.isActive(i.href)))?.label ?? null;
+  const [manualWs, setManualWs] = useState<string | null>(null);
+  const prevRouteWs = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (routeWs && routeWs !== prevRouteWs.current) setManualWs(routeWs);
+    prevRouteWs.current = routeWs;
+  }, [routeWs]);
+  const effectiveWs = (wsExists(manualWs) ? manualWs : (wsExists(routeWs) ? routeWs : p.groups[0]?.label)) ?? null;
+  const activeGroup = p.groups.find((g) => g.label === effectiveWs) ?? p.groups[0] ?? null;
+  const selectWs = (label: string) => { setManualWs(label); setWsMenu(false); };
+
+  const query = p.navQuery.trim().toLowerCase();
+  const searching = query.length > 0;
+  const searchResults = searching ? allItems.filter((i) => (i.label || '').toLowerCase().includes(query)) : [];
+
   const rowBase: CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 10, height: 32,
     padding: rail ? 0 : '0 10px', margin: rail ? '2px 12px' : '1px 12px',
@@ -72,6 +117,79 @@ export default function Sidebar(p: Props) {
     borderRadius: T.radius.sm, fontSize: 13.5, fontWeight: 500, color: T.dim,
     textDecoration: 'none', position: 'relative', whiteSpace: 'nowrap',
     transition: 'background .12s ease, color .12s ease',
+  };
+
+  const badgeFor = (href: string) =>
+    href === '/dashboard/crm/website-chats' && p.webChatUnread > 0 ? p.webChatUnread
+      : href === '/dashboard/crm/leads' && p.inboundLeadsCount > 0 ? p.inboundLeadsCount : 0;
+
+  // One expanded nav row — optionally with a hover pin toggle at the trailing edge.
+  function navRow(i: SidebarNavItem, showPin: boolean) {
+    const active = p.isActive(i.href);
+    const badge = badgeFor(i.href);
+    const pinned = isPinned(i.href);
+    return (
+      <Link
+        key={i.href}
+        href={i.href}
+        aria-current={active ? 'page' : undefined}
+        className="km-navrow"
+        data-active={active ? 'true' : undefined}
+        style={{ ...rowBase, color: active ? T.text : T.dim, background: active ? 'var(--s3)' : 'transparent', boxShadow: active ? `inset 2px 0 0 ${T.red}` : 'none' }}
+      >
+        <span style={{ position: 'relative', display: 'flex', flexShrink: 0, color: active ? T.text : T.dim }}>
+          <NavIcon name={i.icon} size={18} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.label}</span>
+        <NewBadge href={i.href} />
+        {badge > 0 && (
+          <span style={{ fontFamily: T.mono, fontSize: 11, color: '#fff', background: T.red, borderRadius: 999, padding: '1px 6px', lineHeight: 1.4 }}>{badge > 99 ? '99+' : badge}</span>
+        )}
+        {showPin && (
+          <button
+            type="button"
+            className={`nav-pin${pinned ? ' on' : ''}`}
+            aria-label={pinned ? `Unpin ${i.label}` : `Pin ${i.label}`}
+            aria-pressed={pinned}
+            title={pinned ? 'Unpin from top' : 'Pin to top'}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); p.onTogglePin(i.href); }}
+          >
+            <Star size={13} strokeWidth={1.7} fill={pinned ? 'currentColor' : 'none'} />
+          </button>
+        )}
+      </Link>
+    );
+  }
+
+  // Icon-only rail row.
+  function railRow(i: SidebarNavItem) {
+    const active = p.isActive(i.href);
+    const badge = badgeFor(i.href);
+    return (
+      <Link
+        key={i.href}
+        href={i.href}
+        title={i.label}
+        aria-current={active ? 'page' : undefined}
+        className="km-navrow"
+        data-active={active ? 'true' : undefined}
+        style={{ ...rowBase, color: active ? T.text : T.dim, background: active ? 'var(--s3)' : 'transparent', boxShadow: active ? `inset 2px 0 0 ${T.red}` : 'none' }}
+      >
+        <span style={{ position: 'relative', display: 'flex', flexShrink: 0, color: active ? T.text : T.dim }}>
+          <NavIcon name={i.icon} size={18} />
+          {badge > 0 && (
+            <span style={{ position: 'absolute', top: -5, right: -6, minWidth: 14, height: 14, padding: '0 3px', borderRadius: 999, background: T.red, color: '#fff', fontSize: 9.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, fontFamily: T.mono, boxShadow: `0 0 0 2px ${T.panel}` }}>{badge > 9 ? '9+' : badge}</span>
+          )}
+          <NewBadge href={i.href} dot />
+        </span>
+      </Link>
+    );
+  }
+
+  const eyebrow: CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 6, padding: '14px 22px 6px',
+    fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase',
+    color: T.red, fontWeight: 700,
   };
 
   return (
@@ -159,8 +277,52 @@ export default function Sidebar(p: Props) {
         </div>
       )}
 
-      {/* Nav */}
-      <nav style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: rail ? '6px 0 10px' : '6px 0 12px' }}>
+      {/* Workspace switcher (expanded, not searching) */}
+      {!rail && p.navReady && !searching && activeGroup && (
+        <div ref={wsRef} style={{ position: 'relative', padding: '6px 12px 2px' }}>
+          <button
+            type="button"
+            onClick={() => setWsMenu((o) => !o)}
+            aria-haspopup="menu"
+            aria-expanded={wsMenu}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+              height: 38, padding: '0 10px 0 12px', borderRadius: T.radius.md,
+              background: wsMenu ? 'var(--s3)' : T.canvas, border: `1px solid ${T.border}`,
+              color: T.text, cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+              <span style={{ display: 'flex', color: T.red, flexShrink: 0 }}><NavIcon name={activeGroup.items[0]?.icon} size={16} /></span>
+              <span style={{ fontWeight: 600, fontSize: 13.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeGroup.label}</span>
+            </span>
+            <ChevronDown size={15} strokeWidth={1.7} style={{ color: T.mute, flexShrink: 0, transition: 'transform .15s ease', transform: wsMenu ? 'rotate(180deg)' : 'none' }} />
+          </button>
+          {wsMenu && (
+            <div role="menu" style={{
+              position: 'absolute', top: 'calc(100% + 4px)', left: 12, right: 12, zIndex: 25,
+              background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.md,
+              boxShadow: 'var(--shadow-pop)', padding: 6, maxHeight: 360, overflowY: 'auto',
+            }}>
+              {p.groups.map((g) => {
+                const sel = g.label === effectiveWs;
+                return (
+                  <button key={g.label} type="button" role="menuitem" onClick={() => selectWs(g.label)} className="km-navrow"
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, height: 34, padding: '0 8px', borderRadius: T.radius.sm, background: sel ? 'var(--s3)' : 'transparent', border: 0, cursor: 'pointer', color: sel ? T.text : T.dim, fontFamily: 'inherit', fontSize: 13, textAlign: 'left' }}>
+                    <span style={{ display: 'flex', flexShrink: 0, color: sel ? T.red : T.dim }}><NavIcon name={g.items[0]?.icon} size={16} /></span>
+                    <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.label}</span>
+                    <span style={{ fontFamily: T.mono, fontSize: 10.5, color: T.mute, flexShrink: 0 }}>{g.items.length}</span>
+                    {sel && <Check size={14} strokeWidth={2} style={{ color: T.red, flexShrink: 0 }} />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Nav body */}
+      <nav style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: rail ? '6px 0 10px' : '4px 0 12px' }}>
         {!p.navReady && (
           <div style={{ padding: '12px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {[0, 1, 2, 3, 4, 5, 6].map((i) => (
@@ -168,78 +330,39 @@ export default function Sidebar(p: Props) {
             ))}
           </div>
         )}
-        {p.navReady && p.navQuery.trim() && p.groups.length === 0 && !rail && (
-          <div style={{ padding: '8px 22px 12px', fontSize: 12.5, color: T.mute }}>
-            No menu items match “{p.navQuery.trim()}”.
-          </div>
+
+        {/* Search results — flat, across every workspace. */}
+        {p.navReady && searching && !rail && (
+          searchResults.length === 0
+            ? <div style={{ padding: '8px 22px 12px', fontSize: 12.5, color: T.mute }}>No menu items match “{p.navQuery.trim()}”.</div>
+            : <>
+                <div style={eyebrow}><Search size={11} strokeWidth={2} />Results</div>
+                {searchResults.map((i) => navRow(i, true))}
+              </>
         )}
-        {p.groups.map((g, gi) => {
-          const sectionClosed = !!p.collapsedSections[g.label] && !p.navQuery.trim();
-          return (
-            <div key={g.label} style={{ marginTop: gi === 0 ? 6 : 0 }}>
-              {rail ? (
-                gi > 0 && <div style={{ height: 1, background: T.border, margin: '8px 18px' }} />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => p.onToggleSection(g.label)}
-                  aria-expanded={!sectionClosed}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '14px 22px 6px', background: 'transparent', border: 'none', cursor: 'pointer',
-                    fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase',
-                    // Section headings (Field Force, Business, Planogram, …) highlighted in brand red.
-                    color: T.red, fontWeight: 700,
-                  }}
-                >
-                  <span>{g.label}</span>
-                  <ChevronDown size={12} strokeWidth={1.6} style={{ transition: 'transform .15s ease', transform: sectionClosed ? 'rotate(-90deg)' : 'none', opacity: 0.8 }} />
-                </button>
-              )}
-              {(rail || !sectionClosed) && g.items.map((i) => {
-                const active = p.isActive(i.href);
-                const badge = i.href === '/dashboard/crm/website-chats' && p.webChatUnread > 0
-                  ? p.webChatUnread
-                  : i.href === '/dashboard/crm/leads' && p.inboundLeadsCount > 0
-                    ? p.inboundLeadsCount
-                    : 0;
-                return (
-                  <Link
-                    key={i.href}
-                    href={i.href}
-                    title={rail ? i.label : undefined}
-                    aria-current={active ? 'page' : undefined}
-                    className="km-navrow"
-                    data-active={active ? 'true' : undefined}
-                    style={{
-                      ...rowBase,
-                      color: active ? T.text : T.dim,
-                      background: active ? 'var(--s3)' : 'transparent',
-                      boxShadow: active ? `inset 2px 0 0 ${T.red}` : 'none',
-                    }}
-                  >
-                    <span style={{ position: 'relative', display: 'flex', flexShrink: 0, color: active ? T.text : T.dim }}>
-                      <NavIcon name={i.icon} size={18} />
-                      {rail && badge > 0 && (
-                        <span style={{ position: 'absolute', top: -5, right: -6, minWidth: 14, height: 14, padding: '0 3px', borderRadius: 999, background: T.red, color: '#fff', fontSize: 9.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, fontFamily: T.mono, boxShadow: `0 0 0 2px ${T.panel}` }}>{badge > 9 ? '9+' : badge}</span>
-                      )}
-                      {rail && <NewBadge href={i.href} dot />}
-                    </span>
-                    {!rail && (
-                      <>
-                        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.label}</span>
-                        <NewBadge href={i.href} />
-                        {badge > 0 && (
-                          <span style={{ fontFamily: T.mono, fontSize: 11, color: '#fff', background: T.red, borderRadius: 999, padding: '1px 6px', lineHeight: 1.4 }}>{badge > 99 ? '99+' : badge}</span>
-                        )}
-                      </>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          );
-        })}
+
+        {/* Rail (collapsed) — pinned icons, then the active workspace's icons. */}
+        {p.navReady && rail && (
+          <>
+            {pinnedItems.map((i) => railRow(i))}
+            {pinnedItems.length > 0 && activeGroup && <div style={{ height: 1, background: T.border, margin: '8px 18px' }} />}
+            {activeGroup && activeGroup.items.map((i) => railRow(i))}
+          </>
+        )}
+
+        {/* Expanded + not searching — Pinned, then the active workspace. */}
+        {p.navReady && !searching && !rail && (
+          <>
+            {pinnedItems.length > 0 && (
+              <>
+                <div style={eyebrow}><Star size={11} strokeWidth={2} fill="currentColor" />Pinned</div>
+                {pinnedItems.map((i) => navRow(i, true))}
+                <div style={{ height: 1, background: T.border, margin: '10px 22px 2px' }} />
+              </>
+            )}
+            {activeGroup && activeGroup.items.map((i) => navRow(i, true))}
+          </>
+        )}
       </nav>
 
       {/* Signed-in user */}

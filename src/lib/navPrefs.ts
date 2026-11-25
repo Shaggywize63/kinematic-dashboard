@@ -19,9 +19,14 @@ export interface NavPrefs {
   sectionOrder: string[];
   /** section label → ordered item hrefs within that section. */
   itemOrder: Record<string, string[]>;
+  /** Pinned item hrefs, shown in a Pinned shortcut list above the workspace,
+   *  visible whatever area the user is in. Optional so older callers that build
+   *  a `{ sectionOrder, itemOrder }` (e.g. the menu customiser) still type-check;
+   *  the layout preserves it across those saves. */
+  pinned?: string[];
 }
 
-export const EMPTY_NAV_PREFS: NavPrefs = { sectionOrder: [], itemOrder: {} };
+export const EMPTY_NAV_PREFS: NavPrefs = { sectionOrder: [], itemOrder: {}, pinned: [] };
 
 function storageKey(userId: string | null): string {
   return `kinematic_nav_prefs:${userId ?? 'anon'}`;
@@ -42,7 +47,10 @@ function read(userId: string | null): NavPrefs {
         if (Array.isArray(v)) itemOrder[k] = v.filter((x) => typeof x === 'string') as string[];
       }
     }
-    return { sectionOrder, itemOrder };
+    const pinned = Array.isArray(parsed?.pinned)
+      ? parsed.pinned.filter((s: unknown) => typeof s === 'string')
+      : [];
+    return { sectionOrder, itemOrder, pinned };
   } catch {
     return EMPTY_NAV_PREFS;
   }
