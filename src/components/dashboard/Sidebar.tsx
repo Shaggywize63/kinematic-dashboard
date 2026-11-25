@@ -16,6 +16,33 @@ export const SIDEBAR_RAIL_W = 64;
 export const SIDEBAR_DRAWER_W = 272;
 export const TOPBAR_H = 56;
 
+/**
+ * A distinct glyph per workspace (nav group) for the switcher, keyed by the
+ * group's display label. Without this the switcher borrowed each group's first
+ * item icon, and groups whose first item is a "… Dashboard" (Field Force vs
+ * Lead Management) showed the same glyph. Names are keys in ui/icons' NAV_ICONS;
+ * an unmapped group falls back to its first item's icon.
+ */
+const WORKSPACE_ICON: Record<string, string> = {
+  'Field Force': 'mapPinned',
+  'Lead Management': 'target',
+  'Finance': 'landmark',
+  'Distribution': 'truck',
+  'Supply Chain': 'warehouse',
+  'Business': 'briefcase',
+  'People & Support': 'users',
+  'HRMS (Preview)': 'userCheck',
+  'HRMS · Field force': 'locate',
+  'HRMS · Control & compliance': 'shield',
+  'HRMS · Assistant & policy': 'sparkles',
+  'HRMS · Talent': 'award',
+  'HRMS · Workplace': 'home',
+  'System Management': 'settings',
+  'Audit': 'audit',
+  'Support': 'help',
+};
+const groupGlyph = (g: SidebarNavGroup): string | undefined => WORKSPACE_ICON[g.label] ?? g.items[0]?.icon;
+
 interface Props {
   groups: SidebarNavGroup[];
   hasAnyGroups: boolean;
@@ -293,7 +320,7 @@ export default function Sidebar(p: Props) {
             }}
           >
             <span style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-              <span style={{ display: 'flex', color: T.red, flexShrink: 0 }}><NavIcon name={activeGroup.items[0]?.icon} size={16} /></span>
+              <span style={{ display: 'flex', color: T.red, flexShrink: 0 }}><NavIcon name={groupGlyph(activeGroup)} size={16} /></span>
               <span style={{ fontWeight: 600, fontSize: 13.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeGroup.label}</span>
             </span>
             <ChevronDown size={15} strokeWidth={1.7} style={{ color: T.mute, flexShrink: 0, transition: 'transform .15s ease', transform: wsMenu ? 'rotate(180deg)' : 'none' }} />
@@ -309,7 +336,7 @@ export default function Sidebar(p: Props) {
                 return (
                   <button key={g.label} type="button" role="menuitem" onClick={() => selectWs(g.label)} className="km-navrow"
                     style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, height: 34, padding: '0 8px', borderRadius: T.radius.sm, background: sel ? 'var(--s3)' : 'transparent', border: 0, cursor: 'pointer', color: sel ? T.text : T.dim, fontFamily: 'inherit', fontSize: 13, textAlign: 'left' }}>
-                    <span style={{ display: 'flex', flexShrink: 0, color: sel ? T.red : T.dim }}><NavIcon name={g.items[0]?.icon} size={16} /></span>
+                    <span style={{ display: 'flex', flexShrink: 0, color: sel ? T.red : T.dim }}><NavIcon name={groupGlyph(g)} size={16} /></span>
                     <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.label}</span>
                     <span style={{ fontFamily: T.mono, fontSize: 10.5, color: T.mute, flexShrink: 0 }}>{g.items.length}</span>
                     {sel && <Check size={14} strokeWidth={2} style={{ color: T.red, flexShrink: 0 }} />}
