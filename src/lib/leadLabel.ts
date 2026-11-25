@@ -20,15 +20,21 @@ function firstRequirement(req?: string | null): string {
  * resort. Every other tenant keeps the previous "Name · phone".
  */
 export function leadOptionLabel(
-  x: Pick<Lead, 'first_name' | 'last_name' | 'email' | 'phone' | 'requirement' | 'contact_name' | 'company' | 'primary_contact'>,
+  x: Pick<Lead, 'first_name' | 'last_name' | 'email' | 'phone' | 'requirement' | 'contact_name' | 'company' | 'account_name' | 'primary_contact'>,
 ): string {
   const own = [x.first_name, x.last_name].filter(Boolean).join(' ').trim();
   // The customer: the lead's own name, else the stamped nodal-contact name.
   const customer = own || x.contact_name?.trim() || x.primary_contact?.name?.trim() || '';
   if (isB2bClientActive()) {
     const req = firstRequirement(x.requirement);
-    const who = customer || x.company?.trim() || x.email || 'Lead';
-    return req ? `${who} — ${req}` : who;
+    // The company the lead belongs to — its linked account (stamped) is authoritative; the
+    // free-text company is the fallback. Leading with the company lets the rep see WHICH
+    // customer a lead is for at a glance, since one person can appear under several companies.
+    const company = x.account_name?.trim() || x.company?.trim() || '';
+    const person = customer;
+    // "Company · Person" so both read on one line; either alone when the other is missing.
+    const head = [company, person].filter(Boolean).join(' · ') || x.email || 'Lead';
+    return req ? `${head} — ${req}` : head;
   }
   const name = own || x.email || 'Lead';
   return x.phone ? `${name} · ${x.phone}` : name;

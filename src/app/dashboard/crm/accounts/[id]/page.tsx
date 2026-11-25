@@ -34,6 +34,8 @@ import { accountLocationLines } from '../../../../../lib/accountLocation';
 import { apiErrorText, dealRollup } from '../../../../../lib/sparkAccounts';
 import { BrandChips } from '../../../../../components/crm/spark/BrandChips';
 import CoOwnersCard from '../../../../../components/crm/CoOwnersCard';
+import InlineOwnerAssign from '../../../../../components/crm/shared/InlineOwnerAssign';
+import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
 
 // Built-in order of the main-column and sidebar cards. A card gated on a condition (spark-only, a
@@ -50,6 +52,15 @@ export default function AccountDetailPage() {
   const router = useRouter();
   const confirm = useConfirm();
   const [a, setA] = useState<Account | null>(null);
+  // Owner reassignment from the header (parity with leads, whose header carries a "Change owner"
+  // control). An admin may reassign the account's primary owner right where it is shown.
+  const ownerAccess = useLeadOwnerAccess();
+  const changeAccountOwner = async (userId: string | null) => {
+    if (!a) return;
+    const r = await crmAccounts.update(a.id, { owner_id: userId } as Parameters<typeof crmAccounts.update>[1]);
+    const owner_name = (r as { data?: { owner_name?: string | null } })?.data?.owner_name ?? null;
+    setA((prev) => (prev ? { ...prev, owner_id: userId, owner_name } : prev));
+  };
   // Per-user order of the main-column and sidebar cards (synced via /crm/panel-prefs). Must stay above
   // the loading/"not found" early returns below, like every other hook in this component.
   const { order: mainPanelOrder, setOrder: setMainPanelOrder } = usePanelOrder('account_detail', ACCOUNT_MAIN_DEFAULT_ORDER);
@@ -332,7 +343,18 @@ export default function AccountDetailPage() {
               {!fields.isHidden('industry') && <Field label={fields.labelFor('industry', 'Industry')} icon={Factory} value={a.industry} />}
               {!fields.isHidden('phone') && <PhoneField label={fields.labelFor('phone', 'Phone')} phone={a.phone} accountId={a.id} accountName={a.name} />}
               {!fields.isHidden('email') && a.email && <Field label={fields.labelFor('email', 'Email')} icon={Mail} value={a.email} />}
-              {!fields.isHidden('owner_id') && <Field label={fields.labelFor('owner_id', 'Owner')} icon={UserRound} value={a.owner_name || 'Unassigned'} />}
+              {!fields.isHidden('owner_id') && (
+                ownerAccess.ready && ownerAccess.isAdmin ? (
+                  <OwnerField
+                    label={fields.labelFor('owner_id', 'Owner')}
+                    ownerId={a.owner_id}
+                    ownerName={a.owner_name}
+                    onAssign={changeAccountOwner}
+                  />
+                ) : (
+                  <Field label={fields.labelFor('owner_id', 'Owner')} icon={UserRound} value={a.owner_name || 'Unassigned'} />
+                )
+              )}
               {!fields.isHidden('annual_revenue') && a.annual_revenue != null && <Field label={fields.labelFor('annual_revenue', 'Annual revenue')} icon={IndianRupee} value={Number(a.annual_revenue).toLocaleString('en-IN')} />}
               {!fields.isHidden('employees') && a.employees != null && <Field label={fields.labelFor('employees', 'Employees')} icon={Users} value={Number(a.employees).toLocaleString('en-IN')} />}
             </div>
@@ -675,6 +697,18 @@ function Card({ title, action, children, anchor, icon }: { title: string; action
         <div style={{ marginBottom: 12 }}>{heading}</div>
       )}
       {children}
+    </div>
+  );
+}
+
+/** Owner key-fact with an inline "change owner" control (admins), matching the lead header. */
+function OwnerField({ label, ownerId, ownerName, onAssign }: { label: string; ownerId?: string | null; ownerName?: string | null; onAssign: (userId: string | null) => Promise<void> }) {
+  return (
+    <div data-testid="account-owner-field">
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}><InlineIcon icon={UserRound} size={12} />{label}</div>
+      <div style={{ marginTop: 2, marginLeft: -6 }}>
+        <InlineOwnerAssign currentOwnerId={ownerId} currentOwnerName={ownerName} size={20} recordLabel="Owner of this account" onAssign={onAssign} />
+      </div>
     </div>
   );
 }

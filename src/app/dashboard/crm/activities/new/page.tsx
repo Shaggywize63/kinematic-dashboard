@@ -29,7 +29,43 @@ const ENTITY_TYPES = [
   { value: 'account', label: 'Account' },
 ];
 
-type EntityOption = { id: string; label: string };
+type EntityOption = { id: string; label: string; raw?: Record<string, unknown> };
+
+/** One link in the "what this activity is for" breadcrumb (Company → Lead → Contact). */
+type ContextLink = { role: string; name: string };
+
+/**
+ * The customer chain behind a linked entity, so the Log Activity form can show WHICH
+ * company / lead / contact the activity is being recorded against — not just a bare name.
+ * Empty links are dropped. Mirrors the lead identity chain (account → requirement → contact).
+ */
+function linkedContext(type: string, r: Record<string, unknown> | null | undefined): ContextLink[] {
+  if (!r) return [];
+  const s = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+  const firstLine = (v: unknown): string => s(v).split('\n')[0].replace(/^•\s*/, '').trim();
+  const pc = r.primary_contact as { name?: string } | null | undefined;
+  const company = s(r.account_name) || s(r.company);
+  const links: ContextLink[] = [];
+  if (type === 'lead') {
+    if (company) links.push({ role: 'Company', name: company });
+    const req = firstLine(r.requirement) || s(r.ref_no);
+    if (req) links.push({ role: 'Lead', name: req.length > 48 ? `${req.slice(0, 47).trimEnd()}…` : req });
+    const person = s(r.contact_name) || s(pc?.name) || [s(r.first_name), s(r.last_name)].filter(Boolean).join(' ').trim();
+    if (person) links.push({ role: 'Contact', name: person });
+  } else if (type === 'contact') {
+    if (company) links.push({ role: 'Company', name: company });
+    const person = s(r.full_name) || [s(r.first_name), s(r.last_name)].filter(Boolean).join(' ').trim() || s(r.email);
+    if (person) links.push({ role: 'Contact', name: person });
+  } else if (type === 'deal') {
+    const title = s(r.title) || s(r.name);
+    if (title) links.push({ role: 'Deal', name: title });
+    if (company) links.push({ role: 'Company', name: company });
+  } else if (type === 'account') {
+    const name = s(r.name);
+    if (name) links.push({ role: 'Account', name });
+  }
+  return links;
+}
 
 // <input type="datetime-local"> reads and writes local time as "YYYY-MM-DDTHH:mm".
 const toLocalInput = (d: Date): string => {
@@ -156,6 +192,8 @@ function NewActivityPageInner() {
 
   // Entity search state
   const [entityOptions, setEntityOptions] = useState<EntityOption[]>([]);
+  // The full record behind the current selection, for the "what this activity is for" summary.
+  const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
   const [entitySearch, setEntitySearch] = useState('');
   const [entityLabel, setEntityLabel] = useState('');
   const [showEntityDropdown, setShowEntityDropdown] = useState(false);
@@ -208,6 +246,7 @@ function NewActivityPageInner() {
     setEntityLabel('');
     setEntitySearch('');
     setEntityOptions([]);
+    setSelectedRecord(null);
     if (!entityType) return;
     fetchEntityOptions('');
   }, [entityType]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -220,26 +259,28 @@ function NewActivityPageInner() {
     (async () => {
       try {
         let label = '';
+        let rec: Record<string, unknown> | null = null;
         if (initialEntityType === 'lead') {
           const r = await crmLeads.get(initialEntityId);
           const x = r.data as any;
-          if (x) label = leadOptionLabel(x);
+          if (x) { label = leadOptionLabel(x); rec = x; }
         } else if (initialEntityType === 'contact') {
           const r = await crmContacts.get(initialEntityId);
           const x = r.data as any;
-          if (x) label = x.full_name || [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Contact';
+          if (x) { label = x.full_name || [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Contact'; rec = x; }
         } else if (initialEntityType === 'deal') {
           const r = await crmDeals.get(initialEntityId);
           const x = r.data as any;
-          if (x) label = x.title || x.name || 'Deal';
+          if (x) { label = x.title || x.name || 'Deal'; rec = x; }
         } else if (initialEntityType === 'account') {
           const r = await crmAccounts.get(initialEntityId);
           const x = r.data as any;
-          if (x) label = x.name || 'Account';
+          if (x) { label = x.name || 'Account'; rec = x; }
         }
         if (!cancelled && label) {
           setEntityLabel(label);
           setEntitySearch(label);
+          setSelectedRecord(rec);
         }
       } catch {
         // Silent — the picker will fall back to the placeholder.
@@ -252,25 +293,26 @@ function NewActivityPageInner() {
     if (!entityType) return;
     setLoadingEntities(true);
     try {
-      let data: any[] = [];
+      let data: EntityOption[] = [];
       if (entityType === 'lead') {
         const r = await crmLeads.list(q ? { q } : undefined);
         // Show the name with the requirement (Spark & Ray) — one person can have
         // several leads/requirements — else the contact number, so the rep can
         // pick the right lead while logging an activity.
-        data = (r.data || []).map((x: Lead) => ({ id: x.id, label: leadOptionLabel(x) }));
+        data = (r.data || []).map((x: Lead) => ({ id: x.id, label: leadOptionLabel(x), raw: x as unknown as Record<string, unknown> }));
       } else if (entityType === 'contact') {
         const r = await crmContacts.list(q ? { q } : undefined);
         data = (r.data || []).map((x: any) => ({
           id: x.id,
           label: x.full_name || [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Contact',
+          raw: x,
         }));
       } else if (entityType === 'deal') {
         const r = await crmDeals.list(q ? { q } : undefined);
-        data = (r.data || []).map((x: any) => ({ id: x.id, label: x.title || x.name || 'Deal' }));
+        data = (r.data || []).map((x: any) => ({ id: x.id, label: x.title || x.name || 'Deal', raw: x }));
       } else if (entityType === 'account') {
         const r = await crmAccounts.list(q ? { q } : undefined);
-        data = (r.data || []).map((x: any) => ({ id: x.id, label: x.name || 'Account' }));
+        data = (r.data || []).map((x: any) => ({ id: x.id, label: x.name || 'Account', raw: x }));
       }
       setEntityOptions(data);
     } catch {
@@ -284,6 +326,7 @@ function NewActivityPageInner() {
     setEntitySearch(v);
     setEntityLabel('');
     setEntityId('');
+    setSelectedRecord(null);
     setShowEntityDropdown(true);
     fetchEntityOptions(v);
   };
@@ -292,6 +335,7 @@ function NewActivityPageInner() {
     setEntityId(opt.id);
     setEntityLabel(opt.label);
     setEntitySearch(opt.label);
+    setSelectedRecord(opt.raw ?? null);
     setShowEntityDropdown(false);
   };
 
@@ -739,6 +783,31 @@ function NewActivityPageInner() {
             </Field>
           )}
         </div>
+        {entityId && selectedRecord && (() => {
+          const chain = linkedContext(entityType, selectedRecord);
+          if (chain.length === 0) return null;
+          return (
+            <div
+              data-testid="activity-linked-context"
+              style={{ marginTop: 12, padding: '10px 12px', borderRadius: 8, background: 'var(--s3)', border: '1px solid var(--border)' }}
+            >
+              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>
+                This activity is for
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+                {chain.map((c, i) => (
+                  <span key={c.role} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    {i > 0 && <span aria-hidden style={{ color: 'var(--text-dim)', fontSize: 12 }}>→</span>}
+                    <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, padding: '3px 8px', borderRadius: 6, background: 'var(--s2)', border: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{c.role}</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{c.name}</span>
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </Section>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
