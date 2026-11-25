@@ -184,7 +184,7 @@ test.describe('Lead number', () => {
   test('Spark: the search box mentions the lead number, sends q, and the page finds a lead by its number', async ({ page }) => {
     const calls = await setup(page);
     await page.goto('/dashboard/crm/leads');
-    const search = page.getByPlaceholder('Search name, email, company, lead no...');
+    const search = page.getByLabel('Search leads');
     await expect(search).toBeVisible({ timeout: 60_000 });
     await expect(row(page, 'Acme Forge')).toBeVisible();
     await search.fill('SR/LD/2627-13');

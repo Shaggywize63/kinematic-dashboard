@@ -799,7 +799,7 @@ export default function LeadsListPage() {
               if (e.key === 'Enter' && (filters.q || '').trim()) { e.preventDefault(); runSmartFilter((filters.q || '').trim()); }
             }}
             placeholder={b2bLeads ? 'Search name, company, lead no — or ask in plain English' : 'Search name, email, company — or ask in plain English'}
-            aria-label="Search leads, or describe the leads you want in plain English"
+            aria-label="Search leads"
             style={{ paddingLeft: 33 }}
           />
         </div>
