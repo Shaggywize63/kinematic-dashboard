@@ -11,6 +11,7 @@ import { isB2bClientActive } from '../../lib/b2bClient';
 import CustomFieldsSection from './CustomFieldsSection';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 import LocationPicker from './LocationPicker';
+import GoogleAddressAutocomplete, { type PlaceResult } from './GoogleAddressAutocomplete';
 import { accountLocationPayload, seedAccountLocation, type AccountLocationKey } from '../../lib/accountLocation';
 
 // Sub-industry is stored in the account's custom_fields under this key, exactly as on the lead form.
@@ -109,6 +110,33 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
     />
   );
 
+  // Google Places: typing a company name (or address) fills the Name + address fields from the picked
+  // place. Uses the backend Places proxy (no frontend Maps key needed), and never auto-fills from the
+  // device's GPS in an edit modal (deviceFill off). Hidden when the admin has hidden the address field.
+  const showAddressSearch = !fields.isHidden('address_line1');
+  const onPlacePicked = (p: PlaceResult) => {
+    setLoc((prev) => ({
+      ...prev,
+      address_line1: p.address_line1 || prev.address_line1,
+      state: p.state || prev.state,
+      postal_code: p.postal_code || prev.postal_code,
+    }));
+    // Fill the Name from the establishment's own name when Google gave one and the field isn't hidden.
+    if (p.name && !fields.isHidden('name')) setForm((f) => ({ ...f, name: p.name as string }));
+  };
+  const addressSearchNode = showAddressSearch ? (
+    <div style={{ gridColumn: '1 / -1' }} data-field="address_search">
+      <GoogleAddressAutocomplete
+        id="account-place-search"
+        backend
+        deviceFill={false}
+        label="Search by company name or address (Google)"
+        placeholder="Type a company name or address — e.g. The Ramco Cements Limited, Kolaghat…"
+        onSelect={onPlacePicked}
+      />
+    </div>
+  ) : null;
+
   // Industry change clears a Sub-industry that no longer belongs to the new industry (same rule as leads).
   const setIndustry = (v: string) => {
     setForm((f) => ({ ...f, industry: v }));
@@ -171,6 +199,7 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
     <Modal open={open} onClose={onClose} title="Edit Account" icon={Pencil}
       footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}><Check aria-hidden size={15} strokeWidth={2} />{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <Grid>
+        {addressSearchNode}
         {!fields.isHidden('name') && <div data-field="name" style={{ display: 'contents' }}><Field label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} ord={fields.orderStyle('name')} /></div>}
         {industryNode}{subIndustryNode}
         {locField('address_line1')}{locField('address_line2')}{locationPicker}{locField('postal_code')}{locField('country')}

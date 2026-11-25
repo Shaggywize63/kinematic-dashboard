@@ -41,9 +41,13 @@ export interface PlaceResult {
   postal_code?: string;
   latitude?: string;
   longitude?: string;
+  /** The place's own name when it is a business/establishment (Google displayName). Lets a form that
+   *  searches by company name fill the Name field too — e.g. the account edit modal. Absent for a
+   *  plain street address. */
+  name?: string;
 }
 
-export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true, backend = false, id = 'lead-address-search' }: { onSelect: (p: PlaceResult) => void; deviceFill?: boolean; backend?: boolean; id?: string }) {
+export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true, backend = false, id = 'lead-address-search', label = 'Search address', placeholder = 'Start typing an address — e.g. F 2587 4th Floor Ansal Esencia…' }: { onSelect: (p: PlaceResult) => void; deviceFill?: boolean; backend?: boolean; id?: string; label?: string; placeholder?: string }) {
   // The Maps SDK failed (rejected key, API not enabled, request error): fall back to the backend Places proxy.
   const [sdkBroken, setSdkBroken] = useState(false);
   const backendMode = addressSearchMode({ hasKey: !!KEY, backendOptIn: backend, sdkBroken }) === 'backend';
@@ -225,13 +229,18 @@ export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true,
     const loc = place.location;
     const lat = loc ? (typeof loc.lat === 'function' ? loc.lat() : loc.lat) : undefined;
     const lng = loc ? (typeof loc.lng === 'function' ? loc.lng() : loc.lng) : undefined;
+    // displayName is the establishment's own name (New Places API). It can be a string or a
+    // { text } object depending on the SDK build; take whichever is present.
+    const dn = place.displayName;
+    const placeName = typeof dn === 'string' ? dn : (dn?.text as string | undefined);
     onSelect({
-      address_line1: place.formattedAddress || place.displayName || fallbackText,
+      address_line1: place.formattedAddress || placeName || fallbackText,
       city: get('locality') || get('administrative_area_level_3') || get('administrative_area_level_2'),
       state: get('administrative_area_level_1'),
       postal_code: get('postal_code'),
       latitude: typeof lat === 'number' ? lat.toFixed(6) : undefined,
       longitude: typeof lng === 'number' ? lng.toFixed(6) : undefined,
+      name: (placeName || '').trim() || undefined,
     });
     tokenRef.current = null; // end the billing session
     setQuery('');
@@ -259,10 +268,17 @@ export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true,
         const d = (await crmPlaces.details(r.place_id))?.data;
         if (!d) return;
         const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v.toFixed(6) : undefined);
+        // The backend details payload carries no establishment name, so take it from the suggestion:
+        // for a business result the description leads with the name ("Acme Cements, Kolaghat, …").
+        // Only treat it as a name when the details gave a street (i.e. this really is a place, not a
+        // bare address whose "name" would just be the street itself).
+        const leadName = (r.description || '').split(',')[0].trim();
+        const hasAddress = !!(d.address_line1 && d.address_line1.trim());
         onSelect({
           address_line1: d.address_line1 || r.description,
           city: d.city, state: d.state, postal_code: d.postal_code,
           latitude: num(d.latitude), longitude: num(d.longitude),
+          name: hasAddress && leadName && leadName !== (d.address_line1 || '').trim() ? leadName : undefined,
         });
         setQuery(''); setSuggestions([]); setWideResults([]); setShowedMore(false); setOpen(false);
       } catch { /* ignore a single bad selection */ }
@@ -298,7 +314,7 @@ export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true,
 
   return (
     <div style={{ gridColumn: '1 / -1', position: 'relative', display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label htmlFor={id} style={{ fontSize: 12.5, color: 'var(--text-dim)', fontWeight: 500 }}>Search address</label>
+      <label htmlFor={id} style={{ fontSize: 12.5, color: 'var(--text-dim)', fontWeight: 500 }}>{label}</label>
       <input
         id={id}
         value={query}
@@ -306,7 +322,7 @@ export default function GoogleAddressAutocomplete({ onSelect, deviceFill = true,
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-        placeholder="Start typing an address — e.g. F 2587 4th Floor Ansal Esencia…"
+        placeholder={placeholder}
         className="km-input"
         data-invalid={err ? 'true' : undefined}
         style={{ height: 36, background: 'var(--field)', border: '1px solid var(--border)', color: 'var(--text)', padding: '0 11px', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box', outline: 'none' }}
