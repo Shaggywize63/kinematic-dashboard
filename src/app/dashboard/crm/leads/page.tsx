@@ -798,7 +798,7 @@ export default function LeadsListPage() {
               // Enter = interpret the current text with AI (text search is already live as you type).
               if (e.key === 'Enter' && (filters.q || '').trim()) { e.preventDefault(); runSmartFilter((filters.q || '').trim()); }
             }}
-            placeholder={b2bLeads ? 'Search name, company, lead no — or ask in plain English' : 'Search name, email, company — or ask in plain English'}
+            placeholder={b2bLeads ? 'Search name, email, company, lead no...' : 'Search name, email, company...'}
             aria-label="Search leads"
             style={{ paddingLeft: 33 }}
           />
