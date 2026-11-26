@@ -591,6 +591,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/route-deviations',             label: 'Route Deviations',    icon: 'mapPinned', module: 'route_deviation' },
       { href: '/dashboard/beat-productivity',            label: 'Beat Productivity',   icon: 'trending', module: 'beat_productivity' },
       { href: '/dashboard/work-activities',              label: 'Work Activities',     icon: 'listChecks', module: 'work_activities' },
+      { href: '/dashboard/sos',                          label: 'SOS Alerts',          icon: 'alert', module: 'emergency_sos' },
       // Field executives' own filled forms: view / edit / export their own
       // submissions and see the form number. No `module` gate — available to
       // every authenticated user (the backend scopes each read by user_id), so
