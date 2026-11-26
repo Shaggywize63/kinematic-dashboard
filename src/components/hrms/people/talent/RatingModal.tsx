@@ -23,8 +23,8 @@ export default function RatingModal({ tv, st, person, skillId, onClose }: { tv: 
   const [assessor, setAssessor] = useState(cur?.by ?? ACTOR);
   return (
     <FormModal title={`${skill.name}: ${person.firstName} ${person.lastName}`} confirmLabel="Save level" width={540} onClose={onClose}
-      onConfirm={() => {
-        const r = setRating(person.id, skillId, Number(level) as SkillLevel, note, assessor);
+      onConfirm={async () => {
+        const r = await setRating(person.id, skillId, Number(level) as SkillLevel, note, assessor);
         if (!r.ok) return r.error;
         toast.success('Skill level saved and logged.');
         return null;

@@ -37,9 +37,9 @@ function AddDialog({ tv, role, onClose }: { tv: TalentView; role: CriticalRole; 
   const [reason, setReason] = useState('');
   return (
     <FormModal title={`Add a successor: ${role.title}`} confirmLabel="Add to bench" onClose={onClose}
-      onConfirm={() => {
+      onConfirm={async () => {
         if (!empId) return 'Pick a person.';
-        const r = addSuccessor(role.id, empId, readiness, actions.split('\n'), reason);
+        const r = await addSuccessor(role.id, empId, readiness, actions.split('\n'), reason);
         if (!r.ok) return r.error;
         toast.success(`${tv.name(empId)} added to the bench.`);
         return null;
@@ -69,8 +69,8 @@ function ReadinessDialog({ tv, role, empId, onClose }: { tv: TalentView; role: C
   const [reason, setReason] = useState('');
   return (
     <FormModal title={`Change readiness: ${tv.name(empId)}`} confirmLabel="Save change" onClose={onClose}
-      onConfirm={() => {
-        const r = setReadiness(role.id, empId, readiness, reason);
+      onConfirm={async () => {
+        const r = await setReadiness(role.id, empId, readiness, reason);
         if (!r.ok) return r.error;
         toast.success('Readiness changed and logged.');
         return null;
@@ -91,8 +91,8 @@ function RemoveDialog({ tv, role, empId, onClose }: { tv: TalentView; role: Crit
   const [reason, setReason] = useState('');
   return (
     <FormModal title={`Remove from the bench: ${tv.name(empId)}`} confirmLabel="Remove" danger onClose={onClose}
-      onConfirm={() => {
-        const r = removeSuccessor(role.id, empId, reason);
+      onConfirm={async () => {
+        const r = await removeSuccessor(role.id, empId, reason);
         if (!r.ok) return r.error;
         toast.success('Removed from the bench and logged.');
         return null;
