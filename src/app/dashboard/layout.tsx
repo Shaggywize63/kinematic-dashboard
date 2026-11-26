@@ -829,8 +829,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // packaged sections) and no `module` (hasModule('') and the acting-as scope both pass an item without one), so
     // every signed-in dashboard user can reach support. The platform operator gets the same page as the
     // cross-customer "Support inbox" (the API's `is_operator`), so there is no separate operator entry.
+    // People — Training Materials for the app's Learning Hub. Package-less +
+    // gated on the `learning` module, so the section shows only for clients
+    // granted Learning Hub (e.g. Vanrakshak) and auto-hides otherwise.
+    { label: 'People', items: [
+      { href: '/dashboard/people/training', label: 'Training Materials', icon: 'book', module: 'learning' },
+    ]},
     { label: 'Support', items: [
       { href: '/dashboard/support', label: 'Help & Support', icon: 'help' },
+      // Support Documents for the app's Learning Hub (gated on `learning`).
+      { href: '/dashboard/support/documents', label: 'Documents', icon: 'fileText', module: 'learning' },
     ]},
   ];
 
