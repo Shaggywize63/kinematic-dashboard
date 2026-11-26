@@ -6,7 +6,7 @@ import { ChevronRight, Info, Menu, Search } from 'lucide-react';
 import { useClient } from '../../context/ClientContext';
 import { getActingAs } from '../../lib/api';
 import { getStoredUser } from '../../lib/auth';
-import { isVanrakshakActive } from '../../lib/clientFeatures';
+import { isVanrakshakActive, VANRAKSHAK_CLIENT_ID } from '../../lib/clientFeatures';
 import ClientSelect from '../ClientSelect';
 import IndustryScopePicker from '../IndustryScopePicker';
 import NotificationBell from '../crm/NotificationBell';
@@ -72,12 +72,21 @@ export default function TopBar(p: Props) {
     if (typeof document !== 'undefined' && last) document.title = `${last} · Kinematic`;
   }, [crumbs]);
 
-  // Vanrakshak co-brand: show the client's logo in the top bar for Vanrakshak
-  // users (or a super-admin viewing Vanrakshak). Resolved after mount because
-  // `activeClientId` reads localStorage — gating the render on a mounted flag
-  // keeps server and first client paint identical (no hydration mismatch).
-  const [showVanrakshak, setShowVanrakshak] = useState(false);
-  useEffect(() => { setShowVanrakshak(isVanrakshakActive(getStoredUser())); }, []);
+  // Vanrakshak co-brand: show the client's logo in the top bar for a
+  // Vanrakshak-bound user OR when a super-admin is VIEWING Vanrakshak — whether
+  // via the client picker (selectedClientId) or "Login as client" (acting-as,
+  // which the picker is pinned to but which isn't written to the saved picker
+  // key, so `isVanrakshakActive` alone misses it). Resolved after mount because
+  // these read localStorage — gating on `mounted` keeps server and first client
+  // paint identical (no hydration mismatch).
+  const { selectedClientId } = useClient();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const showVanrakshak = mounted && (
+    isVanrakshakActive(getStoredUser()) ||
+    selectedClientId === VANRAKSHAK_CLIENT_ID ||
+    getActingAs()?.client_id === VANRAKSHAK_CLIENT_ID
+  );
 
   return (
     <header
