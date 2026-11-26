@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Bot, Building2, MessageCircle, Moon, Network, Plus, Sun, User as UserIcon, Users, X } from 'lucide-react';
 import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
+import MenuLayoutCard from '../../../components/dashboard/MenuLayoutCard';
 import FieldTrackingCadencePicker from '../../../components/FieldTrackingCadencePicker';
 import AttendanceRulesCard from '../../../components/AttendanceRulesCard';
 import { AuthUser } from '../../../types';
@@ -509,6 +510,11 @@ export default function SettingsPage() {
             theme look "random" to admins. Stick to explicit choices. */}
         {themeSwitch}
       </Card>
+
+      {/* Menu layout — per-user choice of sidebar style (workspace switcher /
+          classic full list / compact icon rail). Updates the live sidebar
+          immediately via navPrefs' same-tab sync. */}
+      <MenuLayoutCard />
 
       {/* Geofence Management */}
       <Card padding={narrow ? 16 : 24}>

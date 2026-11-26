@@ -16,7 +16,7 @@ import { ClientProvider } from '../../context/ClientContext';
 import { ConfirmProvider } from '../../components/ConfirmProvider';
 import { CityScopeProvider } from '../../context/CityScopeContext';
 import { IndustryScopeProvider } from '../../context/IndustryScopeContext';
-import { useNavPrefs, applyNavOrder } from '../../lib/navPrefs';
+import { useNavPrefs, applyNavOrder, DEFAULT_NAV_LAYOUT } from '../../lib/navPrefs';
 import { deriveCrumbs } from '../../lib/pageTitle';
 import Sidebar, { SIDEBAR_W, SIDEBAR_RAIL_W } from '../../components/dashboard/Sidebar';
 import TopBar from '../../components/dashboard/TopBar';
@@ -294,7 +294,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     (href === '/dashboard' || href === '/dashboard/planograms' || href === '/dashboard/finance' || href === '/dashboard/hrms')
       ? pathname === href
       : pathname.startsWith(href);
-  const sideW = isMobile ? 0 : (collapsed ? SIDEBAR_RAIL_W : SIDEBAR_W);
+  // Per-user menu layout (workspace switcher / classic full list / icon rail).
+  // The 'rail' layout renders at the narrow rail width even when not collapsed,
+  // so the main column's left margin must follow it too.
+  const navLayout = navPrefs.layout ?? DEFAULT_NAV_LAYOUT;
+  const railWidth = navLayout === 'rail' || collapsed;
+  const sideW = isMobile ? 0 : (railWidth ? SIDEBAR_RAIL_W : SIDEBAR_W);
   const sidebarVisible = isMobile ? drawerOpen : true;
 
   useEffect(() => { if (isMobile) setDrawerOpen(false); }, [pathname, isMobile]);
@@ -949,6 +954,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           navReady={navReady}
           isMobile={isMobile}
           collapsed={collapsed}
+          navLayout={navLayout}
+          onNavLayout={(l) => saveNavPrefs({ ...navPrefs, layout: l })}
           visible={sidebarVisible}
           top={impBannerH}
           onToggleCollapsed={toggleCollapsed}
