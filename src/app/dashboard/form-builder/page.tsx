@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import api, { getActingAs, getImpersonateUser } from '../../../lib/api';
-import { isB2bClientActive } from '../../../lib/b2bClient';
+import { isB2bClientActive, isMaaManshaFormClient } from '../../../lib/b2bClient';
 import { getStoredProjectKey, DEFAULT_PROJECT } from '../../../lib/projects';
 import { useClient } from '../../../context/ClientContext';
 import { matchDemoMock, DEMO_USER_EMAIL } from '../../../lib/demoMocks';
@@ -1492,7 +1492,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   /* Save form metadata */
   const saveForm = async () => {
     setSaving(true); setSaved(false);
-    await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'PATCH', body: JSON.stringify({ title:form.title, description:form.description, status:form.status, ...(isB2bClientActive() ? { expense_linked: !!(form as any).expense_linked } : {}) }) }).catch(()=>{});
+    await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'PATCH', body: JSON.stringify({ title:form.title, description:form.description, status:form.status, ...(isB2bClientActive() ? { expense_linked: !!(form as any).expense_linked } : {}), ...(isMaaManshaFormClient() ? { create_lead_on_submit: !!(form as any).create_lead_on_submit } : {}) }) }).catch(()=>{});
     setSavedTitle(form.title);
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -1784,6 +1784,14 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 16px', background:C.s3, borderRadius:12, border:`1px solid ${C.border}` }}>
                   <div><div style={{ fontSize:13, fontWeight:700, color:C.white }}>Allow expense linking</div><div style={{ fontSize:11, color:C.grayd, marginTop:2 }}>Reps can link an expense claim to this form (its name shows on the expense).</div></div>
                   <Tog val={!!(form as any).expense_linked} onChange={v => setForm(p => ({...(p as any), expense_linked:v}))}/>
+                </div>
+              )}
+              {/* Maa Mansha Pharma: capture a CRM lead from each submission of this
+                  form (name / phone / email / company by question type). */}
+              {isMaaManshaFormClient() && (
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 16px', background:C.s3, borderRadius:12, border:`1px solid ${C.border}` }}>
+                  <div><div style={{ fontSize:13, fontWeight:700, color:C.white }}>Create a lead on submit</div><div style={{ fontSize:11, color:C.grayd, marginTop:2 }}>Each submission becomes a CRM lead (name / mobile / email / firm from the form&rsquo;s fields).</div></div>
+                  <Tog val={!!(form as any).create_lead_on_submit} onChange={v => setForm(p => ({...(p as any), create_lead_on_submit:v}))}/>
                 </div>
               )}
               <button onClick={saveForm} disabled={saving} style={{ padding:'11px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
