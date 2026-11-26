@@ -37,6 +37,13 @@ export const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
  * Visits + Area-wise Leads reports. Mirrors iOS/Android `isRajkamal`. */
 export const RAJKAMAL_CLIENT_ID = '0490f34d-d9a3-4f39-99e2-8f3adba8c583';
 
+/** Vanrakshak (A&S Creations) — wildlife / conservation field-force + CRM
+ * tenant. Co-brands the dashboard: the client's own logo renders in the top
+ * bar (and on mobile after login) for Vanrakshak users. Gate the co-brand on
+ * `isVanrakshakActive` so it never leaks to another tenant. Mirrors
+ * iOS/Android `isVanrakshak`. */
+export const VANRAKSHAK_CLIENT_ID = '4413a585-cce9-473e-a7b0-793650427ace';
+
 /** Maa Mansha Pharma — a pharma distribution tenant (Field-Force + CRM) running
  * the daily tele-calling desk + customer-intelligence surfaces. The client row
  * is created under the Kinematic tenant via Client Management; fill this id
@@ -198,6 +205,13 @@ export function canDownloadSrsReport(user: AnyUser): boolean {
 /** True when the active tenant is BMW. */
 export function isBmwActive(user: AnyUser): boolean {
   return activeClientId(user) === BMW_CLIENT_ID;
+}
+
+/** True when the active tenant is Vanrakshak — the user is bound to Vanrakshak,
+ * or a super-admin has the client picker / "Login as client" pinned to it. Used
+ * to co-brand the dashboard with Vanrakshak's logo. */
+export function isVanrakshakActive(user: AnyUser): boolean {
+  return activeClientId(user) === VANRAKSHAK_CLIENT_ID;
 }
 
 /** True when the active tenant is Rajkamal Jewellers. */

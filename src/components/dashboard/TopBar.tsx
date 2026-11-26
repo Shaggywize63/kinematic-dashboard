@@ -1,10 +1,12 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { ChevronRight, Info, Menu, Search } from 'lucide-react';
 import { useClient } from '../../context/ClientContext';
 import { getActingAs } from '../../lib/api';
+import { getStoredUser } from '../../lib/auth';
+import { isVanrakshakActive } from '../../lib/clientFeatures';
 import ClientSelect from '../ClientSelect';
 import IndustryScopePicker from '../IndustryScopePicker';
 import NotificationBell from '../crm/NotificationBell';
@@ -70,6 +72,13 @@ export default function TopBar(p: Props) {
     if (typeof document !== 'undefined' && last) document.title = `${last} · Kinematic`;
   }, [crumbs]);
 
+  // Vanrakshak co-brand: show the client's logo in the top bar for Vanrakshak
+  // users (or a super-admin viewing Vanrakshak). Resolved after mount because
+  // `activeClientId` reads localStorage — gating the render on a mounted flag
+  // keeps server and first client paint identical (no hydration mismatch).
+  const [showVanrakshak, setShowVanrakshak] = useState(false);
+  useEffect(() => { setShowVanrakshak(isVanrakshakActive(getStoredUser())); }, []);
+
   return (
     <header
       style={{
@@ -83,6 +92,17 @@ export default function TopBar(p: Props) {
           <IconButton label="Open menu" onClick={p.onOpenDrawer} style={{ marginLeft: -6 }}>
             <Menu size={20} strokeWidth={1.6} />
           </IconButton>
+        )}
+        {showVanrakshak && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/clients/vanrakshak-logo.png"
+              alt="Vanrakshak"
+              style={{ height: p.isMobile ? 22 : 28, width: 'auto', flexShrink: 0, display: 'block' }}
+            />
+            <span aria-hidden style={{ width: 1, height: 20, background: T.border, margin: '0 2px', flexShrink: 0 }} />
+          </>
         )}
         <nav aria-label="Breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontSize: 13.5 }}>
           {crumbs.map((c, i) => {
