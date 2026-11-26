@@ -58,7 +58,15 @@ export default function DistributorStockPage() {
 
   // Distributor picker + SKU catalogue (for the adjust form).
   useEffect(() => {
-    api.getDistributors().then((r: any) => setDistributors(r?.data || r || [])).catch(() => {});
+    api.getDistributors().then((r: any) => {
+      const list = r?.data || r || [];
+      setDistributors(list);
+      // When the client keeps a central warehouse (its own on-hand inventory),
+      // default the picker to it so Stock opens on that inventory. No-op for
+      // clients without one — the picker stays on "Select distributor".
+      const central = Array.isArray(list) ? list.find((d: any) => d?.is_central_warehouse) : null;
+      if (central?.id) setDistributorId((cur) => cur || central.id);
+    }).catch(() => {});
     api.getSkus({ limit: '1000' }).then((r: any) => {
       const d = r?.data?.data ?? r?.data ?? r ?? [];
       setSkus(Array.isArray(d) ? d : []);
@@ -130,7 +138,7 @@ export default function DistributorStockPage() {
             <div style={labelStyle}>Distributor</div>
             <select value={distributorId} onChange={(e) => setDistributorId(e.target.value)} style={{ ...selStyle, minWidth: 260 }}>
               <option value="">— Select distributor —</option>
-              {distributors.map((d) => <option key={d.id} value={d.id}>{d.name}{d.code ? ` · ${d.code}` : ''}</option>)}
+              {distributors.map((d) => <option key={d.id} value={d.id}>{d.is_central_warehouse ? '🏭 ' : ''}{d.name}{d.code ? ` · ${d.code}` : ''}{d.is_central_warehouse ? ' · Central inventory' : ''}</option>)}
             </select>
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text)', cursor: 'pointer', paddingBottom: 8 }}>
