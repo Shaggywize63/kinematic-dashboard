@@ -25,8 +25,8 @@ function InterviewForm({ db, ev, exit, onClose }: { db: HrmsDb; ev: EngagementVi
   const label = `${db.designations.find((d) => d.id === emp.designationId)?.name ?? 'Employee'}, ${ev.dep(emp.departmentId)}`;
   return (
     <FormModal title={`Exit interview: ${emp.firstName} ${emp.lastName}`} confirmLabel="Save interview" width={600} onClose={onClose}
-      onConfirm={() => {
-        const r = completeExitInterview({ exitId: exit.id, employeeId: emp.id, label, reasons, wouldReturn: back, text });
+      onConfirm={async () => {
+        const r = await completeExitInterview({ exitId: exit.id, employeeId: emp.id, label, reasons, wouldReturn: back, text });
         if (!r.ok) return r.error;
         toast.success('Interview saved to the HR record.');
         return null;

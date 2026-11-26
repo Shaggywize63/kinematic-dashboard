@@ -24,8 +24,8 @@ function NewPulseModal({ last, onClose, onSent }: { last?: Survey; onClose: () =
   const set = (i: number, patch: Partial<{ text: string; type: QType }>) => setQs((a) => a.map((q, k) => (k === i ? { ...q, ...patch } : q)));
   return (
     <FormModal title="New pulse" confirmLabel="Send pulse" width={640} onClose={onClose}
-      onConfirm={() => {
-        const r = sendPulse(title, qs);
+      onConfirm={async () => {
+        const r = await sendPulse(title, qs);
         if (!r.ok) return r.errors.join(' ');
         toast.success('Pulse sent. Simulation: nothing was emailed.');
         onSent(r.survey.id);
@@ -64,8 +64,8 @@ function TakeSurveyModal({ open, startId, onClose }: { open: Survey[]; startId: 
   const s = open.find((x) => x.id === surveyId) ?? open[0]!;
   return (
     <FormModal title={`Take the survey: ${s.title}`} confirmLabel="Submit anonymously" width={620} onClose={onClose}
-      onConfirm={() => {
-        const r = submitResponse(s.id, teamId, answers);
+      onConfirm={async () => {
+        const r = await submitResponse(s.id, teamId, answers);
         if (!r.ok) return r.error;
         toast.success('Response added. The results update once a team has 5 or more.');
         return null;
@@ -144,7 +144,7 @@ export default function PulseTab({ st, ev }: { st: EngagementState; ev: Engageme
         </Select>
         <Badge tone={survey.status === 'open' ? 'ok' : 'neutral'} dot>{survey.status === 'open' ? `Open until ${fmtDate(survey.closesOn)}` : `Closed ${fmtDate(survey.closesOn)}`}</Badge>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {survey.status === 'open' && <Button size="sm" onClick={() => { closeSurvey(survey.id); toast.success('Pulse closed.'); }}>Close this pulse</Button>}
+          {survey.status === 'open' && <Button size="sm" onClick={async () => { const r = await closeSurvey(survey.id); if (r.ok) toast.success('Pulse closed.'); else toast.error(r.error); }}>Close this pulse</Button>}
           <Button size="sm" onClick={() => setDlg('take')} disabled={open.length === 0}>Take the survey (demo)</Button>
           <Button size="sm" variant="primary" onClick={() => setDlg('new')}>New pulse</Button>
         </div>

@@ -25,8 +25,8 @@ function GiveModal({ db, st, onClose }: { db: HrmsDb; st: EngagementState; onClo
   const [msg, setMsg] = useState('');
   return (
     <FormModal title="Give recognition" confirmLabel="Post to the wall" onClose={onClose}
-      onConfirm={() => {
-        const r = giveKudos(to, value, msg);
+      onConfirm={async () => {
+        const r = await giveKudos(to, value, msg);
         if (!r.ok) return r.error;
         toast.success('Posted to the wall.');
         return null;

@@ -309,18 +309,18 @@ test.describe('engagement engine: the anonymity rules', () => {
     for (const r of e.responses) { const t = r.answers[textQ.id]; if (typeof t === 'string') for (const n of names) expect(t).not.toContain(n); }
   });
 
-  test('a response carries only the team: no person, no time, no extra attribute', () => {
+  test('a response carries only the team: no person, no time, no extra attribute', async () => {
     for (const r of e.responses) expect(Object.keys(r).sort()).toEqual(['answers', 'id', 'surveyId', 'teamId']);
     peopleStore.reset();
     const open = e.surveys.find((s) => s.status === 'open')!;
     const before = peopleStore.get().engagement.responses.length;
-    expect(submitResponse(open.id, 'team_sales', { q_goals: 9, q_support: 4, q_recommend: true, q_change: '  Keep the huddle  ' })).toEqual({ ok: true });
+    expect(await submitResponse(open.id, 'team_sales', { q_goals: 9, q_support: 4, q_recommend: true, q_change: '  Keep the huddle  ' })).toEqual({ ok: true });
     const added = peopleStore.get().engagement.responses.at(-1)!;
     expect(peopleStore.get().engagement.responses.length).toBe(before + 1);
     expect(Object.keys(added).sort()).toEqual(['answers', 'id', 'surveyId', 'teamId']);
     expect(added.answers).toEqual({ q_support: 4, q_recommend: true, q_change: 'Keep the huddle' });   // 9 is not a rating, so it is dropped
-    expect(submitResponse(open.id, 'team_sales', {})).toMatchObject({ ok: false });
-    expect(submitResponse('sv_oct', 'team_sales', { q_goals: 3 })).toMatchObject({ ok: false });       // closed pulse
+    expect(await submitResponse(open.id, 'team_sales', {})).toMatchObject({ ok: false });
+    expect(await submitResponse('sv_oct', 'team_sales', { q_goals: 3 })).toMatchObject({ ok: false });       // closed pulse
     peopleStore.reset();
   });
 
@@ -361,15 +361,15 @@ test.describe('engagement engine: the anonymity rules', () => {
     expect(five.wouldReturn).toEqual({ yes: 2, maybe: 2, no: 1 });
   });
 
-  test('a pulse has at most five questions and needs a name; completing an interview marks it done in the exit record', () => {
+  test('a pulse has at most five questions and needs a name; completing an interview marks it done in the exit record', async () => {
     expect(validateSurvey('', [{ text: 'A question', type: 'rating' }])).toContain('Give the pulse a name.');
     expect(validateSurvey('Pulse', [])).toContain('Add at least one question.');
     expect(validateSurvey('Pulse', Array.from({ length: 6 }, () => ({ text: 'A question', type: 'rating' })))).toContain('A pulse has at most 5 questions.');
     expect(validateSurvey('Pulse', [{ text: 'ab', type: 'text' }])).toContain('Question 1 needs some text.');
     peopleStore.reset();
-    expect(sendPulse('', [{ text: 'A question', type: 'rating' }])).toMatchObject({ ok: false });
-    expect(completeExitInterview({ exitId: 'exit_1', employeeId: 'emp_22', label: 'x', reasons: [], wouldReturn: 'yes', text: '' })).toMatchObject({ ok: false });
-    expect(completeExitInterview({ exitId: 'exit_1', employeeId: 'emp_22', label: 'x', reasons: ['Relocation'], wouldReturn: '', text: '' })).toMatchObject({ ok: false });
+    expect(await sendPulse('', [{ text: 'A question', type: 'rating' }])).toMatchObject({ ok: false });
+    expect(await completeExitInterview({ exitId: 'exit_1', employeeId: 'emp_22', label: 'x', reasons: [], wouldReturn: 'yes', text: '' })).toMatchObject({ ok: false });
+    expect(await completeExitInterview({ exitId: 'exit_1', employeeId: 'emp_22', label: 'x', reasons: ['Relocation'], wouldReturn: '', text: '' })).toMatchObject({ ok: false });
     peopleStore.reset();
   });
 });
