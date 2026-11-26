@@ -3,11 +3,14 @@
 // (who, when, budget) that recomputes from that projection every time the page loads or an input changes.
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Badge, Button, Card, Field, Input, Segmented, T, useIsCompact } from '../../../../../components/ui';
 import { FinancePage, Stat, errMsg } from '../../../../../components/finance/ui';
 import { financeApi, type GrowthRole, type ProjectionData, type Scenario } from '../../../../../lib/financeApi';
 import { fmtDate, num } from '../../../../../lib/financeFormat';
+import { getStoredUser } from '../../../../../lib/auth';
+import { isMasterAdmin } from '../../../../../lib/clientFeatures';
 
 const loading = <div style={{ height: 260, display: 'grid', placeItems: 'center', color: T.dim, fontSize: 13 }}>Loading chart…</div>;
 const chart = <K extends string>(name: K) => dynamic(() => import('../../../../../components/finance/ProjectionCharts').then((m) => (m as unknown as Record<K, React.ComponentType<never>>)[name]), { ssr: false, loading: () => loading });
@@ -49,6 +52,17 @@ const right = { textAlign: 'right' as const };
 
 export default function ProjectionPage() {
   const narrow = useIsCompact(900);
+  const router = useRouter();
+  // Master-admin-only: the Projection & Growth Plan is the platform's own business-planning tool and is
+  // not part of the clean Finance module a client is granted. The backend enforces the same rule
+  // (GET /reports/projection is master-only); this guard keeps a client off the screen on a deep link.
+  // 'checking' until we can read the stored user (localStorage is client-only).
+  const [access, setAccess] = useState<'checking' | 'allowed' | 'denied'>('checking');
+  useEffect(() => {
+    const ok = isMasterAdmin(getStoredUser() as Parameters<typeof isMasterAdmin>[0]);
+    setAccess(ok ? 'allowed' : 'denied');
+    if (!ok) router.replace('/dashboard/finance/reports');
+  }, [router]);
   const [tab, setTab] = useState<'projection' | 'hiring'>('projection');
   const [scenario, setScenario] = useState<Scenario>('base');
   const [params, setParams] = useState<Params>(DEFAULTS);
@@ -66,6 +80,7 @@ export default function ProjectionPage() {
   }, [dp]);
 
   useEffect(() => {
+    if (access !== 'allowed') return;   // don't fetch (and 403) before the master-admin check passes
     let off = false;
     setBusy(true); setError(null);
     financeApi.reports.projection(query)
@@ -73,13 +88,21 @@ export default function ProjectionPage() {
       .catch((e) => { if (!off) setError(errMsg(e, 'Could not build the projection')); })
       .finally(() => { if (!off) setBusy(false); });
     return () => { off = true; };
-  }, [query, reload]);
+  }, [query, reload, access]);
 
   const set = (k: keyof Omit<Params, 'costs'>) => (e: React.ChangeEvent<HTMLInputElement>) => setParams((p) => ({ ...p, [k]: e.target.value }));
   const setCost = (key: string, v: string) => setParams((p) => ({ ...p, costs: { ...p.costs, [key]: v } }));
 
   const plan = data?.growth.plans[scenario];
   const gst = data?.summary.gst_factor ?? 1.18;
+
+  if (access !== 'allowed') {
+    return (
+      <FinancePage title="Projection & Growth Plan" description="A 12-month billing projection from your invoices, and a hiring plan that moves with it">
+        <div style={{ padding: 24, color: T.dim }}>{access === 'checking' ? 'Checking access…' : 'This report is not available for your account.'}</div>
+      </FinancePage>
+    );
+  }
 
   return (
     <FinancePage title="Projection & Growth Plan" description="A 12-month billing projection from your invoices, and a hiring plan that moves with it"
