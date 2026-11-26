@@ -14,6 +14,19 @@ import { useCallback, useEffect, useState } from 'react';
  * saved order stable across releases without ever hiding something.
  */
 
+/**
+ * How the whole left menu is laid out. A per-user choice:
+ *  - 'workspace' (default) — the current switcher: a dropdown scopes the menu
+ *    to one area, so only that area's pages show.
+ *  - 'classic' — every section expanded at once, full labels (the traditional
+ *    full sidebar).
+ *  - 'rail' — a narrow icon-only rail of every section, one click per page.
+ */
+export type NavLayout = 'workspace' | 'classic' | 'rail';
+export const NAV_LAYOUTS: NavLayout[] = ['workspace', 'classic', 'rail'];
+export const DEFAULT_NAV_LAYOUT: NavLayout = 'workspace';
+const isNavLayout = (v: unknown): v is NavLayout => NAV_LAYOUTS.includes(v as NavLayout);
+
 export interface NavPrefs {
   /** Ordered section labels. */
   sectionOrder: string[];
@@ -24,9 +37,18 @@ export interface NavPrefs {
    *  a `{ sectionOrder, itemOrder }` (e.g. the menu customiser) still type-check;
    *  the layout preserves it across those saves. */
   pinned?: string[];
+  /** The chosen menu layout. Optional for the same back-compat reason as
+   *  `pinned`; absent means the default ('workspace'). */
+  layout?: NavLayout;
 }
 
-export const EMPTY_NAV_PREFS: NavPrefs = { sectionOrder: [], itemOrder: {}, pinned: [] };
+export const EMPTY_NAV_PREFS: NavPrefs = { sectionOrder: [], itemOrder: {}, pinned: [], layout: DEFAULT_NAV_LAYOUT };
+
+/** Dispatched after any save so EVERY useNavPrefs instance in the SAME tab
+ *  re-reads. The native `storage` event only fires in OTHER tabs, so without
+ *  this a change made on the Settings page (same document as the dashboard
+ *  shell) would not reach the live sidebar until a reload. */
+const NAV_PREFS_EVENT = 'kinematic:nav-prefs';
 
 function storageKey(userId: string | null): string {
   return `kinematic_nav_prefs:${userId ?? 'anon'}`;
@@ -50,7 +72,8 @@ function read(userId: string | null): NavPrefs {
     const pinned = Array.isArray(parsed?.pinned)
       ? parsed.pinned.filter((s: unknown) => typeof s === 'string')
       : [];
-    return { sectionOrder, itemOrder, pinned };
+    const layout = isNavLayout(parsed?.layout) ? parsed.layout : DEFAULT_NAV_LAYOUT;
+    return { sectionOrder, itemOrder, pinned, layout };
   } catch {
     return EMPTY_NAV_PREFS;
   }
@@ -61,6 +84,9 @@ function write(userId: string | null, prefs: NavPrefs): void {
   try {
     window.localStorage.setItem(storageKey(userId), JSON.stringify(prefs));
   } catch { /* ignore quota / disabled storage */ }
+  // Notify same-tab listeners (the native `storage` event only reaches other tabs).
+  try { window.dispatchEvent(new CustomEvent(NAV_PREFS_EVENT, { detail: { userId } })); }
+  catch { /* ignore */ }
 }
 
 /** Stable reorder: items named in `order` come first in that order; anything
@@ -111,12 +137,21 @@ export function useNavPrefs(userId: string | null): {
 
   useEffect(() => {
     setPrefs(read(userId));
-    // Keep in sync across tabs.
-    const handler = (e: StorageEvent) => {
+    // Keep in sync across tabs (native storage event) AND within this tab (our
+    // custom event), so a change on the Settings page reaches the live sidebar.
+    const onStorage = (e: StorageEvent) => {
       if (e.key === storageKey(userId)) setPrefs(read(userId));
     };
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
+    const onSameTab = (e: Event) => {
+      const uid = (e as CustomEvent<{ userId: string | null }>).detail?.userId;
+      if (uid === undefined || uid === userId) setPrefs(read(userId));
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener(NAV_PREFS_EVENT, onSameTab as EventListener);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(NAV_PREFS_EVENT, onSameTab as EventListener);
+    };
   }, [userId]);
 
   const save = useCallback((next: NavPrefs) => {

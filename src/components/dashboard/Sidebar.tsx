@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { Check, ChevronDown, ChevronsUpDown, LogOut, PanelLeftClose, PanelLeftOpen, Pencil, Search, Star, User as UserIcon, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronsUpDown, LayoutGrid, List, LogOut, PanelLeft, PanelLeftClose, PanelLeftOpen, Pencil, Search, Star, User as UserIcon, X } from 'lucide-react';
 import BrandLogo from '../shared/BrandLogo';
 import SignedImage from '../shared/SignedImage';
 import NewBadge from '../shared/NewBadge';
 import { NavIcon } from '../ui/icons';
 import { Avatar, T } from '../ui';
+import type { NavLayout } from '../../lib/navPrefs';
 
 export interface SidebarNavItem { href: string; label: string; icon?: string; [k: string]: unknown }
 export interface SidebarNavGroup { label: string; package?: string; items: SidebarNavItem[] }
@@ -43,12 +44,27 @@ const WORKSPACE_ICON: Record<string, string> = {
 };
 const groupGlyph = (g: SidebarNavGroup): string | undefined => WORKSPACE_ICON[g.label] ?? g.items[0]?.icon;
 
+// Menu-layout options for the account-popover picker. Kept here (not in the
+// Settings card's own list) because this picker is icon-first and always
+// reachable, including from the rail where the Settings link may be gated.
+const NAV_LAYOUT_OPTIONS: { value: NavLayout; label: string; Icon: typeof LayoutGrid }[] = [
+  { value: 'workspace', label: 'Workspace switcher', Icon: LayoutGrid },
+  { value: 'classic', label: 'Full list', Icon: List },
+  { value: 'rail', label: 'Icon rail', Icon: PanelLeft },
+];
+
 interface Props {
   groups: SidebarNavGroup[];
   hasAnyGroups: boolean;
   navReady: boolean;
   isMobile: boolean;
   collapsed: boolean;
+  /** Per-user menu layout. 'workspace' (switcher, the default), 'classic' (all
+   *  sections expanded), or 'rail' (icon-only rail of every section). */
+  navLayout: NavLayout;
+  /** Change the menu layout. Surfaced in the account popover so it is reachable
+   *  by every user and from every layout (the Settings card may be gated). */
+  onNavLayout: (l: NavLayout) => void;
   visible: boolean;
   top: number;
   onToggleCollapsed: () => void;
@@ -85,8 +101,16 @@ interface Props {
  * is computed by the layout and handed in.
  */
 export default function Sidebar(p: Props) {
-  const rail = p.collapsed && !p.isMobile;
-  const width = p.isMobile ? SIDEBAR_DRAWER_W : (p.collapsed ? SIDEBAR_RAIL_W : SIDEBAR_W);
+  // The icon rail shows when the user PICKED the rail layout, or when they
+  // collapsed a workspace/classic menu with the chevron. Never on mobile (the
+  // phone drawer is always the full-width list).
+  const rail = !p.isMobile && (p.navLayout === 'rail' || p.collapsed);
+  // 'classic' shows every section expanded; 'workspace' scopes to one via the
+  // switcher. The rail follows suit: for 'workspace' it shows just the active
+  // area's icons (a collapsed workspace), otherwise every section's icons so
+  // nothing — Settings included — becomes unreachable in rail mode.
+  const showAllSections = p.navLayout !== 'workspace';
+  const width = p.isMobile ? SIDEBAR_DRAWER_W : (rail ? SIDEBAR_RAIL_W : SIDEBAR_W);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [wsMenu, setWsMenu] = useState(false);
@@ -232,6 +256,9 @@ export default function Sidebar(p: Props) {
     fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase',
     color: T.red, fontWeight: 700,
   };
+  // Muted section header for the classic (all-sections) layout — distinct from
+  // the red Pinned/Results eyebrow so the many group headings don't shout.
+  const groupHeader: CSSProperties = { ...eyebrow, color: T.mute };
 
   return (
     <aside
@@ -272,7 +299,7 @@ export default function Sidebar(p: Props) {
         )}
       </div>
 
-      {rail && (
+      {rail && p.navLayout !== 'rail' && (
         <button type="button" onClick={p.onToggleCollapsed} aria-label="Expand sidebar" title="Expand sidebar" className="km-iconbtn"
           style={{ margin: '10px auto 2px', width: 32, height: 32, padding: 0, borderRadius: T.radius.sm, background: 'transparent', border: `1px solid ${T.border}`, color: T.mute, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <PanelLeftOpen size={16} strokeWidth={1.6} />
@@ -318,8 +345,8 @@ export default function Sidebar(p: Props) {
         </div>
       )}
 
-      {/* Workspace switcher (expanded, not searching) */}
-      {!rail && p.navReady && !searching && activeGroup && (
+      {/* Workspace switcher (workspace layout only, expanded, not searching) */}
+      {!rail && p.navLayout === 'workspace' && p.navReady && !searching && activeGroup && (
         <div ref={wsRef} style={{ position: 'relative', padding: '6px 12px 2px' }}>
           <button
             type="button"
@@ -383,16 +410,26 @@ export default function Sidebar(p: Props) {
               </>
         )}
 
-        {/* Rail (collapsed) — pinned icons, then the active workspace's icons. */}
+        {/* Rail — pinned icons, then either the active workspace's icons
+            ('workspace' collapsed) or every section's icons (classic / rail
+            layout), with a thin divider between sections. */}
         {p.navReady && rail && (
           <>
             {pinnedItems.map((i) => railRow(i))}
-            {pinnedItems.length > 0 && activeGroup && <div style={{ height: 1, background: T.border, margin: '8px 18px' }} />}
-            {activeGroup && activeGroup.items.map((i) => railRow(i))}
+            {pinnedItems.length > 0 && <div style={{ height: 1, background: T.border, margin: '8px 18px' }} />}
+            {showAllSections
+              ? p.groups.map((g, gi) => (
+                  <div key={g.label}>
+                    {gi > 0 && <div style={{ height: 1, background: T.border, margin: '8px 18px' }} />}
+                    {g.items.map((i) => railRow(i))}
+                  </div>
+                ))
+              : activeGroup && activeGroup.items.map((i) => railRow(i))}
           </>
         )}
 
-        {/* Expanded + not searching — Pinned, then the active workspace. */}
+        {/* Expanded + not searching — Pinned, then either every section
+            (classic) or just the active workspace. */}
         {p.navReady && !searching && !rail && (
           <>
             {pinnedItems.length > 0 && (
@@ -402,7 +439,17 @@ export default function Sidebar(p: Props) {
                 <div style={{ height: 1, background: T.border, margin: '10px 22px 2px' }} />
               </>
             )}
-            {activeGroup && activeGroup.items.map((i) => navRow(i, true))}
+            {showAllSections
+              ? p.groups.map((g) => (
+                  <div key={g.label}>
+                    <div style={groupHeader}>
+                      <span style={{ display: 'flex', color: T.mute }}><NavIcon name={groupGlyph(g)} size={12} /></span>
+                      {g.label}
+                    </div>
+                    {g.items.map((i) => navRow(i, true))}
+                  </div>
+                ))
+              : activeGroup && activeGroup.items.map((i) => navRow(i, true))}
           </>
         )}
       </nav>
@@ -446,6 +493,35 @@ export default function Sidebar(p: Props) {
             <div style={{ padding: '6px 8px 8px', borderBottom: `1px solid ${T.border}`, marginBottom: 4 }}>
               <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.user?.name || 'Signed in'}</div>
               <div style={{ fontSize: 11.5, color: T.dim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.user?.email || p.roleLabel}</div>
+            </div>
+            {/* Menu layout picker — always reachable (incl. the rail), for every
+                user. Mirrors the Settings → Menu layout card. */}
+            <div style={{ padding: '4px 8px 8px', borderBottom: `1px solid ${T.border}`, marginBottom: 4 }}>
+              <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase', color: T.mute, fontWeight: 700, padding: '2px 0 6px' }}>Menu layout</div>
+              <div role="group" aria-label="Menu layout" style={{ display: 'flex', gap: 4 }}>
+                {NAV_LAYOUT_OPTIONS.map(({ value, label, Icon }) => {
+                  const on = p.navLayout === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => { p.onNavLayout(value); setMenuOpen(false); }}
+                      aria-pressed={on}
+                      title={label}
+                      aria-label={label}
+                      style={{
+                        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                        padding: '8px 4px', borderRadius: T.radius.sm, cursor: 'pointer', fontFamily: 'inherit',
+                        background: on ? 'var(--s3)' : 'transparent', border: `1px solid ${on ? T.red : T.border}`,
+                        color: on ? T.text : T.dim,
+                      }}
+                    >
+                      <Icon size={16} strokeWidth={1.7} style={{ color: on ? T.red : T.mute }} />
+                      <span style={{ fontSize: 10, lineHeight: 1.1, textAlign: 'center' }}>{label.split(' ')[0]}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <Link href="/dashboard/profile" role="menuitem" onClick={() => setMenuOpen(false)} className="km-navrow"
               style={{ display: 'flex', alignItems: 'center', gap: 10, height: 32, padding: '0 8px', borderRadius: T.radius.sm, fontSize: 13, color: T.text, textDecoration: 'none' }}>
