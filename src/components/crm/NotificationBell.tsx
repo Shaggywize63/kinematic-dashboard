@@ -7,7 +7,7 @@ import type { Activity } from '../../types/crm';
 import { prettifySlug } from '../../lib/activityTypes';
 import { ActivityTypeIcon } from './shared/ActivityTypeIcon';
 import type { LucideIcon } from 'lucide-react';
-import { AlarmClock, Bell, CheckCheck, CheckCircle2, CheckSquare, Hourglass, Inbox, IndianRupee, Megaphone, Receipt, UserPlus } from 'lucide-react';
+import { AlarmClock, AlertTriangle, Bell, CheckCheck, CheckCircle2, CheckSquare, Hourglass, Inbox, IndianRupee, Megaphone, Receipt, UserPlus } from 'lucide-react';
 import { IconTile, InlineIcon } from '../ui/PageIcon';
 
 // Bell-icon dropdown. Surfaces TWO sources so the web matches the mobile
@@ -66,6 +66,7 @@ function notifIcon(type?: string): LucideIcon {
     case 'task_overdue': case 'task_due': return CheckSquare;
     case 'lead_assigned': case 'assignment': return UserPlus;
     case 'broadcast': case 'announcement': return Megaphone;
+    case 'sos': return AlertTriangle;
     default: return Bell;
   }
 }
@@ -77,6 +78,9 @@ function notifHref(n: FeedNotif): string {
   const kind = String((d.kind as string) || n.type || '').toLowerCase();
   const leadId = (d.lead_id || d.leadId) as string | undefined;
   const dealId = (d.deal_id || d.dealId) as string | undefined;
+  // SOS panic alerts open the SOS board, where the location and acknowledge /
+  // resolve controls live. Checked before lead/deal since an SOS carries neither.
+  if (kind === 'sos') return '/dashboard/sos';
   if (leadId) return `/dashboard/crm/leads/${leadId}`;
   if (dealId) return `/dashboard/crm/deals/${dealId}`;
   // Expense: open the claim itself (approvers review it there; claimants see the
