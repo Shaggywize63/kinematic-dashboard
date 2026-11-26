@@ -8,6 +8,7 @@ import type { UpdateSuggestion } from '../../types/crm';
 import { getStoredUser } from '../../lib/auth';
 import OwnerAvatar from './shared/OwnerAvatar';
 import MentionInput, { renderMentions } from '../messaging/MentionInput';
+import InlineVoiceDictation from './InlineVoiceDictation';
 
 // Roles that may delete a teammate's update (mirrors the backend allow-list).
 const ADMIN_ROLES = new Set(['super_admin', 'admin', 'org_admin']);
@@ -114,6 +115,16 @@ export default function LeadUpdatesTimeline({
     }
   };
 
+  // Append a dictated chunk to the draft (space-joined), clamped to the same
+  // 2000-char limit the textarea enforces. Lets a rep SPEAK the update instead
+  // of typing it; the spoken text then feeds ✨ Suggest like any typed update.
+  const appendDictation = useCallback((text: string) => {
+    setDraft((d) => {
+      const joined = (d.trim() ? `${d.trim()} ` : '') + text;
+      return joined.slice(0, 2000);
+    });
+  }, []);
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Ctrl/Cmd-Enter submits — keeps the keyboard flow fast for power users
     // without stealing plain Enter (multi-line notes are common).
@@ -169,6 +180,7 @@ export default function LeadUpdatesTimeline({
           maxLength={2000}
           disabled={saving}
         />
+        <InlineVoiceDictation onTranscript={appendDictation} disabled={saving} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>
             {draft.length}/2000 · stamps your name and time · @-mentioned teammates get notified
