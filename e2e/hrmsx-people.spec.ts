@@ -246,23 +246,23 @@ test.describe('talent engine', () => {
     expect(rev.unplaced.length + sum.placed).toBe(big.length);
   });
 
-  test('actions: a rating needs its evidence, a successor needs a reason, and every change is logged', () => {
+  test('actions: a rating needs its evidence, a successor needs a reason, and every change is logged', async () => {
     peopleStore.reset();
-    expect(setRating('emp_9', 'sk_field', 4, '')).toMatchObject({ ok: false });
-    expect(setRating('emp_9', 'sk_field', 4, 'Ran the Karol Bagh beat review end to end')).toEqual({ ok: true });
+    expect(await setRating('emp_9', 'sk_field', 4, '')).toMatchObject({ ok: false });
+    expect(await setRating('emp_9', 'sk_field', 4, 'Ran the Karol Bagh beat review end to end')).toEqual({ ok: true });
     expect(peopleStore.get().talent.ratings['emp_9|sk_field']!.level).toBe(4);
     expect(peopleStore.get().talent.log[0]!.action).toBe('Skill level changed');
-    expect(setRating('emp_9', 'sk_field', 0, '')).toEqual({ ok: true });
+    expect(await setRating('emp_9', 'sk_field', 0, '')).toEqual({ ok: true });
     expect(peopleStore.get().talent.ratings['emp_9|sk_field']).toBeUndefined();
 
-    expect(addSuccessor('role_head_people', 'emp_18', '1-2y', ['Own the POSH calendar'], 'no')).toMatchObject({ ok: false });
-    expect(addSuccessor('role_head_people', 'emp_1', '1-2y', [], 'Trying to add the holder')).toMatchObject({ ok: false });
-    expect(addSuccessor('role_head_people', 'emp_18', '1-2y', ['Own the POSH calendar'], 'Runs the POSH refresher well')).toEqual({ ok: true });
-    expect(addSuccessor('role_head_people', 'emp_18', 'now', [], 'Added twice by mistake')).toMatchObject({ ok: false });
+    expect(await addSuccessor('role_head_people', 'emp_18', '1-2y', ['Own the POSH calendar'], 'no')).toMatchObject({ ok: false });
+    expect(await addSuccessor('role_head_people', 'emp_1', '1-2y', [], 'Trying to add the holder')).toMatchObject({ ok: false });
+    expect(await addSuccessor('role_head_people', 'emp_18', '1-2y', ['Own the POSH calendar'], 'Runs the POSH refresher well')).toEqual({ ok: true });
+    expect(await addSuccessor('role_head_people', 'emp_18', 'now', [], 'Added twice by mistake')).toMatchObject({ ok: false });
     const role = () => peopleStore.get().talent.roles.find((r) => r.id === 'role_head_people')!;
     expect(benchStrength(role()).status).toBe('amber');
     expect(role().history[0]).toMatchObject({ kind: 'added', employeeId: 'emp_18', reason: 'Runs the POSH refresher well' });
-    expect(removeSuccessor('role_head_people', 'emp_18', 'Moved to another team')).toEqual({ ok: true });
+    expect(await removeSuccessor('role_head_people', 'emp_18', 'Moved to another team')).toEqual({ ok: true });
     expect(benchStrength(role()).status).toBe('red');
     peopleStore.reset();
   });

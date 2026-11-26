@@ -23,8 +23,8 @@ function PlaceDialog({ st, person, onClose }: { st: TalentState; person: Employe
   const [why, setWhy] = useState(cur?.rationale ?? '');
   return (
     <FormModal title={`9-box placement: ${person.firstName} ${person.lastName}`} confirmLabel="Save placement" onClose={onClose}
-      onConfirm={() => {
-        const r = placeEmployee(person.id, Number(perf) as NineLevel, Number(pot) as NineLevel, why);
+      onConfirm={async () => {
+        const r = await placeEmployee(person.id, Number(perf) as NineLevel, Number(pot) as NineLevel, why);
         if (!r.ok) return r.error;
         toast.success('Placement saved and logged.');
         return null;
@@ -44,7 +44,7 @@ function PlaceDialog({ st, person, onClose }: { st: TalentState; person: Employe
         <Field label="Rationale" htmlFor="nb-why" hint="What did you see? The reason matters more than the box.">
           <Textarea id="nb-why" rows={3} value={why} onChange={(e) => setWhy(e.target.value)} />
         </Field>
-        {cur && <div><Button size="sm" variant="danger" onClick={() => { clearPlacement(person.id); toast.success('Placement removed.'); onClose(); }}>Remove this placement</Button></div>}
+        {cur && <div><Button size="sm" variant="danger" onClick={async () => { await clearPlacement(person.id); toast.success('Placement removed.'); onClose(); }}>Remove this placement</Button></div>}
       </Stack>
     </FormModal>
   );
