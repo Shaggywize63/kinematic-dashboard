@@ -33,6 +33,8 @@ const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
 // BMW has no close-as-won flow, so the Won / Win-rate scorecards + Win-rate chart are hidden for them.
 const BMW_CLIENT_ID = '2ee5e03a-3a56-41c9-aaa0-16468920f871';
+// Maa Mansha Pharma — shows the "Lead Visits (this week)" tile.
+const MAA_MANSHA_CLIENT_ID = '40034845-5c91-4619-992e-473e07856059';
 
 // Recharts is heavy (~150 KB gzipped). Lazy-load each chart so the dashboard
 // initial bundle stays small and charts only download when their card paints.
@@ -175,6 +177,9 @@ export default function CrmDashboardPage() {
   const bmwActive =
     userClientId === BMW_CLIENT_ID ||
     selectedClientId === BMW_CLIENT_ID;
+  const maaManshaActive =
+    userClientId === MAA_MANSHA_CLIENT_ID ||
+    selectedClientId === MAA_MANSHA_CLIENT_ID;
 
   useEffect(() => {
     if (!allowWeightToggle) return; // Non-Tata clients never resurrect 'weight'.
@@ -420,6 +425,7 @@ export default function CrmDashboardPage() {
               hint={`${segmentPlural(leadForm, 'b2b')} ${(summary.leads_by_segment.b2b || 0).toLocaleString('en-IN')} · ${segmentPlural(leadForm, 'b2c')} ${(summary.leads_by_segment.b2c || 0).toLocaleString('en-IN')}`} />
           )}
           {isVisible('stat_activities') && <StatTile label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} />}
+          {maaManshaActive && <StatTile label="Lead Visits (this week)" value={summary?.lead_visits_week || 0} loading={loading} />}
           {isVisible('stat_conversion') && <StatTile label="Conversion" value={fmtPct(summary?.conversion_rate)} loading={loading} />}
         </div>
       )}

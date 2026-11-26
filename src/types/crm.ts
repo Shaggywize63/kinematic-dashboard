@@ -578,7 +578,7 @@ export interface AnalyticsSummary {
   won_deals_30d: number; won_revenue_30d: number;
   win_rate_30d: number; avg_deal_size: number;
   avg_sales_cycle_days: number; pipeline_velocity: number;
-  activities_7d: number; conversion_rate: number;
+  activities_7d: number; lead_visits_week: number; conversion_rate: number;
   by_stage?: Array<{ stage: string; count: number; value: number }>;
   by_owner?: Array<{ owner: string; count: number; value: number }>;
   /** TOTAL leads per lead type (same basis as total_leads). Only sent for clients that named their lead types. */

@@ -27,3 +27,13 @@ export function effectiveClientId(): string | null {
 export function isB2bClientActive(): boolean {
   return (effectiveClientId() || '').toLowerCase() === SPARK_CLIENT_ID;
 }
+
+// Maa Mansha Pharma — the Form-Builder "create a lead on submit" toggle is shown
+// only when this is the effective client. Mirrors the backend gate in
+// Kinematic/src/lib/maaMansha.ts.
+export const MAA_MANSHA_CLIENT_ID = '40034845-5c91-4619-992e-473e07856059';
+
+/** True when the effective client is Maa Mansha Pharma. */
+export function isMaaManshaFormClient(): boolean {
+  return (effectiveClientId() || '').toLowerCase() === MAA_MANSHA_CLIENT_ID;
+}
