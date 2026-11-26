@@ -50,7 +50,7 @@ function speechErrorMessage(code: string | undefined): string | null {
 }
 
 export function useSpeechRecognition(
-  { onResult, continuous = false }: { onResult: (text: string) => void; continuous?: boolean },
+  { onResult, continuous = false, lang = 'en-IN' }: { onResult: (text: string) => void; continuous?: boolean; lang?: string },
 ): SpeechRecognitionApi {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(false);
@@ -68,6 +68,14 @@ export function useSpeechRecognition(
   // value, so the default-false KINI-chat path is unchanged.
   const continuousRef = useRef(continuous);
   useEffect(() => { continuousRef.current = continuous; }, [continuous]);
+  // Recognition language (BCP-47, e.g. 'hi-IN'). Read via a ref and re-applied
+  // on each start() so a consumer can switch languages without re-creating the
+  // recogniser. Defaults to en-IN (unchanged for existing callers).
+  const langRef = useRef(lang);
+  useEffect(() => {
+    langRef.current = lang;
+    if (recRef.current) { try { recRef.current.lang = lang; } catch { /* */ } }
+  }, [lang]);
   // Amplitude-meter plumbing — separate from the recogniser so a getUserMedia
   // failure never breaks transcription.
   const streamRef = useRef<MediaStream | null>(null);
@@ -119,7 +127,7 @@ export function useSpeechRecognition(
     const rec = new SR();
     rec.continuous = continuousRef.current;
     rec.interimResults = true;
-    rec.lang = 'en-IN';
+    rec.lang = langRef.current;
     rec.onresult = (e: any) => {
       let finalText = '';
       let interimText = '';
@@ -140,7 +148,7 @@ export function useSpeechRecognition(
   const start = useCallback(() => {
     if (!recRef.current || listening) return;
     setError(null);
-    try { recRef.current.start(); setListening(true); void startMeter(); }
+    try { recRef.current.lang = langRef.current; recRef.current.start(); setListening(true); void startMeter(); }
     catch (e: any) { setError(speechErrorMessage(e?.name === 'InvalidStateError' ? undefined : 'start-failed')); }
   }, [listening, startMeter]);
   const stop = useCallback(() => {
