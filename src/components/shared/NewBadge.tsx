@@ -11,6 +11,28 @@ import { isSectionNew } from '../../lib/whatsNew';
  * `dot` renders a compact dot (for the collapsed sidebar / tight spots) instead
  * of the pill.
  */
+/**
+ * A dot shown on a nav GROUP when any route inside it is new.
+ *
+ * The default menu layout is the workspace switcher, which scopes the sidebar to one area — so a client sitting
+ * in CRM never renders the Support items and never sees their `NewBadge`. Without this, "highlight it as new for
+ * every client" only reaches the ones who happened to be in that workspace already.
+ *
+ * Same mount guard as NewBadge, so it is SSR-safe and clears as soon as the section is marked seen.
+ */
+export function GroupNewDot({ hrefs, style }: { hrefs: readonly string[]; style?: React.CSSProperties }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted || !hrefs.some((h) => isSectionNew(h))) return null;
+  return (
+    <span
+      aria-label="New"
+      title="Something new in here"
+      style={{ width: 7, height: 7, borderRadius: '50%', background: '#16a34a', flexShrink: 0, ...style }}
+    />
+  );
+}
+
 export default function NewBadge({ href, dot = false, style }: { href: string; dot?: boolean; style?: React.CSSProperties }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
