@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { AudioLines, CalendarClock, Check, CheckSquare, Mail, MessageSquare, Pencil, Phone, Play, RotateCcw, StickyNote, Trash2, X } from 'lucide-react';
 import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import type { LeadUpdate } from '../../../lib/crmApi';
+import { istStamp } from '../../../lib/recentUpdatesDesign';
 import { intentColor, sentimentColor, statusMeta, type ConversationRow } from '../../../lib/conversationsApi';
 import MentionInput, { renderMentions } from '../../messaging/MentionInput';
 import OwnerAvatar from '../shared/OwnerAvatar';
@@ -102,7 +103,7 @@ function ConfirmStrip({ text, confirmLabel, onConfirm, onCancel }: { text: strin
 // ── Notes (lead updates) ─────────────────────────────────────────────────────
 
 export function NoteRow({
-  u, last, canEdit, canDelete, onEdit, onDelete,
+  u, last, canEdit, canDelete, onEdit, onDelete, redesign = false, highlight = false,
 }: {
   u: LeadUpdate;
   last: boolean;
@@ -110,14 +111,25 @@ export function NoteRow({
   canDelete: boolean;
   onEdit: (body: string) => Promise<boolean>;
   onDelete: () => void | Promise<void>;
+  /** Redesigned note card (staged rollout — lib/recentUpdatesDesign.ts): absolute IST stamp + a bordered card. */
+  redesign?: boolean;
+  /** This is the note that was just posted: tint it, label it "Just added" and scroll it into view. */
+  highlight?: boolean;
 }) {
   const who = u.author_name || 'Unknown';
   const [editing, setEditing] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [text, setText] = useState(u.body);
   const [busy, setBusy] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   // Keep the draft in step when the row is replaced by a fresh copy (after an edit elsewhere).
   useEffect(() => { if (!editing) setText(u.body); }, [u.body, editing]);
+  // Bring a just-posted note into view (e.g. when the composer sits far above a long history).
+  useEffect(() => {
+    if (!highlight) return;
+    const reduce = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    cardRef.current?.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+  }, [highlight]);
 
   const save = async () => {
     if (!text.trim() || busy) return;
@@ -136,7 +148,14 @@ export function NoteRow({
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 30 }}>
         <div style={{ flex: 1, minWidth: 0, fontSize: 13, color: T.dim }}>
           <strong style={{ color: T.text, fontWeight: 650 }}>{who}</strong> added an update
-          <span style={{ ...metaStyle, marginLeft: 8 }} title={fmtIST(u.created_at)}>{relTime(u.created_at)}</span>
+          {redesign ? (
+            <span style={{ ...metaStyle, marginLeft: 8 }} title={fmtIST(u.created_at)}>{istStamp(u.created_at)} · {relTime(u.created_at)}</span>
+          ) : (
+            <span style={{ ...metaStyle, marginLeft: 8 }} title={fmtIST(u.created_at)}>{relTime(u.created_at)}</span>
+          )}
+          {redesign && highlight && (
+            <span style={{ display: 'inline-block', whiteSpace: 'nowrap', marginLeft: 8, fontSize: 11, fontWeight: 700, color: T.red, background: T.redWash, padding: '1px 8px', borderRadius: 999 }}>Just added</span>
+          )}
         </div>
         {!editing && <RowMenu items={items} />}
       </div>
@@ -147,6 +166,22 @@ export function NoteRow({
             <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy}>Cancel</Button>
             <Button size="sm" variant="primary" onClick={save} disabled={busy || !text.trim()}>{busy ? 'Saving…' : 'Save'}</Button>
           </div>
+        </div>
+      ) : redesign ? (
+        <div
+          ref={cardRef}
+          data-testid="note-card"
+          data-highlight={highlight ? 'true' : undefined}
+          style={{
+            marginTop: 2, padding: '10px 12px', borderRadius: 10,
+            background: highlight ? T.redWash : 'var(--s3)',
+            border: `1px solid ${highlight ? T.red : T.border}`,
+            boxShadow: highlight ? '0 0 0 3px rgba(208,30,44,0.12)' : 'none',
+            transition: 'background 0.6s ease, border-color 0.6s ease, box-shadow 0.6s ease',
+            ...bodyStyle,
+          }}
+        >
+          <Clamp lines={6}>{renderMentions(u.body)}</Clamp>
         </div>
       ) : (
         <div style={{ marginTop: 2, padding: '10px 12px', background: 'var(--s3)', borderRadius: '2px 10px 10px 10px', ...bodyStyle }}>

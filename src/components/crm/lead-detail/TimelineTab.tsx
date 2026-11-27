@@ -1,7 +1,8 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarClock, History } from 'lucide-react';
 import type { LeadUpdate } from '../../../lib/crmApi';
+import { useRecentUpdatesDesign } from '../../../lib/useRecentUpdatesDesign';
 import type { ConversationRow } from '../../../lib/conversationsApi';
 import { Button, Card, T } from '../../ui';
 import Composer from './Composer';
@@ -39,6 +40,23 @@ function matches(f: Filter, it: HistoryItem | { kind: 'activity'; activity: Deta
   }
 }
 
+/** Classic ⇄ New switch for the Recent updates redesign. Only rendered for accounts that have access to it. */
+function DesignToggle({ enabled, onChange }: { enabled: boolean; onChange: (useNew: boolean) => void }) {
+  const seg = (on: boolean): React.CSSProperties => ({
+    height: 24, padding: '0 11px', border: 0, borderRadius: 999, fontSize: 12, fontWeight: 650, cursor: 'pointer', fontFamily: 'inherit',
+    background: on ? T.text : 'transparent', color: on ? T.card : T.dim,
+  });
+  return (
+    <div data-testid="design-toggle" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 11.5, color: T.mute }}>Updates design</span>
+      <div role="group" aria-label="Updates design" style={{ display: 'inline-flex', padding: 2, border: `1px solid ${T.border}`, borderRadius: 999 }}>
+        <button type="button" aria-pressed={!enabled} onClick={() => onChange(false)} style={seg(!enabled)}>Classic</button>
+        <button type="button" aria-pressed={enabled} onClick={() => onChange(true)} style={seg(enabled)}>New</button>
+      </div>
+    </div>
+  );
+}
+
 /** Composer, what's coming up, and one chronological record of everything that happened on the lead. */
 export default function TimelineTab({
   leadId, leadCampaign, activities, updates, updatesLoading, conversations, me,
@@ -61,6 +79,30 @@ export default function TimelineTab({
   // The activity being edited in the full form (reschedule a due date, change subject/notes/assignees…).
   const [editing, setEditing] = useState<DetailActivity | null>(null);
   const { busyId, setStatus, remove, completing, closeCompleting, completedWithOutcome } = useActivityActions(onActivitiesChanged);
+
+  // Redesigned Recent updates — staged rollout (lib/recentUpdatesDesign.ts): `available` only for the
+  // accounts allowed today (or everyone once the switch flips); `enabled` = available and not switched to classic.
+  const design = useRecentUpdatesDesign();
+
+  // The note that was just posted gets a brief highlight. `useLeadUpdates.add` only reports success, so mark
+  // that we're waiting for a new note and pick it up (it's prepended, so updates[0]) when the list changes.
+  const [justAddedId, setJustAddedId] = useState<string | null>(null);
+  const awaitingNew = useRef(false);
+  const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addNote = async (body: string) => {
+    awaitingNew.current = design.enabled;
+    const ok = await onAddNote(body);
+    if (!ok) awaitingNew.current = false;
+    return ok;
+  };
+  useEffect(() => {
+    if (!awaitingNew.current || !updates[0]) return;
+    awaitingNew.current = false;
+    setJustAddedId(updates[0].id);
+    if (clearTimer.current) clearTimeout(clearTimer.current);
+    clearTimer.current = setTimeout(() => setJustAddedId(null), 3500);
+  }, [updates]);
+  useEffect(() => () => { if (clearTimer.current) clearTimeout(clearTimer.current); }, []);
 
   const upcomingAll = useMemo(() => {
     const t = (a: DetailActivity) => (a.due_at ? new Date(a.due_at).getTime() : Number.POSITIVE_INFINITY);
@@ -115,7 +157,10 @@ export default function TimelineTab({
         />
       )}
       <Card padding={16}>
-        <Composer leadId={leadId} latestUpdate={updates[0] ?? null} onSubmit={onAddNote} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {design.available && <DesignToggle enabled={design.enabled} onChange={design.setEnabled} />}
+          <Composer leadId={leadId} latestUpdate={updates[0] ?? null} onSubmit={addNote} redesign={design.enabled} />
+        </div>
       </Card>
 
       {upcoming.length > 0 && (
@@ -204,6 +249,8 @@ export default function TimelineTab({
                           canDelete={(!!myId && u.author_id === myId) || me.isAdmin}
                           onEdit={(body) => onEditNote(u.id, body)}
                           onDelete={() => onDeleteNote(u.id)}
+                          redesign={design.enabled}
+                          highlight={design.enabled && justAddedId === u.id}
                         />
                       );
                     }

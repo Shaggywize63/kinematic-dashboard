@@ -1,30 +1,41 @@
 'use client';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { CalendarClock, CheckSquare, ClipboardList, Phone, Plus, Send, Sparkles, X } from 'lucide-react';
+import { CalendarClock, Check, CheckSquare, ClipboardList, CornerUpRight, MapPin, Phone, Plus, Send, Sparkles, X } from 'lucide-react';
 import { crmAi, type LeadUpdate } from '../../../lib/crmApi';
+import { LOG_AS, logAsSubject, type LogAs } from '../../../lib/recentUpdatesDesign';
 import type { UpdateSuggestion } from '../../../types/crm';
 import MentionInput from '../../messaging/MentionInput';
+import InlineVoiceDictation from '../InlineVoiceDictation';
 import { Button, T, buttonStyle } from '../../ui';
 
 const MAX = 2000;
 
-/** The note box at the head of the timeline, with one-click ways into logging a call, meeting or task. */
+/**
+ * The note box at the head of the timeline, with one-click ways into logging a call, meeting or task.
+ *
+ * `redesign` (staged rollout — see lib/recentUpdatesDesign.ts) adds a dictation control (with its
+ * live "Listening…" state) and, after a note is posted, a "Posted" confirmation with one-tap
+ * "log as Call / Visit / Follow-up" chips pre-filled from that note.
+ */
 export default function Composer({
-  leadId, latestUpdate, onSubmit,
+  leadId, latestUpdate, onSubmit, redesign = false,
 }: {
   leadId: string;
   /** Newest update — "Suggest" reads this, never the live draft. */
   latestUpdate: LeadUpdate | null;
   onSubmit: (body: string) => Promise<boolean>;
+  redesign?: boolean;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggestion, setSuggestion] = useState<UpdateSuggestion | null>(null);
+  // The text of the note that was just posted (redesign only) — drives the "Posted · log it as" strip.
+  const [posted, setPosted] = useState<string | null>(null);
 
   const submit = async () => {
     const text = draft.trim();
@@ -37,8 +48,18 @@ export default function Composer({
       setDraft('');
       // A suggestion tied to the previous update would now be stale advice.
       setSuggestion(null);
+      if (redesign) setPosted(text);
     }
   };
+
+  // Typing a new note retires the "Posted" strip — it was about the previous one.
+  const onDraftChange = (v: string) => { setDraft(v); if (v) setPosted(null); };
+
+  // Append a dictated chunk to the draft (space-joined), clamped to the textarea's limit.
+  const appendDictation = useCallback((text: string) => {
+    setPosted(null);
+    setDraft((d) => (((d.trim() ? `${d.trim()} ` : '') + text).slice(0, MAX)));
+  }, []);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Ctrl/Cmd-Enter submits without stealing plain Enter (multi-line notes are common).
@@ -81,13 +102,14 @@ export default function Composer({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <MentionInput
         value={draft}
-        onChange={setDraft}
+        onChange={onDraftChange}
         onKeyDown={onKeyDown}
         placeholder="Write an update — what was discussed, what's next? Type @ to tag a teammate."
         rows={3}
         maxLength={MAX}
         disabled={saving}
       />
+      {redesign && <InlineVoiceDictation onTranscript={appendDictation} disabled={saving} />}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
           <Link href={quick('call')} className="km-btn" data-variant="ghost" style={quickStyle}><Phone size={14} strokeWidth={1.8} aria-hidden />Log call</Link>
@@ -107,6 +129,13 @@ export default function Composer({
         </div>
       </div>
 
+      {redesign && posted && (
+        <PostedStrip
+          onLogAs={(kind, activityType) => goToActivity({ type: activityType, subject: logAsSubject(kind, posted), body: posted })}
+          onDismiss={() => setPosted(null)}
+        />
+      )}
+
       {suggestion && (
         <SuggestionPanel
           s={suggestion}
@@ -121,6 +150,36 @@ export default function Composer({
           onNextAction={(label) => goToActivity({ type: 'task', subject: label })}
         />
       )}
+    </div>
+  );
+}
+
+const LOG_AS_ICON: Record<LogAs, React.ReactNode> = {
+  call: <Phone size={14} strokeWidth={1.8} aria-hidden />,
+  visit: <MapPin size={14} strokeWidth={1.8} aria-hidden />,
+  follow_up: <CornerUpRight size={14} strokeWidth={1.8} aria-hidden />,
+};
+
+/** Shown right after a note is posted: confirms it landed and offers one tap to log it as a structured activity. */
+function PostedStrip({ onLogAs, onDismiss }: { onLogAs: (kind: LogAs, activityType: string) => void; onDismiss: () => void }) {
+  const chip: React.CSSProperties = {
+    border: `1px solid ${T.border}`, background: T.card, color: T.text, padding: '5px 11px', borderRadius: 999,
+    fontSize: 12.5, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'inherit',
+  };
+  return (
+    <div role="status" aria-live="polite" data-testid="posted-strip" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 10px', borderRadius: 10, background: T.okWash }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 650, color: T.ok }}>
+        <Check size={15} strokeWidth={2.2} aria-hidden />Posted
+      </span>
+      <span style={{ fontSize: 12.5, color: T.dim }}>Log it as</span>
+      {LOG_AS.map((o) => (
+        <button type="button" key={o.key} style={chip} onClick={() => onLogAs(o.key, o.activityType)} title={`Open a new ${o.label.toLowerCase()} pre-filled from this note`}>
+          {LOG_AS_ICON[o.key]}{o.label}
+        </button>
+      ))}
+      <button type="button" onClick={onDismiss} aria-label="Dismiss" className="km-iconbtn" style={{ marginLeft: 'auto', background: 'none', border: 0, color: T.dim, cursor: 'pointer', width: 24, height: 24, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        <X size={14} strokeWidth={1.8} />
+      </button>
     </div>
   );
 }
