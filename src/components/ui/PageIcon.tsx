@@ -15,9 +15,9 @@ export function PageIcon({ name, size = 36, style }: { name?: NavIconName | null
   const icon = name === undefined ? iconNameForPath(pathname) : name;
   if (!icon) return null;
   return (
-    <span aria-hidden data-testid="page-icon" data-icon={icon} style={{
+    <span aria-hidden data-testid="page-icon" data-icon={icon} className="km-lz" style={{
       width: size, height: size, borderRadius: 10, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      background: 'color-mix(in srgb, var(--primary) 11%, transparent)', color: 'var(--primary)', ...style,
+      background: 'color-mix(in srgb, var(--primary) 11%, transparent)', color: 'var(--primary)', ['--tint' as string]: 'var(--primary)', ...style,
     }}>
       <NavIcon name={icon} size={ICON_SIZE.page} strokeWidth={1.9} />
     </span>
@@ -40,9 +40,9 @@ export function IconTile({ icon: Icon, tone = 'neutral', size = 28, iconSize = I
 }) {
   const t = TONES[tone];
   return (
-    <span aria-hidden style={{
+    <span aria-hidden className="km-lz" style={{
       width: size, height: size, borderRadius: 8, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      background: t.bg, color: t.fg, ...style,
+      background: t.bg, color: t.fg, ['--tint' as string]: t.fg, ...style,
     }}>
       <Icon size={iconSize} strokeWidth={ICON_STROKE} />
     </span>

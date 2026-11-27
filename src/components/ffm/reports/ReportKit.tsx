@@ -14,6 +14,7 @@ import { RangePresetPicker } from '../../attendance/RangePresets';
 import { downloadCsv, rangeProblem, toCsv, type CsvCell, type CsvColumn } from './reportUtils';
 import { Download, Inbox, RotateCcw, type LucideIcon } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../ui/PageIcon';
+import TileGrid from '../../ui/TileGrid';
 import { metricIconFor } from '../../../lib/labelIcons';
 
 // ── data loading ──────────────────────────────────────────────────────────
@@ -114,8 +115,13 @@ export function FilterSelect({ id, label, value, onChange, options }: {
   );
 }
 
-export function StatGrid({ children }: { children: ReactNode }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>{children}</div>;
+/** The row of figure tiles. `id` names the movable/resizable board in the New design (unique per page, e.g. "ffm-rep-activity-kpis"). */
+export function StatGrid({ id, children, perRow = 4, h = 3 }: { id: string; children: ReactNode; perRow?: number; h?: number }) {
+  return (
+    <TileGrid id={id} perRow={perRow} h={h} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+      {children}
+    </TileGrid>
+  );
 }
 
 /** A figure tile. Its icon comes from the shared vocabulary for the label unless `icon` names one (`null` = none). */

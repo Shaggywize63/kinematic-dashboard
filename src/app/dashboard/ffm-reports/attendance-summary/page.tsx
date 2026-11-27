@@ -8,6 +8,7 @@ import { csvLine } from '../../../../components/ffm/reports/reportUtils';
 import { Download, Inbox, LogOut, type LucideIcon } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../lib/labelIcons';
+import TileGrid from '../../../../components/ui/TileGrid';
 
 /**
  * Attendance Summary — attendance roll-up per rep over a chosen date range.
@@ -184,7 +185,7 @@ export default function AttendanceSummaryReport() {
         <div style={{ padding: 16, color: '#ef4444' }}>{error}</div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+          <TileGrid id="ffm-attendance-summary-kpis" perRow={4} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
             <Stat label="Team" value={total} />
             <Stat label="Present days" value={present} />
             <Stat label="Late" value={late} accent={late > 0 ? '#f59e0b' : undefined} />
@@ -192,7 +193,7 @@ export default function AttendanceSummaryReport() {
             <Stat label="Attendance %" value={`${attendancePct}%`} />
             <Stat label="Avg hours / day" value={teamAvgHours != null ? `${teamAvgHours} h` : '—'} />
             <Stat label="Days, no check-out" icon={LogOut} value={extrasOk ? missedCheckouts : '—'} accent={missedCheckouts > 0 ? '#f59e0b' : undefined} />
-          </div>
+          </TileGrid>
 
           <div style={{ overflowX: 'auto', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
             <table style={{ width: '100%', minWidth: 1100, borderCollapse: 'collapse', fontSize: 13 }}>

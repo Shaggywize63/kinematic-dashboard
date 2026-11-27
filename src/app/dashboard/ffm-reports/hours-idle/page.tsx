@@ -8,6 +8,7 @@ import { csvLine, fmtIstTime } from '../../../../components/ffm/reports/reportUt
 import { Briefcase, Download, Hourglass, Timer, type LucideIcon } from 'lucide-react';
 import { PageIcon, InlineIcon } from '../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../lib/labelIcons';
+import TileGrid from '../../../../components/ui/TileGrid';
 
 /**
  * Hours & Idle Time — working hours by rep against an 8-hour shift,
@@ -167,14 +168,14 @@ export default function HoursIdleReport() {
         </button>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+      <TileGrid id="ffm-hours-idle-kpis" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
         <Stat label="Team"            value={rows.length} />
         <Stat label="Working hrs"     icon={Briefcase} value={totalWorking.toFixed(1)} />
         <Stat label="Idle hrs"        icon={Hourglass} value={totalIdle.toFixed(1)} accent={totalIdle > 0 ? '#F59E0B' : undefined} />
         <Stat label="Avg utilisation" value={`${avgUtil}%`} accent={pctColor(avgUtil)} />
         <Stat label="Visits today" value={totalVisits} />
         <Stat label="On site" icon={Timer} value={`${totalOnsite.toFixed(1)} h`} />
-      </div>
+      </TileGrid>
 
       <div style={{ overflowX: 'auto', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
         <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse', fontSize: 13 }}>

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { Brain, ClipboardList, MapPin, MapPinned, PhoneCall, Stethoscope, TrendingUp, Trophy, Users, type LucideIcon } from 'lucide-react';
 import { InlineIcon } from '../../../../components/ui/PageIcon';
+import TileGrid from '../../../../components/ui/TileGrid';
 import { metricIconFor } from '../../../../lib/labelIcons';
 import { crmDesk, crmCustomerIntel } from '../../../../lib/crmApi';
 import type { DeskDaySummary, DeskProductivity, CustomerIntelPayload, SalesTrendsPayload } from '../../../../lib/crmApi';
@@ -48,7 +49,7 @@ export default function OwnerDashboardPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <Group title="Today — Desk Calling" icon={PhoneCall}>
+      <Group id="crm-owner-dashboard-desk" title="Today — Desk Calling" icon={PhoneCall}>
         <Kpi label="Customers Assigned" value={desk?.assigned ?? 0} loading={loading} />
         <Kpi label="Called" value={desk?.called ?? 0} loading={loading} />
         <Kpi label="Orders Taken" value={desk?.order_taken ?? 0} color="#16a34a" loading={loading} />
@@ -57,7 +58,7 @@ export default function OwnerDashboardPage() {
         <Kpi label="Order Value" value={inr(desk?.orders_value ?? 0)} color="#2563eb" loading={loading} />
       </Group>
 
-      <Group title="Customers" icon={Users}>
+      <Group id="crm-owner-dashboard-customers" title="Customers" icon={Users}>
         <Kpi label="Total" value={s.total_customers ?? 0} loading={loading} />
         <Kpi label="Active" value={s.active ?? 0} color="#16a34a" loading={loading} />
         <Kpi label="New" value={s.new ?? 0} color="#2563eb" loading={loading} />
@@ -66,7 +67,7 @@ export default function OwnerDashboardPage() {
         <Kpi label="Churned" value={s.churned ?? 0} color="#dc2626" loading={loading} />
       </Group>
 
-      <Group title={`This Month — Sales${thisMonth ? ` (${thisMonth.month})` : ''}`} icon={TrendingUp}>
+      <Group id="crm-owner-dashboard-sales" title={`This Month — Sales${thisMonth ? ` (${thisMonth.month})` : ''}`} icon={TrendingUp}>
         <Kpi label="Sales" value={inr(thisMonth?.value ?? 0)} color="#16a34a" loading={loading} />
         <Kpi label="Growth" value={`${(thisMonth?.growth_pct ?? 0) > 0 ? '+' : ''}${thisMonth?.growth_pct ?? 0}%`} color={(thisMonth?.growth_pct ?? 0) < 0 ? '#dc2626' : '#16a34a'} loading={loading} />
         <Kpi label="Orders" value={thisMonth?.orders ?? 0} loading={loading} />
@@ -114,11 +115,11 @@ export default function OwnerDashboardPage() {
   );
 }
 
-function Group({ title, children, icon }: { title: string; children: React.ReactNode; icon?: LucideIcon }) {
+function Group({ id, title, children, icon }: { id: string; title: string; children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <div>
       <h2 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 8px', color: '#374151', display: 'flex', alignItems: 'center', gap: 8 }}>{icon && <InlineIcon icon={icon} size={16} style={{ color: 'var(--text-dim)' }} />}{title}</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>{children}</div>
+      <TileGrid id={id} perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>{children}</TileGrid>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { Button, Card, Select, T, useIsCompact } from '../../../components/ui';
 import { FinancePage, Stat, errMsg } from '../../../components/finance/ui';
 import ReceivablesBar from '../../../components/finance/ReceivablesBar';
 import UpcomingInvoices from '../../../components/finance/UpcomingInvoices';
+import TileGrid from '../../../components/ui/TileGrid';
 import { financeApi, type DashboardData, type FinanceSettings } from '../../../lib/financeApi';
 import { fmtDate, inr, num } from '../../../lib/financeFormat';
 
@@ -181,11 +182,11 @@ export default function FinanceOverviewPage() {
 
           <UpcomingInvoices compact={narrow} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 14 }}>
+          <TileGrid id="finance-home-kpis" perRow={3} h={4} style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 14 }}>
             <KpiCard href="/dashboard/finance/invoices" label="Draft invoices" value={num(dash.draft_invoices)} hint="Not yet sent to customers" />
             <KpiCard href="/dashboard/finance/quotes" label="Open quotes" value={num(dash.open_quotes)} hint="Draft or sent, awaiting a decision" />
             <KpiCard href="/dashboard/finance/invoices" label="Overdue invoices" value={num(dash.receivables.overdue_invoices)} tone="red" hint="Past their due date with a balance" />
-          </div>
+          </TileGrid>
         </div>
       )}
     </FinancePage>

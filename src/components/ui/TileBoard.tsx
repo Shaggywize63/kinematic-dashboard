@@ -55,7 +55,7 @@ function LiveBoard({ id, tiles }: { id: string; tiles: TileDef[] }) {
   const sig = tiles.map((t) => `${t.key}:${t.w}x${t.h}:${t.minW ?? ''}:${t.minH ?? ''}`).join('|');
   const specs = useMemo<TileSpec[]>(() => tiles.map(({ key, w, h, minW, minH }) => ({ key, w, h, minW, minH })), [sig]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { editing, resetToken } = useTileEditing();
+  const { editing, setEditing, resetToken } = useTileEditing();
   const [userId, setUserId] = useState<string | null>(null);
   const [layouts, setLayouts] = useState<Layouts>(() => defaultLayouts(specs));
   const [bp, setBp] = useState<Breakpoint>('lg');
@@ -118,6 +118,13 @@ function LiveBoard({ id, tiles }: { id: string; tiles: TileDef[] }) {
                 position: 'relative', height: '100%', display: 'grid', minWidth: 0, minHeight: 0,
                 ...(t.surface ? { background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.lg } : null),
               }}>
+                {/* Discoverability: hovering any tile offers the same "arrange" mode as the header button. */}
+                {!editing && (
+                  <button type="button" className="km-tile-grip" data-testid={`tile-${t.key}-grip`} onClick={() => setEditing(true)}
+                    aria-label={`Arrange tiles (${name})`} title="Move and resize the tiles on this page">
+                    <span aria-hidden>⠿</span> Arrange
+                  </button>
+                )}
                 {/* The whole tile is the drag handle while customising (a narrow tile's bar is mostly size buttons). */}
                 {editing && <div className="km-tile-handle" aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 4, cursor: 'grab' }} />}
                 {editing && (

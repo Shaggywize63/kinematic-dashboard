@@ -13,6 +13,7 @@ import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
+import TileGrid from '../../../../../components/ui/TileGrid';
 
 const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
@@ -178,7 +179,7 @@ export default function RepLeaderboardPage() {
       </CrmToolbarRight>
 
       {/* Headline KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
+      <TileGrid id="crm-reports-rep-leaderboard-kpis" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
         <Kpi label="Reps Active" value={rows.filter((r) => r.total > 0).length} />
         <Kpi label="Total Deals Won" value={totals.won} />
         <Kpi label="Total Revenue" value={inr(totals.revenue)} />
@@ -186,7 +187,7 @@ export default function RepLeaderboardPage() {
         <Kpi label="Open Pipeline Value" value={inr(totals.openValue)} />
         <Kpi label="Lost Value" value={inr(totals.lostValue)} />
         <Kpi label="Win Rate by Value" value={totals.revenue + totals.lostValue > 0 ? `${((totals.revenue / (totals.revenue + totals.lostValue)) * 100).toFixed(1)}%` : '—'} />
-      </div>
+      </TileGrid>
       {truncated && (
         <div role="status" style={{ fontSize: 12, color: '#b45309', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
           Showing the first 1,000 deals only, so these numbers may be partial. Narrow the city filter for a complete view.

@@ -70,3 +70,30 @@ Spacing 4 · 8 · 12 · 16 · 20 · 24 · 32. Controls: inputs 36px, buttons 34p
   `km-entity-link`, wrap the table in `overflow-x: auto`.
 - Keep the logic; move only the presentation. Fetches, params, refetch deps,
   city scope, client scope, exports — untouched.
+
+## The New design: Aurora + movable tiles
+
+The dashboard has two designs, **Classic** and **New**, switched per user from the header (`lib/newDesign.ts` is the rollout
+gate; `html[data-design="new"]` is the hook CSS keys off). Classic must never change because of New.
+
+**Aurora** (`app/aurora.css`) is the New design's look: frosted panes over a slow red / indigo / teal sky
+(`components/shared/AuroraSky.tsx`). It works by re-pointing the tokens above (`--card`, `--s1…s4`, `--border`, `--text…`)
+at glass values under `html[data-design="new"]`, so a page that already uses tokens needs nothing. Things a token can't
+express are CSS rules: the sky, frosted sidebar/top bar, the glass edge on cards, solid panes for menus/dialogs, and the
+tinted-glass icon chips (`.km-lz`, set `--tint` inline).
+- `Card` carries `.km-card`; hand-built panels that spread `cardStyle` are caught by attribute selectors on their inline
+  background + card-sized radius. **Those selectors must list both spellings** (`background: var(--card)` and
+  `background:var(--card)`): server-rendered inline styles have no spaces, client-rendered ones do.
+- Anything that sits over content (menus, dialogs, sticky bars) must stay a solid frosted pane, never see-through.
+
+**Movable / resizable tiles** — wrap a grid of cards in `TileGrid` (one line; Classic renders the original `<div>`):
+
+```tsx
+<TileGrid id="finance-home-kpis" perRow={4} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+  {cards}
+</TileGrid>
+```
+`id` is the saved-layout key (unique per page; layouts are stored per user in this browser). Each direct child is a tile,
+identified by its `key`, `data-tile`, `label` or `title`. The header's **Arrange tiles** button (and the hover "Arrange" pill
+on any tile) switches every board on the page into edit mode: drag a tile's bar, drag its corner, or use the ¼ ⅓ ½ Full
+and − + buttons. Use `TileBoard` directly only when tiles need bespoke sizing.

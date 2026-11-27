@@ -15,6 +15,7 @@ import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
+import TileGrid from '../../../../../components/ui/TileGrid';
 
 const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
@@ -158,21 +159,15 @@ export default function LeadAgingPage() {
         <button onClick={() => downloadCsv(`lead-aging-${threshold}d`, sourceHidden || !gate.didLoad ? rows.map(({ source: _s, ...rest }) => rest) : rows)} disabled={loading || rows.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
       </CrmToolbarRight>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
+      <TileGrid id="crm-reports-lead-aging-kpis" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
         <Kpi label="Aged leads" value={rows.length} />
-        {openStages ? (
-          openStages.map((s) => <Kpi key={s.value} label={s.label} value={byStatus.get(s.value) || 0} />)
-        ) : (
-          <>
-            <Kpi label="New" value={byStatus.get('new') || 0} />
-            <Kpi label="Working" value={byStatus.get('working') || 0} />
-            <Kpi label="Nurturing" value={byStatus.get('nurturing') || 0} />
-            <Kpi label="Qualified" value={byStatus.get('qualified') || 0} />
-          </>
-        )}
+        {/* TileGrid needs each card as a direct child (a Fragment would count as ONE tile), so the built-in stages are listed as an array. */}
+        {(openStages ?? [{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'nurturing', label: 'Nurturing' }, { value: 'qualified', label: 'Qualified' }]).map((s) => (
+          <Kpi key={s.value} label={s.label} value={byStatus.get(s.value) || 0} />
+        ))}
         <Kpi label="Never touched" value={rows.filter((r) => r.never_touched).length} />
         <Kpi label="Avg days old" value={rows.length ? `${Math.round(rows.reduce((s, r) => s + r.days_old, 0) / rows.length)}d` : '—'} />
-      </div>
+      </TileGrid>
       {truncated && (
         <div role="status" style={{ fontSize: 12, color: '#b45309', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
           Showing the first 1,000 leads only, so this list may be partial. Narrow the city filter for a complete view.

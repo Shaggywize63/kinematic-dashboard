@@ -53,7 +53,7 @@ export default function SupervisorTeamsReport() {
       <FilterCard idPrefix="ffm-sup" from={from} to={to} onRange={(f, e) => { setFrom(f); setTo(e); }} />
 
       <StatusBox loading={loading} error={error} onRetry={reload}>
-        <StatGrid>
+        <StatGrid id="ffm-supervisor-teams-kpis">
           <Stat label="Teams" icon={UserCog} value={rows.length} />
           <Stat label="Reps in view" value={fmtInt(data?.reps_in_view ?? 0)} />
           <Stat label="Median adherence" icon={Percent} value={fmtPct(med?.adherence_pct)} hint="across teams shown" />

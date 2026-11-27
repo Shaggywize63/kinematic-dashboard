@@ -21,6 +21,7 @@ import { isItemVisible } from '../../../../lib/appCustomization';
 import { useAppUiConfig } from '../../../../lib/useAppUiConfig';
 import { ChartCard, ChartEmpty } from '../../../../lib/chartTheme';
 import { Button, Card, EmptyState, Eyebrow, IconButton, Segmented, Select, T } from '../../../../components/ui';
+import TileGrid from '../../../../components/ui/TileGrid';
 import { usePageTitle } from '../../../../lib/pageTitle';
 import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
@@ -395,7 +396,7 @@ export default function CrmDashboardPage() {
       )}
 
       {visibleStatCount > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+        <TileGrid id="crm-dashboard-stats" perRow={5} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
           {isVisible('stat_open_pipeline') && !bmwActive && (
             // In weight mode the pipeline aggregates kg from deal line items.
             // When the open deals carry no weighted products the total is a
@@ -427,11 +428,12 @@ export default function CrmDashboardPage() {
           {isVisible('stat_activities') && <StatTile label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} />}
           {maaManshaActive && <StatTile label="Lead Visits (this week)" value={summary?.lead_visits_week || 0} loading={loading} />}
           {isVisible('stat_conversion') && <StatTile label="Conversion" value={fmtPct(summary?.conversion_rate)} loading={loading} />}
-        </div>
+        </TileGrid>
       )}
 
       {/* Map gets full width so the bubbles + legend + side panel fit cleanly. */}
       {!kinematicActive && !bmwActive && isVisible('chart_geo_map') && (
+        <TileGrid id="crm-dashboard-map" perRow={1} h={13}>
         <ChartCard
           title="Leads on Map"
           subtitle={sparkActive ? 'Pins are coloured by industry · click a pin to open the lead' : 'Hover or click a city to drill in'}
@@ -447,6 +449,7 @@ export default function CrmDashboardPage() {
         >
           {geoLeads.length === 0 ? emptyChart : <LeadsGeoMap leads={geoLeads} colorBy={sparkActive ? 'industry' : 'status'} />}
         </ChartCard>
+        </TileGrid>
       )}
 
       {/* Pinned analytics widgets sit just below the map: KPIs the rep
@@ -459,7 +462,7 @@ export default function CrmDashboardPage() {
       <TelecallerOverviewStrip />
 
       {visibleChartCount > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 12 }}>
+        <TileGrid id="crm-dashboard-charts" perRow={2} h={9} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 12 }}>
           {isVisible('chart_funnel') && !bmwActive && (
             <ChartCard title="Pipeline Funnel" right={<IconTile icon={Filter} />}>
               {funnel.length ? <PipelineFunnelChart data={funnel} /> : emptyChart}
@@ -490,7 +493,7 @@ export default function CrmDashboardPage() {
               {revenueTrend.length ? <RevenueTrendChart data={revenueTrend} unit={unit} /> : emptyChart}
             </ChartCard>
           )}
-        </div>
+        </TileGrid>
       )}
 
       {visibleStatCount === 0 && visibleChartCount === 0 && (

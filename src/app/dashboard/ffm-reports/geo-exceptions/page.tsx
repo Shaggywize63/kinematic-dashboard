@@ -78,7 +78,7 @@ export default function GeoExceptionsReport() {
       </FilterCard>
 
       <StatusBox loading={loading} error={error} onRetry={reload}>
-        <StatGrid>
+        <StatGrid id="ffm-geo-exceptions-kpis" perRow={5}>
           <Stat label="Check-ins outside" icon={MapPinOff} value={fmtInt(outsideTotal)} />
           <Stat label="Reps with one" icon={Users} value={fmtInt(repsAffected)} hint={`of ${fmtInt(summary.length)} with check-ins or alerts`} />
           <Stat label="Mock-location alerts" icon={ShieldAlert} value={fmtInt(mock)} />

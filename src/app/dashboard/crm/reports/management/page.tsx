@@ -26,6 +26,7 @@ import { toCsv, downloadCsv, type CsvColumn } from '../../../../../components/ff
 import { Button, EmptyState, T, useIsCompact } from '../../../../../components/ui';
 import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
+import TileGrid from '../../../../../components/ui/TileGrid';
 import { metricIconFor } from '../../../../../lib/labelIcons';
 
 /** First day of the current month → today, ISO YYYY-MM-DD. Matches the backend's
@@ -279,7 +280,7 @@ export default function ManagementDashboardPage() {
           </div>
 
           {/* Top by brand + Top by account */}
-          <div style={twoCol(narrow)}>
+          <TileGrid id="crm-reports-management-top" perRow={2} h={8} style={twoCol(narrow)}>
             <TopCard
               testid="management-top-brands"
               rowTestid="management-brand-row"
@@ -298,7 +299,7 @@ export default function ManagementDashboardPage() {
               rows={topAccounts}
               href={businessHref({ group_by: 'account' })}
             />
-          </div>
+          </TileGrid>
         </>
       )}
     </div>

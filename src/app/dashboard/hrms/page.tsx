@@ -7,6 +7,7 @@ import { useMemo, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { Button, Card, CardTitle, HrmsPage, Loading, Stat, StatGrid, T, useIsCompact } from '../../../components/hrms/ui';
+import TileGrid from '../../../components/ui/TileGrid';
 import { AttentionList, BarList, ComplianceCalendar, PayrollStatusCard, PeopleEvents } from '../../../components/hrms/overview/OverviewCards';
 import {
   TODAY, attentionItems, entityPayroll, headcountBy, nextDues, overviewStats, payrollTrend, peopleEvents, type EntityPayroll,
@@ -70,7 +71,7 @@ export default function HrmsOverviewPage() {
         </>
       )}
     >
-      <StatGrid min={200}>
+      <StatGrid id="hrms-home-kpis" perRow={4} h={3} min={200}>
         {tile('headcount', <Stat label="Active headcount" value={stats.headcount} hint={`${stats.active} active, ${stats.onNotice} on notice`} href="/dashboard/hrms/employees" />)}
         {tile('joiners', <Stat label="Joiners this month" value={stats.joiners.count} hint={stats.joiners.count ? `${stats.joiners.yetToJoin} yet to join` : 'No one joins this month'} href="/dashboard/hrms/lifecycle?tab=onboarding" />)}
         {tile('leavers', <Stat label="Leavers this month" value={stats.leavers.count} hint={stats.leavers.count ? `${stats.leavers.alreadyLeft} left, ${stats.leavers.count - stats.leavers.alreadyLeft} still serving` : 'No last working day this month'} href="/dashboard/hrms/lifecycle?tab=exits" />)}
@@ -85,28 +86,30 @@ export default function HrmsOverviewPage() {
           hint={stats.gaps.employees ? `${plural(stats.gaps.items, 'gap')} in PAN, UAN or bank details` : 'PAN, UAN and bank details are complete'} href="#needs-attention" />)}
       </StatGrid>
 
-      <div style={{ display: 'grid', gridTemplateColumns: two, gap: 18, alignItems: 'start' }}>
-        <div id="needs-attention" style={{ minWidth: 0, scrollMarginTop: 16 }}><AttentionList items={view.items} /></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
+      <TileGrid id="hrms-home-attention" perRow={2} h={12} tile={{ 'needs-attention': { w: 12 }, 'payroll-compliance': { w: 8 } }}
+        style={{ display: 'grid', gridTemplateColumns: two, gap: 18, alignItems: 'start' }}>
+        <div key="needs-attention" id="needs-attention" style={{ minWidth: 0, scrollMarginTop: 16 }}><AttentionList items={view.items} /></div>
+        <div key="payroll-compliance" style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
           <PayrollStatusCard entries={view.payroll} onStart={startRun} />
           <ComplianceCalendar dues={view.dues} db={db} />
         </div>
-      </div>
+      </TileGrid>
 
-      <div style={{ display: 'grid', gridTemplateColumns: two, gap: 18, alignItems: 'start' }}>
-        <section aria-label="Payroll cost, last six months" style={{ minWidth: 0 }}>
+      <TileGrid id="hrms-home-trend" perRow={2} h={8} tile={{ 'payroll-trend': { w: 12 }, 'people-events': { w: 8 } }}
+        style={{ display: 'grid', gridTemplateColumns: two, gap: 18, alignItems: 'start' }}>
+        <section key="payroll-trend" aria-label="Payroll cost, last six months" style={{ minWidth: 0 }}>
           <Card>
             <CardTitle right={<span style={{ fontSize: 12.5, color: T.dim }}>Employer cost, sample runs</span>}>Payroll cost, last six months</CardTitle>
             <PayrollTrendChart points={view.trend} entities={db.entities.map((e) => ({ id: e.id, name: e.name }))} compact={narrow} />
           </Card>
         </section>
-        <PeopleEvents events={view.events} windowDays={30} />
-      </div>
+        <PeopleEvents key="people-events" events={view.events} windowDays={30} />
+      </TileGrid>
 
-      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 18, alignItems: 'start' }}>
+      <TileGrid id="hrms-home-headcount" perRow={2} h={7} style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 18, alignItems: 'start' }}>
         <BarList title="Headcount by department" rows={view.byDept} total={stats.headcount} />
         <BarList title="Headcount by location" rows={view.byLoc} total={stats.headcount} />
-      </div>
+      </TileGrid>
     </HrmsPage>
   );
 }
