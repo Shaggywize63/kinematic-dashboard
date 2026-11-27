@@ -19,7 +19,7 @@ const mk = (over: Partial<Ticket> & { id: string; ref: string }): Ticket => ({
   platforms: [], area: null,
   channel: 'dashboard', org_id: 'org-a', org_name: 'Acme Foods', project_key: 'default', contact_name: 'Ravi K', contact_phone: '+919800000001',
   contact_email: null, raised_by_user_id: 'u1', resolution_note: null, created_at: NOW, updated_at: NOW, resolved_at: null,
-  first_response_at: null, ...over,
+  first_response_at: null, csat_rating: null, csat_comment: null, csat_at: null, ...over,
 });
 const created = (t: Ticket): Ev => ({ id: `${t.id}-e0`, ticket_id: t.id, kind: 'created', author_type: 'customer', author_name: 'Ravi K', from_status: null, to_status: 'open', body: null, created_at: NOW });
 
@@ -69,6 +69,18 @@ async function open(page: Page, opts: { operator: boolean; tickets: Ticket[]; cr
         tickets = [t, ...tickets];
         events.set(t.id, [created(t)]);
         await route.fulfill({ status: 201, json: { success: true, data: t } });
+        return true;
+      }
+      const fb = u.pathname.match(/^\/api\/v1\/support\/tickets\/([^/]+)\/feedback$/);
+      if (fb && method === 'POST') {
+        const fid = fb[1];
+        const rating = Number(body!.rating);
+        const comment = (body!.comment as string | undefined) ?? null;
+        tickets = tickets.map((t) => (t.id !== fid ? t : { ...t, csat_rating: rating, csat_comment: comment, csat_at: NOW }));
+        const flist = events.get(fid) ?? [];
+        flist.push({ id: `${fid}-f${flist.length}`, ticket_id: fid, kind: 'feedback', author_type: 'customer', author_name: 'Ravi K', from_status: null, to_status: null, body: comment ? `${rating}/5 — ${comment}` : `${rating}/5`, created_at: NOW });
+        events.set(fid, flist);
+        await route.fulfill({ json: thread(fid) });
         return true;
       }
       const m = u.pathname.match(/^\/api\/v1\/support\/tickets\/([^/]+)(\/comments)?$/);
@@ -189,6 +201,43 @@ test.describe('Help & Support (customer)', () => {
   });
 });
 
+test.describe('Help & Support — feedback', () => {
+  test('a finished ticket can be rated, with an optional comment, and the rating can be changed', async ({ page }) => {
+    const { calls } = await open(page, { operator: false, tickets: [mk({ id: 't1', ref: 'KM-5001', status: 'resolved' })] });
+    // A resolved ticket is not in the default "Active" tab, so look at all of them.
+    await page.getByRole('tab', { name: /^All/ }).click({ timeout: 45_000 });
+    await page.getByRole('button', { name: /KM-5001/ }).click();
+    const drawer = page.getByRole('dialog', { name: 'Ticket KM-5001' });
+
+    // The comment box and the submit button only appear once a rating is picked.
+    await expect(drawer.getByText('How did we do?')).toBeVisible();
+    await expect(drawer.getByRole('button', { name: 'Send feedback' })).toHaveCount(0);
+    await drawer.getByRole('button', { name: '4 out of 5 — Good' }).click();
+    await expect(drawer.getByText('Good', { exact: true })).toBeVisible();
+    await drawer.getByLabel('Anything you would like to add?').fill('Quick, thanks.');
+    await drawer.getByRole('button', { name: 'Send feedback' }).click();
+
+    expect(calls.find((c) => c.path.endsWith('/feedback'))!.body).toEqual({ rating: 4, comment: 'Quick, thanks.' });
+    await expect(drawer.getByText('You rated this')).toBeVisible();
+    // It lands on the timeline as well as in the summary, so the comment shows up twice on purpose.
+    await expect(drawer.getByText(/Quick, thanks\./)).toHaveCount(2);
+    await expect(drawer.getByText(/rated this ticket/)).toBeVisible();
+
+    // And they can change their mind.
+    await drawer.getByRole('button', { name: 'Change' }).click();
+    await drawer.getByRole('button', { name: '5 out of 5 — Excellent' }).click();
+    await drawer.getByRole('button', { name: 'Send feedback' }).click();
+    expect(calls.filter((c) => c.path.endsWith('/feedback')).at(-1)!.body).toMatchObject({ rating: 5 });
+  });
+
+  test('a ticket still being worked is never asked to be rated', async ({ page }) => {
+    await open(page, { operator: false, tickets: [mk({ id: 't1', ref: 'KM-5001', status: 'in_progress' })] });
+    await page.getByRole('button', { name: /KM-5001/ }).click({ timeout: 45_000 });
+    const drawer = page.getByRole('dialog', { name: 'Ticket KM-5001' });
+    await expect(drawer.getByText('How did we do?')).toHaveCount(0);
+  });
+});
+
 test.describe('Support inbox (operator)', () => {
   const T1 = mk({ id: 't1', ref: 'KM-5001', org_name: 'Acme Foods', channel: 'whatsapp' });
   const T2 = mk({ id: 't2', ref: 'KM-5002', subject: 'Invoice is wrong', category: 'billing', org_name: 'Zen Retail', priority: 'urgent' });
@@ -241,12 +290,14 @@ test.describe('Support inbox (operator)', () => {
   });
 
   test('a reply shows what happened to the WhatsApp message', async ({ page }) => {
-    const { calls } = await open(page, { operator: true, tickets: [T1], notified: { whatsapp: 'skipped', note: 'No phone number on this ticket.' } });
+    const { calls } = await open(page, { operator: true, tickets: [T1], notified: { whatsapp: 'skipped', note: 'No phone number on this ticket.', email: 'sent' } });
     await page.getByRole('button', { name: /KM-5001/ }).click({ timeout: 45_000 });
     const drawer = page.getByRole('dialog', { name: 'Ticket KM-5001' });
     await drawer.getByLabel('Reply').fill('Looking into it now.');
     await drawer.getByRole('button', { name: 'Send reply' }).click();
     await expect(drawer.getByText('No phone number on this ticket.')).toBeVisible();
+    // Both channels are reported, so a green email can't hide a WhatsApp that never went.
+    await expect(drawer.getByText('Customer emailed')).toBeVisible();
     await expect(drawer.getByText('Looking into it now.')).toBeVisible();
     expect(calls.find((c) => c.path.endsWith('/comments'))!.body).toEqual({ body: 'Looking into it now.' });
   });

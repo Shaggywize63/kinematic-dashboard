@@ -8,7 +8,7 @@ import { LifeBuoy, Plus, Search } from 'lucide-react';
 import { Button, Card, EmptyState, Input, PageHeader, Select, T, useIsCompact } from '../../../components/ui';
 import RaiseTicketModal from '../../../components/support/RaiseTicketModal';
 import TicketDrawer from '../../../components/support/TicketDrawer';
-import { ChannelTag, PlatformTags, PriorityTag, RelTime, StatusPill } from '../../../components/support/ui';
+import { ChannelTag, CsatStars, PlatformTags, PriorityTag, RelTime, StatusPill } from '../../../components/support/ui';
 import { usePageTitle } from '../../../lib/pageTitle';
 import {
   ACTIVE_STATUSES, ALL_STATUSES, AREA_LABEL, AREAS, CATEGORIES, CATEGORY_LABEL, CATEGORY_SHORT,
@@ -287,6 +287,12 @@ function TicketRow({ ticket: t, isOperator, narrow, active, onOpen }: {
           {!!t.platforms?.length && <PlatformTags platforms={t.platforms} />}
           <span aria-hidden style={{ color: T.mute }}>·</span>
           <ChannelTag channel={t.channel} />
+          {!!t.csat_rating && (
+            <>
+              <span aria-hidden style={{ color: T.mute }}>·</span>
+              <CsatStars rating={t.csat_rating} size={12} showLabel={false} />
+            </>
+          )}
           {narrow && <><span aria-hidden style={{ color: T.mute }}>·</span><RelTime iso={t.created_at} /></>}
         </div>
       </div>

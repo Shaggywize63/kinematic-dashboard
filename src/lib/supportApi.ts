@@ -44,12 +44,16 @@ export interface Ticket {
   resolved_at: string | null;
   /** When the team first replied — what SLA reporting measures. */
   first_response_at: string | null;
+  /** How the customer rated the handling, 1–5, once the ticket finished. */
+  csat_rating: number | null;
+  csat_comment: string | null;
+  csat_at: string | null;
 }
 
 export interface TicketEvent {
   id: string;
   ticket_id: string;
-  kind: 'created' | 'status' | 'comment';
+  kind: 'created' | 'status' | 'comment' | 'feedback';
   author_type: 'customer' | 'team' | 'system';
   author_name: string | null;
   from_status: TicketStatus | null;
@@ -58,10 +62,12 @@ export interface TicketEvent {
   created_at: string;
 }
 
-/** What happened to the WhatsApp message to the customer after an operator update / reply. */
+/** What happened on each channel after an operator update / reply. */
 export interface CustomerNotified {
   whatsapp: 'sent' | 'template' | 'skipped' | 'failed';
   note?: string;
+  email?: 'sent' | 'skipped' | 'failed';
+  email_note?: string;
 }
 
 /** `active` = open + in progress + waiting on customer (the server's default). */
@@ -153,6 +159,18 @@ export const AREA_LABEL: Record<TicketArea, string> = {
 export const AREAS = Object.keys(AREA_LABEL) as TicketArea[];
 
 export const PRIORITY_LABEL: Record<TicketPriority, string> = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' };
+
+/** What each star means, so a rating reads as words and not just a count. */
+export const CSAT_LABEL: Record<number, string> = {
+  1: 'Poor', 2: 'Not great', 3: 'Okay', 4: 'Good', 5: 'Excellent',
+};
+export const CSAT_MAX = 5;
+export const CSAT_COMMENT_MAX = 2000;
+
+export interface TicketFeedback {
+  rating: number;
+  comment?: string;
+}
 export const CHANNEL_LABEL: Record<TicketChannel, string> = { whatsapp: 'WhatsApp', dashboard: 'Dashboard', app: 'App' };
 
 /** "Web, Android" — the platforms on a ticket, or a dash. */
@@ -218,6 +236,10 @@ export const supportApi = {
   },
   async get(id: string): Promise<TicketThread> {
     return normaliseThread(unwrap<TicketThread>(await api.get(`${BASE}/${encodeURIComponent(id)}`, FRESH)));
+  },
+  /** How the customer rates a finished ticket. Re-submittable: they may change their mind. */
+  async feedback(id: string, body: TicketFeedback): Promise<TicketThread> {
+    return normaliseThread(unwrap<TicketThread>(await api.post(`${BASE}/${encodeURIComponent(id)}/feedback`, body)));
   },
   async comment(id: string, body: string): Promise<TicketThread> {
     return normaliseThread(unwrap<TicketThread>(await api.post(`${BASE}/${encodeURIComponent(id)}/comments`, { body })));
