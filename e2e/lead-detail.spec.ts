@@ -170,6 +170,23 @@ test.describe('Lead detail — timeline', () => {
     await expect.poll(() => writes(seen, 'PATCH', /\/crm\/activities\/a1$/)[0]?.body).toMatchObject({ status: 'completed' });
   });
 
+  test('an overdue task can be rescheduled: Edit → change the due date → PATCH carries due_at', async ({ page }) => {
+    const seen = await setup(page);
+    await open(page, '#timeline');
+    const upNext = page.getByRole('region', { name: /Up next/ });
+    // The overdue task (a1) is first (soonest-first). Open its row menu and pick Edit.
+    await upNext.getByRole('button', { name: 'More actions' }).first().click();
+    await page.getByRole('menuitem', { name: 'Edit' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Edit activity' });
+    await expect(dialog).toBeVisible();
+    // The due-date field is present and editable — the whole point of the fix.
+    const due = dialog.locator('input[type="datetime-local"]');
+    await expect(due).toHaveCount(1); // open task → no "Activity date" input, just "Due / scheduled for"
+    await due.fill('2027-01-15T10:00');
+    await dialog.getByRole('button', { name: 'Save changes' }).click();
+    await expect.poll(() => writes(seen, 'PATCH', /\/crm\/activities\/a1$/)[0]?.body?.due_at).toContain('2027-01-15');
+  });
+
   test('history can be filtered, and only your own notes can be edited', async ({ page }) => {
     await setup(page);
     await open(page, '#timeline');

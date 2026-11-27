@@ -9,6 +9,7 @@ import { ActivityRow, InsightRow, NoteRow } from './FeedItems';
 import SectionCard from './SectionCard';
 import { useActivityActions } from './useActivityActions';
 import { CompleteActivityDialog } from '../spark/SparkActivityFields';
+import EditActivityModal from '../EditActivityModal';
 import { activityWhen, dayKey, dayLabel, isActionable, type DetailActivity } from './format';
 
 type Filter = 'all' | 'notes' | 'calls' | 'meetings' | 'tasks' | 'messages' | 'other';
@@ -57,6 +58,8 @@ export default function TimelineTab({
 }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [shown, setShown] = useState(PAGE);
+  // The activity being edited in the full form (reschedule a due date, change subject/notes/assignees…).
+  const [editing, setEditing] = useState<DetailActivity | null>(null);
   const { busyId, setStatus, remove, completing, closeCompleting, completedWithOutcome } = useActivityActions(onActivitiesChanged);
 
   const upcomingAll = useMemo(() => {
@@ -104,6 +107,13 @@ export default function TimelineTab({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {completing && <CompleteActivityDialog activity={completing} onClose={closeCompleting} onDone={completedWithOutcome} />}
+      {editing && (
+        <EditActivityModal
+          activity={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); onActivitiesChanged(); }}
+        />
+      )}
       <Card padding={16}>
         <Composer leadId={leadId} latestUpdate={updates[0] ?? null} onSubmit={onAddNote} />
       </Card>
@@ -120,6 +130,7 @@ export default function TimelineTab({
                 leadCampaign={leadCampaign}
                 busy={busyId === a.id}
                 onStatus={(s) => setStatus(a, s)}
+                onEdit={() => setEditing(a)}
                 onDelete={() => remove(a)}
               />
             ))}
@@ -206,6 +217,7 @@ export default function TimelineTab({
                         leadCampaign={leadCampaign}
                         busy={busyId === a.id}
                         onStatus={(s) => setStatus(a, s)}
+                        onEdit={() => setEditing(a)}
                         onDelete={() => remove(a)}
                       />
                     );
