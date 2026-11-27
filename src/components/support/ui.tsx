@@ -8,21 +8,29 @@ import { Badge, T, type Tone } from '../ui';
 import WhatsAppLogo from '../icons/WhatsAppLogo';
 import { istDateTime, istDate } from '../../lib/istTime';
 import {
-  CHANNEL_LABEL, PRIORITY_LABEL, statusLabel,
-  type CustomerNotified, type TicketChannel, type TicketPriority, type TicketStatus,
+  CHANNEL_LABEL, PLATFORM_LABEL, PRIORITY_LABEL, statusLabel,
+  type CustomerNotified, type TicketChannel, type TicketPlatform, type TicketPriority, type TicketStatus,
 } from '../../lib/supportApi';
 
 // Waiting-on-customer has no theme token of its own; a mid violet reads in both themes (same idea as other
 // purple status pills in the dashboard).
 const PURPLE: CSSProperties = { background: 'rgba(139,92,246,0.14)', color: '#8B5CF6' };
+// Release pending is its own thing — the fix exists but the customer doesn't have it yet. Teal reads in both themes.
+const TEAL: CSSProperties = { background: 'rgba(20,184,166,0.14)', color: '#14B8A6' };
 const STATUS_TONE: Record<TicketStatus, Tone> = {
-  open: 'warn', in_progress: 'info', waiting_on_customer: 'neutral', resolved: 'ok', closed: 'neutral',
+  open: 'warn', triaged: 'info', in_progress: 'info', waiting_on_customer: 'neutral',
+  release_pending: 'neutral', resolved: 'ok', closed: 'neutral', rejected: 'red',
 };
 
 export function StatusPill({ status, isOperator, style }: { status: TicketStatus; isOperator: boolean; style?: CSSProperties }) {
   return (
     <Badge tone={STATUS_TONE[status] ?? 'neutral'} dot
-      style={{ ...(status === 'waiting_on_customer' ? PURPLE : null), ...(status === 'closed' ? { color: T.mute } : null), ...style }}>
+      style={{
+        ...(status === 'waiting_on_customer' ? PURPLE : null),
+        ...(status === 'release_pending' ? TEAL : null),
+        ...(status === 'closed' ? { color: T.mute } : null),
+        ...style,
+      }}>
       {statusLabel(status, isOperator)}
     </Badge>
   );
@@ -43,6 +51,24 @@ export function ChannelTag({ channel }: { channel: TicketChannel }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: T.dim, whiteSpace: 'nowrap' }}>
       {icon}{CHANNEL_LABEL[channel] ?? channel}
+    </span>
+  );
+}
+
+/** The platforms a ticket names, as small tags. Nothing is rendered when the ticket names none. */
+export function PlatformTags({ platforms }: { platforms: TicketPlatform[] | null | undefined }) {
+  const list = platforms ?? [];
+  if (!list.length) return null;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+      {list.map((p) => (
+        <span key={p} style={{
+          fontSize: 11, fontWeight: 600, letterSpacing: '0.02em', padding: '1px 6px', borderRadius: T.radius.pill,
+          background: 'var(--s3)', border: `1px solid ${T.border}`, color: T.dim, whiteSpace: 'nowrap',
+        }}>
+          {PLATFORM_LABEL[p] ?? p}
+        </span>
+      ))}
     </span>
   );
 }
