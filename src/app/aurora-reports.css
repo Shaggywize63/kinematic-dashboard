@@ -14,6 +14,7 @@
      .km-empty     an empty / loading state   → intentional centred block ([data-state="loading"] pulses)
      .km-note      a footnote under a table   → readable secondary ink
      .km-eyebrow   an uppercase section title → ink-2 (never the mono --text-mute)
+     .km-grouphead a group row in a results list → quiet info tint, data keeps its case
      .km-warn      an amber notice banner     → legible amber text on an amber glass wash
      .km-link      a brand-red link           → lifted toward the ink so it reads on glass (.km-link-btn = the outlined "Open →" button)
      .km-rcard     a report-index card        → glass with a tinted icon chip (.km-lz)
@@ -186,6 +187,13 @@ html[data-design="new"] main td.km-empty { padding: 36px 16px !important; border
 html[data-design="new"] main .km-empty[data-state="loading"] { animation: km-rpt-pulse 1.6s ease-in-out infinite; }
 @keyframes km-rpt-pulse { 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { html[data-design="new"] main .km-empty[data-state="loading"] { animation: none; } }
+
+/* ── A group row inside a results list (Report Builder "City: Mumbai (12)"): a quiet tint, data keeps its case ── */
+html[data-design="new"] main .km-grouphead.km-grouphead {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--info) 16%, transparent), color-mix(in srgb, var(--info) 4%, transparent)) !important;
+  border-top: 1px solid var(--a-axis) !important; border-bottom: 1px solid color-mix(in srgb, var(--info) 28%, transparent);
+  color: var(--text) !important;
+}
 
 /* ── Notices: the amber "partial data" banner (dark brown text on glass was unreadable in dark) ──── */
 html[data-design="new"] main .km-warn.km-warn {

@@ -14,6 +14,8 @@ import {
 } from 'recharts';
 import { CHART_PALETTE, GLASS_TOOLTIP } from '../../../lib/chartTheme';
 import { AuroraDonut, NewDesignSwap } from '../../charts/AuroraDonut';
+import { useNewDesign } from '../../../lib/useNewDesign';
+import { AuroraBarSeries, AuroraHBarSeries, AuroraLineSeries, AuroraAreaSeries, AuroraWidgetHead, widgetIcon } from '../../charts/AuroraAnalytics';
 import {
   Plus, Edit3, Save, X, BarChart3, LineChart as LineIcon, Activity, Layers,
   AlertTriangle, MoreVertical, Inbox, Users, Truck, Award, Wand2, Trash2,
@@ -314,6 +316,7 @@ function FfmWidget({ widget, onRemove, onChangeChartType, onEditCustom }: {
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const { enabled } = useNewDesign();
 
   useEffect(() => {
     if (!meta) { setError('Unknown widget'); setLoading(false); return; }
@@ -332,12 +335,17 @@ function FfmWidget({ widget, onRemove, onChangeChartType, onEditCustom }: {
 
   return (
     <div style={cardStyle(hovered)} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      <div style={{ height: 3, background: accent, flexShrink: 0 }} />
-      <div style={hdr}>
+      {/* New design: no flat colour bar — the accent is the header chip's tint and the dot beside the category. */}
+      {!enabled && <div style={{ height: 3, background: accent, flexShrink: 0 }} />}
+      <div style={enabled ? hdrAurora : hdr}>
+        {enabled ? (
+          <AuroraWidgetHead icon={widgetIcon(widget.widget_type, meta.category)} accent={accent} title={meta.title} caption={meta.category} />
+        ) : (
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={titleStyle}>{meta.title}</div>
           <div style={{ ...subtitle, color: accent }}>{meta.category}</div>
         </div>
+        )}
         <div style={{ position: 'relative' }}>
           <button onClick={() => setMenuOpen(o => !o)} style={iconBtn} aria-label="Widget options"><MoreVertical size={16} /></button>
           {menuOpen && (
@@ -362,7 +370,7 @@ function FfmWidget({ widget, onRemove, onChangeChartType, onEditCustom }: {
         </div>
       </div>
 
-      <div style={body}>
+      <div style={enabled ? bodyAurora : body}>
         {loading && <div style={empty}><div style={skel} /></div>}
         {!loading && error && (
           <div style={{ ...empty, color: '#ef4444' }}>
@@ -388,6 +396,7 @@ function FfmCustomWidget({ widget, onRemove, onChangeChartType, onEdit }: {
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const { enabled } = useNewDesign();
 
   useEffect(() => {
     if (!ds) { setError('Dataset not found'); setLoading(false); return; }
@@ -415,12 +424,16 @@ function FfmCustomWidget({ widget, onRemove, onChangeChartType, onEdit }: {
 
   return (
     <div style={cardStyle(hovered)} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      <div style={{ height: 3, background: accent, flexShrink: 0 }} />
-      <div style={hdr}>
+      {!enabled && <div style={{ height: 3, background: accent, flexShrink: 0 }} />}
+      <div style={enabled ? hdrAurora : hdr}>
+        {enabled ? (
+          <AuroraWidgetHead icon={widgetIcon('custom', 'Custom')} accent={accent} title={cfg.label || ds.label} caption={<>Custom · {ds.label}</>} />
+        ) : (
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={titleStyle}>{cfg.label || ds.label}</div>
           <div style={{ ...subtitle, color: accent }}>Custom · {ds.label}</div>
         </div>
+        )}
         <div style={{ position: 'relative' }}>
           <button onClick={() => setMenuOpen(o => !o)} style={iconBtn} aria-label="Widget options"><MoreVertical size={16} /></button>
           {menuOpen && (
@@ -444,7 +457,7 @@ function FfmCustomWidget({ widget, onRemove, onChangeChartType, onEdit }: {
         </div>
       </div>
 
-      <div style={body}>
+      <div style={enabled ? bodyAurora : body}>
         {loading && <div style={empty}><div style={skel} /></div>}
         {!loading && error && (
           <div style={{ ...empty, color: '#ef4444' }}>
@@ -809,6 +822,8 @@ function chartLabel(c: ChartType): string {
 const tooltipStyle: React.CSSProperties = { ...GLASS_TOOLTIP, padding: '8px 10px', fontSize: 12 };
 
 function BarSeries({ data, suffix, accent }: { data: Array<{ name: string; value: number }>; suffix?: string; accent?: string }) {
+  const { enabled } = useNewDesign();
+  if (enabled) return <AuroraBarSeries data={data} keys={['value']} suffix={suffix} accent={accent} />;
   const gid = `bg-${Math.random().toString(36).slice(2, 8)}`;
   const c = accent ?? COLORS[0];
   return (
@@ -830,6 +845,8 @@ function BarSeries({ data, suffix, accent }: { data: Array<{ name: string; value
   );
 }
 function HBarSeries({ data, valueLabel, accent }: { data: Array<{ name: string; value: number }>; valueLabel?: string; accent?: string }) {
+  const { enabled } = useNewDesign();
+  if (enabled) return <AuroraHBarSeries data={data} valueLabel={valueLabel} accent={accent} />;
   const gid = `hbg-${Math.random().toString(36).slice(2, 8)}`;
   const c = accent ?? COLORS[0];
   return (
@@ -851,6 +868,8 @@ function HBarSeries({ data, valueLabel, accent }: { data: Array<{ name: string; 
   );
 }
 function LineSeries({ data, accent }: { data: Array<{ name: string; value: number }>; accent?: string }) {
+  const { enabled } = useNewDesign();
+  if (enabled) return <AuroraLineSeries data={data} keys={['value']} accent={accent} />;
   const c = accent ?? COLORS[0];
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -866,6 +885,8 @@ function LineSeries({ data, accent }: { data: Array<{ name: string; value: numbe
   );
 }
 function AreaSeries({ data, accent }: { data: Array<{ name: string; value: number }>; accent?: string }) {
+  const { enabled } = useNewDesign();
+  if (enabled) return <AuroraAreaSeries data={data} keys={['value']} accent={accent} />;
   const gid = `ag-${Math.random().toString(36).slice(2, 8)}`;
   const c = accent ?? COLORS[0];
   return (
@@ -945,9 +966,12 @@ function cardStyle(hovered: boolean): React.CSSProperties {
 }
 
 const hdr: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', padding: '12px 14px', gap: 8 };
+// New design: the chip makes the header taller, so centre it and give the glass card a little more air.
+const hdrAurora: React.CSSProperties = { display: 'flex', alignItems: 'center', padding: '14px 16px 8px', gap: 8 };
 const titleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: 'var(--text)' };
 const subtitle: React.CSSProperties = { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 2, fontWeight: 700 };
 const body: React.CSSProperties = { flex: 1, padding: '4px 10px 10px', display: 'flex', flexDirection: 'column', minHeight: 0 };
+const bodyAurora: React.CSSProperties = { ...body, padding: '4px 14px 14px' };
 const empty: React.CSSProperties = { fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', padding: 24, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 const iconBtn: React.CSSProperties = { background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', borderRadius: 6 };
 const menu: React.CSSProperties = { position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, minWidth: 180, zIndex: 50, boxShadow: '0 10px 28px rgba(0,0,0,0.35)' };

@@ -534,7 +534,7 @@ export default function ReportBuilderPage() {
             {!loading && <InlineIcon icon={Play} />}{loading ? 'Running…' : 'Run Report'}
           </button>
           {hasRun && rows.length > 0 && (
-            <button onClick={downloadCSV} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '10px 20px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <button onClick={downloadCSV} className="km-rbtn" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '10px 20px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <InlineIcon icon={Download} />Download CSV
             </button>
           )}
@@ -550,12 +550,12 @@ export default function ReportBuilderPage() {
             {groupBy && grouped && ` · ${Object.keys(grouped).length} groups`}
           </div>
           {rows.length === 0 ? (
-            <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}><IconTile icon={FileSearch} size={40} iconSize={20} />No rows match. Adjust filters and try again.</div>
+            <div className="km-empty" style={{ padding: 30, textAlign: 'center', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}><IconTile icon={FileSearch} size={40} iconSize={20} />No rows match. Adjust filters and try again.</div>
           ) : groupBy && grouped ? (
             <div>
               {Object.entries(grouped).map(([groupKey, groupRows]) => (
                 <div key={groupKey}>
-                  <div style={{ padding: '8px 16px', background: 'var(--s3)', fontSize: 12, fontWeight: 700, color: 'var(--text)', borderTop: '1px solid var(--border)' }}>
+                  <div className="km-grouphead" style={{ padding: '8px 16px', background: 'var(--s3)', fontSize: 12, fontWeight: 700, color: 'var(--text)', borderTop: '1px solid var(--border)' }}>
                     {fields.find((f) => f.key === groupBy)?.label || groupBy}: <strong>{groupKey}</strong> ({groupRows.length})
                   </div>
                   <ResultTable fields={fields} selectedFields={selectedFields} rows={groupRows} valueOf={valueOf} />
@@ -574,7 +574,7 @@ export default function ReportBuilderPage() {
 function ResultTable({ fields, selectedFields, rows, valueOf }: { fields: FieldDef[]; selectedFields: string[]; rows: any[]; valueOf: (row: any, f: FieldDef) => unknown }) {
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+      <table className="km-rt" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr>
             {selectedFields.map((k) => {
@@ -607,7 +607,7 @@ function ResultTable({ fields, selectedFields, rows, valueOf }: { fields: FieldD
 function Section({ title, children, icon }: { title: string; children: React.ReactNode; icon?: LucideIcon }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>{icon && <InlineIcon icon={icon} size={14} />}{title}</div>
+      <div className="km-eyebrow" style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>{icon && <InlineIcon icon={icon} size={14} />}{title}</div>
       {children}
     </div>
   );

@@ -86,11 +86,11 @@ export default function GeoExceptionsReport() {
           <Stat label="GPS jumps flagged" icon={Zap} value={fmtInt(jumps)} />
         </StatGrid>
 
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>By rep</div>
+        <div className="km-eyebrow" style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>By rep</div>
         <DataTable testId="geo-summary-table" cols={sumCols} rows={summary} rowKey={(r) => r.fe_id} minWidth={900}
           empty="No check-ins or alerts in the selected range." initialSort={{ key: 'outside_geofence', dir: 'desc' }} />
 
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>Check-ins outside the geofence</div>
+        <div className="km-eyebrow" style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>Check-ins outside the geofence</div>
         <DataTable testId="geo-rows-table" cols={rowCols} rows={rows} rowKey={(r) => `${r.fe_id}|${r.day}|${r.outlet_name}|${r.visited_at}`} minWidth={900}
           empty="No check-ins outside the geofence in the selected range." initialSort={{ key: 'distance_m', dir: 'desc' }} />
         {data && data.total > rows.length && <Notes>Showing the largest {fmtInt(rows.length)} of {fmtInt(data.total)}.</Notes>}

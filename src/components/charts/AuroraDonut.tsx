@@ -183,7 +183,8 @@ export function AuroraDonut({
   else if (centre) { cValue = 'value' in centre ? centre.value : dValue; cLabel = 'label' in centre ? centre.label : dLabel; }
   else { cValue = dValue; cLabel = dLabel; }
   const vText = typeof cValue === 'string' || typeof cValue === 'number' ? String(cValue) : '';
-  const vSize = clamp(innerD * 0.34, 12, 44) * (vText.length > 5 ? clamp(5 / vText.length, 0.5, 1) : 1);
+  // the figure must sit well inside the hole: limit it by its width as well as by the hole's height
+  const vSize = clamp(Math.min(innerD * 0.34, (innerD * 0.66) / Math.max(2.4, vText.length * 0.6)), 12, 44);
   const lSize = clamp(innerD * 0.115, 8, 12.5);
 
   const label = gauge
@@ -205,7 +206,7 @@ export function AuroraDonut({
             fill: 'none', stroke: s.color, strokeWidth: t, strokeLinecap: 'round' as const, opacity: dimOthers(a.i),
             style: {
               transition: 'opacity .15s ease', cursor: onSliceClick ? 'pointer' : undefined,
-              filter: `drop-shadow(0 2px ${blur}px color-mix(in srgb, ${s.color} 42%, transparent))`,
+              filter: `drop-shadow(0 2px ${blur}px color-mix(in srgb, ${s.color} 36%, transparent))`,
             } as CSSProperties,
             onClick: onSliceClick ? () => pick(a.i) : undefined,
             ...hot(a.i),

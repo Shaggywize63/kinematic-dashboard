@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { BarChart3, CalendarCheck, CalendarDays, ClipboardCheck, ListChecks, MapPin, MapPinned, MapPinOff, Route, ShieldAlert, Target, Timer, UserCog, Users, Wrench, type LucideIcon } from 'lucide-react';
 import { PageIcon, InlineIcon } from '../../../components/ui/PageIcon';
+import { tintFor } from '../../../components/crm/reports/reportTints';
 
 /**
  * Field-Force Reports hub. Mirrors the Lead Management reports index
@@ -134,7 +135,10 @@ export default function FfmReportsIndex() {
           <Link
             key={r.href}
             href={r.href}
+            className="km-rcard"
+            data-hl={r.highlight ? '1' : undefined}
             style={{
+              ['--tint' as string]: r.highlight ? 'var(--red)' : tintFor(r.href),
               background: r.highlight
                 ? 'linear-gradient(135deg, var(--primary) 0%, #6366f1 100%)'
                 : 'var(--s2)',
@@ -142,13 +146,13 @@ export default function FfmReportsIndex() {
               borderRadius: 12,
               padding: 18,
               textDecoration: 'none',
-            }}
+            } as React.CSSProperties}
           >
-            <div style={{ fontSize: 14, fontWeight: 700, color: r.highlight ? '#fff' : 'var(--text)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="km-rcard-t" style={{ fontSize: 14, fontWeight: 700, color: r.highlight ? '#fff' : 'var(--text)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
               <InlineIcon icon={r.icon} size={16} style={{ color: r.highlight ? 'inherit' : 'var(--dim)' }} />
               {r.title}
             </div>
-            <div style={{ fontSize: 12, color: r.highlight ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)' }}>
+            <div className="km-rcard-d" style={{ fontSize: 12, color: r.highlight ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)' }}>
               {r.desc}
             </div>
           </Link>

@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import api from '../../../../lib/api';
 import { ArrowUpDown, CalendarCheck, ClipboardCheck, Columns3, Database, Download, Filter, Inbox, MapPin, Play, Plus, Trash2, Users, type LucideIcon } from 'lucide-react';
+import { CardHead } from '../../../../components/charts/AuroraCharts';
+import { useNewDesign } from '../../../../lib/useNewDesign';
+import { tintFor } from '../../../../components/crm/reports/reportTints';
 import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../components/ui';
 
@@ -423,6 +426,7 @@ export default function FfmReportBuilderPage() {
         <button
           onClick={exportCsv}
           disabled={!rows.length}
+          className="km-rbtn"
           style={{
             background: 'transparent', color: 'var(--text)', border: '1px solid var(--border)',
             padding: '10px 18px', borderRadius: 8, fontWeight: 700,
@@ -438,10 +442,10 @@ export default function FfmReportBuilderPage() {
 
       {hasRun && (
         <div style={{ overflowX: 'auto', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
-          <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', borderBottom: '1px solid var(--border)' }}>
+          <div className="km-note" style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', borderBottom: '1px solid var(--border)' }}>
             {rows.length} row{rows.length === 1 ? '' : 's'}
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table className="km-rt" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ background: 'var(--s3)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 }}>
               <tr>{colsForTable.map((c) => (<th key={c.key} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700 }}>{c.label}</th>))}</tr>
             </thead>
@@ -456,7 +460,7 @@ export default function FfmReportBuilderPage() {
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={colsForTable.length} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}><IconTile icon={Inbox} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />No rows matched the filters.</td></tr>
+                <tr><td colSpan={colsForTable.length} className="km-empty" style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}><IconTile icon={Inbox} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />No rows matched the filters.</td></tr>
               )}
             </tbody>
           </table>
@@ -478,12 +482,18 @@ function formatCell(v: unknown, type: FieldDef['type']): string {
 }
 
 function Section({ title, children, action, icon }: { title: string; children: React.ReactNode; action?: React.ReactNode; icon?: LucideIcon }) {
+  const { enabled } = useNewDesign();
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 14 }}>
+      {/* New design: the Aurora card heading; Classic keeps the uppercase caption. */}
+      {enabled ? (
+        <div style={{ marginBottom: 12 }}><CardHead tint={tintFor(title)} icon={icon ?? Columns3} title={title} right={action} /></div>
+      ) : (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>{icon && <InlineIcon icon={icon} size={16} />}{title}</div>
         {action}
       </div>
+      )}
       {children}
     </div>
   );

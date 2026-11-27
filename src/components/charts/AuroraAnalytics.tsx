@@ -204,7 +204,7 @@ export function AuroraRankedBars({ items, max, accent = 'var(--accent)', chips =
     <div role="list" aria-label={ariaLabel} style={{ display: 'grid', gap: 4, alignContent: 'start', minWidth: 0 }}>
       {items.map((it, i) => {
         const c = it.color ?? accent;
-        const frac = clamp(it.value / top, 0, 1);
+        const frac = Number.isFinite(it.value) ? clamp(it.value / top, 0, 1) : 0;
         const w = `calc((100% - ${room}px) * ${on ? frac : 0})`;
         const delay = `${Math.min(i, 10) * 45}ms`;
         return (
@@ -453,7 +453,7 @@ export function AuroraAreaSeries({ data, keys, accent, suffix, fmt }: SeriesProp
 export function AuroraHBarSeries({ data, valueLabel, fmt, accent }: { data: Array<{ name: string; value: number }>; valueLabel?: string; fmt?: (v: number) => string; accent?: string }) {
   const items = data.map((d) => {
     const v = Number(d.value) || 0;
-    return { label: String(d.name), value: v, display: fmt ? fmt(v) : `${nf(v)}${valueLabel ?? ''}` };
+    return { label: String(d.name ?? ''), value: v, display: fmt ? fmt(v) : `${nf(v)}${valueLabel ?? ''}` };
   });
   return (
     <div className="km-an-chart" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '2px 2px 4px' }}>

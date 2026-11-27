@@ -79,11 +79,11 @@ export default function BeatComplianceReport() {
           <Stat label="Plan days, no visit" icon={CalendarX} value={fmtInt(t?.zero_visit_days ?? 0)} hint={`of ${fmtInt(t?.plan_days ?? 0)} plan days`} />
         </StatGrid>
 
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>By week</div>
+        <div className="km-eyebrow" style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>By week</div>
         <DataTable testId="beat-week-table" cols={weekCols} rows={weeks} rowKey={(w) => w.week_start} minWidth={560}
           empty="No route plans in the selected range." initialSort={{ key: 'week_start', dir: 'asc' }} />
 
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>By rep</div>
+        <div className="km-eyebrow" style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>By rep</div>
         <DataTable testId="beat-rep-table" cols={repCols} rows={reps} rowKey={(r) => r.fe_id} minWidth={760 + weeks.length * 90}
           empty="No route plans in the selected range."
           initialSort={{ key: 'fe_name', dir: 'asc' }}

@@ -478,6 +478,8 @@ const tooltipStyle: React.CSSProperties = {
 };
 
 function BarSeries({ data, keys, suffix, accent, fmt }: { data: any[]; keys: string[]; suffix?: string; accent?: string; fmt?: (v: number) => string }) {
+  const { enabled } = useNewDesign();
+  if (enabled) return <AuroraBarSeries data={data} keys={keys} suffix={suffix} accent={accent} fmt={fmt} />;
   const show = (v: any) => (fmt && typeof v === 'number' ? fmt(v) : `${v}${suffix ?? ''}`);
   const gid = `barGrad-${Math.random().toString(36).slice(2, 8)}`;
   const base = accent ?? COLORS[0];
@@ -506,6 +508,8 @@ function BarSeries({ data, keys, suffix, accent, fmt }: { data: any[]; keys: str
   );
 }
 function HBarSeries({ data, valueLabel, accent, fmt }: { data: Array<{ name: string; value: number }>; valueLabel?: string; accent?: string; fmt?: (v: number) => string }) {
+  const { enabled } = useNewDesign();
+  if (enabled) return <AuroraHBarSeries data={data} valueLabel={valueLabel} accent={accent} fmt={fmt} />;
   const show = (v: any) => (fmt && typeof v === 'number' ? fmt(v) : `${v}${valueLabel ?? ''}`);
   const gid = `hbarGrad-${Math.random().toString(36).slice(2, 8)}`;
   const base = accent ?? COLORS[0];
@@ -528,6 +532,8 @@ function HBarSeries({ data, valueLabel, accent, fmt }: { data: Array<{ name: str
   );
 }
 function LineSeries({ data, keys, accent, fmt }: { data: any[]; keys: string[]; accent?: string; fmt?: (v: number) => string }) {
+  const { enabled } = useNewDesign();
+  if (enabled) return <AuroraLineSeries data={data} keys={keys} accent={accent} fmt={fmt} />;
   const base = accent ?? COLORS[0];
   const show = (v: any) => (fmt && typeof v === 'number' ? fmt(v) : v);
   return (
@@ -547,6 +553,8 @@ function LineSeries({ data, keys, accent, fmt }: { data: any[]; keys: string[]; 
   );
 }
 function AreaSeries({ data, keys, accent, fmt }: { data: any[]; keys: string[]; accent?: string; fmt?: (v: number) => string }) {
+  const { enabled } = useNewDesign();
+  if (enabled) return <AuroraAreaSeries data={data} keys={keys} accent={accent} fmt={fmt} />;
   const gid = `areaGrad-${Math.random().toString(36).slice(2, 8)}`;
   const base = accent ?? COLORS[0];
   const show = (v: any) => (fmt && typeof v === 'number' ? fmt(v) : v);
@@ -619,6 +627,8 @@ function PieSeries({ data, donut }: { data: Array<{ name: string; value: number 
   );
 }
 function NumberTile({ main, sub, accent }: { main: string; sub: string; accent?: string }) {
+  const { enabled } = useNewDesign();
+  if (enabled) return <AuroraNumberTile main={main} sub={sub} accent={accent} />;
   const c = accent ?? 'var(--primary)';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: 12 }}>
@@ -689,10 +699,13 @@ function cardStyle(hovered: boolean): React.CSSProperties {
 }
 
 const header: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', padding: '12px 14px', gap: 8 };
+// New design: the chip makes the header taller, so centre it and give the glass card a little more air.
+const headerAurora: React.CSSProperties = { display: 'flex', alignItems: 'center', padding: '14px 16px 8px', gap: 8 };
 const title: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: 'var(--text)' };
 const subtitle: React.CSSProperties = { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 2, fontWeight: 700 };
 // Body owns the overflow clip now — charts stay inside their tile.
 const body: React.CSSProperties = { flex: 1, padding: '4px 10px 10px', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', borderBottomLeftRadius: 14, borderBottomRightRadius: 14 };
+const bodyAurora: React.CSSProperties = { ...body, padding: '4px 14px 14px', borderBottomLeftRadius: 'var(--a-radius, 20px)', borderBottomRightRadius: 'var(--a-radius, 20px)' };
 const empty: React.CSSProperties = { fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', padding: 24, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 const iconBtn: React.CSSProperties = { background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', borderRadius: 6 };
 const menu: React.CSSProperties = { position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, minWidth: 180, zIndex: 50, boxShadow: '0 10px 28px rgba(0,0,0,0.35)' };
