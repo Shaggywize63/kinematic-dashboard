@@ -3,9 +3,20 @@
 
 import api from './api';
 
-export type TicketStatus = 'open' | 'in_progress' | 'waiting_on_customer' | 'resolved' | 'closed';
+export type TicketStatus =
+  | 'open' | 'triaged' | 'in_progress' | 'waiting_on_customer' | 'release_pending'
+  | 'resolved' | 'closed' | 'rejected';
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
-export type TicketCategory = 'how_to' | 'bug' | 'data' | 'billing' | 'feature_request' | 'other';
+/** The ticket's type: what the customer is asking for. */
+export type TicketCategory =
+  | 'how_to' | 'issue' | 'bug' | 'change_request' | 'new_module'
+  | 'data_correction' | 'billing' | 'access_request' | 'training' | 'other';
+/** Where the customer hit it. A ticket may name more than one. */
+export type TicketPlatform = 'web' | 'android' | 'ios' | 'whatsapp' | 'other';
+/** Which part of the product it is about. */
+export type TicketArea =
+  | 'crm' | 'attendance' | 'distribution' | 'orders' | 'hrms' | 'payroll' | 'reports'
+  | 'dashboard' | 'mobile_app' | 'whatsapp_kini' | 'admin_settings' | 'integrations' | 'billing' | 'other';
 export type TicketChannel = 'whatsapp' | 'dashboard' | 'app';
 
 export interface Ticket {
@@ -15,6 +26,8 @@ export interface Ticket {
   status: TicketStatus;
   priority: TicketPriority;
   category: TicketCategory;
+  platforms: TicketPlatform[];
+  area: TicketArea | null;
   subject: string;
   description: string;
   channel: TicketChannel;
@@ -29,6 +42,8 @@ export interface Ticket {
   created_at: string;
   updated_at: string;
   resolved_at: string | null;
+  /** When the team first replied — what SLA reporting measures. */
+  first_response_at: string | null;
 }
 
 export interface TicketEvent {
@@ -70,12 +85,25 @@ export interface NewTicket {
   description: string;
   category?: TicketCategory;
   priority?: TicketPriority;
+  platforms?: TicketPlatform[];
+  area?: TicketArea | null;
 }
 
 export interface TicketPatch {
   status?: TicketStatus;
   priority?: TicketPriority;
   note?: string;
+  /** Triage fields — operators only; the server rejects them from a customer. */
+  category?: TicketCategory;
+  platforms?: TicketPlatform[];
+  area?: TicketArea | null;
+}
+
+/** Narrows the list and the tab counts together. */
+export interface TicketFilters {
+  category?: TicketCategory | '';
+  platform?: TicketPlatform | '';
+  area?: TicketArea | '';
 }
 
 // Field limits enforced by the server; checked client-side first so the form can say what is wrong.
@@ -84,38 +112,69 @@ export const SUBJECT_MAX = 150;
 export const DESCRIPTION_MIN = 10;
 export const DESCRIPTION_MAX = 5000;
 
-export const ACTIVE_STATUSES: readonly TicketStatus[] = ['open', 'in_progress', 'waiting_on_customer'];
-export const ALL_STATUSES: readonly TicketStatus[] = ['open', 'in_progress', 'waiting_on_customer', 'resolved', 'closed'];
+export const ACTIVE_STATUSES: readonly TicketStatus[] = ['open', 'triaged', 'in_progress', 'waiting_on_customer', 'release_pending'];
+export const ALL_STATUSES: readonly TicketStatus[] = [
+  'open', 'triaged', 'in_progress', 'waiting_on_customer', 'release_pending', 'resolved', 'closed', 'rejected',
+];
 export const PRIORITIES: readonly TicketPriority[] = ['low', 'normal', 'high', 'urgent'];
 
+/** Form order: what customers pick most, first. The keys are the server's category values. */
 export const CATEGORY_LABEL: Record<TicketCategory, string> = {
+  issue: "Something isn't working",
+  bug: 'Bug (a defect in the product)',
   how_to: 'How-to question',
-  bug: "Something's not working (bug)",
-  data: 'Data looks wrong',
+  change_request: 'Change request (change how something works)',
+  new_module: 'New module / feature request',
+  data_correction: 'Data looks wrong',
+  access_request: 'Access / user request',
   billing: 'Billing',
-  feature_request: 'Feature request',
+  training: 'Training',
   other: 'Other',
 };
 /** Short category names for list rows. */
 export const CATEGORY_SHORT: Record<TicketCategory, string> = {
-  how_to: 'How-to', bug: 'Bug', data: 'Data', billing: 'Billing', feature_request: 'Feature request', other: 'Other',
+  issue: 'Issue', bug: 'Bug', how_to: 'How-to', change_request: 'Change request', new_module: 'New module',
+  data_correction: 'Data', access_request: 'Access', billing: 'Billing', training: 'Training', other: 'Other',
 };
+export const CATEGORIES = Object.keys(CATEGORY_LABEL) as TicketCategory[];
+
+export const PLATFORM_LABEL: Record<TicketPlatform, string> = {
+  web: 'Web', android: 'Android', ios: 'iOS', whatsapp: 'WhatsApp', other: 'Other',
+};
+export const PLATFORMS = Object.keys(PLATFORM_LABEL) as TicketPlatform[];
+
+/** Generic Kinematic modules — a client's own taxonomy belongs in custom fields, not here. */
+export const AREA_LABEL: Record<TicketArea, string> = {
+  crm: 'CRM', attendance: 'Attendance', distribution: 'Distribution', orders: 'Orders', hrms: 'HRMS',
+  payroll: 'Payroll', reports: 'Reports', dashboard: 'Dashboard', mobile_app: 'Mobile app',
+  whatsapp_kini: 'WhatsApp / KINI', admin_settings: 'Admin & settings', integrations: 'Integrations',
+  billing: 'Billing', other: 'Other',
+};
+export const AREAS = Object.keys(AREA_LABEL) as TicketArea[];
+
 export const PRIORITY_LABEL: Record<TicketPriority, string> = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' };
 export const CHANNEL_LABEL: Record<TicketChannel, string> = { whatsapp: 'WhatsApp', dashboard: 'Dashboard', app: 'App' };
+
+/** "Web, Android" — the platforms on a ticket, or a dash. */
+export const platformsLabel = (p: TicketPlatform[] | null | undefined): string =>
+  (p ?? []).map((x) => PLATFORM_LABEL[x] ?? x).join(', ') || '—';
 
 /** Status names; "waiting on customer" reads as "waiting on you" to the customer themselves. */
 export function statusLabel(s: TicketStatus | null | undefined, isOperator: boolean): string {
   switch (s) {
     case 'open': return 'Open';
+    case 'triaged': return isOperator ? 'Triaged' : 'Logged';
     case 'in_progress': return 'In progress';
     case 'waiting_on_customer': return isOperator ? 'Waiting on customer' : 'Waiting on you';
+    case 'release_pending': return isOperator ? 'Release pending' : 'Fix ready';
     case 'resolved': return 'Resolved';
     case 'closed': return 'Closed';
+    case 'rejected': return isOperator ? 'Rejected' : 'Not planned';
     default: return '—';
   }
 }
 
-export const isDone = (s: TicketStatus) => s === 'resolved' || s === 'closed';
+export const isDone = (s: TicketStatus) => s === 'resolved' || s === 'closed' || s === 'rejected';
 
 /**
  * The message to show for a failed support call. The server answers errors as `{ success: false, error: "<message>" }`
@@ -141,9 +200,12 @@ const FRESH = { noCache: true } as RequestInit;
 const BASE = '/api/v1/support/tickets';
 
 export const supportApi = {
-  async list(status: StatusFilter, q?: string): Promise<TicketList> {
+  async list(status: StatusFilter, q?: string, filters?: TicketFilters): Promise<TicketList> {
     const qs = new URLSearchParams({ status });
     if (q && q.trim()) qs.set('q', q.trim());
+    if (filters?.category) qs.set('category', filters.category);
+    if (filters?.platform) qs.set('platform', filters.platform);
+    if (filters?.area) qs.set('area', filters.area);
     const d = unwrap<Partial<TicketList>>(await api.get(`${BASE}?${qs.toString()}`, FRESH)) || {};
     return {
       tickets: Array.isArray(d.tickets) ? d.tickets : [],

@@ -8,10 +8,16 @@ import { CheckCircle2, RefreshCw, RotateCcw, Send, X } from 'lucide-react';
 import { Button, Eyebrow, Field, FormGrid, Select, Textarea, T, useIsCompact } from '../ui';
 import { istDateTime } from '../../lib/istTime';
 import {
-  ALL_STATUSES, CATEGORY_LABEL, PRIORITIES, PRIORITY_LABEL, isDone, statusLabel, supportApi, supportError,
-  type CustomerNotified, type Ticket, type TicketEvent, type TicketPatch, type TicketPriority, type TicketStatus, type TicketThread,
+  ALL_STATUSES, AREA_LABEL, AREAS, CATEGORIES, CATEGORY_LABEL, PLATFORM_LABEL, PLATFORMS, PRIORITIES, PRIORITY_LABEL,
+  isDone, statusLabel, supportApi, supportError,
+  type CustomerNotified, type Ticket, type TicketArea, type TicketCategory, type TicketEvent, type TicketPatch,
+  type TicketPlatform, type TicketPriority, type TicketStatus, type TicketThread,
 } from '../../lib/supportApi';
-import { ChannelTag, NotifiedBanner, PriorityTag, RelTime, StatusPill } from './ui';
+import { ChannelTag, NotifiedBanner, PlatformTags, PriorityTag, RelTime, StatusPill } from './ui';
+
+/** Same set in the same order? Platform order carries no meaning, so compare as sets. */
+const samePlatforms = (a: TicketPlatform[], b: TicketPlatform[]): boolean =>
+  a.length === b.length && a.every((x) => b.includes(x));
 
 interface Props {
   ticketId: string;
@@ -37,6 +43,9 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
   // Operator controls
   const [status, setStatus] = useState<TicketStatus>('open');
   const [priority, setPriority] = useState<TicketPriority>('normal');
+  const [category, setCategory] = useState<TicketCategory>('other');
+  const [area, setArea] = useState<TicketArea | ''>('');
+  const [platforms, setPlatforms] = useState<TicketPlatform[]>([]);
   const [note, setNote] = useState('');
   // Customer "Still not working"
   const [reopening, setReopening] = useState(false);
@@ -53,6 +62,9 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
     setThread(t);
     setStatus(t.ticket.status);
     setPriority(t.ticket.priority);
+    setCategory(t.ticket.category);
+    setArea(t.ticket.area ?? '');
+    setPlatforms(t.ticket.platforms ?? []);
     onChangedRef.current(t.ticket);
   }, []);
 
@@ -122,11 +134,22 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
     const patch: TicketPatch = {};
     if (status !== ticket.status) patch.status = status;
     if (priority !== ticket.priority) patch.priority = priority;
-    if (!patch.status && !patch.priority) return;
+    if (category !== ticket.category) patch.category = category;
+    if ((area || null) !== (ticket.area ?? null)) patch.area = area || null;
+    if (!samePlatforms(platforms, ticket.platforms ?? [])) patch.platforms = platforms;
+    if (!Object.keys(patch).length) return;
     operatorUpdate(patch, 'update');
   };
 
-  const operatorDirty = !!ticket && (status !== ticket.status || priority !== ticket.priority);
+  const operatorDirty = !!ticket && (
+    status !== ticket.status
+    || priority !== ticket.priority
+    || category !== ticket.category
+    || (area || null) !== (ticket.area ?? null)
+    || !samePlatforms(platforms, ticket.platforms ?? [])
+  );
+  const toggleOpPlatform = (p: TicketPlatform) =>
+    setPlatforms((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
 
   return (
     <>
@@ -222,7 +245,37 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
                       {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
                     </Select>
                   </Field>
+                  <Field label="Type" htmlFor="support-op-category">
+                    <Select id="support-op-category" value={category} onChange={(e) => setCategory(e.target.value as TicketCategory)}>
+                      {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Area" htmlFor="support-op-area">
+                    <Select id="support-op-area" value={area} onChange={(e) => setArea(e.target.value as TicketArea | '')}>
+                      <option value="">Unassigned</option>
+                      {AREAS.map((a) => <option key={a} value={a}>{AREA_LABEL[a]}</option>)}
+                    </Select>
+                  </Field>
                 </FormGrid>
+                <Field label="Platforms" hint="Where this happens. Saved with Update.">
+                  <div role="group" aria-label="Platforms" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingTop: 2 }}>
+                    {PLATFORMS.map((p) => {
+                      const on = platforms.includes(p);
+                      return (
+                        <button key={p} type="button" onClick={() => toggleOpPlatform(p)} aria-pressed={on}
+                          style={{
+                            height: 30, padding: '0 11px', borderRadius: T.radius.pill, fontFamily: 'inherit',
+                            fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+                            border: `1px solid ${on ? T.text : T.border}`,
+                            background: on ? T.text : T.card, color: on ? T.card : T.dim,
+                            transition: 'background .12s ease, color .12s ease',
+                          }}>
+                          {PLATFORM_LABEL[p]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Field>
                 <Field label="Note to customer" htmlFor="support-op-note"
                   hint="Optional. Sent to the customer with the change, e.g. “Fixed: the sync job was restarted”.">
                   <Textarea id="support-op-note" value={note} rows={2} maxLength={REPLY_MAX} style={{ minHeight: 60 }}
@@ -241,7 +294,7 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
                     </Button>
                   )}
                   <Button variant="primary" disabled={!!busy || !operatorDirty} onClick={saveOperator}
-                    title={operatorDirty ? undefined : 'Change the status or priority first. To only message the customer, use Reply below.'}>
+                    title={operatorDirty ? undefined : 'Change the status, priority, type, area or platforms first. To only message the customer, use Reply below.'}>
                     {busy === 'update' ? 'Updating…' : 'Update'}
                   </Button>
                 </div>
@@ -314,13 +367,16 @@ const iconBtn = {
 
 function Details({ ticket, isOperator }: { ticket: Ticket; isOperator: boolean }) {
   const rows: Array<[string, ReactNode]> = [
-    ['Category', CATEGORY_LABEL[ticket.category] ?? ticket.category],
+    ['Type', CATEGORY_LABEL[ticket.category] ?? ticket.category],
     ['Priority', <PriorityTag key="p" priority={ticket.priority} />],
+    ['Area', ticket.area ? (AREA_LABEL[ticket.area] ?? ticket.area) : '—'],
+    ['Platforms', ticket.platforms?.length ? <PlatformTags key="pl" platforms={ticket.platforms} /> : '—'],
     ['Channel', <ChannelTag key="c" channel={ticket.channel} />],
     ['Raised', istDateTime(ticket.created_at)],
   ];
   if (ticket.resolved_at) rows.push(['Resolved', istDateTime(ticket.resolved_at)]);
   if (isOperator) {
+    rows.push(['First reply', ticket.first_response_at ? istDateTime(ticket.first_response_at) : 'Not replied yet']);
     rows.push(['Company', ticket.org_name || '—']);
     if (ticket.project_key) rows.push(['Project', <span key="pk" style={{ fontFamily: T.mono, fontSize: 12.5 }}>{ticket.project_key}</span>]);
   }
