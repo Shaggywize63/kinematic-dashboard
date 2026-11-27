@@ -3,12 +3,12 @@
 // "what happened to the customer's WhatsApp" note shown after an operator update.
 
 import type { CSSProperties } from 'react';
-import { AlertTriangle, CheckCircle2, Info, Monitor, Smartphone } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, Monitor, Smartphone, Star } from 'lucide-react';
 import { Badge, T, type Tone } from '../ui';
 import WhatsAppLogo from '../icons/WhatsAppLogo';
 import { istDateTime, istDate } from '../../lib/istTime';
 import {
-  CHANNEL_LABEL, PLATFORM_LABEL, PRIORITY_LABEL, statusLabel,
+  CHANNEL_LABEL, CSAT_LABEL, PLATFORM_LABEL, PRIORITY_LABEL, statusLabel,
   type CustomerNotified, type TicketChannel, type TicketPlatform, type TicketPriority, type TicketStatus,
 } from '../../lib/supportApi';
 
@@ -93,8 +93,10 @@ export function RelTime({ iso, style }: { iso: string | null | undefined; style?
   return <time dateTime={iso ?? undefined} title={istDateTime(iso)} style={{ fontSize: 12, color: T.mute, whiteSpace: 'nowrap', ...style }}>{relTime(iso)}</time>;
 }
 
-/** One-line summary of the customer notification returned by a reply / update. */
-export function notifiedText(n: CustomerNotified): { tone: 'ok' | 'warn' | 'red'; text: string } {
+export type NotifyTone = 'ok' | 'warn' | 'red';
+
+/** One-line summary of the WhatsApp leg. */
+export function notifiedText(n: CustomerNotified): { tone: NotifyTone; text: string } {
   switch (n.whatsapp) {
     case 'sent': return { tone: 'ok', text: 'Customer told on WhatsApp' };
     case 'template': return { tone: 'ok', text: 'Customer told on WhatsApp (template, outside 24h)' };
@@ -103,15 +105,42 @@ export function notifiedText(n: CustomerNotified): { tone: 'ok' | 'warn' | 'red'
   }
 }
 
-export function NotifiedBanner({ notified, onDismiss }: { notified: CustomerNotified; onDismiss?: () => void }) {
-  const { tone, text } = notifiedText(notified);
+/** One-line summary of the email leg. Absent when the server did not reach the email step at all. */
+export function emailedText(n: CustomerNotified): { tone: NotifyTone; text: string } | null {
+  switch (n.email) {
+    case 'sent': return { tone: 'ok', text: 'Customer emailed' };
+    case 'failed': return { tone: 'red', text: n.email_note || 'The email to the customer failed.' };
+    case 'skipped': return { tone: 'warn', text: n.email_note || 'The customer was not emailed.' };
+    default: return null;
+  }
+}
+
+const TONE_FG: Record<NotifyTone, string> = { ok: T.ok, warn: T.warn, red: T.red };
+const TONE_BG: Record<NotifyTone, string> = { ok: T.okWash, warn: T.warnWash, red: T.redWash };
+const TONE_RANK: Record<NotifyTone, number> = { ok: 0, warn: 1, red: 2 };
+
+function ToneLine({ tone, text }: { tone: NotifyTone; text: string }) {
   const Icon = tone === 'ok' ? CheckCircle2 : tone === 'red' ? AlertTriangle : Info;
-  const fg = tone === 'ok' ? T.ok : tone === 'red' ? T.red : T.warn;
-  const bg = tone === 'ok' ? T.okWash : tone === 'red' ? T.redWash : T.warnWash;
   return (
-    <div role="status" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 12px', borderRadius: T.radius.md, background: bg, color: T.text, fontSize: 13, lineHeight: 1.45 }}>
-      <Icon size={16} strokeWidth={1.8} aria-hidden style={{ color: fg, flexShrink: 0, marginTop: 1 }} />
+    <span style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+      <Icon size={15} strokeWidth={1.8} aria-hidden style={{ color: TONE_FG[tone], flexShrink: 0, marginTop: 1 }} />
       <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
+    </span>
+  );
+}
+
+/**
+ * What reached the customer after an update: one line per channel. The banner takes the worst tone of the
+ * two, so a green "emailed" can never hide a red "WhatsApp failed".
+ */
+export function NotifiedBanner({ notified, onDismiss }: { notified: CustomerNotified; onDismiss?: () => void }) {
+  const lines = [notifiedText(notified), emailedText(notified)].filter(Boolean) as Array<{ tone: NotifyTone; text: string }>;
+  const worst = lines.reduce<NotifyTone>((a, l) => (TONE_RANK[l.tone] > TONE_RANK[a] ? l.tone : a), 'ok');
+  return (
+    <div role="status" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 12px', borderRadius: T.radius.md, background: TONE_BG[worst], color: T.text, fontSize: 13, lineHeight: 1.45 }}>
+      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {lines.map((l) => <ToneLine key={l.text} tone={l.tone} text={l.text} />)}
+      </span>
       {onDismiss && (
         <button type="button" onClick={onDismiss} aria-label="Dismiss"
           style={{ background: 'transparent', border: 0, color: T.mute, cursor: 'pointer', fontSize: 12, padding: 0, fontFamily: 'inherit' }}>
@@ -119,5 +148,21 @@ export function NotifiedBanner({ notified, onDismiss }: { notified: CustomerNoti
         </button>
       )}
     </div>
+  );
+}
+
+/** A ticket's rating as filled stars, with the word it stands for. Read-only. */
+export function CsatStars({ rating, size = 14, showLabel = true }: { rating: number; size?: number; showLabel?: boolean }) {
+  const r = Math.max(1, Math.min(5, Math.round(rating)));
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }} title={`${r} out of 5 — ${CSAT_LABEL[r] ?? ''}`}>
+      <span style={{ display: 'inline-flex', gap: 1 }} aria-label={`${r} out of 5`}>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <Star key={i} size={size} strokeWidth={1.8} aria-hidden
+            style={{ color: i <= r ? '#F59E0B' : T.border, fill: i <= r ? '#F59E0B' : 'transparent' }} />
+        ))}
+      </span>
+      {showLabel && <span style={{ fontSize: 12.5, color: T.dim }}>{CSAT_LABEL[r]}</span>}
+    </span>
   );
 }

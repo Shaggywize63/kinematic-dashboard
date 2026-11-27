@@ -28,6 +28,8 @@ export const WHATS_NEW: Record<string, { since: string; note?: string }> = {
   '/dashboard/planograms':                   { since: '2026-08-18', note: 'Stock count + POSM compliance' },
   '/dashboard/planograms/competitors':       { since: '2026-08-11', note: 'Competitors library' },
   '/dashboard/planograms/insights':          { since: '2026-08-10', note: 'Cross-store trend insights' },
+  // Support
+  '/dashboard/support':                      { since: '2026-11-27', note: 'Raise and track support tickets (beta)' },
   // Distribution
   '/dashboard/distribution/control-tower':   { since: '2026-08-19', note: 'Distribution Control Tower' },
   '/dashboard/distribution/ai':              { since: '2026-08-19', note: 'Distribution AI Copilot' },

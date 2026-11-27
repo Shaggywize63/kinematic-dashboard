@@ -4,16 +4,17 @@
 // status / priority with a note to the customer; the customer can say "This is fixed" or "Still not working".
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { CheckCircle2, RefreshCw, RotateCcw, Send, X } from 'lucide-react';
+import { CheckCircle2, RefreshCw, RotateCcw, Send, Star, X } from 'lucide-react';
 import { Button, Eyebrow, Field, FormGrid, Select, Textarea, T, useIsCompact } from '../ui';
 import { istDateTime } from '../../lib/istTime';
 import {
-  ALL_STATUSES, AREA_LABEL, AREAS, CATEGORIES, CATEGORY_LABEL, PLATFORM_LABEL, PLATFORMS, PRIORITIES, PRIORITY_LABEL,
-  isDone, statusLabel, supportApi, supportError,
-  type CustomerNotified, type Ticket, type TicketArea, type TicketCategory, type TicketEvent, type TicketPatch,
-  type TicketPlatform, type TicketPriority, type TicketStatus, type TicketThread,
+  ALL_STATUSES, AREA_LABEL, AREAS, CATEGORIES, CATEGORY_LABEL, CSAT_COMMENT_MAX, CSAT_LABEL,
+  PLATFORM_LABEL, PLATFORMS, PRIORITIES, PRIORITY_LABEL,
+  fileSize, isDone, statusLabel, supportApi, supportError,
+  type CustomerNotified, type SignedAttachment, type Ticket, type TicketArea, type TicketCategory,
+  type TicketEvent, type TicketPatch, type TicketPlatform, type TicketPriority, type TicketStatus, type TicketThread,
 } from '../../lib/supportApi';
-import { ChannelTag, NotifiedBanner, PlatformTags, PriorityTag, RelTime, StatusPill } from './ui';
+import { ChannelTag, CsatStars, NotifiedBanner, PlatformTags, PriorityTag, RelTime, StatusPill } from './ui';
 
 /** Same set in the same order? Platform order carries no meaning, so compare as sets. */
 const samePlatforms = (a: TicketPlatform[], b: TicketPlatform[]): boolean =>
@@ -50,6 +51,10 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
   // Customer "Still not working"
   const [reopening, setReopening] = useState(false);
   const [reopenNote, setReopenNote] = useState('');
+  // Customer feedback (CSAT)
+  const [rating, setRating] = useState(0);
+  const [csatComment, setCsatComment] = useState('');
+  const [ratingAgain, setRatingAgain] = useState(false);
   const timelineEnd = useRef<HTMLDivElement>(null);
   const prevCount = useRef(0);
 
@@ -82,6 +87,7 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
 
   useEffect(() => {
     setThread(null); prevCount.current = 0; setNotified(null); setActionError(''); setReply(''); setNote(''); setReopening(false); setReopenNote('');
+    setRating(0); setCsatComment(''); setRatingAgain(false);
     void load();
   }, [load]);
 
@@ -151,6 +157,13 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
   const toggleOpPlatform = (p: TicketPlatform) =>
     setPlatforms((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
 
+  const sendFeedback = () => {
+    if (!rating) return;
+    const comment = csatComment.trim();
+    void run('feedback', () => supportApi.feedback(ticketId, comment ? { rating, comment } : { rating }),
+      () => { setRatingAgain(false); setCsatComment(''); setRating(0); });
+  };
+
   return (
     <>
       <div onClick={onClose} aria-hidden style={{ position: 'fixed', inset: 0, background: 'rgba(10,14,26,0.5)', zIndex: 1100 }} />
@@ -198,6 +211,8 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
                 <Eyebrow style={{ marginBottom: 8 }}>Description</Eyebrow>
                 <div style={{ fontSize: 14, color: T.text, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{ticket.description}</div>
               </div>
+
+              {!!thread?.attachments?.length && <Screenshots list={thread.attachments} />}
 
               {ticket.resolution_note && (
                 <div style={{ padding: '10px 12px', borderRadius: T.radius.md, background: T.okWash, fontSize: 13.5, lineHeight: 1.5 }}>
@@ -324,6 +339,59 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
                     <Button icon={<RotateCcw size={14} strokeWidth={1.8} />} onClick={() => setReopening(true)}>Still not working</Button>
                   </div>
                 )}
+
+                {/* How did we do? Asked only once the ticket has finished, and only of the customer. */}
+                {ticket.csat_rating && !ratingAgain ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 13, color: T.dim }}>You rated this</span>
+                        <CsatStars rating={ticket.csat_rating} />
+                      </span>
+                      {ticket.csat_comment && (
+                        <span style={{ fontSize: 12.5, color: T.dim, fontStyle: 'italic', overflowWrap: 'anywhere' }}>&ldquo;{ticket.csat_comment}&rdquo;</span>
+                      )}
+                    </span>
+                    <Button size="sm" disabled={!!busy} onClick={() => { setRatingAgain(true); setRating(ticket.csat_rating ?? 0); setCsatComment(ticket.csat_comment ?? ''); }}>
+                      Change
+                    </Button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+                    <div style={{ fontSize: 13.5, color: T.text }}>
+                      <strong style={{ fontWeight: 600 }}>How did we do?</strong>{' '}
+                      <span style={{ color: T.dim }}>It helps us get better at this.</span>
+                    </div>
+                    <div role="group" aria-label="Rating out of 5" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ display: 'inline-flex', gap: 2 }}>
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <button key={i} type="button" aria-label={`${i} out of 5 — ${CSAT_LABEL[i]}`} aria-pressed={rating === i}
+                            onClick={() => setRating(i)} disabled={!!busy}
+                            style={{ background: 'transparent', border: 0, padding: 2, cursor: busy ? 'default' : 'pointer', lineHeight: 0 }}>
+                            <Star size={22} strokeWidth={1.7} aria-hidden
+                              style={{ color: i <= rating ? '#F59E0B' : T.border, fill: i <= rating ? '#F59E0B' : 'transparent' }} />
+                          </button>
+                        ))}
+                      </span>
+                      {!!rating && <span style={{ fontSize: 13, color: T.dim }}>{CSAT_LABEL[rating]}</span>}
+                    </div>
+                    {!!rating && (
+                      <>
+                        <Textarea aria-label="Anything you would like to add?" value={csatComment} rows={2} maxLength={CSAT_COMMENT_MAX}
+                          style={{ minHeight: 56 }} placeholder="Anything you would like to add? (optional)"
+                          onChange={(e) => setCsatComment(e.target.value)} />
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                          {ratingAgain && (
+                            <Button disabled={!!busy} onClick={() => { setRatingAgain(false); setRating(0); setCsatComment(''); }}>Cancel</Button>
+                          )}
+                          <Button variant="primary" disabled={!!busy} onClick={sendFeedback}>
+                            {busy === 'feedback' ? 'Sending…' : 'Send feedback'}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', paddingBottom: 12, borderBottom: `1px solid ${T.border}` }}>
@@ -360,6 +428,41 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
   );
 }
 
+/**
+ * The screenshots on a ticket. URLs are signed by the server and short-lived, so these are rendered from the
+ * thread response rather than kept anywhere; an object that has gone shows as a name with no link instead of a
+ * broken image.
+ */
+function Screenshots({ list }: { list: SignedAttachment[] }) {
+  return (
+    <div>
+      <Eyebrow style={{ marginBottom: 8 }}>{list.length === 1 ? 'Screenshot' : `Screenshots (${list.length})`}</Eyebrow>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {list.map((a) => {
+          const caption = [a.name, fileSize(a.size)].filter(Boolean).join(' · ');
+          if (!a.url) {
+            return (
+              <span key={a.path} title="This image is no longer available"
+                style={{ fontSize: 12.5, color: T.mute, padding: '6px 10px', border: `1px dashed ${T.border}`, borderRadius: 6 }}>
+                {a.name} (unavailable)
+              </span>
+            );
+          }
+          return (
+            <a key={a.path} href={a.url} target="_blank" rel="noreferrer" title={`Open ${caption}`}
+              style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 108, textDecoration: 'none' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={a.url} alt={a.name}
+                style={{ width: 108, height: 74, objectFit: 'cover', borderRadius: 6, border: `1px solid ${T.border}`, display: 'block' }} />
+              <span style={{ fontSize: 11, color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{caption}</span>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const iconBtn = {
   width: 32, height: 32, borderRadius: 6, background: 'transparent', border: '1px solid transparent', color: T.dim,
   cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -377,6 +480,9 @@ function Details({ ticket, isOperator }: { ticket: Ticket; isOperator: boolean }
   if (ticket.resolved_at) rows.push(['Resolved', istDateTime(ticket.resolved_at)]);
   if (isOperator) {
     rows.push(['First reply', ticket.first_response_at ? istDateTime(ticket.first_response_at) : 'Not replied yet']);
+    rows.push(['Rating', ticket.csat_rating
+      ? <CsatStars key="csat" rating={ticket.csat_rating} />
+      : isDone(ticket.status) ? 'Not rated yet' : '—']);
     rows.push(['Company', ticket.org_name || '—']);
     if (ticket.project_key) rows.push(['Project', <span key="pk" style={{ fontFamily: T.mono, fontSize: 12.5 }}>{ticket.project_key}</span>]);
   }
@@ -431,6 +537,25 @@ function TimelineItem({ ev, isOperator, channel }: { ev: TicketEvent; isOperator
         }}>
           {ev.body}
         </div>
+      </div>
+    );
+  }
+
+  if (ev.kind === 'feedback') {
+    const stars = Number(String(ev.body ?? '').match(/^([1-5])\/5/)?.[1] ?? 0);
+    const comment = String(ev.body ?? '').replace(/^[1-5]\/5\s*(—\s*)?/, '');
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '2px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: T.dim, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <strong style={{ fontWeight: 600, color: T.text }}>{who}</strong> rated this ticket
+          {stars > 0 && <CsatStars rating={stars} size={13} />}
+          <span style={{ color: T.mute }}>·</span> <RelTime iso={ev.created_at} />
+        </div>
+        {comment && (
+          <div style={{ maxWidth: '88%', fontSize: 12.5, color: T.dim, fontStyle: 'italic', textAlign: 'center', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+            &ldquo;{comment}&rdquo;
+          </div>
+        )}
       </div>
     );
   }
