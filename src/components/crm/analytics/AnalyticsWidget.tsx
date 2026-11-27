@@ -24,6 +24,8 @@ import { widgetByType, datasetById, type ChartType, type WidgetMeta } from '../.
 import TargetsLeaderboard from './TargetsLeaderboard';
 import { CHART_PALETTE } from '../../../lib/chartTheme';
 import { AuroraDonut, NewDesignSwap } from '../../charts/AuroraDonut';
+import { useNewDesign } from '../../../lib/useNewDesign';
+import { AuroraBarSeries, AuroraHBarSeries, AuroraLineSeries, AuroraAreaSeries, AuroraNumberTile, AuroraWidgetHead, widgetIcon } from '../../charts/AuroraAnalytics';
 import { useLeadFieldGate } from '../../../lib/crm/useLeadFieldGate';
 import { GATED_FIELDS_BY_SURFACE, surfaceOf } from '../../../lib/crm/leadFieldGate';
 import { fmtInr } from '../../../lib/crm/plusFormat';
@@ -97,6 +99,7 @@ export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onP
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const { enabled } = useNewDesign();
   // Some widgets group by a built-in lead field an admin can hide (state / city, source, owner).
   // Wait for the admin's settings before drawing them (otherwise they flash hidden data), then
   // withhold a surface whose field is hidden. See lib/crm/leadFieldGate.ts.
@@ -137,12 +140,17 @@ export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onP
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div style={{ height: 3, background: accent, flexShrink: 0 }} />
-      <div style={header}>
+      {/* New design: no flat colour bar — the accent is the header chip's tint and the dot beside the category. */}
+      {!enabled && <div style={{ height: 3, background: accent, flexShrink: 0 }} />}
+      <div style={enabled ? headerAurora : header}>
+        {enabled ? (
+          <AuroraWidgetHead icon={widgetIcon(widget.widget_type, meta.category)} accent={accent} title={meta.title} caption={meta.category} />
+        ) : (
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={title}>{meta.title}</div>
           <div style={{ ...subtitle, color: accent }}>{meta.category}</div>
         </div>
+        )}
         <div style={{ position: 'relative' }}>
           <button onClick={() => setMenuOpen(o => !o)} style={iconBtn} aria-label="Widget options">
             <MoreVertical size={16} />
@@ -190,7 +198,7 @@ export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onP
         </div>
       </div>
 
-      <div style={body}>
+      <div style={enabled ? bodyAurora : body}>
         {(loading || waitingForGate) && <div style={empty}>
           <div style={skeleton} />
         </div>}

@@ -552,8 +552,10 @@ export default function AnalyticsPage() {
             );
           })}
         </div>
+        )}
 
         {/* Zone breakdown */}
+        {enabled ? <ZonesAurora key="zone-breakdown" zones={zones} loading={loading} /> : (
         <div key="zone-breakdown" style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
           <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, marginBottom:16, display:'flex', alignItems:'center', gap:8 }}><InlineIcon icon={MapIcon} size={16} style={{ color:C.gray }} />Zone Breakdown</div>
           {loading ? (
@@ -581,6 +583,7 @@ export default function AnalyticsPage() {
             );
           })}
         </div>
+        )}
       </TileGrid>
 
       {/* ── TFF Activity Heatmap (live) ── */}
@@ -633,7 +636,11 @@ export default function AnalyticsPage() {
           accent: string,
           badge?: { label: string; color: string },
           methodology?: string
-        ) => (
+        ) => enabled ? (
+          // New design: a glass tile — tinted icon chip + status badge, the figure big, and a SOLID frosted "how this is
+          // calculated" pane (see aurora-analytics.css) instead of the see-through Classic popover.
+          <AuroraInsightCard key={title} icon={icon} title={title} value={value} sub={sub} accent={accent} badge={badge} methodology={methodology} />
+        ) : (
           <div key={title} style={{
             background:C.s1, border:`1px solid ${C.border}`, borderRadius:16,
             padding:20, display:'flex', flexDirection:'column', gap:10,
@@ -679,6 +686,12 @@ export default function AnalyticsPage() {
 
         return (
           <div>
+            {enabled ? (
+              <div style={{ marginBottom:14 }}>
+                <CardHead icon={Sparkles} tint="var(--accent)" title="Predictive Insights"
+                  sub={`KINI-computed signals from your ${trends.length}-day activity window · hover the ⓘ on any card to see how it's calculated`} />
+              </div>
+            ) : (
             <div style={{ marginBottom:14 }}>
               <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:'var(--text)', display:'flex', alignItems:'center', gap:8 }}>
                 <InlineIcon icon={Sparkles} size={16} style={{ color:C.gray }} />
@@ -688,6 +701,7 @@ export default function AnalyticsPage() {
                 KINI-computed signals from your {trends.length}-day activity window · hover the ⓘ on any card to see how it&apos;s calculated
               </div>
             </div>
+            )}
             <TileGrid id="analytics-insights" perRow={3} h={5} style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
               {insightCard(
                 momentumUp ? TrendingUp : TrendingDown,
