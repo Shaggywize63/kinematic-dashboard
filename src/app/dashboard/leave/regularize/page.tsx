@@ -90,7 +90,9 @@ function RegularizeModal({ onClose, onDone }: { onClose: () => void; onDone: () 
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const toISO = (t: string) => (t ? new Date(`${attDate}T${t}:00`).toISOString() : undefined);
+  // Times are entered as IST wall-clock; stamp the +05:30 offset explicitly so
+  // the value is unambiguous regardless of the admin's browser/server timezone.
+  const toISO = (t: string) => (t ? `${attDate}T${t}:00+05:30` : undefined);
 
   const submit = async () => {
     if (!attDate) return toast.error('Pick the attendance date');

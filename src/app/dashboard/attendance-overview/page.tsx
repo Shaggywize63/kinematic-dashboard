@@ -505,9 +505,12 @@ function AttendanceContent() {
         user_id:              form.user_id,
         date:                 form.date,
         status:               form.status,
-        checkin_at:           form.checkin_at  ? `${form.checkin_date || form.date}T${form.checkin_at}:00` : undefined,
+        // The time inputs are IST wall-clock; stamp the +05:30 offset so the
+        // timestamp is unambiguous (a no-offset value is read as UTC by the DB,
+        // which shifted an admin's 9:50 AM entry to 3:20 PM).
+        checkin_at:           form.checkin_at  ? `${form.checkin_date || form.date}T${form.checkin_at}:00+05:30` : undefined,
         checkin_selfie_url:   form.checkin_selfie_url  || null,
-        checkout_at:          form.checkout_at ? `${form.checkout_date || form.date}T${form.checkout_at}:00` : undefined,
+        checkout_at:          form.checkout_at ? `${form.checkout_date || form.date}T${form.checkout_at}:00+05:30` : undefined,
         checkout_selfie_url:  form.checkout_selfie_url || null,
         override_reason:      form.override_reason.trim() || 'Manual override by admin',
         checkin_lat:          form.checkin_lat  ? parseFloat(form.checkin_lat)  : undefined,
@@ -566,9 +569,9 @@ function AttendanceContent() {
     try {
       const res = await api.patch<any>(`/api/v1/attendance/${editRec.id}/override`, {
         status:               form.status,
-        checkin_at:           form.checkin_at  ? `${form.checkin_date  || editRec.date}T${form.checkin_at}:00`  : undefined,
+        checkin_at:           form.checkin_at  ? `${form.checkin_date  || editRec.date}T${form.checkin_at}:00+05:30`  : undefined,
         checkin_selfie_url:   form.checkin_selfie_url  || null,
-        checkout_at:          form.checkout_at ? `${form.checkout_date || editRec.date}T${form.checkout_at}:00` : undefined,
+        checkout_at:          form.checkout_at ? `${form.checkout_date || editRec.date}T${form.checkout_at}:00+05:30` : undefined,
         checkout_selfie_url:  form.checkout_selfie_url || null,
         override_reason:      form.override_reason.trim() || 'Manual override by admin',
         checkin_lat:          form.checkin_lat  ? parseFloat(form.checkin_lat)  : undefined,
