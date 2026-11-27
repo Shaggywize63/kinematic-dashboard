@@ -1,9 +1,12 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
+import { useNewDesign } from '../../../lib/useNewDesign';
 import FfmAnalyticsSection from '../../../components/ffm/analytics/FfmAnalyticsSection';
+import { AuroraArea, CardHead } from '../../../components/charts/AuroraCharts';
+import { AuroraPanel, AuroraStatTile, AuroraRankedBars, AuroraHeatmap, AuroraHeatLegend, AuroraInsightCard } from '../../../components/charts/AuroraAnalytics';
 import { AlertTriangle, BarChart3, CalendarDays, CalendarOff, CheckCircle2, ClipboardCheck, Clock, LayoutGrid, Map as MapIcon, RefreshCw, Sparkles, Target, Telescope, TrendingDown, TrendingUp, Trophy, UserCheck, type LucideIcon } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../components/ui/PageIcon';
 import TileGrid from '../../../components/ui/TileGrid';
@@ -84,6 +87,7 @@ function heatColor(value: number, max: number): string {
 }
 
 function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | null; loading: boolean }) {
+  const { enabled }   = useNewDesign();
   const rows          = data?.rows ?? (Array.isArray(data) ? data : []);
   const totalContacts = data?.summary?.total_contacts ?? rows.reduce((acc: number, r: any) => acc + (r.total || 0), 0);
   const allVals       = rows.flatMap((row: any) => row.hours.map((h: any) => h.count));
@@ -91,6 +95,53 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
 
   // TRUE empty = API returned rows but all counts are zero (no submissions yet)
   const isEmpty = !loading && (rows.length === 0 || totalContacts === 0);
+
+  // New design — Aurora: a tint ramp (track → accent) of rounded cells, a glass tooltip, a gradient legend, big numerals.
+  if (enabled) {
+    const stats: Array<[string, string]> = [
+      ['Peak hour', String(data?.summary?.peak_hour || '—')],
+      ['Peak day', String(data?.summary?.peak_day || '—')],
+      ['Total engagements', data?.summary?.total_contacts?.toLocaleString() ?? '—'],
+    ];
+    return (
+      <AuroraPanel padding={22} style={{ display:'flex', flexDirection:'column', gap:16 }}>
+        <CardHead icon={LayoutGrid} tint="var(--accent)" title="TFF Activity Heatmap" sub="Density by day & hour — last 7 days"
+          right={!isEmpty && !loading ? <AuroraHeatLegend accent="var(--accent)" /> : undefined} />
+        {loading ? (
+          <div style={{ height:180, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--a-ink-2)', fontSize:13 }}>Loading heatmap...</div>
+        ) : isEmpty ? (
+          <div style={{ height:180, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10 }}>
+            <IconTile icon={BarChart3} size={40} iconSize={20} />
+            <div style={{ fontSize:13, color:'var(--text)', fontWeight:600 }}>No TFF activity yet</div>
+            <div style={{ fontSize:12, color:'var(--a-ink-2)', textAlign:'center', maxWidth:280 }}>Data will appear here once field executives start submitting forms</div>
+          </div>
+        ) : (
+          <>
+            <AuroraHeatmap
+              ariaLabel="TFF activity by day and hour, last 7 days"
+              colLabels={HOURS.map(h => (h % 3 === 0 ? `${h}h` : ''))}
+              rows={rows.map((row: any) => ({
+                key: row.date,
+                label: row.day,
+                cells: HOURS.map(hour => {
+                  const val = row.hours.find((h: HeatmapHour) => h.hour === hour)?.count || 0;
+                  return { value: val, tipTitle: `${row.date} @ ${hour.toString().padStart(2,'0')}:00`, tipValue: `${val} TFF${val === 1 ? '' : 's'}` };
+                }),
+              }))}
+            />
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'14px 36px', paddingTop:16, borderTop:'1px solid var(--a-grid)' }}>
+              {stats.map(([l, v]) => (
+                <div key={l}>
+                  <div className="km-au-num" style={{ fontSize:24 }}>{v}</div>
+                  <div style={{ fontSize:11.5, color:'var(--a-ink-2)', marginTop:6 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </AuroraPanel>
+    );
+  }
 
   return (
     <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
@@ -202,6 +253,115 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
 
 interface TrendItem { label:string; date:string; tff:number; engagements:number; }
 
+// ── New design (Aurora) variants of the trend / leaderboard cards ───────────────────────────────────────────────────
+// Same data as the Classic cards below; only the presentation differs. Each is rendered only when `useNewDesign().enabled`.
+
+/** "Mon, 12 Jan" from the trend point's ISO date (UTC, so the day never shifts); falls back to the API's own label. */
+function trendDayLabel(date: string | undefined, fallback: string): string {
+  const d = new Date(`${String(date ?? '').slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? fallback : d.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', timeZone:'UTC' });
+}
+
+function TffTrendAurora({ trends, loading }: { trends: TrendItem[]; loading: boolean }) {
+  const points = useMemo(() => trends.map(t => ({ label: trendDayLabel(t.date, t.label), short: t.label, value: t.tff || 0 })), [trends]);
+  const total = points.reduce((s, p) => s + p.value, 0);
+  const avg   = points.length ? Math.round(total / points.length) : 0;
+  const best  = points.reduce<typeof points[number] | null>((b, p) => (!b || p.value > b.value ? p : b), null);
+  const stats: Array<[string, string]> = [
+    ['Total forms', total.toLocaleString('en-IN')],
+    ['Average per day', avg.toLocaleString('en-IN')],
+    ['Best day', best ? `${best.value.toLocaleString('en-IN')}` : '—'],
+  ];
+  return (
+    <AuroraPanel padding={22} style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <CardHead icon={TrendingUp} tint="var(--au-good, #0AAC23)" title="TFF Trend" sub="Forms filled per day"
+        right={points.length > 0 && !loading ? (
+          <>
+            <span className="km-livepill"><span aria-hidden style={{ width:8, height:8, borderRadius:999, background:'var(--au-good, #0AAC23)' }} />TFF</span>
+            {avg > 0 && <span className="km-livepill"><span aria-hidden style={{ width:14, borderTop:'2px dashed var(--a-axis)' }} />avg {avg}</span>}
+          </>
+        ) : undefined} />
+      {loading ? (
+        <div style={{ height:240, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--a-ink-2)', fontSize:13 }}>Loading chart...</div>
+      ) : !points.length ? (
+        <div style={{ height:240, display:'flex', flexDirection:'column', gap:10, alignItems:'center', justifyContent:'center', color:'var(--a-ink-2)', fontSize:13 }}><IconTile icon={TrendingUp} size={40} iconSize={20} />No trend data for this period</div>
+      ) : (
+        <>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:'10px 36px' }}>
+            {stats.map(([l, v]) => (
+              <div key={l}>
+                <div className="km-au-num" style={{ fontSize:26 }}>{v}</div>
+                <div style={{ fontSize:11.5, color:'var(--a-ink-2)', marginTop:6 }}>{l}{l === 'Best day' && best ? ` · ${best.label}` : ''}</div>
+              </div>
+            ))}
+          </div>
+          <AuroraArea data={points} unit="forms" height={220} ariaLabel="Forms filled per day" />
+        </>
+      )}
+    </AuroraPanel>
+  );
+}
+
+function TopPerformersAurora({ rows, loading }: { rows: any[]; loading: boolean }) {
+  // gold / silver / bronze, then the accent — all derived from the Aurora status tokens
+  const tints = ['var(--au-warn, #FBB315)', 'var(--au-neutral, #97A1B2)', 'color-mix(in srgb, var(--au-warn, #FBB315) 55%, var(--au-crit, #DC3C3D))'];
+  return (
+    <AuroraPanel padding={20} style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      <CardHead icon={Trophy} tint="var(--au-warn, #FBB315)" title="Top Performers" sub="Ranked by forms filled" />
+      {loading ? (
+        <div style={{ padding:24, textAlign:'center', color:'var(--a-ink-2)', fontSize:13 }}>Loading...</div>
+      ) : rows.length === 0 ? (
+        <div style={{ padding:24, textAlign:'center', color:'var(--a-ink-2)', fontSize:13 }}><IconTile icon={Trophy} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 10px' }} />No data available</div>
+      ) : (
+        <div role="list" style={{ display:'grid', gap:2 }}>
+          {rows.map((fe: any, i: number) => {
+            const tffVal = fe.tff ?? fe.tff_count ?? fe.total_tff ?? '—';
+            const attVal = fe.attendance ?? fe.attendance_pct ?? fe.attendance_percentage;
+            const zone   = fe.zone ?? fe.zone_name ?? '';
+            const tint   = tints[i] ?? 'var(--accent)';
+            return (
+              <div key={i} role="listitem" className="km-au-row" style={{ display:'grid', gridTemplateColumns:'34px minmax(0,1fr) auto', alignItems:'center', gap:12, padding:'9px 10px', borderRadius:14 }}>
+                <span aria-hidden className="km-lz" style={{ ['--tint' as string]: tint, width:34, height:34, display:'inline-grid', placeItems:'center', fontFamily:"var(--font-manrope)", fontSize:13, fontWeight:800, fontVariantNumeric:'tabular-nums' } as React.CSSProperties}>{i + 1}</span>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:13.5, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{fe.name}</div>
+                  <div style={{ fontSize:11.5, color:'var(--a-ink-2)' }}>{zone}{attVal != null ? `${zone ? ' · ' : ''}${Number(attVal).toFixed(0)}% att.` : ''}</div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div className="km-au-num" style={{ fontSize:22 }}>{tffVal}</div>
+                  <div style={{ fontSize:10.5, color:'var(--a-ink-3)', marginTop:3 }}>forms</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </AuroraPanel>
+  );
+}
+
+function ZonesAurora({ zones, loading }: { zones: any[]; loading: boolean }) {
+  // each zone keeps the colour it has in Classic (by its position in the API's list); the list is ranked by attainment
+  const colors = [C.blue, C.green, C.yellow, C.purple];
+  const items = zones.map((z: any, i: number) => {
+    const tffVal = z.tff ?? z.tff_count ?? z.total_tff ?? 0;
+    const target = z.target ?? z.tff_target ?? z.goal ?? 0;
+    const pct    = target > 0 ? Math.min(100, Math.round((tffVal / target) * 100)) : 0;
+    return { label: z.zone ?? z.zone_name ?? z.name ?? `Zone ${i + 1}`, value: pct, display: `${pct}%`, sub: `${tffVal} / ${target || '—'} TFF`, color: colors[i % colors.length] };
+  }).sort((a, b) => b.value - a.value);
+  return (
+    <AuroraPanel padding={20} style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      <CardHead icon={MapIcon} tint="var(--accent)" title="Zone Breakdown" sub="Share of target reached" />
+      {loading ? (
+        <div style={{ padding:24, textAlign:'center', color:'var(--a-ink-2)', fontSize:13 }}>Loading...</div>
+      ) : items.length === 0 ? (
+        <div style={{ padding:24, textAlign:'center', color:'var(--a-ink-2)', fontSize:13 }}><IconTile icon={MapIcon} size={40} iconSize={20} style={{ display:'flex', margin:'0 auto 10px' }} />No data available</div>
+      ) : (
+        <AuroraRankedBars items={items} max={100} ariaLabel="Zones ranked by share of TFF target reached" />
+      )}
+    </AuroraPanel>
+  );
+}
+
 export default function AnalyticsPage() {
   const today = new Date().toISOString().split('T')[0];
   const sevenDaysAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().split('T')[0]; })();
@@ -216,6 +376,7 @@ export default function AnalyticsPage() {
   const [error,          setError]          = useState('');
 
   const { selectedClientId } = useClient();
+  const { enabled } = useNewDesign();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -325,7 +486,9 @@ export default function AnalyticsPage() {
 
       {/* KPIs */}
       <TileGrid id="analytics-kpis" perRow={5} h={3} style={{ display:'grid', gridTemplateColumns:`repeat(${kpis.length},1fr)`, gap:14 }}>
-        {kpis.map(s => (
+        {kpis.map(s => enabled ? (
+          <AuroraStatTile key={s.l} icon={s.icon} label={s.l} value={loading ? '—' : s.v} tint={s.c} />
+        ) : (
           <div key={s.l} style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
             <div style={{ fontSize:12, color:C.gray, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={s.icon} size={14} />{s.l}</div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:28, fontWeight:800, color:s.c }}>
@@ -337,6 +500,7 @@ export default function AnalyticsPage() {
 
       {/* TFF Trend Chart */}
       <TileGrid id="analytics-tff-trend" perRow={1} h={8}>
+      {enabled ? <TffTrendAurora key="tff-trend" trends={trends} loading={loading} /> : (
       <div key="tff-trend" style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
           <div>
@@ -356,10 +520,12 @@ export default function AnalyticsPage() {
           <TffAreaChart trends={trends as unknown as { label: string; tff: number }[]} />
         )}
       </div>
+      )}
       </TileGrid>
 
       <TileGrid id="analytics-leaderboards" perRow={2} h={9} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
         {/* Top performers */}
+        {enabled ? <TopPerformersAurora key="top-performers" rows={topPerformers} loading={loading} /> : (
         <div key="top-performers" style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
           <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, marginBottom:16, display:'flex', alignItems:'center', gap:8 }}><InlineIcon icon={Trophy} size={16} style={{ color:C.gray }} />Top Performers</div>
           {loading ? (
@@ -386,8 +552,10 @@ export default function AnalyticsPage() {
             );
           })}
         </div>
+        )}
 
         {/* Zone breakdown */}
+        {enabled ? <ZonesAurora key="zone-breakdown" zones={zones} loading={loading} /> : (
         <div key="zone-breakdown" style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
           <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, marginBottom:16, display:'flex', alignItems:'center', gap:8 }}><InlineIcon icon={MapIcon} size={16} style={{ color:C.gray }} />Zone Breakdown</div>
           {loading ? (
@@ -415,6 +583,7 @@ export default function AnalyticsPage() {
             );
           })}
         </div>
+        )}
       </TileGrid>
 
       {/* ── TFF Activity Heatmap (live) ── */}
@@ -467,7 +636,11 @@ export default function AnalyticsPage() {
           accent: string,
           badge?: { label: string; color: string },
           methodology?: string
-        ) => (
+        ) => enabled ? (
+          // New design: a glass tile — tinted icon chip + status badge, the figure big, and a SOLID frosted "how this is
+          // calculated" pane (see aurora-analytics.css) instead of the see-through Classic popover.
+          <AuroraInsightCard key={title} icon={icon} title={title} value={value} sub={sub} accent={accent} badge={badge} methodology={methodology} />
+        ) : (
           <div key={title} style={{
             background:C.s1, border:`1px solid ${C.border}`, borderRadius:16,
             padding:20, display:'flex', flexDirection:'column', gap:10,
@@ -513,6 +686,12 @@ export default function AnalyticsPage() {
 
         return (
           <div>
+            {enabled ? (
+              <div style={{ marginBottom:14 }}>
+                <CardHead icon={Sparkles} tint="var(--accent)" title="Predictive Insights"
+                  sub={`KINI-computed signals from your ${trends.length}-day activity window · hover the ⓘ on any card to see how it's calculated`} />
+              </div>
+            ) : (
             <div style={{ marginBottom:14 }}>
               <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:'var(--text)', display:'flex', alignItems:'center', gap:8 }}>
                 <InlineIcon icon={Sparkles} size={16} style={{ color:C.gray }} />
@@ -522,6 +701,7 @@ export default function AnalyticsPage() {
                 KINI-computed signals from your {trends.length}-day activity window · hover the ⓘ on any card to see how it&apos;s calculated
               </div>
             </div>
+            )}
             <TileGrid id="analytics-insights" perRow={3} h={5} style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
               {insightCard(
                 momentumUp ? TrendingUp : TrendingDown,

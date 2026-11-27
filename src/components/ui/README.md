@@ -103,3 +103,9 @@ groups, the rate in the middle, a status list and a footer of facts — each fac
 with a crosshair readout, hover or ← →) and `CardHead` (the tinted-glass heading). Every recharts chart is themed from one place:
 `lib/chartTheme.tsx` plus the `recharts` rules at the bottom of `app/aurora.css` (quiet grid, muted axes, glass tooltips, ringed pie slices).
 Status colours are `--au-good / --au-warn / --au-neutral / --au-crit`.
+
+**Aurora donut** (`components/charts/AuroraDonut.tsx`): every pie / donut / ring in the New design is one `AuroraDonut` — rounded-cap arcs with
+small gaps and a glow in each slice's colour over a quiet track, the total (or the hovered slice) in Manrope numerals in the middle, and a legend
+(dot, label, caption, count, percent) where hovering a slice or a row dims the rest. At a call site wrap it, never replace the original:
+`<NewDesignSwap classic={<the original chart/>}><AuroraDonut data={[{ label, value, color? }]} /></NewDesignSwap>` — Classic keeps rendering
+exactly what it did. `max` + `inline` make a score/progress ring; `fill` fits a fixed-height widget body; `onSliceClick` makes rows buttons.

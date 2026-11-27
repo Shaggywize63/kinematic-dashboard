@@ -106,7 +106,7 @@ export function ChartCard({ title, subtitle, right, children, delay = 0, minHeig
           {right}
         </div>
       )}
-      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+      <div className="km-chart-body" style={{ flex: 1, minWidth: 0 }}>{children}</div>
     </motion.div>
   );
 }

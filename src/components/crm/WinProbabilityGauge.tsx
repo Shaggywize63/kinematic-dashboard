@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Info, Lock, Target } from 'lucide-react';
 import AiBadge from './shared/AiBadge';
+import { AuroraDonut, NewDesignSwap } from '../charts/AuroraDonut';
 import type { WinProbabilityBreakdown } from '../../types/crm';
 
 interface Props {
@@ -53,11 +54,16 @@ export default function WinProbabilityGauge({ probability, confidence, drivers, 
         )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <NewDesignSwap classic={
         <svg width="120" height="120" viewBox="0 0 120 120">
           <circle cx="60" cy="60" r={r} stroke="var(--s3)" strokeWidth="10" fill="none" />
           <circle cx="60" cy="60" r={r} stroke={color} strokeWidth="10" fill="none" strokeDasharray={`${dash} ${C}`} strokeLinecap="round" transform="rotate(-90 60 60)" />
           <text x="60" y="66" textAnchor="middle" fontSize="22" fontWeight="800" fill="var(--text)">{pct}%</text>
         </svg>
+        }>
+          <AuroraDonut inline size={120} max={100} unit="%" legend="none" ariaLabel="Win probability"
+            data={[{ label: 'Win probability', value: pct, color }]} centre={{ value: `${pct}%`, label: undefined }} />
+        </NewDesignSwap>
         <div style={{ flex: 1 }}>
           {confidence != null && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6 }}>Confidence: {Math.round(confidence * 100)}%</div>}
           {breakdown ? (

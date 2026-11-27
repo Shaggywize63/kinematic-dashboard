@@ -7,6 +7,7 @@ import {
   CHART, CHART_PALETTE, seriesColor, ChartCard, ChartTooltip,
 } from '../../../lib/chartTheme';
 import TileGrid from '../../ui/TileGrid';
+import { AuroraDonut, NewDesignSwap } from '../../charts/AuroraDonut';
 
 // Gradient id unique to THIS component's area chart. The shared chartTheme
 // grad() ids are reused by every chart, and when several charts render on one
@@ -111,23 +112,27 @@ export default function ReportCharts({ data, id }: { data: Data; id: string }) {
     }}>
       {donut && (
         <ChartCard title={donut.title} subtitle="Share of records">
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie
-                data={donut.slices} dataKey="value" nameKey="name"
-                innerRadius={52} outerRadius={82} paddingAngle={2}
-                stroke="var(--s2)" strokeWidth={2}
-                isAnimationActive animationDuration={700}
-              >
-                {donut.slices.map((_, i) => <Cell key={i} fill={seriesColor(i)} />)}
-              </Pie>
-              <Tooltip content={<ChartTooltip />} />
-              <Legend
-                verticalAlign="bottom" height={30} iconType="circle" iconSize={9}
-                formatter={(v) => <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>{v}</span>}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+          <NewDesignSwap classic={
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie
+                  data={donut.slices} dataKey="value" nameKey="name"
+                  innerRadius={52} outerRadius={82} paddingAngle={2}
+                  stroke="var(--s2)" strokeWidth={2}
+                  isAnimationActive animationDuration={700}
+                >
+                  {donut.slices.map((_, i) => <Cell key={i} fill={seriesColor(i)} />)}
+                </Pie>
+                <Tooltip content={<ChartTooltip />} />
+                <Legend
+                  verticalAlign="bottom" height={30} iconType="circle" iconSize={9}
+                  formatter={(v) => <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>{v}</span>}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          }>
+            <AuroraDonut ariaLabel={donut.title} minHeight={240} data={donut.slices.map((s, i) => ({ label: s.name, value: s.value, color: seriesColor(i) }))} />
+          </NewDesignSwap>
         </ChartCard>
       )}
 

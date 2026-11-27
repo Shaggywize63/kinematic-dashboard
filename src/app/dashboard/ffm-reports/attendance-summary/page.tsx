@@ -170,6 +170,7 @@ export default function AttendanceSummaryReport() {
         <button
           onClick={exportCsv}
           disabled={loading || rows.length === 0}
+          className="km-rbtn"
           style={{ background: 'var(--primary)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: loading || rows.length === 0 ? 'not-allowed' : 'pointer', fontSize: 13, opacity: loading || rows.length === 0 ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
           <InlineIcon icon={Download} />
@@ -196,7 +197,7 @@ export default function AttendanceSummaryReport() {
           </TileGrid>
 
           <div style={{ overflowX: 'auto', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
-            <table style={{ width: '100%', minWidth: 1100, borderCollapse: 'collapse', fontSize: 13 }}>
+            <table className="km-rt" style={{ width: '100%', minWidth: 1100, borderCollapse: 'collapse', fontSize: 13 }}>
               <thead style={{ background: 'var(--s3)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 }}>
                 <tr>
                   <Th><SortLabel label="Name" sortKey="name" sort={sort} onToggle={toggle} /></Th>
@@ -217,9 +218,9 @@ export default function AttendanceSummaryReport() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={14} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>Loading attendance…</td></tr>
+                  <tr><td colSpan={14} className="km-empty" style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>Loading attendance…</td></tr>
                 ) : sorted.length === 0 ? (
-                  <tr><td colSpan={14} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}><IconTile icon={Inbox} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />No attendance data for the selected range.</td></tr>
+                  <tr><td colSpan={14} className="km-empty" style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}><IconTile icon={Inbox} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />No attendance data for the selected range.</td></tr>
                 ) : sorted.map((r) => (
                   <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
                     <Td>{r.name}</Td>
@@ -241,7 +242,7 @@ export default function AttendanceSummaryReport() {
               </tbody>
             </table>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+          <div className="km-note" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6 }}>
             Check-in / check-out times are IST averages over the days present; hours are the stored attendance hours (else check-out minus check-in).
             &quot;Days, no check-out&quot; counts past days with a check-in but no check-out; regularised days were corrected by a manager.
             {extrasOk ? '' : ' The time and hours columns could not be loaded for this range.'}
@@ -255,7 +256,7 @@ export default function AttendanceSummaryReport() {
 function Stat({ label, value, accent, icon }: { label: string; value: number | string; accent?: string; icon?: LucideIcon }) {
   const Icon = icon ?? metricIconFor(label);
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+    <div className="km-kpi" style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, ...(accent ? { ['--tint' as string]: accent } : null) } as React.CSSProperties}>
       <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>{Icon && <InlineIcon icon={Icon} size={14} />}{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color: accent ?? 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>

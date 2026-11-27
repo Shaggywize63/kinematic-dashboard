@@ -156,7 +156,7 @@ export default function LeadAgingPage() {
             }}>{n}d</button>
           ))}
         </div>
-        <button onClick={() => downloadCsv(`lead-aging-${threshold}d`, sourceHidden || !gate.didLoad ? rows.map(({ source: _s, ...rest }) => rest) : rows)} disabled={loading || rows.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
+        <button onClick={() => downloadCsv(`lead-aging-${threshold}d`, sourceHidden || !gate.didLoad ? rows.map(({ source: _s, ...rest }) => rest) : rows)} disabled={loading || rows.length === 0} className="km-rbtn" style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
       </CrmToolbarRight>
 
       <TileGrid id="crm-reports-lead-aging-kpis" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
@@ -169,16 +169,16 @@ export default function LeadAgingPage() {
         <Kpi label="Avg days old" value={rows.length ? `${Math.round(rows.reduce((s, r) => s + r.days_old, 0) / rows.length)}d` : '—'} />
       </TileGrid>
       {truncated && (
-        <div role="status" style={{ fontSize: 12, color: '#b45309', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+        <div role="status" className="km-warn" style={{ fontSize: 12, color: '#b45309', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
           Showing the first 1,000 leads only, so this list may be partial. Narrow the city filter for a complete view.
         </div>
       )}
 
-      {loading ? <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div> : rows.length === 0 ? (
-        <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 12 }}>No open leads older than {threshold} days. Reps are on top of it.</div>
+      {loading ? <div className="km-empty" data-state="loading" style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div> : rows.length === 0 ? (
+        <div className="km-empty" style={{ color: 'var(--text-dim)', fontSize: 13, padding: 12 }}>No open leads older than {threshold} days. Reps are on top of it.</div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 780 }}>
+          <table className="km-rt" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 780 }}>
             <thead>
               <tr>
                 <th style={th}><SortLabel label="Lead" sortKey="name" sort={sort} onToggle={toggle} /></th>
@@ -195,7 +195,7 @@ export default function LeadAgingPage() {
             <tbody>
               {sorted.map((l) => (
                 <tr key={l.id}>
-                  <td style={td}><Link href={`/dashboard/crm/leads/${l.id}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>{l.name}</Link></td>
+                  <td style={td}><Link href={`/dashboard/crm/leads/${l.id}`} className="km-link" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>{l.name}</Link></td>
                   <td style={td}>{l.owner_name}</td>
                   <td style={td}><StatusBadge status={l.status} color={stageColor(l.status)} /></td>
                   <td style={tdNum}>{l.score || '—'}</td>
@@ -204,7 +204,7 @@ export default function LeadAgingPage() {
                   <td style={tdNum}>{l.created_on || '—'}</td>
                   {gate.didLoad && !sourceHidden && <td style={td}>{l.source}</td>}
                   <td style={{ ...td, textAlign: 'right' }}>
-                    <Link href={`/dashboard/crm/leads/${l.id}`} style={openBtn}>Open →</Link>
+                    <Link href={`/dashboard/crm/leads/${l.id}`} className="km-link km-link-btn" style={openBtn}>Open →</Link>
                   </td>
                 </tr>
               ))}
@@ -218,7 +218,7 @@ export default function LeadAgingPage() {
 
 function Kpi({ label, value }: { label: string; value: string | number }) {
   return (
-    <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+    <div className="km-kpi" style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{kpiIcon(label)}{label}</div>
       <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>

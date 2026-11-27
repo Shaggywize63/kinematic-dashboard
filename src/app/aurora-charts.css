@@ -1,0 +1,12 @@
+/* Aurora donut / pie charts (owned by the donut workstream).
+   Scoped to html[data-design="new"] so Classic is untouched. Tokens: see aurora.css (--a-*, --au-*). */
+
+/* ── AuroraDonut (components/charts/AuroraDonut.tsx) ─────────────────────────────────────────── */
+/* the ring eases in once on mount; each slice's glow is an inline drop-shadow in its own colour */
+html[data-design="new"] .km-ad-ring { transform-origin: 50% 50%; animation: km-ad-in .55s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes km-ad-in { from { opacity: 0; transform: rotate(-24deg) scale(.93); } }
+@media (prefers-reduced-motion: reduce) { html[data-design="new"] .km-ad-ring { animation: none; } }
+
+/* legend rows: the hover wash comes from .km-au-row (aurora.css); buttons also get a clear keyboard focus ring */
+html[data-design="new"] .km-ad-row { -webkit-tap-highlight-color: transparent; }
+html[data-design="new"] button.km-ad-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--a-ink) 60%, transparent); outline-offset: -2px; }

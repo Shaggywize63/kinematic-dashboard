@@ -1,0 +1,286 @@
+/* Aurora report tables, group headers and report chrome (owned by the reports workstream).
+   Scoped to html[data-design="new"] so Classic is untouched. Tokens: see aurora.css (--a-*, --au-*).
+
+   Class hooks (all inert in Classic — there is no rule for them outside html[data-design="new"]):
+     .km-rt        a report <table>           → glass header row, hairline rows, hover wash, tabular numerals, legible sort arrows
+     .km-num       a column of figures        → right-aligned (ReportRunner marks them)
+     .km-sticky    a sticky <th>/<td>         → SOLID frosted background so scrolled cells never show through
+     .km-total     a totals <tr>              → heavier weight + tinted top border
+     .km-band      a title band / group <th>  → glass tint from --tint (set inline), accent dot, text is ALWAYS var(--text)
+     .km-kpi       a KPI / stat tile          → Aurora glass tile: label (child 1), number (child 2), hint (child 3+); --tint = accent
+     .km-stat      a figure inside a card     → the same label / number hierarchy, without the tile
+     .km-kpi-hl      …the highlighted tile    → tinted by --tint, number stays var(--text)
+     .km-rbtn      a CSV / export button      → glass
+     .km-rwrap     a bare table wrapper       → glass pane
+     .km-empty     an empty / loading state   → intentional centred block ([data-state="loading"] pulses)
+     .km-note      a footnote under a table   → readable secondary ink
+     .km-eyebrow   an uppercase section title → ink-2 (never the mono --text-mute)
+     .km-grouphead a group row in a results list → quiet info tint, data keeps its case
+     .km-cardacc   a card with a coloured top stripe → the stripe redrawn from --tint
+     .km-warn      an amber notice banner     → legible amber text on an amber glass wash
+     .km-link      a brand-red link           → lifted toward the ink so it reads on glass (.km-link-btn = the outlined "Open →" button)
+     .km-rcard     a report-index card        → glass with a tinted icon chip (.km-lz)
+     .km-fn-bar    a funnel bar               → tint-coloured glass bar, text stays var(--text)
+     .km-rep       a Team-Daily rep card      → glass with a status tint (data-status="active|idle|inactive")
+
+   Selectors lead with `html[data-design="new"] main` and double a class where an old global rule
+   (globals.css `main table th[style*="font-size"]`, `main div[style*="text-transform: uppercase"]…`, aurora.css's
+   attribute-selector glass) would otherwise win on specificity. We never match on inline-style text that the
+   server and the browser serialise differently (rgba(…) spacing, `a:b` vs `a: b`). */
+
+html[data-design="new"] {
+  /* a pane that scrolled content can't show through (aurora.css: --a-solid is the opaque pane colour) */
+  --rp-solid: color-mix(in srgb, var(--a-solid) 94%, transparent);
+  --rp-wash: color-mix(in srgb, var(--a-ink) 5%, transparent);          /* row hover */
+  --rp-head: color-mix(in srgb, var(--a-ink) 6%, transparent);          /* quiet glass header row */
+  --rp-total: color-mix(in srgb, var(--info) 10%, transparent);         /* totals row tint */
+  --rp-total-edge: color-mix(in srgb, var(--info) 50%, transparent);
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────────────────────────── */
+html[data-design="new"] .km-rt { font-variant-numeric: tabular-nums; }
+
+/* header row: quiet glass, legible ink (never --text-mute), hairline under it */
+html[data-design="new"] main .km-rt thead,
+html[data-design="new"] main .km-rt thead tr { background: transparent !important; }
+html[data-design="new"] main .km-rt thead th {
+  background-color: var(--rp-head) !important;
+  color: var(--a-ink-2) !important;
+  font-family: var(--font-manrope) !important;
+  font-size: 11px !important; font-weight: 700 !important; letter-spacing: .06em !important; text-transform: uppercase;
+  border-bottom: 1px solid var(--a-axis) !important;
+  border-right: 0 !important;
+}
+/* sticky header cells (and a sticky first column's header): solid frosted pane with the header wash on top */
+html[data-design="new"] main .km-rt thead th.km-sticky {
+  background-color: var(--rp-solid) !important;
+  background-image: linear-gradient(var(--rp-head), var(--rp-head)) !important;
+}
+
+/* body: hairline separators, no vertical rules, hover wash */
+html[data-design="new"] main .km-rt tr { border-top-width: 0 !important; }   /* the old inline row rules → the hairline on the cells */
+html[data-design="new"] main .km-rt tbody td,
+html[data-design="new"] main .km-rt tfoot td {
+  border-bottom: 1px solid var(--a-grid) !important;
+  border-right: 0 !important;
+}
+html[data-design="new"] main .km-rt tbody tr:last-child > td { border-bottom-color: transparent !important; }
+html[data-design="new"] main .km-rt tbody tr { transition: background-color .12s ease; }
+html[data-design="new"] main .km-rt tbody tr:hover > td:not(.km-empty):not(.km-sticky) { background-color: var(--rp-wash); }
+/* a sticky body cell is solid; hover adds the wash as an image so it stays solid */
+html[data-design="new"] main .km-rt td.km-sticky { background-color: var(--rp-solid) !important; }
+html[data-design="new"] main .km-rt tbody tr:hover > td.km-sticky { background-image: linear-gradient(var(--rp-wash), var(--rp-wash)) !important; }
+
+/* numerals: one tabular face for every figure (the old inline monospace → body font, tabular) */
+html[data-design="new"] main .km-rt td[style*="monospace"],
+html[data-design="new"] main .km-rt td[style*="jetbrains"] { font-family: inherit !important; }
+
+/* a column of figures (ReportRunner marks them): right-aligned, header and cells alike */
+html[data-design="new"] main .km-rt .km-num { text-align: right !important; }
+
+/* totals: heavier, tinted, with a tinted top rule */
+html[data-design="new"] main .km-rt tr.km-total { background: transparent !important; }   /* the row's own inline fill (opaque --s1 …) must not sit under the tint */
+html[data-design="new"] main .km-rt .km-total > td,
+html[data-design="new"] main .km-rt .km-total > th {
+  font-weight: 800 !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(var(--rp-total), var(--rp-total)) !important;
+  border-top: 1px solid var(--rp-total-edge) !important;
+  border-bottom: 1px solid var(--rp-total-edge) !important;
+}
+html[data-design="new"] main .km-rt .km-total > td.km-sticky { background-color: var(--rp-solid) !important; }
+html[data-design="new"] main .km-rt .km-total:hover > td { background-color: transparent; }
+html[data-design="new"] main .km-rt tbody .km-total:hover > td.km-sticky { background-image: linear-gradient(var(--rp-total), var(--rp-total)) !important; }
+
+/* sort arrows: legible at rest, bright when active (SortLabel: <span role=button aria-sort>label<span aria-hidden>▲</span></span>) */
+html[data-design="new"] .km-rt [role="button"][aria-sort] { transition: color .12s ease; }
+html[data-design="new"] .km-rt [role="button"][aria-sort] > span[aria-hidden] { font-size: 10px !important; opacity: .7 !important; }
+html[data-design="new"] .km-rt [role="button"][aria-sort="none"]:hover { color: var(--text) !important; }
+html[data-design="new"] .km-rt [role="button"][aria-sort]:hover > span[aria-hidden] { opacity: 1 !important; }
+html[data-design="new"] .km-rt [role="button"][aria-sort="ascending"],
+html[data-design="new"] .km-rt [role="button"][aria-sort="descending"] { color: color-mix(in srgb, var(--accent, #6366F1) 62%, var(--a-ink)) !important; }
+html[data-design="new"] .km-rt [role="button"][aria-sort="ascending"] > span[aria-hidden],
+html[data-design="new"] .km-rt [role="button"][aria-sort="descending"] > span[aria-hidden] { opacity: 1 !important; }
+html[data-design="new"] .km-rt [role="button"][aria-sort]:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent, #6366F1) 60%, transparent); outline-offset: 2px; border-radius: 4px; }
+
+/* ── Title bands and group headers: a glass TINT of --tint, never a saturated fill with grey text ── */
+html[data-design="new"] main .km-band.km-band {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tint, var(--info)) 28%, transparent), color-mix(in srgb, var(--tint, var(--info)) 8%, transparent)) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--tint, var(--info)) 40%, transparent) !important;
+  color: var(--text) !important;
+  font-family: var(--font-manrope) !important; font-weight: 800 !important; letter-spacing: .08em !important; text-transform: uppercase;
+}
+html[data-design="new"] main .km-band.km-band::before {
+  content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 10px; position: relative; top: -1px;
+  background: var(--tint, var(--info)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint, var(--info)) 24%, transparent);
+}
+/* the same band as a table group header (beats `.km-rt thead th` above) */
+html[data-design="new"] main .km-rt thead th.km-band {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tint, var(--info)) 28%, transparent), color-mix(in srgb, var(--tint, var(--info)) 8%, transparent)) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--tint, var(--info)) 40%, transparent) !important;
+  border-left: 1px solid color-mix(in srgb, var(--tint, var(--info)) 22%, transparent) !important;
+  color: var(--text) !important;
+  font-size: 11.5px !important; font-weight: 800 !important; letter-spacing: .1em !important; text-align: center;
+}
+html[data-design="new"] main .km-rt thead th.km-band::before { margin-right: 8px; }
+
+/* ── KPI strips ──────────────────────────────────────────────────────────────────────────────────
+   One glass tile: label (small caps, tinted icon), number (Manrope, heavy, tabular), optional hint. --tint = the metric's colour. */
+html[data-design="new"] main .km-kpi.km-kpi {
+  background-color: var(--a-glass) !important;
+  background-image: radial-gradient(130% 150% at 0% 0%, color-mix(in srgb, var(--tint, transparent) 17%, transparent), transparent 62%) !important;
+  border: 1px solid var(--a-edge-2) !important;
+  border-radius: 16px !important;
+  box-shadow: inset 0 1px 0 var(--a-hi), var(--a-shadow);
+  min-width: 0;
+  display: flex; flex-direction: column; justify-content: center;   /* a tile on the movable board stretches: centre its label + number */
+}
+html[data-design="new"] main .km-kpi-hl.km-kpi {
+  background-image: linear-gradient(135deg, color-mix(in srgb, var(--tint, var(--primary)) 30%, transparent), color-mix(in srgb, var(--tint, var(--primary)) 9%, transparent)) !important;
+  border-color: color-mix(in srgb, var(--tint, var(--primary)) 42%, transparent) !important;
+}
+html[data-design="new"] main :is(.km-kpi, .km-stat) > :first-child {
+  display: flex !important; align-items: center; gap: 6px;
+  font-family: var(--font-manrope) !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: .06em !important;
+  text-transform: uppercase !important; color: var(--a-ink-2) !important; line-height: 1.25;
+}
+html[data-design="new"] main :is(.km-kpi, .km-stat) > :first-child svg { color: var(--tint, var(--a-ink-2)); flex-shrink: 0; }
+html[data-design="new"] main :is(.km-kpi, .km-stat)[style*="--tint"] > :first-child:not(:has(svg))::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--tint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint) 22%, transparent);
+}
+html[data-design="new"] main :is(.km-kpi, .km-stat) > :nth-child(2) {
+  font-family: var(--font-manrope) !important; font-size: 24px !important; font-weight: 800 !important; letter-spacing: -.02em !important;
+  font-variant-numeric: tabular-nums; line-height: 1.1 !important; margin-top: 8px !important; overflow-wrap: anywhere;
+}
+html[data-design="new"] main .km-kpi-hl > :nth-child(2) { color: var(--text) !important; }
+html[data-design="new"] main .km-stat > :nth-child(2) { font-size: 20px !important; margin-top: 6px !important; }   /* a figure inside a narrow card cell */
+html[data-design="new"] main :is(.km-kpi, .km-stat) > :nth-child(n+3) { color: var(--a-ink-3) !important; font-size: 11.5px !important; margin-top: 4px !important; }
+
+/* ── Buttons: a CSV / export toolbar button reads as glass ───────────────────────────────────── */
+html[data-design="new"] main .km-rbtn.km-rbtn {
+  background: color-mix(in srgb, var(--a-ink) 7%, transparent) !important;
+  border: 1px solid var(--a-axis) !important;
+  color: var(--text) !important;
+  border-radius: 10px !important;
+  box-shadow: inset 0 1px 0 var(--a-hi);
+  -webkit-backdrop-filter: blur(12px) saturate(150%); backdrop-filter: blur(12px) saturate(150%);
+  transition: background-color .12s ease, border-color .12s ease;
+}
+html[data-design="new"] main .km-rbtn.km-rbtn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--a-ink) 12%, transparent) !important;
+  border-color: color-mix(in srgb, var(--a-ink) 30%, transparent) !important;
+}
+
+/* ── Panes: a bare table wrapper, and the funnel bars ────────────────────────────────────────── */
+html[data-design="new"] main .km-rwrap.km-rwrap {
+  background: var(--a-glass) !important;
+  border: 1px solid var(--a-edge-2) !important;
+  border-radius: 16px !important;
+  box-shadow: inset 0 1px 0 var(--a-hi), var(--a-shadow);
+}
+html[data-design="new"] main .km-fn-bar {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tint) 46%, transparent), color-mix(in srgb, var(--tint) 16%, transparent)) !important;
+  border-left: 3px solid var(--tint) !important;
+  box-shadow: 0 6px 16px -10px var(--tint);
+}
+
+/* ── Empty / loading states ──────────────────────────────────────────────────────────────────── */
+html[data-design="new"] main .km-empty {
+  color: var(--a-ink-2) !important; font-size: 13px; letter-spacing: .01em; text-align: center;
+}
+html[data-design="new"] main div.km-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 36px 16px;
+  border: 1px dashed var(--a-axis); border-radius: 16px; background: color-mix(in srgb, var(--a-ink) 3%, transparent);
+}
+html[data-design="new"] main td.km-empty { padding: 36px 16px !important; border-bottom-color: transparent !important; }
+html[data-design="new"] main .km-empty[data-state="loading"] { animation: km-rpt-pulse 1.6s ease-in-out infinite; }
+@keyframes km-rpt-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { html[data-design="new"] main .km-empty[data-state="loading"] { animation: none; } }
+
+/* ── A group row inside a results list (Report Builder "City: Mumbai (12)"): a quiet tint, data keeps its case ── */
+html[data-design="new"] main .km-grouphead.km-grouphead {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--info) 16%, transparent), color-mix(in srgb, var(--info) 4%, transparent)) !important;
+  border-top: 1px solid var(--a-axis) !important; border-bottom: 1px solid color-mix(in srgb, var(--info) 28%, transparent);
+  color: var(--text) !important;
+}
+
+/* ── A card with a coloured top stripe (Campaign Insights): the glass edge rule flattens `border-top: 4px solid <colour>`,
+   so the stripe is redrawn as an inset shadow of --tint ─────────────────────────────────────────── */
+html[data-design="new"] main .km-cardacc.km-cardacc {
+  border-top-width: 1px !important;
+  box-shadow: inset 0 3px 0 var(--tint, var(--primary)), inset 0 1px 0 var(--a-hi), var(--a-shadow) !important;
+}
+/* small chips with a label and a number (their own dark `--s1` fill → a quiet glass chip) */
+html[data-design="new"] main .km-chip-stat {
+  background: color-mix(in srgb, var(--a-ink) 5%, transparent) !important; border-color: var(--a-grid) !important; border-radius: 12px !important;
+  font-variant-numeric: tabular-nums;
+}
+html[data-design="new"] main .km-chip-stat > :first-child { color: var(--a-ink-2) !important; font-size: 10px !important; letter-spacing: .06em !important; }
+
+/* ── Notices: the amber "partial data" banner (dark brown text on glass was unreadable in dark) ──── */
+html[data-design="new"] main .km-warn.km-warn {
+  color: color-mix(in srgb, var(--au-warn) 45%, var(--a-ink)) !important;
+  background: color-mix(in srgb, var(--au-warn) 14%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--au-warn) 34%, transparent);
+  border-radius: 12px !important;
+}
+
+/* ── Links: brand red on dark glass is too dim to read — lift it toward the ink, both themes ────── */
+html[data-design="new"] main a.km-link.km-link { color: color-mix(in srgb, var(--primary) 62%, var(--a-ink)) !important; }
+html[data-design="new"] main a.km-link-btn.km-link-btn {
+  border: 1px solid color-mix(in srgb, var(--primary) 50%, transparent) !important; border-radius: 8px !important;
+  background: color-mix(in srgb, var(--primary) 8%, transparent); transition: background-color .12s ease;
+}
+html[data-design="new"] main a.km-link-btn.km-link-btn:hover { background: color-mix(in srgb, var(--primary) 18%, transparent); }
+
+/* ── Section titles above a table / panel (uppercase caption): ink-2, not the mono --text-mute the global eyebrow rule forces ── */
+html[data-design="new"] main div.km-eyebrow.km-eyebrow {
+  color: var(--a-ink-2) !important; font-family: var(--font-manrope) !important;
+  font-size: 11.5px !important; font-weight: 800 !important; letter-spacing: .08em !important; text-transform: uppercase;
+}
+
+/* ── Footnotes: secondary ink, not the faint caption colour ──────────────────────────────────── */
+html[data-design="new"] main .km-note { color: var(--a-ink-2) !important; }
+
+/* ── Report index cards: glass, tinted icon chip, legible text on the highlighted ones ───────── */
+html[data-design="new"] main .km-rcard.km-rcard { border-radius: var(--a-radius) !important; }
+html[data-design="new"] main .km-rcard[data-hl="1"].km-rcard {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 24%, transparent), color-mix(in srgb, #6366F1 18%, transparent)) !important;
+  border: 1px solid color-mix(in srgb, var(--primary) 38%, transparent) !important;
+}
+html[data-design="new"] main .km-rcard .km-rcard-t { color: var(--text) !important; }
+html[data-design="new"] main .km-rcard .km-rcard-d { color: var(--a-ink-2) !important; }
+html[data-design="new"] main .km-rcard .km-rcard-t svg { color: var(--tint, var(--a-ink-2)) !important; }
+html[data-design="new"] main .km-rcard:hover { border-color: var(--border-l) !important; transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) { html[data-design="new"] main .km-rcard:hover { transform: none; } }
+
+/* ── Team Daily rep cards: saturated gradients with white text → glass with a status tint ────────
+   (the card's status picks the tint; Classic keeps its own gradient) */
+html[data-design="new"] main .km-rep { --tint: var(--au-neutral); }
+html[data-design="new"] main .km-rep[data-status="active"] { --tint: var(--au-good); }
+html[data-design="new"] main .km-rep[data-status="idle"] { --tint: var(--au-warn); }
+html[data-design="new"] main .km-rep[data-status="inactive"] { --tint: var(--au-crit); }
+html[data-design="new"] main .km-rep.km-rep {
+  background: var(--a-glass) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--a-edge-2);
+  border-radius: var(--a-radius) !important;
+  box-shadow: inset 0 1px 0 var(--a-hi), var(--a-shadow) !important;
+}
+html[data-design="new"] main .km-rep .km-rep-head {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tint) 28%, transparent), color-mix(in srgb, var(--tint) 7%, transparent));
+  border-bottom: 1px solid color-mix(in srgb, var(--tint) 38%, transparent);
+}
+html[data-design="new"] main .km-rep .km-rep-avatar {
+  background: color-mix(in srgb, var(--tint) 24%, transparent) !important; color: var(--text) !important;
+  border: 1px solid color-mix(in srgb, var(--tint) 40%, transparent);
+}
+html[data-design="new"] main .km-rep .km-rep-sub { color: var(--a-ink-2) !important; }
+html[data-design="new"] main .km-rep .km-rep-pill,
+html[data-design="new"] main .km-rep .km-rep-link {
+  background: color-mix(in srgb, var(--tint) 22%, transparent) !important; color: var(--text) !important;
+  border: 1px solid color-mix(in srgb, var(--tint) 40%, transparent);
+}
+html[data-design="new"] main .km-rep .km-rep-body { background: color-mix(in srgb, var(--a-ink) 4%, transparent) !important; }
+html[data-design="new"] main .km-rep .km-rep-row { border-top: 1px solid var(--a-grid) !important; font-variant-numeric: tabular-nums; }
+html[data-design="new"] main .km-rep .km-rep-row[data-head="1"] { color: var(--a-ink-2); background: var(--rp-head); }

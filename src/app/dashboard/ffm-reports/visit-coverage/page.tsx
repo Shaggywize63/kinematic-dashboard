@@ -121,6 +121,7 @@ export default function VisitCoverageReport() {
         <button
           onClick={exportCsv}
           disabled={!canExport}
+          className="km-rbtn"
           style={{
             background: 'var(--primary)', color: '#fff', border: 'none', padding: '8px 14px',
             borderRadius: 8, fontWeight: 700, cursor: canExport ? 'pointer' : 'not-allowed',
@@ -138,11 +139,11 @@ export default function VisitCoverageReport() {
       </div>
 
       {loading ? (
-        <div style={{ padding: 16, color: 'var(--text-dim)' }}>Loading coverage…</div>
+        <div className="km-empty" data-state="loading" style={{ padding: 16, color: 'var(--text-dim)' }}>Loading coverage…</div>
       ) : error ? (
         <div role="alert" style={{ padding: 16, color: '#ef4444' }}>{error}</div>
       ) : !data ? (
-        <div style={{ padding: 16, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 12 }}><IconTile icon={Inbox} size={40} iconSize={20} />No coverage data available yet.</div>
+        <div className="km-empty" style={{ padding: 16, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 12 }}><IconTile icon={Inbox} size={40} iconSize={20} />No coverage data available yet.</div>
       ) : (
         <>
           <TileGrid id="ffm-visit-coverage-kpis" perRow={4} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
@@ -153,12 +154,12 @@ export default function VisitCoverageReport() {
           </TileGrid>
 
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="km-eyebrow" style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <InlineIcon icon={Landmark} size={16} />
               By city
             </div>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: 13 }}>
+              <table className="km-rt" style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead style={{ background: 'var(--s3)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 }}>
                   <tr>
                     <Th><SortLabel label="City" sortKey="city" sort={city.sort} onToggle={city.toggle} /></Th>
@@ -171,7 +172,7 @@ export default function VisitCoverageReport() {
                 </thead>
                 <tbody>
                   {cityRows.length === 0 && (
-                    <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}><IconTile icon={MapPinOff} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />No planned outlets in the selected range.</td></tr>
+                    <tr><td colSpan={6} className="km-empty" style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}><IconTile icon={MapPinOff} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />No planned outlets in the selected range.</td></tr>
                   )}
                   {city.sorted.map((c) => {
                     const pct = c.universe > 0 ? Math.round((c.covered / c.universe) * 100) : 0;
@@ -198,12 +199,12 @@ export default function VisitCoverageReport() {
 
           {repRows.length > 0 && (
             <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-              <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="km-eyebrow" style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <InlineIcon icon={Users} size={16} />
                 By rep
               </div>
               <div style={{ overflowX: 'auto' }}>
-                <table data-testid="coverage-rep-table" style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: 13 }}>
+                <table data-testid="coverage-rep-table" className="km-rt" style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead style={{ background: 'var(--s3)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 }}>
                     <tr>
                       <Th><SortLabel label="Rep" sortKey="fe_name" sort={rep.sort} onToggle={rep.toggle} /></Th>
@@ -235,7 +236,7 @@ export default function VisitCoverageReport() {
             </div>
           )}
 
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+          <div className="km-note" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6 }}>
             Universe = distinct outlets on a rep&apos;s route plan in the range (up to today); covered = those with at least one visited call; gap = planned but never visited in the range.
             An outlet planned for several reps counts once in the totals and once for each rep in the by-rep table. City comes from the outlet record.
           </div>
@@ -248,7 +249,7 @@ export default function VisitCoverageReport() {
 function Stat({ label, value, accent, icon }: { label: string; value: string; accent?: string; icon?: LucideIcon }) {
   const Icon = icon ?? metricIconFor(label);
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+    <div className="km-kpi" style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, ...(accent ? { ['--tint' as string]: accent } : null) } as React.CSSProperties}>
       <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>{Icon && <InlineIcon icon={Icon} size={14} />}{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color: accent ?? 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>

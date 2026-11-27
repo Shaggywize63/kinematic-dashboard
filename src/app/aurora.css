@@ -30,8 +30,9 @@ html[data-design="new"] {
   --panel: var(--a-panel);
   --s2: var(--a-glass);
   --card: var(--a-glass);
-  --s3: rgba(255, 255, 255, .06);
-  --s4: rgba(255, 255, 255, .10);
+  /* raised surfaces are SOLID: hover pills, popovers, chips and drag handles sit over content and must hide it */
+  --s3: #151D31;
+  --s4: #1E2944;
   --field: rgba(255, 255, 255, .05);
   --border: rgba(255, 255, 255, .11);
   --border-l: rgba(255, 255, 255, .20);
@@ -54,8 +55,8 @@ html[data-design="new"][data-theme="light"] {
   --au-good: #0A9A20; --au-warn: #E8A210; --au-neutral: #8590A6; --au-crit: #D23035;
 
   --s1: #F4F6FB;
-  --s3: rgba(11, 16, 32, .05);
-  --s4: rgba(11, 16, 32, .09);
+  --s3: #EEF1F9;
+  --s4: #E1E7F3;
   --field: rgba(255, 255, 255, .72);
   --border: rgba(11, 16, 32, .09);
   --border-l: rgba(11, 16, 32, .17);
@@ -105,7 +106,7 @@ html[data-design="new"] [role="dialog"],
 html[data-design="new"] [role="menu"],
 html[data-design="new"] [role="listbox"],
 html[data-design="new"] [aria-modal="true"],
-html[data-design="new"] :is([style*="position: fixed"], [style*="position:fixed"], [style*="position: absolute"], [style*="position:absolute"], [style*="position: sticky"], [style*="position:sticky"]):is([style*="background: var(--card)"], [style*="background:var(--card)"], [style*="background: var(--s2)"], [style*="background:var(--s2)"]) {
+html[data-design="new"] :is([style*="position: fixed"], [style*="position:fixed"], [style*="position: absolute"], [style*="position:absolute"], [style*="position: sticky"], [style*="position:sticky"]):is([style*="background: var(--card)"], [style*="background:var(--card)"], [style*="background: var(--s1)"], [style*="background:var(--s1)"], [style*="background: var(--s2)"], [style*="background:var(--s2)"], [style*="background: var(--s3)"], [style*="background:var(--s3)"], [style*="background: var(--s4)"], [style*="background:var(--s4)"], [style*="background: var(--panel)"], [style*="background:var(--panel)"], [style*="background: var(--field)"], [style*="background:var(--field)"]) {
   background: color-mix(in srgb, var(--a-solid) 90%, transparent) !important;
   -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
 }

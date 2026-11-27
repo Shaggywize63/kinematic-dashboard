@@ -116,7 +116,7 @@ export default function EngineerScorecardPage() {
           <div style={{ marginBottom: 16 }}>{headerActions}</div>
 
           {loading ? (
-            <div style={{ color: T.dim, fontSize: 13, padding: 12 }}>Loading…</div>
+            <div className="km-empty" data-state="loading" style={{ color: T.dim, fontSize: 13, padding: 12 }}>Loading…</div>
           ) : notAvailable ? (
             <>
               <EmptyState
@@ -134,7 +134,7 @@ export default function EngineerScorecardPage() {
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: narrow ? 12 : 13, minWidth: 720 }}>
+              <table className="km-rt" style={{ width: '100%', borderCollapse: 'collapse', fontSize: narrow ? 12 : 13, minWidth: 720 }}>
                 <thead>
                   <tr>
                     <th style={th}>Engineer</th>
@@ -163,7 +163,7 @@ export default function EngineerScorecardPage() {
                 </tbody>
                 {totals && (
                   <tfoot>
-                    <tr data-testid="scorecard-totals" style={{ borderTop: `2px solid ${T.border}` }}>
+                    <tr data-testid="scorecard-totals" className="km-total" style={{ borderTop: `2px solid ${T.border}` }}>
                       <td style={{ ...td, fontWeight: 800 }}>Total</td>
                       <td style={tdNum}>—</td>
                       <td style={{ ...tdNum, fontWeight: 700 }}>{fmtInt(totals.leads_count)}</td>

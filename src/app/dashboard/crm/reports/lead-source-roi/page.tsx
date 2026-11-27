@@ -106,16 +106,16 @@ export default function LeadSourceRoiPage() {
             onClick={() => downloadCsv('lead-source-roi', tbl.csvRows())}
             disabled={loading || rows.length === 0}
             aria-label="Download CSV"
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            className="km-rbtn" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
           ><InlineIcon icon={Download} size={14} />CSV</button>
         </CrmToolbarRight>
       )}
       {blocked.length > 0 ? (
-        <div style={{ color: 'var(--text-dim)', padding: 20, textAlign: 'center' }}>
+        <div className="km-empty" style={{ color: 'var(--text-dim)', padding: 20, textAlign: 'center' }}>
           Hidden: an admin turned off the {sourceLabel} field in Settings, so leads cannot be grouped by it.
         </div>
-      ) : loading || !gate.didLoad ? <div style={{ color: 'var(--text-dim)' }}>Loading...</div> : rows.length === 0 ? (
-        <div style={{ color: 'var(--text-dim)', padding: 20, textAlign: 'center' }}>
+      ) : loading || !gate.didLoad ? <div className="km-empty" data-state="loading" style={{ color: 'var(--text-dim)' }}>Loading...</div> : rows.length === 0 ? (
+        <div className="km-empty" style={{ color: 'var(--text-dim)', padding: 20, textAlign: 'center' }}>
           No source data yet — leads need to be tied to a source for ROI to populate.
         </div>
       ) : (
@@ -123,7 +123,7 @@ export default function LeadSourceRoiPage() {
           <LeadSourceRoiChart data={rows} />
           <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <PlusDataTable tbl={tbl} rowKey={(r) => r.source} />
-            <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+            <div className="km-note" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
               Revenue = amount of won deals that came from the source&apos;s leads. Cost = leads × the cost per lead set on the source. ROI % = (revenue − cost) ÷ cost
               (100% when there is revenue but no cost set). Lead to deal % = deals won ÷ leads. All amounts are INR; blank means nothing to divide by.
             </div>

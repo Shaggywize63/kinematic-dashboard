@@ -133,7 +133,7 @@ export default function HoursIdleReport() {
   // view is unchanged until the user clicks another column.
   const { sorted, sort, toggle } = useTableSort<Computed>(rows, hoursVal, { key: 'utilisationPct', dir: 'asc' });
 
-  if (loading) return <div style={{ padding: 16, color: 'var(--text-dim)' }}>Loading hours…</div>;
+  if (loading) return <div className="km-empty" data-state="loading" style={{ padding: 16, color: 'var(--text-dim)' }}>Loading hours…</div>;
   if (error) return <div style={{ padding: 16, color: '#ef4444' }}>{error}</div>;
 
   const totalWorking = rows.reduce((s, r) => s + r.hours, 0);
@@ -157,6 +157,7 @@ export default function HoursIdleReport() {
         <button
           onClick={exportCsv}
           disabled={!rows.length}
+          className="km-rbtn"
           style={{
             background: 'var(--primary)', color: '#fff', border: 'none', padding: '8px 14px',
             borderRadius: 8, fontWeight: 700, cursor: rows.length ? 'pointer' : 'not-allowed',
@@ -178,7 +179,7 @@ export default function HoursIdleReport() {
       </TileGrid>
 
       <div style={{ overflowX: 'auto', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
-        <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse', fontSize: 13 }}>
+        <table className="km-rt" style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse', fontSize: 13 }}>
           <thead style={{ background: 'var(--s3)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 }}>
             <tr>
               <Th><SortLabel label="Name" sortKey="name" sort={sort} onToggle={toggle} /></Th>
@@ -219,7 +220,7 @@ export default function HoursIdleReport() {
           </tbody>
         </table>
       </div>
-      <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+      <div className="km-note" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6 }}>
         Visits, time on site and km are today&apos;s route-plan activity; time on site counts only visits with both a check-in and a check-out, so it is a floor.
         On-site share = time on site ÷ working hours. The rest of the day is travel, breaks and work that is not checked in.
       </div>
@@ -230,7 +231,7 @@ export default function HoursIdleReport() {
 function Stat({ label, value, accent, icon }: { label: string; value: number | string; accent?: string; icon?: LucideIcon }) {
   const Icon = icon ?? metricIconFor(label);
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+    <div className="km-kpi" style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, ...(accent ? { ['--tint' as string]: accent } : null) } as React.CSSProperties}>
       <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>{Icon && <InlineIcon icon={Icon} size={14} />}{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color: accent ?? 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>

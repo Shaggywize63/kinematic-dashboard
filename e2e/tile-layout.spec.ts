@@ -2,14 +2,17 @@ import { test, expect } from '@playwright/test';
 import {
   COLS,
   MAX_ROWS,
+  clearAllLayouts,
   clearLayouts,
   defaultLayout,
   defaultLayouts,
+  hasSavedLayout,
   readLayouts,
   sameLayouts,
   sanitizeLayout,
   sanitizeLayouts,
   tilesKey,
+  tilesPrefix,
   widthAt,
   withHeightDelta,
   withWidth,
@@ -21,6 +24,7 @@ import {
   registerTileBoard,
   resetAllTiles,
   resetTileEditForTests,
+  setBoardCustomized,
   setTileEditing,
   subscribeTileEdit,
 } from '../src/lib/tileEditStore';
@@ -212,7 +216,7 @@ test.describe('page-wide edit store', () => {
   test.afterEach(() => resetTileEditForTests());
 
   test('starts idle with no boards', () => {
-    expect(getTileEditSnapshot()).toEqual({ boards: 0, editing: false, resetToken: 0 });
+    expect(getTileEditSnapshot()).toEqual({ boards: 0, editing: false, resetToken: 0, customized: 0 });
   });
 
   test('editing can only start when a board is on the page', () => {
@@ -248,5 +252,95 @@ test.describe('page-wide edit store', () => {
     expect(heard).toBe(3);
     unsub();
     off();
+  });
+});
+
+
+/** A storage with the bits clearAllLayouts needs (length + key), backed by a Map. */
+function fakeStorage(initial: Record<string, string> = {}) {
+  const m = new Map<string, string>(Object.entries(initial));
+  return {
+    get length() { return m.size; },
+    key: (i: number) => Array.from(m.keys())[i] ?? null,
+    getItem: (k: string) => (m.has(k) ? (m.get(k) as string) : null),
+    setItem: (k: string, v: string) => { m.set(k, String(v)); },
+    removeItem: (k: string) => { m.delete(k); },
+    keys: () => Array.from(m.keys()),
+  };
+}
+
+test.describe('reset to default', () => {
+  const tiles: TileSpec[] = [{ key: 'a', w: 10, h: 3 }, { key: 'b', w: 10, h: 3 }];
+
+  test('hasSavedLayout is false until a layout is saved, true after, false again once cleared', () => {
+    const st = fakeStorage();
+    expect(hasSavedLayout('u1', 'home', st)).toBe(false);
+    writeLayouts('u1', 'home', defaultLayouts(tiles), st);
+    expect(hasSavedLayout('u1', 'home', st)).toBe(true);
+    clearLayouts('u1', 'home', st);
+    expect(hasSavedLayout('u1', 'home', st)).toBe(false);
+  });
+
+  test('hasSavedLayout never throws on broken storage', () => {
+    const broken = { getItem() { throw new Error('blocked'); }, setItem() {}, removeItem() {} };
+    expect(hasSavedLayout('u1', 'home', broken)).toBe(false);
+    expect(hasSavedLayout('u1', 'home', null)).toBe(false);
+  });
+
+  test('clearAllLayouts forgets every board of THIS user and nothing else', () => {
+    const st = fakeStorage({ 'unrelated': 'x', 'km_new_design:demo@kinematic.com': '1' });
+    writeLayouts('u1', 'home-kpis', defaultLayouts(tiles), st);
+    writeLayouts('u1', 'crm-dashboard-stats', defaultLayouts(tiles), st);
+    writeLayouts('u2', 'home-kpis', defaultLayouts(tiles), st);        // another person on the same browser
+    writeLayouts(null, 'home-kpis', defaultLayouts(tiles), st);        // an anonymous session
+    expect(clearAllLayouts('u1', st)).toBe(2);
+    expect(hasSavedLayout('u1', 'home-kpis', st)).toBe(false);
+    expect(hasSavedLayout('u1', 'crm-dashboard-stats', st)).toBe(false);
+    expect(hasSavedLayout('u2', 'home-kpis', st)).toBe(true);          // untouched
+    expect(hasSavedLayout(null, 'home-kpis', st)).toBe(true);
+    expect(st.getItem('unrelated')).toBe('x');
+    expect(st.getItem('km_new_design:demo@kinematic.com')).toBe('1');
+  });
+
+  test('a user id that is a prefix of another does not wipe the other (the prefix ends with the separator)', () => {
+    const st = fakeStorage();
+    writeLayouts('u1', 'home', defaultLayouts(tiles), st);
+    writeLayouts('u10', 'home', defaultLayouts(tiles), st);
+    expect(clearAllLayouts('u1', st)).toBe(1);
+    expect(hasSavedLayout('u10', 'home', st)).toBe(true);
+    expect(tilesPrefix('u1')).toBe('km_tiles:u1:');
+  });
+
+  test('clearAllLayouts returns 0 for missing or blocked storage', () => {
+    expect(clearAllLayouts('u1', null)).toBe(0);
+    const broken = { length: 1, key() { throw new Error('blocked'); }, getItem: () => null, setItem() {}, removeItem() {} };
+    expect(clearAllLayouts('u1', broken)).toBe(0);
+  });
+});
+
+test.describe('customised boards in the edit store', () => {
+  test.beforeEach(() => resetTileEditForTests());
+
+  test('counts boards that report a saved layout, and forgets them when they leave', () => {
+    expect(getTileEditSnapshot().customized).toBe(0);
+    setBoardCustomized('home-kpis', true);
+    setBoardCustomized('home-panels', true);
+    expect(getTileEditSnapshot().customized).toBe(2);
+    setBoardCustomized('home-kpis', true);                              // reporting twice does not double count
+    expect(getTileEditSnapshot().customized).toBe(2);
+    setBoardCustomized('home-kpis', false);
+    expect(getTileEditSnapshot().customized).toBe(1);
+    setBoardCustomized('home-panels', false);
+    expect(getTileEditSnapshot().customized).toBe(0);
+  });
+
+  test('notifies subscribers when the count changes', () => {
+    let n = 0;
+    const off = subscribeTileEdit(() => { n++; });
+    setBoardCustomized('x', true);
+    setBoardCustomized('x', true);                                       // no change: no notification
+    setBoardCustomized('x', false);
+    off();
+    expect(n).toBe(2);
   });
 });

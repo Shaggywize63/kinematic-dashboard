@@ -1076,3 +1076,14 @@ html[data-design="new"] [data-active="true"] .kicon path[fill-opacity] { fill: v
 .km-tileboard .react-grid-item:hover .km-tile-grip, .km-tile-grip:focus-visible { opacity: 1; pointer-events: auto; }
 .km-tile-grip:hover { background: var(--s3); border-color: var(--red); }
 @media (hover: none) { .km-tile-grip { display: none; } }
+
+/* Reorderable detail panels (components/crm/shared/ReorderablePanels): a panel that renders nothing leaves no slot and no
+   orphan drag handle; the handle is quiet until the panel is hovered or focused (always on for touch). */
+.km-sp:has(> .km-sp-body:empty) { display: none; }
+.km-sp-grip { opacity: .55; transition: opacity .12s ease; }
+.km-sp:hover > .km-sp-grip, .km-sp-grip:focus-visible, .km-sp-grip:active { opacity: 1; }
+
+/* Movable tiles: a chart card made taller gives its chart the extra room instead of leaving it blank. */
+.km-tileboard .km-tile-cell > * { min-height: 0; }
+.km-tileboard .km-chart-body { display: flex; flex-direction: column; min-height: 0; }
+.km-tileboard .km-chart-body > .recharts-responsive-container { flex: 1 1 auto; height: auto !important; min-height: 160px; }

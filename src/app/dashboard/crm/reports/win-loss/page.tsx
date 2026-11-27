@@ -99,16 +99,16 @@ export default function WinLossReportPage() {
           onClick={() => downloadCsv(`win-rate-by-${by}`, columnsToCsvRows(columns, exportRows))}
           disabled={loading || data.length === 0}
           aria-label="Download CSV"
-          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, height: 36, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          className="km-rbtn" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, height: 36, display: 'inline-flex', alignItems: 'center', gap: 6 }}
         ><InlineIcon icon={Download} size={14} />CSV</button>
       </CrmToolbarRight>
-      {loading ? <div style={{ color: 'var(--text-dim)' }}>Loading...</div> : (
+      {loading ? <div className="km-empty" data-state="loading" style={{ color: 'var(--text-dim)' }}>Loading...</div> : (
         <>
           <WinRateByRepChart data={data} />
           {data.length > 0 && (
             <>
               <div style={{ overflowX: 'auto', marginTop: 14 }}>
-                <table data-testid="winloss-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 480 }}>
+                <table data-testid="winloss-table" className="km-rt" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 480 }}>
                   <thead>
                     <tr>{columns.map((c, i) => (
                       <th key={c.label} style={{ ...th, textAlign: c.numeric ? 'right' : 'left' }}>
@@ -121,12 +121,12 @@ export default function WinLossReportPage() {
                   </tbody>
                   {totals && (
                     <tfoot>
-                      <tr data-testid="winloss-totals">{columns.map((c) => <td key={c.label} style={{ ...td, fontWeight: 700, background: 'var(--s3)', textAlign: c.numeric ? 'right' : 'left' }}>{cellText(c, totals)}</td>)}</tr>
+                      <tr data-testid="winloss-totals" className="km-total">{columns.map((c) => <td key={c.label} style={{ ...td, fontWeight: 700, background: 'var(--s3)', textAlign: c.numeric ? 'right' : 'left' }}>{cellText(c, totals)}</td>)}</tr>
                     </tfoot>
                   )}
                 </table>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.5 }}>
+              <div className="km-note" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.5 }}>
                 Win rate % = won ÷ (won + lost); open deals are not in the rate. Win rate by value % = won value ÷ (won + lost value). Values are deal amounts in INR.
                 {by === 'source' && ' By source counts leads: a lead that is not converted counts as lost.'}
               </div>

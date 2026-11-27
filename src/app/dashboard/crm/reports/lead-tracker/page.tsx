@@ -8,12 +8,14 @@ import { useReportCityKey } from '../../../../../components/crm/reports/ReportFi
 import { useLeadFieldGate } from '../../../../../lib/crm/useLeadFieldGate';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { fmtChange, changeTone, monthLabel } from '../../../../../lib/crm/plusFormat';
-import { Download } from 'lucide-react';
+import { BarChart3, CalendarDays, CalendarRange, Download, Hourglass, Layers, MapPin, Share2, type LucideIcon } from 'lucide-react';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 import TileGrid from '../../../../../components/ui/TileGrid';
+import { CardHead } from '../../../../../components/charts/AuroraCharts';
+import { useNewDesign } from '../../../../../lib/useNewDesign';
 
 const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
@@ -95,7 +97,7 @@ export default function LeadTrackerPage() {
 
       {/* Monthly bar chart */}
       <Card>
-        <SectionLabel accent="#1e88e5">Monthly new-lead volume</SectionLabel>
+        <SectionLabel accent="#1e88e5" icon={BarChart3}>Monthly new-lead volume</SectionLabel>
         {loading && !data ? <Empty>Loading…</Empty>
           : !data || data.monthly.length === 0 ? <Empty>No leads added in the selected window.</Empty>
           : <BarChart data={data.monthly} formatTick={fmtMonthShort} />}
@@ -105,12 +107,12 @@ export default function LeadTrackerPage() {
       {/* Weekly + Daily */}
       <TileGrid id="crm-reports-lead-tracker-trends" perRow={2} h={4} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
         <Card key="Last 12 weeks">
-          <SectionLabel accent="#7cb342">Last 12 weeks</SectionLabel>
+          <SectionLabel accent="#7cb342" icon={CalendarRange}>Last 12 weeks</SectionLabel>
           {!data || data.weekly.length === 0 ? <Empty>—</Empty>
             : <Sparkline data={data.weekly} accent="#7cb342" />}
         </Card>
         <Card key="Last 30 days">
-          <SectionLabel accent="#26a69a">Last 30 days</SectionLabel>
+          <SectionLabel accent="#26a69a" icon={CalendarDays}>Last 30 days</SectionLabel>
           {!data || data.daily.length === 0 ? <Empty>—</Empty>
             : <Sparkline data={data.daily} accent="#26a69a" />}
         </Card>
@@ -119,12 +121,12 @@ export default function LeadTrackerPage() {
       {/* Status mix + ageing distribution */}
       <TileGrid id="crm-reports-lead-tracker-mix" perRow={2} h={7} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
         <Card key="Lead status mix">
-          <SectionLabel accent="#A855F7">Lead status mix</SectionLabel>
+          <SectionLabel accent="#A855F7" icon={Layers}>Lead status mix</SectionLabel>
           {!data ? <Empty>—</Empty>
             : <StatusBars status={data.status_breakdown} stages={stages} />}
         </Card>
         <Card key="Open lead ageing">
-          <SectionLabel accent="#EF4444">Open lead ageing</SectionLabel>
+          <SectionLabel accent="#EF4444" icon={Hourglass}>Open lead ageing</SectionLabel>
           {!data ? <Empty>—</Empty>
             : <BucketBars buckets={data.ageing_distribution} />}
         </Card>
@@ -135,14 +137,14 @@ export default function LeadTrackerPage() {
         {/* Source and City are built-in lead fields: wait for the admin's settings, and drop the card when hidden. */}
         {gate.didLoad && !sourceHidden && (
           <Card key="Top sources">
-            <SectionLabel accent="#3E9EFF">Top sources</SectionLabel>
+            <SectionLabel accent="#3E9EFF" icon={Share2}>Top sources</SectionLabel>
             {!data || data.source_breakdown.length === 0 ? <Empty>—</Empty>
               : <RankedList items={data.source_breakdown} detail={data.source_detail} />}
           </Card>
         )}
         {gate.didLoad && !cityHidden && (
           <Card key="Top cities">
-            <SectionLabel accent="#F59E0B">Top cities</SectionLabel>
+            <SectionLabel accent="#F59E0B" icon={MapPin}>Top cities</SectionLabel>
             {!data || data.city_breakdown.length === 0 ? <Empty>—</Empty>
               : <RankedList items={data.city_breakdown} />}
           </Card>
@@ -164,7 +166,7 @@ function Header({ months, onChange, canExport, onExport }: { months: number; onC
           {[3, 6, 12, 24].map((n) => <option key={n} value={n}>Last {n} months</option>)}
         </select>
       </label>
-      <button onClick={onExport} disabled={!canExport} aria-label="Download CSV"
+      <button onClick={onExport} disabled={!canExport} aria-label="Download CSV" className="km-rbtn"
         style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} size={14} />CSV</button>
     </CrmToolbarRight>
   );
@@ -180,7 +182,8 @@ function PeriodCard({ data, prev, accent, loading }: {
 }) {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-      <div style={{ background: accent, color: '#fff', padding: '10px 16px', fontWeight: 800, letterSpacing: 0.4, fontSize: 14 }}>
+      {/* Classic: a solid accent band with white text. New design: .km-band = a glass tint of --tint with var(--text). */}
+      <div className="km-band" style={{ background: accent, color: '#fff', padding: '10px 16px', fontWeight: 800, letterSpacing: 0.4, fontSize: 14, ['--tint' as string]: accent } as React.CSSProperties}>
         {data ? `${data.label} · ${fmtRange(data.from, data.to)}` : '—'}
       </div>
       <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
@@ -200,7 +203,7 @@ function PeriodCard({ data, prev, accent, loading }: {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="km-stat">
       <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{kpiIcon(label)}{label}</div>
       <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>
@@ -344,7 +347,7 @@ function MonthlyTable({ rows }: { rows: Array<{ key: string; new_leads: number; 
   return (
     <div style={{ marginTop: 12 }}>
       <div style={{ overflowX: 'auto' }}>
-        <table data-testid="monthly-detail" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 360 }}>
+        <table data-testid="monthly-detail" className="km-rt" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 360 }}>
           <thead><tr><th style={{ ...th, textAlign: 'left' }}>Month</th><th style={th}>New leads</th><th style={th}>Converted so far</th><th style={th}>Conversion %</th></tr></thead>
           <tbody>
             {rows.map((r) => (
@@ -356,7 +359,7 @@ function MonthlyTable({ rows }: { rows: Array<{ key: string; new_leads: number; 
           </tbody>
         </table>
       </div>
-      <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 6 }}>Converted so far = leads created that month that are Converted now, so recent months are still maturing.</div>
+      <div className="km-note" style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 6 }}>Converted so far = leads created that month that are Converted now, so recent months are still maturing.</div>
     </div>
   );
 }
@@ -391,7 +394,12 @@ function trackerCsv(d: TrackerPlus, hideCities: boolean, hideSources: boolean): 
 function Card({ children }: { children: React.ReactNode }) {
   return <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 18 }}>{children}</div>;
 }
-function SectionLabel({ children, accent }: { children: React.ReactNode; accent: string }) {
+function SectionLabel({ children, accent, icon }: { children: React.ReactNode; accent: string; icon?: LucideIcon }) {
+  const { enabled } = useNewDesign();
+  // New design: the Aurora card heading (tinted glass icon chip + title). Classic keeps the accent bar.
+  if (enabled && typeof children === 'string') {
+    return <div style={{ marginBottom: 14 }}><CardHead tint={accent} icon={icon ?? BarChart3} title={children} /></div>;
+  }
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
       <span style={{ width: 4, height: 16, background: accent, borderRadius: 2 }} />
@@ -400,7 +408,7 @@ function SectionLabel({ children, accent }: { children: React.ReactNode; accent:
   );
 }
 function Empty({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 13, color: 'var(--text-dim)', padding: '24px 0', textAlign: 'center' }}>{children}</div>;
+  return <div className="km-empty" data-state={children === 'Loading…' ? 'loading' : undefined} style={{ fontSize: 13, color: 'var(--text-dim)', padding: '24px 0', textAlign: 'center' }}>{children}</div>;
 }
 
 // ── Formatters ─────────────────────────────────────────────────────

@@ -60,10 +60,10 @@ export default function CampaignInsightsPage() {
       </CrmToolbarRight>
 
       {loading && campaigns.length === 0 && (
-        <div style={{ color: 'var(--text-dim)', padding: 24, textAlign: 'center' }}>Loading…</div>
+        <div className="km-empty" data-state="loading" style={{ color: 'var(--text-dim)', padding: 24, textAlign: 'center' }}>Loading…</div>
       )}
       {!loading && campaigns.every((c) => c.calls === 0 && c.leads === 0) && (
-        <div style={{ color: 'var(--text-dim)', padding: 24, textAlign: 'center' }}>No campaign activity for the selected window.</div>
+        <div className="km-empty" style={{ color: 'var(--text-dim)', padding: 24, textAlign: 'center' }}>No campaign activity for the selected window.</div>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
@@ -77,7 +77,7 @@ function CampaignCard({ c }: { c: CampaignBlock }) {
   const accent = CAMPAIGN_ACCENT[c.campaign] ?? 'var(--primary)';
   const connectPct = `${(c.connect_rate * 100).toFixed(0)}%`;
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderTop: `4px solid ${accent}`, borderRadius: 12, overflow: 'hidden' }}>
+    <div className="km-cardacc" style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderTop: `4px solid ${accent}`, borderRadius: 12, overflow: 'hidden', ['--tint' as string]: accent } as React.CSSProperties}>
       <div style={{ padding: '14px 18px' }}>
         <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{c.campaign}</div>
         {/* headline chips */}
@@ -106,7 +106,7 @@ function CampaignCard({ c }: { c: CampaignBlock }) {
       {/* lead queue by status */}
       {c.status_breakdown.length > 0 && (
         <div style={{ borderTop: '1px solid var(--border)', padding: '12px 18px' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>Lead queue by status</div>
+          <div className="km-eyebrow" style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>Lead queue by status</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {c.status_breakdown.map((s) => (
               <span key={s.label} style={{ fontSize: 12, background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 999, padding: '3px 10px', color: 'var(--text)' }}>
@@ -122,7 +122,7 @@ function CampaignCard({ c }: { c: CampaignBlock }) {
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 10, padding: '6px 12px', minWidth: 72 }}>
+    <div className="km-chip-stat" style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 10, padding: '6px 12px', minWidth: 72 }}>
       <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 800, color: tone ?? 'var(--text)', marginTop: 2 }}>{value}</div>
     </div>

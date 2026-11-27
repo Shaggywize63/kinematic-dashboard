@@ -28,6 +28,7 @@ import { Radar, Swords, TrendingDown } from 'lucide-react';
 import { IconTile } from '../../../../components/ui/PageIcon';
 import { usePageTitle } from '../../../../lib/pageTitle';
 import TileGrid from '../../../../components/ui/TileGrid';
+import { AuroraDonut, NewDesignSwap } from '../../../../components/charts/AuroraDonut';
 
 const BRAND = CHART_SEMANTIC.lost;
 const WIN = CHART_SEMANTIC.won;
@@ -176,6 +177,7 @@ export default function MarketIntelligencePage() {
 
             <Card title="Signal mix" subtitle="What the field is telling us">
               {pieData.length ? (
+              <NewDesignSwap classic={
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={92} paddingAngle={3} stroke="var(--s2)" strokeWidth={2} {...CHART.animation}>
@@ -185,6 +187,10 @@ export default function MarketIntelligencePage() {
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
+              }>
+                <AuroraDonut ariaLabel="Signal mix" minHeight={280} centre={{ label: 'signals' }}
+                  data={pieData.map((p, i) => ({ label: p.name, value: p.value, color: PIE_COLORS[i % PIE_COLORS.length] }))} />
+              </NewDesignSwap>
               ) : <ChartEmpty message="No signal-mix data yet" />}
             </Card>
 

@@ -7,10 +7,13 @@ import { crmDeals, crmLeads, crmTargets } from '../../../../../../lib/crmApi';
 import api from '../../../../../../lib/api';
 import type { Deal, Lead, SalespersonDetail } from '../../../../../../types/crm';
 import { useReportCityKey } from '../../../../../../components/crm/reports/ReportFilters';
-import { BarChart3, Building2, CalendarDays, CalendarRange, Target, Trophy, UserPlus } from 'lucide-react';
+import { BarChart3, Building2, CalendarDays, CalendarRange, Target, Trophy, UserPlus, type LucideIcon } from 'lucide-react';
 import { PageIcon, InlineIcon } from '../../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../../lib/labelIcons';
 import TileGrid from '../../../../../../components/ui/TileGrid';
+import { CardHead } from '../../../../../../components/charts/AuroraCharts';
+import { useNewDesign } from '../../../../../../lib/useNewDesign';
+import { tintFor } from '../../../../../../components/crm/reports/reportTints';
 
 // Per-salesperson drill-down. Management clicks a rep on the Rep Leaderboard /
 // Team Performance and lands here:
@@ -145,7 +148,7 @@ export default function SalespersonPage() {
 
       {/* Sales summary — won deals */}
       <section style={card}>
-        <h3 style={h3}><InlineIcon icon={Trophy} size={16} style={{ color: 'var(--text-dim)' }} />Sales (won deals)</h3>
+        <Sec icon={Trophy} tint="#10B981" title="Sales (won deals)" />
         {loading && !summary ? <Muted>Loading…</Muted> : (
           <TileGrid id="crm-reports-salesperson-sales" perRow={5} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
             <Kpi label="Revenue" value={inr(summary?.revenue || 0)} strong />
@@ -161,7 +164,7 @@ export default function SalespersonPage() {
       <section style={card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <h3 style={{ ...h3, marginBottom: 0 }}><InlineIcon icon={Target} size={16} style={{ color: 'var(--text-dim)' }} />Monthly sales target</h3>
+            <Sec icon={Target} tint="#3E9EFF" title="Monthly sales target" flush />
             {d && <BasisBadge basis={d.basis} />}
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-dim)', fontSize: 12 }}>
@@ -198,10 +201,10 @@ export default function SalespersonPage() {
         <>
           {/* Customer-wise orders contributing this month */}
           <section style={card}>
-            <h3 style={h3}><InlineIcon icon={Building2} size={16} style={{ color: 'var(--text-dim)' }} />Customers this month ({d.customers.length})</h3>
+            <Sec icon={Building2} tint="#A855F7" title={`Customers this month (${d.customers.length})`} />
             {d.customers.length === 0 ? <Muted>No sales recorded in this month.</Muted> : (
               <div style={{ overflowX: 'auto' }}>
-                <table style={tableStyle}>
+                <table className="km-rt" style={tableStyle}>
                   <thead>
                     <tr>
                       <th style={th}>Customer</th>
@@ -228,7 +231,7 @@ export default function SalespersonPage() {
           {/* Daily & weekly progress */}
           <TileGrid id="crm-reports-salesperson-progress" perRow={2} h={10} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
             <section key="Daily progress" style={card}>
-              <h3 style={h3}><InlineIcon icon={CalendarDays} size={16} style={{ color: 'var(--text-dim)' }} />Daily progress</h3>
+              <Sec icon={CalendarDays} tint="#06B6D4" title="Daily progress" />
               <ProgressList
                 rows={d.daily.map((x) => ({ key: x.date, label: fmtDay(x.date), value: x.value, count: x.count }))}
                 countLabel={countLabel}
@@ -236,7 +239,7 @@ export default function SalespersonPage() {
               />
             </section>
             <section key="Weekly progress" style={card}>
-              <h3 style={h3}><InlineIcon icon={CalendarRange} size={16} style={{ color: 'var(--text-dim)' }} />Weekly progress</h3>
+              <Sec icon={CalendarRange} tint="#14B8A6" title="Weekly progress" />
               <ProgressList
                 rows={d.weekly.map((x) => ({ key: x.week_start, label: `Week of ${fmtDay(x.week_start)}`, value: x.value, count: x.count }))}
                 countLabel={countLabel}
@@ -247,9 +250,9 @@ export default function SalespersonPage() {
 
           {/* Historical target vs achieved — last 6 months */}
           <section style={card}>
-            <h3 style={h3}><InlineIcon icon={BarChart3} size={16} style={{ color: 'var(--text-dim)' }} />Target vs achieved — last 6 months</h3>
+            <Sec icon={BarChart3} tint="#F59E0B" title="Target vs achieved — last 6 months" />
             <div style={{ overflowX: 'auto' }}>
-              <table style={tableStyle}>
+              <table className="km-rt" style={tableStyle}>
                 <thead>
                   <tr>
                     <th style={th}>Month</th>
@@ -279,7 +282,7 @@ export default function SalespersonPage() {
       {/* Leads assigned to this salesperson */}
       <section style={card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-          <h3 style={{ ...h3, marginBottom: 0 }}><InlineIcon icon={UserPlus} size={16} style={{ color: 'var(--text-dim)' }} />Leads ({shownLeads.length})</h3>
+          <Sec icon={UserPlus} tint="#EC4899" title={`Leads (${shownLeads.length})`} flush />
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={sel}>
             <option value="">All statuses</option>
             {leadStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -289,7 +292,7 @@ export default function SalespersonPage() {
           : shownLeads.length === 0 ? <Muted>No leads assigned.</Muted>
           : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={tableStyle}>
+              <table className="km-rt" style={tableStyle}>
                 <thead>
                   <tr>
                     <th style={th}>Lead</th>
@@ -324,9 +327,16 @@ export default function SalespersonPage() {
   );
 }
 
+/** A section title: the Aurora card heading in the New design, the plain icon + h3 in Classic. */
+function Sec({ icon, tint, title, flush }: { icon: LucideIcon; tint: string; title: string; flush?: boolean }) {
+  const { enabled } = useNewDesign();
+  if (enabled) return <div style={{ marginBottom: flush ? 0 : 14 }}><CardHead tint={tint} icon={icon} title={title} /></div>;
+  return <h3 style={flush ? { ...h3, marginBottom: 0 } : h3}><InlineIcon icon={icon} size={16} style={{ color: 'var(--text-dim)' }} />{title}</h3>;
+}
+
 function Kpi({ label, value, strong }: { label: string; value: string | number; strong?: boolean }) {
   return (
-    <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+    <div className="km-kpi" style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, ['--tint' as string]: strong ? '#10B981' : tintFor(label) } as React.CSSProperties}>
       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{(() => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; })()}{label}</div>
       <div style={{ fontSize: strong ? 20 : 18, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>
@@ -384,7 +394,7 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function Muted({ children }: { children: React.ReactNode }) {
-  return <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 8 }}>{children}</div>;
+  return <div className="km-empty" data-state={typeof children === 'string' && children.startsWith('Loading') ? 'loading' : undefined} style={{ color: 'var(--text-dim)', fontSize: 13, padding: 8 }}>{children}</div>;
 }
 
 function fmtDate(s?: string | null): string {

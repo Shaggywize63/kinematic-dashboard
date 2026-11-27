@@ -23,6 +23,7 @@ import { conversationsApi, type ConversationAnalytics } from '../../../lib/conve
 import type { LucideIcon } from 'lucide-react';
 import { AlertTriangle, Percent, Phone, Target, UserPlus, Users } from 'lucide-react';
 import { InlineIcon } from '../../ui/PageIcon';
+import { AuroraDonut, NewDesignSwap } from '../../charts/AuroraDonut';
 import TileGrid from '../../ui/TileGrid';
 
 // Single-hue accents for magnitude (identity is on the axis, so no palette cycle).
@@ -167,19 +168,24 @@ export default function ConversationAnalyticsView({ championId, city, compact }:
         {/* Sentiment — polarity (status trio, legend + labels) */}
         <ChartCard title="Call sentiment" subtitle="Overall tone across analyzed calls" minHeight={260}>
           {sentimentData.length === 0 ? <ChartEmpty /> : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={sentimentData} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                  innerRadius={54} outerRadius={82} paddingAngle={2} stroke="var(--s2)" strokeWidth={2}
-                  label={(p: any) => `${p.value}`} labelLine={false} {...CHART.animation}
-                >
-                  {sentimentData.map((s) => <Cell key={s.key} fill={SENTIMENT_COLOR[s.key] || WARN} />)}
-                </Pie>
-                <Tooltip content={<ChartTooltip />} />
-                <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <NewDesignSwap classic={
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={sentimentData} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    innerRadius={54} outerRadius={82} paddingAngle={2} stroke="var(--s2)" strokeWidth={2}
+                    label={(p: any) => `${p.value}`} labelLine={false} {...CHART.animation}
+                  >
+                    {sentimentData.map((s) => <Cell key={s.key} fill={SENTIMENT_COLOR[s.key] || WARN} />)}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip />} />
+                  <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            }>
+              <AuroraDonut ariaLabel="Call sentiment" centre={{ label: 'calls' }}
+                data={sentimentData.map((s) => ({ label: s.name, value: s.value, color: SENTIMENT_COLOR[s.key] || WARN }))} />
+            </NewDesignSwap>
           )}
         </ChartCard>
 

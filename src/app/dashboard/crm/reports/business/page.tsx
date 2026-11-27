@@ -74,7 +74,7 @@ export default function BusinessReportPage() {
   // static prerendering. The default export wraps the real component so the
   // build stays static-friendly (mirrors the Deals list page).
   return (
-    <Suspense fallback={<div style={{ color: T.dim, fontSize: 13, padding: 12 }}>Loading…</div>}>
+    <Suspense fallback={<div className="km-empty" data-state="loading" style={{ color: T.dim, fontSize: 13, padding: 12 }}>Loading…</div>}>
       <BusinessReportInner />
     </Suspense>
   );
@@ -183,7 +183,7 @@ function BusinessReportInner() {
           <div style={{ marginBottom: 16 }}>{controls}</div>
 
           {fanOut && (
-            <div data-testid="business-fanout-note" style={{
+            <div data-testid="business-fanout-note" className="km-note" style={{
               fontSize: 12.5, color: T.dim, background: 'var(--s3)', border: `1px solid ${T.border}`,
               borderRadius: 8, padding: '8px 12px', marginBottom: 14,
             }}>
@@ -193,7 +193,7 @@ function BusinessReportInner() {
           )}
 
           {loading ? (
-            <div style={{ color: T.dim, fontSize: 13, padding: 12 }}>Loading…</div>
+            <div className="km-empty" data-state="loading" style={{ color: T.dim, fontSize: 13, padding: 12 }}>Loading…</div>
           ) : notAvailable ? (
             <>
               <EmptyState
@@ -211,7 +211,7 @@ function BusinessReportInner() {
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: narrow ? 12 : 13, minWidth: 760 }}>
+              <table className="km-rt" style={{ width: '100%', borderCollapse: 'collapse', fontSize: narrow ? 12 : 13, minWidth: 760 }}>
                 <thead>
                   <tr>
                     <th style={th}>{groupHeading}</th>
@@ -240,7 +240,7 @@ function BusinessReportInner() {
                 </tbody>
                 {totals && (
                   <tfoot>
-                    <tr data-testid="business-totals" style={{ borderTop: `2px solid ${T.border}` }}>
+                    <tr data-testid="business-totals" className="km-total" style={{ borderTop: `2px solid ${T.border}` }}>
                       <td style={{ ...td, fontWeight: 800 }}>Total</td>
                       <td style={{ ...tdNum, fontWeight: 700 }}>{fmtInt(totals.leads_count)}</td>
                       <td style={{ ...tdNum, fontWeight: 700 }}>{fmtInt(totals.orders_won)}</td>

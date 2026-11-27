@@ -9,6 +9,7 @@ import { isConsumerChampion, canDownloadSrsReport, canViewFieldVisits, canViewTe
 import { isB2bClientActive } from '../../../../lib/b2bClient';
 import { Badge, Eyebrow, T } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
+import { tintFor } from '../../../../components/crm/reports/reportTints';
 
 type ReportEntry = {
   href: string;
@@ -140,25 +141,29 @@ export default function ReportsIndex() {
 }
 
 function ReportCard({ entry, title }: { entry: ReportEntry; title: string }) {
+  // New design: .km-rcard / .km-lz turn the card into glass with a tinted icon chip (aurora-reports.css, aurora.css); Classic is unchanged.
+  const tint = entry.highlight ? 'var(--red)' : tintFor(entry.href);
   return (
     <Link
       href={entry.href}
-      className="km-clickable"
+      className="km-clickable km-rcard"
+      data-hl={entry.highlight ? '1' : undefined}
       style={{
         background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16,
         textDecoration: 'none', display: 'flex', gap: 12, alignItems: 'flex-start', color: 'inherit',
-      }}
+        ['--tint' as string]: tint,
+      } as React.CSSProperties}
     >
-      <span aria-hidden style={{
+      <span aria-hidden className="km-lz" style={{
         width: 36, height: 36, borderRadius: 8, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         background: entry.highlight ? T.redWash : 'var(--s3)', color: entry.highlight ? T.red : T.dim,
       }}>{entry.icon}</span>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{title}</span>
+          <span className="km-rcard-t" style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{title}</span>
           {entry.srsOnly && <Badge tone="info">CSV</Badge>}
         </div>
-        <div style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.45 }}>{entry.desc}</div>
+        <div className="km-rcard-d" style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.45 }}>{entry.desc}</div>
       </div>
       <ChevronRight size={16} strokeWidth={1.6} style={{ color: T.mute, flexShrink: 0, marginTop: 2 }} />
     </Link>
