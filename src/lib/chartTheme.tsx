@@ -68,7 +68,7 @@ export function ChartTooltip(props: any) {
   const { active, payload, label, unit } = props;
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ ...GLASS_TOOLTIP, padding: '8px 10px' }}>
+    <div className="km-chart-tip" style={{ ...GLASS_TOOLTIP, padding: '8px 10px' }}>
       {label != null && label !== '' && <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 12.5 }}>{label}</div>}
       {payload.map((p: any, i: number) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, lineHeight: 1.8 }}>
