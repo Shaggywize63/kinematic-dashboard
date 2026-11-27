@@ -4,8 +4,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { LifeBuoy, Plus, Search } from 'lucide-react';
-import { Button, Card, EmptyState, Input, PageHeader, Select, T, useIsCompact } from '../../../components/ui';
+import { Info, LifeBuoy, Plus, Search } from 'lucide-react';
+import { Badge, Button, Card, EmptyState, Input, PageHeader, Select, T, useIsCompact } from '../../../components/ui';
 import RaiseTicketModal from '../../../components/support/RaiseTicketModal';
 import TicketDrawer from '../../../components/support/TicketDrawer';
 import { ChannelTag, CsatStars, PlatformTags, PriorityTag, RelTime, StatusPill } from '../../../components/support/ui';
@@ -132,12 +132,17 @@ export default function SupportPage() {
   const clearFilters = () => { setCategory(''); setPlatform(''); setArea(''); };
 
   const description = isOperator
-    ? 'Every customer\'s tickets. Update the status and reply; the customer is told on WhatsApp.'
-    : 'Raise a ticket with the Kinematic team and follow it here. We reply here and on WhatsApp.';
+    ? 'Every customer\'s tickets. Update the status and reply; the customer is told by email and on WhatsApp.'
+    : 'Raise a ticket with the Kinematic team and follow it here. We reply here, by email and on WhatsApp.';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
-      <PageHeader title={title} description={description} compact={narrow} icon="help"
+      <PageHeader
+        title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {title}
+          <Badge tone="info">Beta</Badge>
+        </span>}
+        description={description} compact={narrow} icon="help"
         actions={(
           <Button variant="primary" toolbar icon={<Plus size={15} strokeWidth={1.8} />} onClick={() => setRaising(true)}>
             Raise a ticket
@@ -173,6 +178,19 @@ export default function SupportPage() {
               placeholder="Search ref, subject, company, phone" style={{ paddingLeft: 32 }} />
           </div>
         )}
+      </div>
+
+      <div role="note" style={{
+        display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 13px', borderRadius: T.radius.md,
+        background: T.infoWash, color: T.text, fontSize: 13, lineHeight: 1.5,
+      }}>
+        <Info size={15} strokeWidth={1.8} aria-hidden style={{ color: T.info, flexShrink: 0, marginTop: 1 }} />
+        <span>
+          <strong style={{ fontWeight: 600 }}>Support is in beta.</strong>{' '}
+          {isOperator
+            ? 'Customers can raise tickets as normal and every update reaches them; we are still adding attachments, assignment and SLA tracking.'
+            : 'You can raise tickets as normal and we will work them — we are still polishing parts of this page, so a few things may move around.'}
+        </span>
       </div>
 
       {showFilters && (

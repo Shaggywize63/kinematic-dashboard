@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockApi, seedSession, SEED_USER } from './utils';
+import { WHATS_NEW } from '../src/lib/whatsNew';
 
 /**
  * Help & Support (/dashboard/support) against an intercepted /api/v1/support API. A customer raises a ticket, sees the
@@ -118,10 +119,34 @@ test.describe('Help & Support (customer)', () => {
   test('the nav shows Help & Support to a client user with no matching module', async ({ page }) => {
     await open(page, { operator: false, tickets: [] });
     await expect(page.getByRole('link', { name: 'Help & Support' })).toBeVisible({ timeout: 45_000 });
-    await expect(page.getByRole('heading', { name: 'Help & Support' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Help & Support/ })).toBeVisible();
     await expect(page.getByText('You have no open tickets')).toBeVisible();
     // operators only
     await expect(page.getByLabel('Search tickets')).toHaveCount(0);
+  });
+
+  test('is registered for the sidebar "New" highlight every client gets', async () => {
+    // The badge itself is existing chrome (components/shared/NewBadge via the Sidebar); all this
+    // section had to do was join the list. It cannot be asserted from the support page itself,
+    // because the dashboard layout marks a section seen the moment you land on it — which is the
+    // point of the mechanism.
+    const entry = WHATS_NEW['/dashboard/support'];
+    expect(entry).toBeTruthy();
+    expect(entry!.since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(entry!.note).toMatch(/beta/i);
+  });
+
+  test('says it is in beta without discouraging anyone from raising a ticket', async ({ page }) => {
+    await open(page, { operator: false, tickets: [] });
+    await expect(page.getByRole('heading', { name: /Help & Support/ })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByText('Beta', { exact: true })).toBeVisible();
+    await expect(page.getByText('Support is in beta.')).toBeVisible();
+    await expect(page.getByText(/raise tickets as normal/i)).toBeVisible();
+    // Raising one is still the primary action, and the form repeats the reassurance.
+    await page.getByRole('button', { name: 'Raise a ticket' }).first().click();
+    const dialog = page.getByRole('dialog', { name: 'Raise a ticket' });
+    await expect(dialog.getByText(/tickets are worked as normal/i)).toBeVisible();
+    await expect(dialog.getByText(/by email and on WhatsApp/i)).toBeVisible();
   });
 
   test('raise a ticket: lengths are checked and the server error is shown', async ({ page }) => {

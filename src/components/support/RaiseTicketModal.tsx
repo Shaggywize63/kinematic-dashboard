@@ -62,7 +62,7 @@ export default function RaiseTicketModal({ onClose, onCreated }: { onClose: () =
 
   return (
     <Modal open onClose={onClose} title="Raise a ticket" icon={LifeBuoy} width={600}
-      subtitle="Tell us what's wrong. We'll reply here and on WhatsApp."
+      subtitle="Tell us what's wrong. We'll reply here, by email and on WhatsApp. Support is in beta — tickets are worked as normal."
       footer={(
         <>
           <Button onClick={onClose} disabled={saving}>Cancel</Button>
