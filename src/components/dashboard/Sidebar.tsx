@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Check, ChevronDown, ChevronsUpDown, LayoutGrid, List, LogOut, PanelLeft, PanelLeftClose, PanelLeftOpen, Pencil, Search, Star, User as UserIcon, X } from 'lucide-react';
 import BrandLogo from '../shared/BrandLogo';
 import SignedImage from '../shared/SignedImage';
-import NewBadge from '../shared/NewBadge';
+import NewBadge, { GroupNewDot } from '../shared/NewBadge';
 import { NavIcon } from '../ui/icons';
 import { Avatar, T } from '../ui';
 import type { NavLayout } from '../../lib/navPrefs';
@@ -365,7 +365,12 @@ export default function Sidebar(p: Props) {
               <span style={{ display: 'flex', color: T.red, flexShrink: 0 }}><NavIcon name={groupGlyph(activeGroup)} size={16} /></span>
               <span style={{ fontWeight: 600, fontSize: 13.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeGroup.label}</span>
             </span>
-            <ChevronDown size={15} strokeWidth={1.7} style={{ color: T.mute, flexShrink: 0, transition: 'transform .15s ease', transform: wsMenu ? 'rotate(180deg)' : 'none' }} />
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+              {/* Something new in a workspace they are NOT currently in — otherwise the item's own
+                  badge already says it, right there in the list. */}
+              <GroupNewDot hrefs={p.groups.filter((g) => g.label !== activeGroup.label).flatMap((g) => g.items.map((i) => i.href))} />
+              <ChevronDown size={15} strokeWidth={1.7} style={{ color: T.mute, transition: 'transform .15s ease', transform: wsMenu ? 'rotate(180deg)' : 'none' }} />
+            </span>
           </button>
           {wsMenu && (
             <div role="menu" style={{
@@ -380,6 +385,7 @@ export default function Sidebar(p: Props) {
                     style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, height: 34, padding: '0 8px', borderRadius: T.radius.sm, background: sel ? 'var(--s3)' : 'transparent', border: 0, cursor: 'pointer', color: sel ? T.text : T.dim, fontFamily: 'inherit', fontSize: 13, textAlign: 'left' }}>
                     <span style={{ display: 'flex', flexShrink: 0, color: sel ? T.red : T.dim }}><NavIcon name={groupGlyph(g)} size={16} /></span>
                     <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.label}</span>
+                    <GroupNewDot hrefs={g.items.map((i) => i.href)} />
                     <span style={{ fontFamily: T.mono, fontSize: 10.5, color: T.mute, flexShrink: 0 }}>{g.items.length}</span>
                     {sel && <Check size={14} strokeWidth={2} style={{ color: T.red, flexShrink: 0 }} />}
                   </button>

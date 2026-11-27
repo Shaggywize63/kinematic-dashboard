@@ -159,6 +159,24 @@ test.describe('Help & Support (customer)', () => {
     expect(entry!.note).toMatch(/beta/i);
   });
 
+  test('a client in another workspace still sees that Support has something new', async ({ page }) => {
+    // The default menu layout is the workspace switcher, which scopes the sidebar to ONE area. Sitting in
+    // another workspace, the client never renders the Support items and so never sees their own New badge —
+    // the group dot is what carries the news across. Checked from /dashboard, because landing on
+    // /dashboard/support would mark the section seen and correctly clear everything.
+    await seedSession(page, CUSTOMER);
+    await mockApi(page, { me: { success: true, data: CUSTOMER } });
+    await page.goto('/dashboard');
+
+    const switcher = page.getByTestId('workspace-switcher');
+    await expect(switcher).toBeVisible({ timeout: 45_000 });
+    await expect(switcher.getByLabel('New')).toBeVisible();
+
+    // Opening the switcher says WHICH workspace to go to.
+    await switcher.click();
+    await expect(page.getByRole('menuitem', { name: /Support/ }).getByLabel('New')).toBeVisible();
+  });
+
   test('says it is in beta without discouraging anyone from raising a ticket', async ({ page }) => {
     await open(page, { operator: false, tickets: [] });
     await expect(page.getByRole('heading', { name: /Help & Support/ })).toBeVisible({ timeout: 45_000 });
