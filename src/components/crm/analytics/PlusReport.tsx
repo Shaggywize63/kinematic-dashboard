@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, BarChart3, Download, type LucideIcon } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, LineChart, Line } from 'recharts';
 import { Button, Card, EmptyState, Eyebrow, PageHeader, T, useIsCompact } from '../../ui';
 import { ReportRangePicker, type ReportRange } from '../reports/ReportFilters';
@@ -20,6 +20,9 @@ import { downloadCsv } from '../../../lib/exportCsv';
 import { CHART, GLASS_TOOLTIP, seriesColor } from '../../../lib/chartTheme';
 import { DASH, cellText, columnsToCsvRows, type Column } from '../../../lib/crm/plusFormat';
 import TileGrid from '../../ui/TileGrid';
+import { CardHead } from '../../charts/AuroraCharts';
+import { useNewDesign } from '../../../lib/useNewDesign';
+import { tintFor } from '../reports/reportTints';
 
 export interface Kpi { label: string; value: string; hint?: string }
 
@@ -83,7 +86,7 @@ export type PlusTable<Row extends object> = ReturnType<typeof usePlusTable<Row>>
 /** CSV button shared by the report pages (disabled while there is nothing to export). */
 export function CsvButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
   return (
-    <Button variant="secondary" disabled={disabled} onClick={onClick} aria-label="Download CSV">
+    <Button variant="secondary" className="km-btn km-rbtn" disabled={disabled} onClick={onClick} aria-label="Download CSV">
       <Download size={14} /> CSV
     </Button>
   );
@@ -95,11 +98,11 @@ export function PlusDataTable<Row extends object>({ tbl, rowKey }: { tbl: PlusTa
   return (
     <Card padding={0} style={{ overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }} data-testid="plus-table-scroll">
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: Math.max(480, columns.length * 112) }}>
+        <table className="km-rt" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: Math.max(480, columns.length * 112) }}>
           <thead>
             <tr>
               {columns.map((c, i) => (
-                <th key={c.label} style={{ ...th, textAlign: c.numeric ? 'right' : 'left', position: i === 0 ? 'sticky' : undefined, left: i === 0 ? 0 : undefined, background: T.card, zIndex: i === 0 ? 1 : undefined }}>
+                <th key={c.label} className={i === 0 ? 'km-sticky' : undefined} style={{ ...th, textAlign: c.numeric ? 'right' : 'left', position: i === 0 ? 'sticky' : undefined, left: i === 0 ? 0 : undefined, background: T.card, zIndex: i === 0 ? 1 : undefined }}>
                   <SortLabel label={c.label} sortKey={String(i)} sort={sort} onToggle={toggle} align={c.numeric ? 'right' : 'left'} />
                 </th>
               ))}
@@ -108,14 +111,14 @@ export function PlusDataTable<Row extends object>({ tbl, rowKey }: { tbl: PlusTa
           <tbody>
             {sorted.map((r, ri) => (
               <tr key={rowKey(r, ri)} data-testid="plus-row">
-                {columns.map((c, i) => <td key={c.label} style={tdStyle(c, i, false)}>{cellText(c, r)}</td>)}
+                {columns.map((c, i) => <td key={c.label} className={i === 0 ? 'km-sticky' : undefined} style={tdStyle(c, i, false)}>{cellText(c, r)}</td>)}
               </tr>
             ))}
           </tbody>
           {totals && (
             <tfoot>
-              <tr data-testid="plus-totals">
-                {columns.map((c, i) => <td key={c.label} style={tdStyle(c, i, true)}>{cellText(c, totals)}</td>)}
+              <tr data-testid="plus-totals" className="km-total">
+                {columns.map((c, i) => <td key={c.label} className={i === 0 ? 'km-sticky' : undefined} style={tdStyle(c, i, true)}>{cellText(c, totals)}</td>)}
               </tr>
             </tfoot>
           )}
@@ -160,7 +163,7 @@ export default function PlusReport<Row extends object>(p: Props<Row>) {
           {p.kpis && p.kpis.length > 0 && (
             <TileGrid id={`crm-${p.testId.replace(/^report-/, 'reports-')}-kpis`} perRow={5} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
               {p.kpis.map((k) => (
-                <div key={k.label} data-testid="plus-kpi" style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.lg, padding: '12px 14px', minWidth: 0 }}>
+                <div key={k.label} data-testid="plus-kpi" className="km-kpi" style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.lg, padding: '12px 14px', minWidth: 0, ['--tint' as string]: tintFor(k.label) } as React.CSSProperties}>
                   <Eyebrow>{k.label}</Eyebrow>
                   <div style={{ fontSize: 20, fontWeight: 700, color: T.text, marginTop: 6, fontFamily: T.heading, overflowWrap: 'anywhere' }}>{p.loading ? DASH : k.value}</div>
                   {k.hint && <div style={{ fontSize: 11.5, color: T.mute, marginTop: 2 }}>{k.hint}</div>}
@@ -176,7 +179,7 @@ export default function PlusReport<Row extends object>(p: Props<Row>) {
             </div>
           )}
 
-          {p.loading && <div aria-busy="true" style={{ color: T.dim, fontSize: 13, padding: '20px 0' }}>Loading…</div>}
+          {p.loading && <div aria-busy="true" className="km-empty" data-state="loading" style={{ color: T.dim, fontSize: 13, padding: '20px 0' }}>Loading…</div>}
 
           {!p.loading && !p.error && p.children}
 
@@ -185,7 +188,7 @@ export default function PlusReport<Row extends object>(p: Props<Row>) {
           {showTable && <PlusDataTable tbl={tbl} rowKey={p.rowKey} />}
 
           {p.notes && !p.loading && (
-            <div style={{ fontSize: 12, color: T.mute, lineHeight: 1.55 }}>{p.notes}</div>
+            <div className="km-note" style={{ fontSize: 12, color: T.mute, lineHeight: 1.55 }}>{p.notes}</div>
           )}
         </>
       )}
@@ -208,10 +211,14 @@ function tdStyle<Row>(c: Column<Row>, i: number, total: boolean): React.CSSPrope
 
 // ── Charts used by the report pages ──────────────────────────────────────────
 
-export function ChartCard({ title, children, height = 240 }: { title: string; children: ReactNode; height?: number }) {
+export function ChartCard({ title, children, height = 240, icon }: { title: string; children: ReactNode; height?: number; icon?: LucideIcon }) {
+  const { enabled } = useNewDesign();
   return (
     <Card padding={14} style={{ minWidth: 0 }}>
-      <Eyebrow style={{ marginBottom: 8 }}>{title}</Eyebrow>
+      {/* New design: the Aurora card heading (tinted glass icon chip + title); Classic keeps the eyebrow. */}
+      {enabled
+        ? <div style={{ marginBottom: 10 }}><CardHead tint={tintFor(title)} icon={icon ?? BarChart3} title={title} /></div>
+        : <Eyebrow style={{ marginBottom: 8 }}>{title}</Eyebrow>}
       <div style={{ width: '100%', height }}>{children}</div>
     </Card>
   );

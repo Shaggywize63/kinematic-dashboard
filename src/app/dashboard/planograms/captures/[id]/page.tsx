@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import TileGrid from '../../../../../components/ui/TileGrid';
+import { AuroraDonut, NewDesignSwap } from '../../../../../components/charts/AuroraDonut';
 import type {
   Capture,
   Compliance,
@@ -2226,6 +2227,7 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
   const clamped = Math.max(0, Math.min(100, score));
   const off = circ * (1 - clamped / 100);
   return (
+    <NewDesignSwap classic={
     <div style={{ position: 'relative', width: 64, height: 64, flex: 'none' }}>
       <svg width={64} height={64} style={{ transform: 'rotate(-90deg)' }}>
         <circle cx={32} cy={32} r={r} fill="none" stroke="var(--s3)" strokeWidth={7} />
@@ -2256,6 +2258,10 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
         {Math.round(score)}
       </div>
     </div>
+    }>
+      <AuroraDonut inline size={64} max={100} ariaLabel="Compliance score" data={[{ label: 'Compliance', value: clamped, color }]}
+        centre={{ value: Math.round(score), label: undefined }} />
+    </NewDesignSwap>
   );
 }
 

@@ -157,18 +157,18 @@ export default function StageFunnelPage() {
         <select value={selectedPipeline} onChange={(e) => setSelectedPipeline(e.target.value)} style={sel} disabled={pipelines.length === 0}>
           {pipelines.map((p) => <option key={p.id} value={p.id}>{(p as any).name}</option>)}
         </select>
-        <button onClick={() => downloadCsv('stage-funnel', rows)} disabled={loading || rows.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
+        <button onClick={() => downloadCsv('stage-funnel', rows)} disabled={loading || rows.length === 0} className="km-rbtn" style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
       </CrmToolbarRight>
 
       {truncated && (
-        <div role="status" style={{ fontSize: 12, color: '#b45309', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+        <div role="status" className="km-warn" style={{ fontSize: 12, color: '#b45309', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
           Showing the first 1,000 deals of this pipeline only, so these numbers may be partial.
         </div>
       )}
-      {loading ? <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div> : pipelines.length === 0 ? (
-        <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 12 }}>No pipelines configured. Create one in Settings → Pipelines.</div>
+      {loading ? <div className="km-empty" data-state="loading" style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div> : pipelines.length === 0 ? (
+        <div className="km-empty" style={{ color: 'var(--text-dim)', fontSize: 13, padding: 12 }}>No pipelines configured. Create one in Settings → Pipelines.</div>
       ) : rows.length === 0 ? (
-        <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 12 }}>No deals in this pipeline yet.</div>
+        <div className="km-empty" style={{ color: 'var(--text-dim)', fontSize: 13, padding: 12 }}>No deals in this pipeline yet.</div>
       ) : (
         <>
           {/* Horizontal funnel bars */}
@@ -181,7 +181,7 @@ export default function StageFunnelPage() {
                 <div key={r.stage_id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 140, fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>{r.stage_name}</div>
                   <div style={{ flex: 1, height: 28, background: 'var(--s3)', borderRadius: 6, position: 'relative' }}>
-                    <div style={{ width: `${Math.max(widthPct, 2)}%`, height: '100%', background: `${c}66`, borderLeft: `3px solid ${c}`, borderRadius: 6, display: 'flex', alignItems: 'center', paddingLeft: 10 }}>
+                    <div className="km-fn-bar" style={{ width: `${Math.max(widthPct, 2)}%`, height: '100%', background: `${c}66`, borderLeft: `3px solid ${c}`, borderRadius: 6, display: 'flex', alignItems: 'center', paddingLeft: 10, ['--tint' as string]: c } as React.CSSProperties}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{r.count}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 6 }}>· {inr(r.value)}</span>
                     </div>
@@ -200,7 +200,7 @@ export default function StageFunnelPage() {
 
           {/* Detailed table (scrolls inside its own container on a narrow screen) */}
           <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 760 }}>
+          <table className="km-rt" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 760 }}>
             <thead>
               <tr>
                 <th style={th}><SortLabel label="Stage" sortKey="stage_name" sort={sort} onToggle={toggle} /></th>
@@ -235,7 +235,7 @@ export default function StageFunnelPage() {
             </tbody>
           </table>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.5 }}>
+          <div className="km-note" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.5 }}>
             Counts deals by the stage they are in now. Weighted value (open stages) = amount × probability, the deal&apos;s own probability when set, else its stage&apos;s. Avg age = days since the deals were created. Amounts are INR.
           </div>
         </>

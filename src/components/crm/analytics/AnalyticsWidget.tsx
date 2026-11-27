@@ -23,6 +23,7 @@ import { crmLeads } from '../../../lib/crmApi';
 import { widgetByType, datasetById, type ChartType, type WidgetMeta } from '../../../lib/crm/widgetCatalog';
 import TargetsLeaderboard from './TargetsLeaderboard';
 import { CHART_PALETTE } from '../../../lib/chartTheme';
+import { AuroraDonut, NewDesignSwap } from '../../charts/AuroraDonut';
 import { useLeadFieldGate } from '../../../lib/crm/useLeadFieldGate';
 import { GATED_FIELDS_BY_SURFACE, surfaceOf } from '../../../lib/crm/leadFieldGate';
 import { fmtInr } from '../../../lib/crm/plusFormat';
@@ -573,6 +574,7 @@ function PieSeries({ data, donut }: { data: Array<{ name: string; value: number 
   if (!filtered.length || total === 0) return <EmptyState label="No data" />;
 
   return (
+    <NewDesignSwap classic={
     <ResponsiveContainer width="100%" height="100%">
       <PieChart>
         <Pie
@@ -603,6 +605,9 @@ function PieSeries({ data, donut }: { data: Array<{ name: string; value: number 
         />
       </PieChart>
     </ResponsiveContainer>
+    }>
+      <AuroraDonut fill size={220} variant={donut ? 'donut' : 'pie'} data={filtered.map((d, i) => ({ label: d.name, value: d.value, color: COLORS[i % COLORS.length] }))} />
+    </NewDesignSwap>
   );
 }
 function NumberTile({ main, sub, accent }: { main: string; sub: string; accent?: string }) {

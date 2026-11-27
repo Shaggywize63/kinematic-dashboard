@@ -10,6 +10,7 @@ function SortablePanel({ id, children }: { id: string; children: React.ReactNode
   return (
     <div
       ref={setNodeRef}
+      className="km-sp"
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
@@ -23,10 +24,11 @@ function SortablePanel({ id, children }: { id: string; children: React.ReactNode
         type="button"
         aria-label="Drag to reorder"
         title="Drag to reorder"
+        className="km-sp-grip"
         style={{
           position: 'absolute',
-          top: 10,
-          right: 10,
+          top: -12,
+          right: 14,
           zIndex: 2,
           background: T.raised,
           border: `1px solid ${T.border}`,
@@ -39,7 +41,9 @@ function SortablePanel({ id, children }: { id: string; children: React.ReactNode
       >
         <GripVertical size={14} strokeWidth={2} />
       </button>
-      {children}
+      {/* A panel can render nothing (e.g. a card with no data for this record). Its wrapper is then :empty, and the CSS
+          (globals.css, .km-sp) drops the whole slot — otherwise its handle floated over the NEXT panel as a second grip. */}
+      <div className="km-sp-body">{children}</div>
     </div>
   );
 }

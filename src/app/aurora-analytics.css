@@ -1,0 +1,49 @@
+/* Aurora analytics charts and widget chrome (owned by the analytics workstream).
+   Scoped to html[data-design="new"] so Classic is untouched. Tokens: see aurora.css (--a-*, --au-*).
+   The components these rules belong to are in components/charts/AuroraAnalytics.tsx. */
+
+/* ── "How this is calculated" popover (.kini-info-pop) ───────────────────────────────────────────
+   Classic paints it with --s3, which Aurora re-points at a 6% white wash: the pane was see-through and the card's own
+   text showed through it. It is now a solid frosted pane with readable ink, and it sits above everything around it. */
+html[data-design="new"] .kini-info-pop {
+  background: color-mix(in srgb, var(--a-solid) 94%, transparent) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid var(--border-l) !important;
+  border-radius: 12px !important;
+  box-shadow: inset 0 1px 0 var(--a-hi), var(--shadow-pop) !important;
+  color: var(--a-ink-2) !important;
+  padding: 11px 13px !important;
+  font-size: 11.5px !important; line-height: 1.55 !important;
+  z-index: 80 !important;
+}
+/* An insight tile anchors the pane to itself (below its header, inset from both edges) so it can never fall off the tile's
+   edge, and the tile it belongs to is lifted above its neighbours while it is open. */
+html[data-design="new"] .km-an-ins { position: relative; }
+html[data-design="new"] .km-an-ins:is(:hover, :focus-within) { z-index: 30; }
+html[data-design="new"] .km-an-ins .kini-info { position: static; border-radius: 999px; outline: none; }
+html[data-design="new"] .km-an-ins .kini-info:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent); }
+html[data-design="new"] .km-an-ins .kini-info-pop { position: absolute; left: 14px; right: 14px; top: 66px; width: auto; pointer-events: none; }
+
+/* ── Ranked bars: the fill and the value at its tip grow in together ─────────────────────────── */
+html[data-design="new"] .km-an-fill { transition: width .7s cubic-bezier(.2, .8, .2, 1); }
+html[data-design="new"] .km-an-val { transition: left .7s cubic-bezier(.2, .8, .2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  html[data-design="new"] .km-an-fill, html[data-design="new"] .km-an-val { transition: none !important; }
+}
+
+/* ── Heatmap cells ─────────────────────────────────────────────────────────────────────────────── */
+html[data-design="new"] .km-an-cell { transition: transform .12s ease, box-shadow .12s ease; }
+html[data-design="new"] .km-an-cell:hover, html[data-design="new"] .km-an-cell[data-on="1"] {
+  position: relative; z-index: 2; transform: scale(1.14);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--a-ink) 55%, transparent), 0 6px 14px -4px color-mix(in srgb, var(--hm-accent) 70%, transparent);
+}
+@media (prefers-reduced-motion: reduce) { html[data-design="new"] .km-an-cell { transition: none; } }
+
+/* ── Widget charts (recharts): the parts aurora.css doesn't already cover ──────────────────────── */
+/* the hover band behind a bar is a soft wash, not an outlined box */
+html[data-design="new"] .km-an-bars .recharts-tooltip-cursor { stroke: none; fill: color-mix(in srgb, var(--a-ink) 7%, transparent); }
+/* axis text and the legend stay readable in both themes (the global rule leaves legend names in the series colour otherwise) */
+html[data-design="new"] .km-an-chart .recharts-cartesian-axis-tick-value { fill: var(--a-ink-3); font-size: 11px; }
+html[data-design="new"] .km-an-chart .recharts-legend-item-text { color: var(--a-ink-2) !important; }
+/* a long ranked list scrolls quietly inside its widget */
+html[data-design="new"] .km-an-chart { scrollbar-width: thin; scrollbar-color: var(--border-l) transparent; }

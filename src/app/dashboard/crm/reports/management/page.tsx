@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Download, Gauge, LayoutDashboard, LineChart, Sparkles } from 'lucide-react';
+import { Download, Gauge, LayoutDashboard, LineChart, Sparkles, type LucideIcon } from 'lucide-react';
 import {
   crmReports,
   type BusinessReportPayload,
@@ -27,6 +27,8 @@ import { Button, EmptyState, T, useIsCompact } from '../../../../../components/u
 import TileGrid from '../../../../../components/ui/TileGrid';
 import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
+import { CardHead } from '../../../../../components/charts/AuroraCharts';
+import { useNewDesign } from '../../../../../lib/useNewDesign';
 import { metricIconFor } from '../../../../../lib/labelIcons';
 
 /** First day of the current month → today, ISO YYYY-MM-DD. Matches the backend's
@@ -206,7 +208,7 @@ export default function ManagementDashboardPage() {
           <div data-testid="management-unavailable" style={{ display: 'none' }} />
         </div>
       ) : loading ? (
-        <div style={card}><div style={{ color: T.dim, fontSize: 13, padding: 12 }}>Loading…</div></div>
+        <div style={card}><div className="km-empty" data-state="loading" style={{ color: T.dim, fontSize: 13, padding: 12 }}>Loading…</div></div>
       ) : (
         <>
           {/* KPI strip */}
@@ -225,7 +227,7 @@ export default function ManagementDashboardPage() {
 
           {/* Saved questions */}
           <div style={card}>
-            <SectionTitle icon={<Sparkles size={15} />} title="Saved questions" hint="Open the Business Report, preset and ready." />
+            <SectionTitle icon={Sparkles} tint="#A855F7" title="Saved questions" hint="Open the Business Report, preset and ready." />
             <div data-testid="management-saved-questions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
               {SAVED_QUESTIONS.map((q) => (
                 <Link
@@ -244,7 +246,7 @@ export default function ManagementDashboardPage() {
           {/* Top engineers */}
           <div style={card}>
             <SectionTitle
-              icon={<Gauge size={15} />}
+              icon={Gauge} tint="#3E9EFF"
               title="Top engineers"
               hint="By order value in this window."
               action={<Link href="/dashboard/crm/reports/engineer-scorecard" style={linkStyle}>View full scorecard →</Link>}
@@ -255,7 +257,7 @@ export default function ManagementDashboardPage() {
               <MiniEmpty label="No engineer activity in this range." />
             ) : (
               <div style={{ overflowX: 'auto', marginTop: 12 }}>
-                <table style={tableStyle(narrow, 520)} data-testid="management-top-engineers">
+                <table className="km-rt" style={tableStyle(narrow, 520)} data-testid="management-top-engineers">
                   <thead>
                     <tr>
                       <th style={th}>Engineer</th>
@@ -319,7 +321,7 @@ function TopCard({ testid, rowTestid, title, heading, res, rows, href }: {
   return (
     <div style={card}>
       <SectionTitle
-        icon={<LineChart size={15} />}
+        icon={LineChart} tint="#10B981"
         title={title}
         hint="By order value in this window."
         action={<Link href={href} style={linkStyle}>View report →</Link>}
@@ -330,7 +332,7 @@ function TopCard({ testid, rowTestid, title, heading, res, rows, href }: {
         <MiniEmpty label="No activity in this range." />
       ) : (
         <div style={{ overflowX: 'auto', marginTop: 12 }}>
-          <table style={tableStyle(false, 360)} data-testid={testid}>
+          <table className="km-rt" style={tableStyle(false, 360)} data-testid={testid}>
             <thead>
               <tr>
                 <th style={th}>{heading}</th>
@@ -356,14 +358,18 @@ function TopCard({ testid, rowTestid, title, heading, res, rows, href }: {
 
 function Kpi({ label, value, strong, testid }: { label: string; value: string; strong?: boolean; testid?: string }) {
   return (
-    <div data-testid={testid} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+    <div data-testid={testid} className="km-kpi" style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, ['--tint' as string]: strong ? '#10B981' : '#3E9EFF' } as React.CSSProperties}>
       <span style={{ fontSize: 11, color: T.dim, textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 6 }}>{(() => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={14} /> : null; })()}{label}</span>
       <span style={{ fontSize: strong ? 24 : 20, fontWeight: 800, color: T.text, fontFamily: T.mono, lineHeight: 1.1 }}>{value}</span>
     </div>
   );
 }
 
-function SectionTitle({ icon, title, hint, action }: { icon: React.ReactNode; title: string; hint?: string; action?: React.ReactNode }) {
+function SectionTitle({ icon: Ico, tint, title, hint, action }: { icon: LucideIcon; tint: string; title: string; hint?: string; action?: React.ReactNode }) {
+  const { enabled } = useNewDesign();
+  // New design: the Aurora card heading (tinted glass icon chip, title, caption, action). Classic keeps the plain title.
+  if (enabled) return <CardHead tint={tint} icon={Ico} title={title} sub={hint} right={action} />;
+  const icon = <Ico size={15} />;
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
@@ -384,7 +390,7 @@ function ErrorNote({ message }: { message: string }) {
 }
 
 function MiniEmpty({ label }: { label: string }) {
-  return <div style={{ marginTop: 12, color: T.dim, fontSize: 13, padding: '10px 2px' }}>{label}</div>;
+  return <div className="km-empty" style={{ marginTop: 12, color: T.dim, fontSize: 13, padding: '10px 2px' }}>{label}</div>;
 }
 
 // ── CSV ──────────────────────────────────────────────────────────────────────

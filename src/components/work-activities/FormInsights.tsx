@@ -27,6 +27,7 @@ import {
 } from '../../lib/chartTheme';
 import { BarChart3, FileText, Percent, Star, Target, Users, type LucideIcon } from 'lucide-react';
 import { IconTile, InlineIcon } from '../ui/PageIcon';
+import { AuroraDonut, NewDesignSwap } from '../charts/AuroraDonut';
 
 // ── data shapes ──────────────────────────────────────────────────────────
 interface NameValue { name: string; value: number }
@@ -156,15 +157,20 @@ export default function FormInsights() {
         {/* 2. Respondent mix — part-to-whole, categorical donut */}
         {d.specialty_mix?.length ? (
           <ChartCard title={label(d, 'respondent_mix', 'Respondent mix')} subtitle="Share of respondents">
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={d.specialty_mix} dataKey="value" nameKey="name" innerRadius={56} outerRadius={92} paddingAngle={2} stroke="var(--s2)" strokeWidth={2}>
-                  {d.specialty_mix.map((_, i) => <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} />)}
-                </Pie>
-                <Tooltip contentStyle={GLASS_TOOLTIP} itemStyle={{ color: 'var(--text)' }} labelStyle={{ color: 'var(--text)' }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
-              </PieChart>
-            </ResponsiveContainer>
+            <NewDesignSwap classic={
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie data={d.specialty_mix} dataKey="value" nameKey="name" innerRadius={56} outerRadius={92} paddingAngle={2} stroke="var(--s2)" strokeWidth={2}>
+                    {d.specialty_mix.map((_, i) => <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={GLASS_TOOLTIP} itemStyle={{ color: 'var(--text)' }} labelStyle={{ color: 'var(--text)' }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+                </PieChart>
+              </ResponsiveContainer>
+            }>
+              <AuroraDonut ariaLabel={label(d, 'respondent_mix', 'Respondent mix')} minHeight={250}
+                data={d.specialty_mix.map((s, i) => ({ label: s.name, value: s.value, color: CHART_PALETTE[i % CHART_PALETTE.length] }))} />
+            </NewDesignSwap>
           </ChartCard>
         ) : null}
 

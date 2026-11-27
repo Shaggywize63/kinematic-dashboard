@@ -91,19 +91,19 @@ export default function ForecastReportPage() {
             onClick={() => downloadCsv(`forecast-${period}`, tbl.csvRows())}
             disabled={loading || data.length === 0}
             aria-label="Download CSV"
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, height: 36, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            className="km-rbtn" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, height: 36, display: 'inline-flex', alignItems: 'center', gap: 6 }}
           ><InlineIcon icon={Download} size={14} />CSV</button>
         </div>
       </div>
-      {loading ? <div style={{ color: 'var(--text-dim)' }}>Loading...</div> : (
+      {loading ? <div className="km-empty" data-state="loading" style={{ color: 'var(--text-dim)' }}>Loading...</div> : (
         <>
           <ForecastChart data={data} />
           {data.length === 0 ? (
-            <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: '8px 0' }}>No deals with an expected close date in this range.</div>
+            <div className="km-empty" style={{ color: 'var(--text-dim)', fontSize: 13, padding: '8px 0' }}>No deals with an expected close date in this range.</div>
           ) : (
             <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <PlusDataTable tbl={tbl} rowKey={(r) => r.period} />
-              <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+              <div className="km-note" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
                 Open deals are placed in the month of their expected close date; won deals in the month they closed. <b>Committed</b> = open deal amount × probability (the deal&apos;s own, else its stage&apos;s).
                 <b> Expected total</b> = closed won + committed. <b>Open pipeline</b> and <b>Best case</b> are the full amount of open deals. Amounts are in INR.
               </div>

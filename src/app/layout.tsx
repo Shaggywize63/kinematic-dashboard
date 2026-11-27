@@ -3,6 +3,9 @@ import { cookies } from 'next/headers';
 import { Toaster } from 'sonner';
 import './globals.css';
 import './aurora.css';
+import './aurora-charts.css';
+import './aurora-analytics.css';
+import './aurora-reports.css';
 
 export const metadata: Metadata = {
   title: 'Kinematic — Field Force Management',

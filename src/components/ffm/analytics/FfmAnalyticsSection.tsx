@@ -13,6 +13,7 @@ import {
   PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
 } from 'recharts';
 import { CHART_PALETTE, GLASS_TOOLTIP } from '../../../lib/chartTheme';
+import { AuroraDonut, NewDesignSwap } from '../../charts/AuroraDonut';
 import {
   Plus, Edit3, Save, X, BarChart3, LineChart as LineIcon, Activity, Layers,
   AlertTriangle, MoreVertical, Inbox, Users, Truck, Award, Wand2, Trash2,
@@ -890,6 +891,7 @@ function PieSeries({ data, donut }: { data: Array<{ name: string; value: number 
   const total = filtered.reduce((s, d) => s + d.value, 0);
   if (!filtered.length || total === 0) return <EmptyState label="No data" />;
   return (
+    <NewDesignSwap classic={
     <ResponsiveContainer width="100%" height="100%">
       <PieChart>
         <Pie data={filtered} dataKey="value" nameKey="name" innerRadius={donut ? '55%' : 0} outerRadius="72%" paddingAngle={2}
@@ -906,6 +908,9 @@ function PieSeries({ data, donut }: { data: Array<{ name: string; value: number 
           formatter={(value: string) => <span style={{ color: 'var(--text)' }}>{value}</span>} />
       </PieChart>
     </ResponsiveContainer>
+    }>
+      <AuroraDonut fill size={220} variant={donut ? 'donut' : 'pie'} data={filtered.map((d, i) => ({ label: d.name, value: d.value, color: COLORS[i % COLORS.length] }))} />
+    </NewDesignSwap>
   );
 }
 function TableView({ rows }: { rows: Array<Record<string, string | number>> }) {

@@ -5,6 +5,7 @@ import { ChevronRight, Search } from 'lucide-react';
 import api from '../../../../../lib/api';
 import { T } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
+import { tintFor } from '../../../../../components/crm/reports/reportTints';
 
 // Salesperson picker (web parity with the mobile apps). Management lands here
 // from Reports → "Salesperson Sales" and picks a rep to open their drill-down
@@ -76,10 +77,10 @@ export default function SalespersonPickerPage() {
                 textDecoration: 'none', display: 'flex', gap: 10, alignItems: 'center', color: 'inherit',
               }}
             >
-              <span aria-hidden style={{
+              <span aria-hidden className="km-lz" style={{
                 width: 36, height: 36, borderRadius: 999, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                background: 'var(--s3)', color: T.dim, fontWeight: 800, fontSize: 14,
-              }}>{nameOf(u).slice(0, 1).toUpperCase()}</span>
+                background: 'var(--s3)', color: T.dim, fontWeight: 800, fontSize: 14, ['--tint' as string]: tintFor(u.id),
+              } as React.CSSProperties}>{nameOf(u).slice(0, 1).toUpperCase()}</span>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameOf(u)}</div>
                 {(u.role || u.email) && (
@@ -98,5 +99,5 @@ export default function SalespersonPickerPage() {
 }
 
 function Muted({ children }: { children: React.ReactNode }) {
-  return <div style={{ color: T.dim, fontSize: 13, padding: 8 }}>{children}</div>;
+  return <div className="km-empty" data-state={typeof children === 'string' && children.startsWith('Loading') ? 'loading' : undefined} style={{ color: T.dim, fontSize: 13, padding: 8 }}>{children}</div>;
 }

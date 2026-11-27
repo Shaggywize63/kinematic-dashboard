@@ -121,15 +121,16 @@ function RepCard({ card, hideAddress }: { card: Card; hideAddress: boolean }) {
     : null;
 
   return (
-    <div style={{ background: palette.bg, color: palette.name, borderRadius: 14, overflow: 'hidden', boxShadow: '0 12px 30px rgba(15,30,60,0.10)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
-        <div style={{
+    // Classic keeps the saturated status gradient. New design: .km-rep is a glass card tinted by data-status (aurora-reports.css).
+    <div className="km-rep" data-status={card.status} style={{ background: palette.bg, color: palette.name, borderRadius: 14, overflow: 'hidden', boxShadow: '0 12px 30px rgba(15,30,60,0.10)' }}>
+      <div className="km-rep-head" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
+        <div className="km-rep-avatar" style={{
           width: 38, height: 38, borderRadius: '50%', background: 'rgba(255,255,255,0.22)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800,
         }}>{initials(card.name)}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: 0.3 }}>{card.name.toUpperCase()}</div>
-          <div style={{ fontSize: 12, color: palette.sub, marginTop: 2 }}>
+          <div className="km-rep-sub" style={{ fontSize: 12, color: palette.sub, marginTop: 2 }}>
             Last activity: {lastActLabel}
           </div>
         </div>
@@ -137,7 +138,7 @@ function RepCard({ card, hideAddress }: { card: Card; hideAddress: boolean }) {
       </div>
 
       {/* Today's signals — table */}
-      <div style={{ background: 'rgba(0,0,0,0.10)' }}>
+      <div className="km-rep-body" style={{ background: 'rgba(0,0,0,0.10)' }}>
         <Row label="Activities" left={`${card.activities_today.completed} done`} right={`${card.activities_today.total} total`} header />
         <Row label="Calls"       left={String(card.activities_today.calls)}        right="" />
         <Row label="Emails"      left={String(card.activities_today.emails)}       right="" />
@@ -156,16 +157,16 @@ function RepCard({ card, hideAddress }: { card: Card; hideAddress: boolean }) {
       {/* Location */}
       <div style={{ padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         {mapHref ? (
-          <a href={mapHref} target="_blank" rel="noreferrer"
+          <a href={mapHref} target="_blank" rel="noreferrer" className="km-rep-link"
             style={{ background: 'rgba(255,255,255,0.20)', color: '#fff', padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <InlineIcon icon={MapPin} size={13} />Open in Maps
           </a>
         ) : (
-          <span style={{ fontSize: 12, color: palette.sub }}>No location captured</span>
+          <span className="km-rep-sub" style={{ fontSize: 12, color: palette.sub }}>No location captured</span>
         )}
-        {loc.address && !hideAddress && <span style={{ fontSize: 11, color: palette.sub }}>{loc.address}</span>}
+        {loc.address && !hideAddress && <span className="km-rep-sub" style={{ fontSize: 11, color: palette.sub }}>{loc.address}</span>}
         {loc.captured_at && (
-          <span style={{ fontSize: 11, color: palette.sub }}>· {fmtRelative(loc.captured_at)}</span>
+          <span className="km-rep-sub" style={{ fontSize: 11, color: palette.sub }}>· {fmtRelative(loc.captured_at)}</span>
         )}
       </div>
     </div>
@@ -175,7 +176,7 @@ function RepCard({ card, hideAddress }: { card: Card; hideAddress: boolean }) {
 function StatusPill({ status }: { status: TeamDailyCard['status'] }) {
   const label = status === 'active' ? 'Active' : status === 'idle' ? 'Idle' : 'Inactive';
   return (
-    <span style={{
+    <span className="km-rep-pill" style={{
       background: 'rgba(255,255,255,0.22)', color: '#fff', padding: '4px 10px', borderRadius: 999,
       fontSize: 11, fontWeight: 800, letterSpacing: 0.4, textTransform: 'uppercase',
     }}>{label}</span>
@@ -184,7 +185,7 @@ function StatusPill({ status }: { status: TeamDailyCard['status'] }) {
 
 function Row({ label, left, right, header }: { label: string; left: string; right: string; header?: boolean }) {
   return (
-    <div style={{
+    <div className="km-rep-row" data-head={header ? '1' : undefined} style={{
       display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr',
       padding: '8px 16px',
       fontSize: header ? 11 : 13,
@@ -210,7 +211,7 @@ function Header({ date, onChange, canExport, onExport }: { date: string; onChang
         <input type="date" value={date} onChange={(e) => onChange(e.target.value)}
           style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '8px 10px', fontSize: 13 }} />
       </label>
-      <button onClick={onExport} disabled={!canExport} aria-label="Download CSV"
+      <button onClick={onExport} disabled={!canExport} aria-label="Download CSV" className="km-rbtn"
         style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} size={14} />CSV</button>
     </CrmToolbarRight>
   );
@@ -218,10 +219,10 @@ function Header({ date, onChange, canExport, onExport }: { date: string; onChang
 
 function Kpi({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
-    <div style={{
+    <div className="km-kpi" style={{
       background: 'var(--s2)', border: '1px solid var(--border)', borderLeft: `3px solid ${accent}`,
-      borderRadius: 12, padding: '12px 14px',
-    }}>
+      borderRadius: 12, padding: '12px 14px', ['--tint' as string]: accent,
+    } as React.CSSProperties}>
       <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{kpiIcon(label)}{label}</div>
       <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>
@@ -230,7 +231,7 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent: s
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{
+    <div className="km-empty" data-state={children === 'Loading…' ? 'loading' : undefined} style={{
       gridColumn: '1 / -1',
       background: 'var(--s2)', border: '1px dashed var(--border)', borderRadius: 12,
       padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13,

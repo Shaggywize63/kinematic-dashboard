@@ -70,18 +70,18 @@ export default function SalesCyclePage() {
           onClick={() => downloadCsv('sales-cycle', tbl.csvRows())}
           disabled={loading || data.length === 0}
           aria-label="Download CSV"
-          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, height: 36, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          className="km-rbtn" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, height: 36, display: 'inline-flex', alignItems: 'center', gap: 6 }}
         ><InlineIcon icon={Download} size={14} />CSV</button>
       </CrmToolbarRight>
-      {loading ? <div style={{ color: 'var(--text-dim)' }}>Loading...</div> : (
+      {loading ? <div className="km-empty" data-state="loading" style={{ color: 'var(--text-dim)' }}>Loading...</div> : (
         <>
           <SalesCycleChart data={chartData} />
           {data.length === 0 ? (
-            <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: '8px 0' }}>No deals were closed won in this date range.</div>
+            <div className="km-empty" style={{ color: 'var(--text-dim)', fontSize: 13, padding: '8px 0' }}>No deals were closed won in this date range.</div>
           ) : (
             <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <PlusDataTable tbl={tbl} rowKey={(r, i) => `${r.month ?? r.stage}-${i}`} />
-              <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+              <div className="km-note" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
                 Counts deals closed won in the range that have a close date. Days = close date minus the date the deal was created. The all-months average is weighted by deals. For time spent inside each pipeline stage see the Stage Velocity report.
               </div>
             </div>

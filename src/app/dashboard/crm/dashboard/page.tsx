@@ -22,6 +22,8 @@ import { useAppUiConfig } from '../../../../lib/useAppUiConfig';
 import { ChartCard, ChartEmpty } from '../../../../lib/chartTheme';
 import { Button, Card, EmptyState, Eyebrow, IconButton, Segmented, Select, T } from '../../../../components/ui';
 import TileGrid from '../../../../components/ui/TileGrid';
+import { useTileSize } from '../../../../lib/useTileSize';
+import { atLeast } from '../../../../lib/tileSize';
 import { usePageTitle } from '../../../../lib/pageTitle';
 import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
 
@@ -90,13 +92,18 @@ const ALL_WIDGETS: WidgetId[] = [...STAT_WIDGETS, ...CHART_WIDGETS].map((w) => w
  * The value uses clamp() so a long Indian-grouped amount still fits the
  * tile on narrow viewports instead of overflowing.
  */
-function StatTile({ label, value, hint, valueTitle, loading, tone, hintWrap, icon }: {
+function StatTile({ label, value, hint, valueTitle, loading, tone, hintWrap, icon, facts }: {
   label: string; value: string | number; hint?: string; valueTitle?: string; loading?: boolean; tone?: 'ok' | 'warn' | 'red' | 'info';
   /** Let a long hint wrap instead of being cut off with an ellipsis. */
   hintWrap?: boolean;
   /** The tile's icon; left out, the shared one for the label (lib/labelIcons.ts). */
   icon?: LucideIcon;
+  /** The figures behind the number — listed once the tile is made taller (New design's movable tiles). */
+  facts?: { l: string; v: string }[];
 }) {
+  const size = useTileSize();
+  const roomy = !!size && atLeast(size.tier, 'roomy');
+  const spacious = !!size && atLeast(size.tier, 'spacious');
   const toneColor = tone === 'ok' ? T.ok : tone === 'warn' ? T.warn : tone === 'red' ? T.red : tone === 'info' ? T.info : T.text;
   const Icon = icon ?? metricIconFor(label);
   return (
@@ -107,12 +114,22 @@ function StatTile({ label, value, hint, valueTitle, loading, tone, hintWrap, ico
         {Icon && <IconTile icon={Icon} tone={tone ?? 'brand'} size={24} iconSize={13} />}
       </div>
       <div title={valueTitle} style={{
-        fontFamily: T.heading, fontSize: 'clamp(20px, 2.2vw, 26px)', fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1,
+        fontFamily: T.heading, fontSize: spacious ? 'clamp(30px, 3.4vw, 44px)' : roomy ? 'clamp(26px, 2.8vw, 34px)' : 'clamp(20px, 2.2vw, 26px)', fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1,
         color: loading ? T.mute : toneColor, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>
         {loading ? '—' : value}
       </div>
       {hint && <div style={{ fontSize: 12.5, color: T.dim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: hintWrap ? 'normal' : 'nowrap' }}>{hint}</div>}
+      {roomy && !!facts?.length && (
+        <div style={{ display: 'grid', gridTemplateColumns: spacious ? '1fr 1fr' : '1fr', gap: '6px 18px', paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+          {facts.map((f) => (
+            <div key={f.l} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, fontSize: 12 }}>
+              <span style={{ color: T.dim }}>{f.l}</span>
+              <b style={{ fontFamily: T.heading, fontVariantNumeric: 'tabular-nums', color: T.text }}>{f.v}</b>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
@@ -412,22 +429,23 @@ export default function CrmDashboardPage() {
                   // the same number in weight mode, so only append in INR mode).
                   hint={`${summary?.open_deals || 0} deals${showOpenVolume && unit === 'inr' && fmtVol(summary?.open_deal_volume) ? ` · ${fmtVol(summary?.open_deal_volume)}` : ''}`}
                   loading={loading}
+                  facts={[{ l: 'Open deals', v: String(summary?.open_deals || 0) }, { l: 'Avg deal size', v: fmtMoney(summary?.avg_deal_size) }, { l: 'Win rate', v: fmtPct(summary?.win_rate_30d) }]}
                 />
           )}
-          {isVisible('stat_won') && !bmwActive && <StatTile label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} valueTitle={fmtMoneyFull(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} tone="ok" loading={loading} />}
-          {isVisible('stat_win_rate') && !bmwActive && <StatTile label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />}
-          {isVisible('stat_avg_deal') && !bmwActive && <StatTile label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} valueTitle={fmtMoneyFull(summary?.avg_deal_size)} loading={loading} />}
-          {isVisible('stat_sales_cycle') && <StatTile label="Sales Cycle" icon={Timer} value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} />}
-          {isVisible('stat_new_leads') && <StatTile label="New Leads" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />}
+          {isVisible('stat_won') && !bmwActive && <StatTile label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} valueTitle={fmtMoneyFull(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} tone="ok" loading={loading} facts={[{ l: 'Deals won', v: String(summary?.won_deals_30d || 0) }, { l: 'Win rate', v: fmtPct(summary?.win_rate_30d) }, { l: 'Avg deal size', v: fmtMoney(summary?.avg_deal_size) }]} />}
+          {isVisible('stat_win_rate') && !bmwActive && <StatTile label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} facts={[{ l: 'Deals won', v: String(summary?.won_deals_30d || 0) }, { l: 'Open deals', v: String(summary?.open_deals || 0) }]} />}
+          {isVisible('stat_avg_deal') && !bmwActive && <StatTile label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} valueTitle={fmtMoneyFull(summary?.avg_deal_size)} loading={loading} facts={[{ l: 'Won revenue', v: fmtMoney(summary?.won_revenue_30d) }, { l: 'Deals won', v: String(summary?.won_deals_30d || 0) }]} />}
+          {isVisible('stat_sales_cycle') && <StatTile label="Sales Cycle" icon={Timer} value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} facts={[{ l: 'Deals won', v: String(summary?.won_deals_30d || 0) }, { l: 'Avg deal size', v: fmtMoney(summary?.avg_deal_size) }]} />}
+          {isVisible('stat_new_leads') && <StatTile label="New Leads" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} facts={[{ l: 'Total leads', v: String(summary?.total_leads || 0) }, { l: 'Conversion', v: fmtPct(summary?.conversion_rate) }]} />}
           {/* Clients that named their lead types ("Dealers" / "Farmers") also get the total split by type.
               Only when the API sent the split, and once the names are known so it never flashes "B2Bs". */}
           {isVisible('stat_new_leads') && leadFormLoaded && summary?.leads_by_segment && (
             <StatTile label="Total leads" icon={Users} value={(summary.total_leads || 0).toLocaleString('en-IN')} loading={loading} hintWrap
               hint={`${segmentPlural(leadForm, 'b2b')} ${(summary.leads_by_segment.b2b || 0).toLocaleString('en-IN')} · ${segmentPlural(leadForm, 'b2c')} ${(summary.leads_by_segment.b2c || 0).toLocaleString('en-IN')}`} />
           )}
-          {isVisible('stat_activities') && <StatTile label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} />}
+          {isVisible('stat_activities') && <StatTile label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} facts={[{ l: 'New leads', v: String(summary?.new_leads_30d || 0) }, { l: 'Total leads', v: String(summary?.total_leads || 0) }]} />}
           {maaManshaActive && <StatTile label="Lead Visits (this week)" value={summary?.lead_visits_week || 0} loading={loading} />}
-          {isVisible('stat_conversion') && <StatTile label="Conversion" value={fmtPct(summary?.conversion_rate)} loading={loading} />}
+          {isVisible('stat_conversion') && <StatTile label="Conversion" value={fmtPct(summary?.conversion_rate)} loading={loading} facts={[{ l: 'Total leads', v: String(summary?.total_leads || 0) }, { l: 'Deals won', v: String(summary?.won_deals_30d || 0) }]} />}
         </TileGrid>
       )}
 

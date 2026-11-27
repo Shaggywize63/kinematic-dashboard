@@ -67,7 +67,7 @@ export function ReportHeader({ title, intro, onExport, exportDisabled, exportLab
       </div>
       {onExport && (
         <button
-          type="button" onClick={onExport} disabled={exportDisabled}
+          type="button" onClick={onExport} disabled={exportDisabled} className="km-rbtn"
           style={{
             background: 'var(--primary)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 8, fontWeight: 700,
             cursor: exportDisabled ? 'not-allowed' : 'pointer', fontSize: 13, opacity: exportDisabled ? 0.6 : 1,
@@ -128,7 +128,7 @@ export function StatGrid({ id, children, perRow = 4, h = 3 }: { id: string; chil
 export function Stat({ label, value, accent, hint, testId, icon }: { label: string; value: ReactNode; accent?: string; hint?: ReactNode; testId?: string; icon?: LucideIcon | null }) {
   const Icon = icon === undefined ? metricIconFor(label) : icon;
   return (
-    <div data-testid={testId} style={{ ...card, borderRadius: 10, padding: 12, minWidth: 0 }}>
+    <div data-testid={testId} className="km-kpi" style={{ ...card, borderRadius: 10, padding: 12, minWidth: 0, ...(accent ? { ['--tint' as string]: accent } : null) } as CSSProperties}>
       <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>{Icon && <InlineIcon icon={Icon} size={14} />}{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color: accent ?? 'var(--text)', marginTop: 4, wordBreak: 'break-word' }}>{value}</div>
       {hint && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{hint}</div>}
@@ -138,7 +138,7 @@ export function Stat({ label, value, accent, hint, testId, icon }: { label: stri
 
 /** A short note under a table: how the numbers are computed, what the comparison basis is. */
 export function Notes({ children }: { children: ReactNode }) {
-  return <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6, padding: '0 2px' }}>{children}</div>;
+  return <div className="km-note" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6, padding: '0 2px' }}>{children}</div>;
 }
 
 export function StatusBox({ loading, error, onRetry, children }: { loading: boolean; error: string | null; onRetry?: () => void; children: ReactNode }) {
@@ -150,7 +150,7 @@ export function StatusBox({ loading, error, onRetry, children }: { loading: bool
       </div>
     );
   }
-  if (loading) return <div style={{ ...card, padding: 24, color: 'var(--text-dim)', textAlign: 'center' }}>Loading…</div>;
+  if (loading) return <div className="km-empty" data-state="loading" style={{ ...card, padding: 24, color: 'var(--text-dim)', textAlign: 'center' }}>Loading…</div>;
   return <>{children}</>;
 }
 
@@ -185,7 +185,7 @@ export function DataTable<T>({ cols, rows, rowKey, empty, initialSort, footer, m
   const { sorted, sort, toggle } = useTableSort<T>(rows, accessor, initialSort ?? { key: null, dir: 'asc' });
   return (
     <div data-testid={testId} style={{ ...card, overflowX: 'auto', maxWidth: '100%' }}>
-      <table style={{ width: '100%', minWidth, borderCollapse: 'collapse', fontSize: 13 }}>
+      <table className="km-rt" style={{ width: '100%', minWidth, borderCollapse: 'collapse', fontSize: 13 }}>
         <thead style={{ background: 'var(--s3)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 }}>
           <tr>
             {cols.map((c) => (
@@ -197,7 +197,7 @@ export function DataTable<T>({ cols, rows, rowKey, empty, initialSort, footer, m
         </thead>
         <tbody>
           {sorted.length === 0 ? (
-            <tr><td colSpan={cols.length} style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)', whiteSpace: 'normal' }}><IconTile icon={Inbox} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />{empty}</td></tr>
+            <tr><td colSpan={cols.length} className="km-empty" style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)', whiteSpace: 'normal' }}><IconTile icon={Inbox} size={40} iconSize={20} style={{ display: 'flex', margin: '0 auto 10px' }} />{empty}</td></tr>
           ) : sorted.map((r) => (
             <tr key={rowKey(r)} style={{ borderTop: '1px solid var(--border)' }}>
               {cols.map((c) => <td key={c.key} style={tdStyle(c.align)}>{c.cell ? c.cell(r) : String(c.csv(r) ?? '—')}</td>)}
@@ -213,7 +213,7 @@ export function DataTable<T>({ cols, rows, rowKey, empty, initialSort, footer, m
 /** A "Team median" style footer row: pass the text per column key; others stay empty. */
 export function FooterRow<T>({ cols, label, values }: { cols: Array<Col<T>>; label: string; values: Record<string, ReactNode> }) {
   return (
-    <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--s3)', fontWeight: 700 }}>
+    <tr className="km-total" style={{ borderTop: '2px solid var(--border)', background: 'var(--s3)', fontWeight: 700 }}>
       {cols.map((c, i) => (
         <td key={c.key} style={tdStyle(c.align)}>{i === 0 ? label : values[c.key] ?? ''}</td>
       ))}

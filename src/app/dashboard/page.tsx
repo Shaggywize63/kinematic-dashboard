@@ -13,7 +13,9 @@ import KiniMascot from '../../components/crm/KiniMascot';
 import { IconTile, InlineIcon } from '../../components/ui/PageIcon';
 import TileBoard from '../../components/ui/TileBoard';
 import { useNewDesign } from '../../lib/useNewDesign';
-import { AttendanceAurora, AuroraArea, CardHead } from '../../components/charts/AuroraCharts';
+import { AttendanceAurora, AuroraArea, AuroraSpark, CardHead } from '../../components/charts/AuroraCharts';
+import { useTileSize } from '../../lib/useTileSize';
+import { atLeast } from '../../lib/tileSize';
 import { metricIconFor } from '../../lib/labelIcons';
 
 /* ── types ─────────────────────────────────────────────────── */
@@ -83,15 +85,24 @@ const TILE_TONES: Record<TileTone, { fg:string; wash:string }> = {
   red:     { fg:T.red,  wash:T.redWash  },
   neutral: { fg:T.dim,  wash:T.raised   },
 };
-const StatTile = ({ label, value, sub, loading, icon, tone = 'neutral' }:{
+const StatTile = ({ label, value, sub, loading, icon, tone = 'neutral', series, facts }:{
   label:string;
   value:string|number;
   sub?:string;
   loading?:boolean;
   icon?:React.ReactNode;
   tone?:TileTone;
+  /** A short history of the number (oldest first): drawn as a trend once the tile is made taller. */
+  series?:number[];
+  /** The facts behind the number: listed once the tile is made taller. */
+  facts?:{ l:string; v:string }[];
 }) => {
   const t = TILE_TONES[tone];
+  // In a movable tile (New design) the content grows with the tile: a bigger number, then a trend, then the facts.
+  const size = useTileSize();
+  const roomy = !!size && atLeast(size.tier, 'roomy');
+  const spacious = !!size && atLeast(size.tier, 'spacious');
+  const numeral = spacious ? 44 : roomy ? 34 : 26;
   return (
     <Card padding={16} className="km-tile" style={{ position:'relative', overflow:'hidden' }}>
       {/* corner glow — the tile's one decorative element */}
@@ -107,11 +118,24 @@ const StatTile = ({ label, value, sub, loading, icon, tone = 'neutral' }:{
       {loading ? (
         <Shimmer h={26} br={5} w="55%" style={{ marginTop:8 }}/>
       ) : (
-        <div style={{ fontFamily:T.heading, fontSize:26, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, marginTop:6, fontVariantNumeric:'tabular-nums' }}>{value}</div>
+        <div style={{ fontFamily:T.heading, fontSize:numeral, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, marginTop:6, fontVariantNumeric:'tabular-nums' }}>{value}</div>
       )}
       {sub && <div style={{ fontSize:12, color:T.dim, marginTop:4 }}>{sub}</div>}
-      {/* baseline accent tick — echoes the tone without colouring the number */}
-      <div aria-hidden style={{ width:26, height:3, borderRadius:2, background:t.fg, opacity:.55, marginTop:10 }}/>
+      {roomy && (series?.length ?? 0) > 1 && (
+        <div style={{ marginTop:12 }}><AuroraSpark values={series!} color={t.fg} height={spacious ? 76 : 48} label={`${label}, recent trend`} /></div>
+      )}
+      {roomy && !!facts?.length && (
+        <div style={{ display:'grid', gridTemplateColumns:spacious ? '1fr 1fr' : '1fr', gap:'6px 18px', marginTop:12, paddingTop:12, borderTop:`1px solid ${T.border}` }}>
+          {facts.map(f => (
+            <div key={f.l} style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8, fontSize:12 }}>
+              <span style={{ color:T.dim }}>{f.l}</span>
+              <b style={{ fontFamily:T.heading, fontVariantNumeric:'tabular-nums', color:T.text }}>{f.v}</b>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* baseline accent tick — echoes the tone without colouring the number (the room it takes goes to the trend once the tile is taller) */}
+      {!roomy && <div aria-hidden style={{ width:26, height:3, borderRadius:2, background:t.fg, opacity:.55, marginTop:10 }}/>}
     </Card>
   );
 };
@@ -349,6 +373,25 @@ const DateRangePicker = ({ from, to, onChange }:{
 /* ══════════════════════════════════════════════════════════
    MAIN ANALYTICS DASHBOARD (NO HR TOGGLE)
 ══════════════════════════════════════════════════════════ */
+/** The facts behind the five home KPIs — listed in a tile once it is made taller. Only figures the API actually sent. */
+function homeKpiFacts(k: { total_tff?:number; total_hours_worked?:number; total_days_worked?:number; total_leaves?:number; avg_attendance?:number } | undefined, days: WeekDay[], att: AttSummary | null | undefined) {
+  const keep = (rows: ({ l:string; v:string } | null)[]) => rows.filter((r): r is { l:string; v:string } => !!r);
+  const peak = days.reduce<WeekDay | undefined>((b, d) => (!b || d.tff > b.tff ? d : b), undefined);
+  const avgTff = days.length ? Math.round(days.reduce((sum, d) => sum + d.tff, 0) / days.length) : null;
+  const hrs = k?.total_hours_worked, dw = k?.total_days_worked, lv = k?.total_leaves;
+  // Hours per day worked is only a meaningful fact when it is a plausible working day (a quirky total never shows as a figure).
+  const perDayNum = hrs != null && dw ? hrs / dw : null;
+  const perDay = perDayNum != null && perDayNum > 0 && perDayNum <= 24 ? `${perDayNum.toFixed(1)} h` : null;
+  const checkedIn = att ? att.present + att.on_break + att.checked_out : null;
+  return {
+    forms: keep([peak && peak.tff > 0 ? { l:'Peak day', v:`${peak.short_label} · ${peak.tff}` } : null, avgTff != null ? { l:'Daily average', v:String(avgTff) } : null, days.length ? { l:'Days in range', v:String(days.length) } : null]),
+    hours: keep([perDay ? { l:'Per day worked', v:perDay } : null, dw != null ? { l:'Days worked', v:String(dw) } : null]),
+    days:  keep([lv != null ? { l:'Leaves', v:String(lv) } : null, perDay ? { l:'Hours per day', v:perDay } : null]),
+    leaves: keep([dw != null ? { l:'Days worked', v:String(dw) } : null, lv != null && dw != null && dw + lv > 0 ? { l:'Leave share', v:`${Math.round((lv / (dw + lv)) * 100)}%` } : null]),
+    attendance: keep([att && checkedIn != null ? { l:'Checked in now', v:`${checkedIn} of ${att.total}` } : null, att ? { l:'On break', v:String(att.on_break) } : null, att ? { l:'Absent', v:String(att.absent) } : null, att && att.on_leave != null ? { l:'On leave', v:String(att.on_leave) } : null]),
+  };
+}
+
 export default function DashboardPage() {
   const { enabled: aurora } = useNewDesign();
   const router = useRouter();
@@ -515,6 +558,8 @@ export default function DashboardPage() {
   };
 
   const att       = attData?.summary;
+  const kpiFacts  = homeKpiFacts(summData?.kpis, weekData?.days || [], att);
+  const weekSeries = (weekData?.days || []).map(d => d.tff);
 
   return (
     <>
@@ -554,11 +599,11 @@ export default function DashboardPage() {
         <TileBoard
           id="home-kpis"
           tiles={[
-            { key:'forms', label:'Total forms filled', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Total forms filled" tone="ok" icon={<ClipboardCheck size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_tff ?? '—'} loading={loadingSumm} />) },
-            { key:'hours', label:'Total hours', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Total hours" tone="info" icon={<Clock size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_hours_worked != null ? `${Math.floor(summData.kpis.total_hours_worked)}h ${Math.round((summData.kpis.total_hours_worked % 1) * 60)}m` : '—'} loading={loadingSumm} />) },
-            { key:'days', label:'Days worked', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Days worked" tone="neutral" icon={<CalendarDays size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_days_worked ?? '—'} loading={loadingSumm} />) },
-            { key:'leaves', label:'Total leaves', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Total leaves" tone="warn" icon={<CalendarOff size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_leaves ?? '—'} loading={loadingSumm} />) },
-            { key:'avgAttendance', label:'Avg attendance', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Avg attendance" tone="red" icon={<UserCheck size={15} strokeWidth={1.8}/>} value={summData?.kpis?.avg_attendance != null ? `${Math.round(summData.kpis.avg_attendance)}%` : '—'} loading={loadingSumm} />) },
+            { key:'forms', label:'Total forms filled', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Total forms filled" tone="ok" icon={<ClipboardCheck size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_tff ?? '—'} loading={loadingSumm} series={weekSeries} facts={kpiFacts.forms} />) },
+            { key:'hours', label:'Total hours', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Total hours" tone="info" icon={<Clock size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_hours_worked != null ? `${Math.floor(summData.kpis.total_hours_worked)}h ${Math.round((summData.kpis.total_hours_worked % 1) * 60)}m` : '—'} loading={loadingSumm} facts={kpiFacts.hours} />) },
+            { key:'days', label:'Days worked', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Days worked" tone="neutral" icon={<CalendarDays size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_days_worked ?? '—'} loading={loadingSumm} facts={kpiFacts.days} />) },
+            { key:'leaves', label:'Total leaves', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Total leaves" tone="warn" icon={<CalendarOff size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_leaves ?? '—'} loading={loadingSumm} facts={kpiFacts.leaves} />) },
+            { key:'avgAttendance', label:'Avg attendance', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Avg attendance" tone="red" icon={<UserCheck size={15} strokeWidth={1.8}/>} value={summData?.kpis?.avg_attendance != null ? `${Math.round(summData.kpis.avg_attendance)}%` : '—'} loading={loadingSumm} facts={kpiFacts.attendance} />) },
           ]}
           classic={(t) => (
             <div style={{ display:'grid', gridTemplateColumns:narrow ? 'repeat(2, minmax(0, 1fr))' : 'repeat(5, minmax(0, 1fr))', gap:12 }}>
@@ -696,7 +741,7 @@ export default function DashboardPage() {
                 />
               )}
               {aurora && !loadingWeek && (weekData?.days?.length ?? 0) > 0 ? (
-                <AuroraArea ariaLabel="Forms filled per day" color="var(--au-good, #0AAC23)"
+                <AuroraArea ariaLabel="Forms filled per day" color="var(--au-good, #0AAC23)" fill reserve={210}
                   data={(weekData?.days || []).map(d => ({ label:d.label, short:d.short_label, value:d.tff }))} />
               ) : (
                 <WeeklyBar days={weekData?.days || []} loading={loadingWeek}/>

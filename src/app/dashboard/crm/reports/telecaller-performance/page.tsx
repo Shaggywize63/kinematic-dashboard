@@ -73,7 +73,7 @@ export default function TelecallerPerformancePage() {
 
       <TableCard title="Telecaller Wise">
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 820 }}>
+          <table className="km-rt" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 820 }}>
             <thead>
               <tr style={{ background: 'var(--s2)' }}>
                 <Th sticky><SortLabel label="Telecaller" sortKey="user_name" sort={sort} onToggle={toggle} /></Th>
@@ -111,7 +111,7 @@ export default function TelecallerPerformancePage() {
 
       <TableCard title="Day-wise Trend">
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 560 }}>
+          <table className="km-rt" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 560 }}>
             <thead>
               <tr style={{ background: 'var(--s2)' }}>
                 <Th>Date</Th>
@@ -176,10 +176,10 @@ function KpiStrip({ totals, connectRate, loading }: { totals: Totals | null; con
   return (
     <TileGrid id="crm-reports-telecaller-performance-kpis" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
       {items.map((k) => (
-        <div key={k.label} style={{
+        <div key={k.label} className="km-kpi" style={{
           background: 'var(--s2)', border: '1px solid var(--border)', borderLeft: `3px solid ${k.accent}`,
-          borderRadius: 12, padding: '12px 14px',
-        }}>
+          borderRadius: 12, padding: '12px 14px', ['--tint' as string]: k.accent,
+        } as React.CSSProperties}>
           <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{kpiIcon(k.label)}{k.label}</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{loading ? '—' : k.value}</div>
         </div>
@@ -193,7 +193,8 @@ function KpiStrip({ totals, connectRate, loading }: { totals: Totals | null; con
 function TableCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-      <div style={{ padding: '14px 18px', background: '#1e88e5', color: '#fff', fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', fontSize: 13 }}>{title}</div>
+      {/* Classic: the solid blue band. New design: .km-band turns it into a glass tint of --tint (aurora-reports.css). */}
+      <div className="km-band" style={{ padding: '14px 18px', background: '#1e88e5', color: '#fff', fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', fontSize: 13, ['--tint' as string]: '#3E9EFF' } as React.CSSProperties}>{title}</div>
       {children}
     </div>
   );
@@ -201,7 +202,7 @@ function TableCard({ title, children }: { title: string; children: React.ReactNo
 
 function TotalRow({ t }: { t: Totals }) {
   return (
-    <tr style={{ background: 'var(--s1)', fontWeight: 800 }}>
+    <tr className="km-total" style={{ background: 'var(--s1)', fontWeight: 800 }}>
       <Td sticky bold>Total</Td>
       <Td align="right">{t.leads_assigned}</Td>
       <Td align="right" bold>{t.calls}</Td>
@@ -217,7 +218,7 @@ function TotalRow({ t }: { t: Totals }) {
 
 function Th({ children, align, sticky }: { children: React.ReactNode; align?: 'right'; sticky?: boolean }) {
   return (
-    <th style={{
+    <th className={sticky ? 'km-sticky' : undefined} style={{
       padding: '10px 14px', fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
       textTransform: 'uppercase', textAlign: align ?? 'left',
       borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)',
@@ -233,7 +234,8 @@ function Td({ children, align, sticky, bold, tone, dim, center, colSpan }: {
   tone?: string; dim?: boolean; center?: boolean; colSpan?: number;
 }) {
   return (
-    <td colSpan={colSpan} style={{
+    <td colSpan={colSpan} className={[sticky ? 'km-sticky' : '', center ? 'km-empty' : ''].filter(Boolean).join(' ') || undefined}
+      data-state={center && children === 'Loading…' ? 'loading' : undefined} style={{
       padding: '11px 14px', fontSize: 13,
       color: tone ?? (dim ? 'var(--text-dim)' : 'var(--text)'),
       fontWeight: bold ? 700 : undefined,

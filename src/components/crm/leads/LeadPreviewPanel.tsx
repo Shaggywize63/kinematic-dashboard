@@ -16,6 +16,7 @@ import { WA_PATH } from '../shared/WhatsAppButton';
 import { formatRelativeTime } from '../LeadsTable';
 import LeadAvatar, { leadDisplayName } from './LeadAvatar';
 import { inferGrade } from './ScoreMeter';
+import { AuroraDonut, NewDesignSwap } from '../../charts/AuroraDonut';
 import { Badge, Button, IconButton, T, eyebrowStyle, type Tone } from '../../ui';
 import { isB2bClientActive } from '../../../lib/b2bClient';
 import { LEAD_TYPE_DEFAULT_LABEL, leadTypeLabel } from '../../../lib/leadType';
@@ -42,6 +43,7 @@ function ScoreRing({ score, grade }: { score?: number | null; grade?: 'A' | 'B' 
   const pct = score == null ? 0 : Math.max(0, Math.min(100, score));
   return (
     <span style={{ position: 'relative', display: 'inline-flex', width: 58, height: 58, flexShrink: 0 }} title={g ? `Grade ${g}` : undefined}>
+      <NewDesignSwap classic={<>
       <svg width={58} height={58} viewBox="0 0 58 58" aria-hidden style={{ transform: 'rotate(-90deg)' }}>
         <circle cx={29} cy={29} r={r} fill="none" stroke="var(--s4)" strokeWidth={5} />
         <circle cx={29} cy={29} r={r} fill="none" stroke={color} strokeWidth={5} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
@@ -50,6 +52,10 @@ function ScoreRing({ score, grade }: { score?: number | null; grade?: 'A' | 'B' 
         <span style={{ fontFamily: T.heading, fontSize: 17, fontWeight: 800, color: T.text }}>{score == null ? '—' : Math.round(score)}</span>
         <span style={{ fontFamily: T.mono, fontSize: 8, letterSpacing: '0.1em', color: T.mute, marginTop: 2 }}>SCORE</span>
       </span>
+      </>}>
+        <AuroraDonut inline size={58} max={100} ariaLabel="Lead score" data={[{ label: 'Score', value: pct, color }]}
+          centre={{ value: score == null ? '—' : Math.round(score), label: 'SCORE' }} />
+      </NewDesignSwap>
     </span>
   );
 }

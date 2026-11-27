@@ -144,7 +144,7 @@ export default function StuckDealsPage() {
             }}>{n}d</button>
           ))}
         </div>
-        <button onClick={() => downloadCsv(`stuck-deals-${threshold}d`, rows)} disabled={loading || rows.length === 0} style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
+        <button onClick={() => downloadCsv(`stuck-deals-${threshold}d`, rows)} disabled={loading || rows.length === 0} className="km-rbtn" style={csvBtn}><InlineIcon icon={Download} size={14} />CSV</button>
       </CrmToolbarRight>
 
       <TileGrid id="crm-reports-stuck-deals-kpis" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
@@ -156,16 +156,16 @@ export default function StuckDealsPage() {
         <Kpi label="Past expected close" value={pastClose} />
       </TileGrid>
       {truncated && (
-        <div role="status" style={{ fontSize: 12, color: '#b45309', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+        <div role="status" className="km-warn" style={{ fontSize: 12, color: '#b45309', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
           Showing the first 1,000 deals only, so this list may be partial. Narrow the city filter for a complete view.
         </div>
       )}
 
-      {loading ? <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div> : rows.length === 0 ? (
-        <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 12 }}>Nothing stuck longer than {threshold} days. Healthy pipeline.</div>
+      {loading ? <div className="km-empty" data-state="loading" style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div> : rows.length === 0 ? (
+        <div className="km-empty" style={{ color: 'var(--text-dim)', fontSize: 13, padding: 12 }}>Nothing stuck longer than {threshold} days. Healthy pipeline.</div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 900 }}>
+          <table className="km-rt" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 900 }}>
             <thead>
               <tr>
                 <th style={th}><SortLabel label="Deal" sortKey="name" sort={sort} onToggle={toggle} /></th>
@@ -184,7 +184,7 @@ export default function StuckDealsPage() {
             <tbody>
               {sorted.map((d) => (
                 <tr key={d.id}>
-                  <td style={td}><Link href={`/dashboard/crm/deals/${d.id}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>{d.name}</Link></td>
+                  <td style={td}><Link href={`/dashboard/crm/deals/${d.id}`} className="km-link" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>{d.name}</Link></td>
                   <td style={td}>{d.owner_name}</td>
                   <td style={td}>{d.stage_name}</td>
                   <td style={tdNum}>{inr(d.amount)}</td>
@@ -195,7 +195,7 @@ export default function StuckDealsPage() {
                   <td style={tdNum}>{d.next_action_at ?? '—'}</td>
                   <td style={tdNum}>{d.deal_age_days !== null ? `${d.deal_age_days}d` : '—'}</td>
                   <td style={{ ...td, textAlign: 'right' }}>
-                    <Link href={`/dashboard/crm/deals/${d.id}`} style={openBtn}>Open →</Link>
+                    <Link href={`/dashboard/crm/deals/${d.id}`} className="km-link km-link-btn" style={openBtn}>Open →</Link>
                   </td>
                 </tr>
               ))}
@@ -209,7 +209,7 @@ export default function StuckDealsPage() {
 
 function Kpi({ label, value }: { label: string; value: string | number }) {
   return (
-    <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+    <div className="km-kpi" style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>{kpiIcon(label)}{label}</div>
       <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{value}</div>
     </div>

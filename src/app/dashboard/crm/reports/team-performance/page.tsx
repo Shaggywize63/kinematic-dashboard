@@ -151,7 +151,7 @@ export default function TeamPerformancePage() {
       <KpiStrip total={total} loading={loading} />
       <TableCard title="Team Wise — Detailed">
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 1700 + EXTRA_COLS.length * 130 }}>
+          <table className="km-rt" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 1700 + EXTRA_COLS.length * 130 }}>
             <thead>
               {/* Top header row — section grouping (Lead Funnel / Deals / Ops) */}
               <tr style={{ background: 'var(--s1)' }}>
@@ -215,7 +215,7 @@ function Header({ range, onChange, canExport, onExport }: { range: { from: strin
     <CrmToolbarRight>
       <DateInput label="From" value={range.from} onChange={(v) => onChange({ ...range, from: v })} />
       <DateInput label="To"   value={range.to}   onChange={(v) => onChange({ ...range, to: v })} />
-      <button onClick={onExport} disabled={!canExport} aria-label="Download CSV"
+      <button onClick={onExport} disabled={!canExport} aria-label="Download CSV" className="km-rbtn"
         style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: canExport ? 'pointer' : 'not-allowed', fontWeight: 700, height: 36, opacity: canExport ? 1 : 0.55, display: 'inline-flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Download} size={14} />CSV</button>
     </CrmToolbarRight>
   );
@@ -250,10 +250,10 @@ function KpiStrip({ total, loading }: { total: PerfRow | null; loading: boolean 
   return (
     <TileGrid id="crm-reports-team-performance-kpis" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
       {items.map((k) => (
-        <div key={k.label} data-testid="tp-kpi" style={{
+        <div key={k.label} data-testid="tp-kpi" className="km-kpi" style={{
           background: 'var(--s2)', border: '1px solid var(--border)', borderLeft: `3px solid ${k.accent}`,
-          borderRadius: 12, padding: '12px 14px',
-        }}>
+          borderRadius: 12, padding: '12px 14px', ['--tint' as string]: k.accent,
+        } as React.CSSProperties}>
           <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}>
             {kpiIcon(k.label)}{k.label}
           </div>
@@ -269,7 +269,8 @@ function KpiStrip({ total, loading }: { total: PerfRow | null; loading: boolean 
 function TableCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-      <div style={{ padding: '14px 18px', background: '#1e88e5', color: '#fff', fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', fontSize: 13 }}>
+      {/* Classic: the solid blue band. New design: .km-band turns it into a glass tint of --tint (aurora-reports.css). */}
+      <div className="km-band" style={{ padding: '14px 18px', background: '#1e88e5', color: '#fff', fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', fontSize: 13, ['--tint' as string]: '#3E9EFF' } as React.CSSProperties}>
         {title}
       </div>
       {children}
@@ -283,7 +284,7 @@ function Row({ r, sticky }: { r: PerfRow; sticky?: boolean }) {
   const bg = sticky ? 'var(--s1)' : 'transparent';
   const weight = sticky ? 800 : 600;
   return (
-    <tr style={{ background: bg, fontWeight: weight }}>
+    <tr className={sticky ? 'km-total' : undefined} style={{ background: bg, fontWeight: weight }}>
       <Td sticky bold>
         {!sticky && r.user_id
           ? <Link href={`/dashboard/crm/reports/salesperson/${r.user_id}`} style={{ color: 'var(--text)', textDecoration: 'none' }}>{r.name}</Link>
@@ -325,7 +326,7 @@ function Th({ children, align, sticky, rowSpan, colSpan, group }: {
   group?: string;
 }) {
   return (
-    <th rowSpan={rowSpan} colSpan={colSpan} style={{
+    <th rowSpan={rowSpan} colSpan={colSpan} className={group ? 'km-band' : sticky ? 'km-sticky' : undefined} style={{
       padding: '10px 14px', fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
       textTransform: 'uppercase', textAlign: align ?? (group ? 'center' : 'left'),
       borderBottom: '1px solid var(--border)',
@@ -336,7 +337,8 @@ function Th({ children, align, sticky, rowSpan, colSpan, group }: {
       left: sticky ? 0 : undefined,
       zIndex: sticky ? 2 : undefined,
       whiteSpace: 'nowrap',
-    }}>{children}</th>
+      ...(group ? { ['--tint' as string]: group } : null),
+    } as React.CSSProperties}>{children}</th>
   );
 }
 
@@ -347,7 +349,8 @@ function Td({ children, align, sticky, bold, tone, dim, center, colSpan }: {
   colSpan?: number;
 }) {
   return (
-    <td colSpan={colSpan} style={{
+    <td colSpan={colSpan} className={[sticky ? 'km-sticky' : '', center ? 'km-empty' : ''].filter(Boolean).join(' ') || undefined}
+      data-state={center && children === 'Loading…' ? 'loading' : undefined} style={{
       padding: '11px 14px', fontSize: 13,
       color: tone ?? (dim ? 'var(--text-dim)' : 'var(--text)'),
       fontWeight: bold ? 700 : undefined,

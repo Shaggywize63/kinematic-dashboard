@@ -2,6 +2,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { AlarmClock, CalendarOff, Coffee, LogOut, Navigation, Sunrise, UserCheck, UserX, type LucideIcon } from 'lucide-react';
 import { T } from '../ui';
+import { useTileSize } from '../../lib/useTileSize';
 
 /**
  * Aurora charts — the New design's signature graphs (see app/aurora.css, "A · Aurora" in the design exploration).
@@ -59,15 +60,15 @@ const GROUPS: { key: GroupKey; label: string; caption: string; color: string; ic
   { key: 'absent', label: 'Absent',      caption: 'No check-in, no leave', color: 'var(--au-crit, #DC3C3D)',    icon: UserX,      pick: (p) => p.absent },
 ];
 
-const SIZE = 220;
+const BASE_SIZE = 220;
 
 /** The tick ring: one rounded tick per person, a one-slot gap between status groups, clockwise from the top. */
-function TickRing({ counts, hover, onHover, centre }: { counts: number[]; hover: GroupKey | null; onHover: (k: GroupKey | null) => void; centre: ReactNode }) {
+function TickRing({ counts, hover, onHover, centre, size }: { counts: number[]; hover: GroupKey | null; onHover: (k: GroupKey | null) => void; centre: ReactNode; size: number }) {
   const people = counts.reduce((a, b) => a + b, 0);
   const slots = people + counts.filter((n) => n > 0).length;                 // + a gap after each non-empty group
-  const cx = SIZE / 2, r1 = SIZE / 2 - 4, r0 = r1 - 18;
+  const cx = size / 2, r1 = size / 2 - 4, r0 = r1 - 18 * (size / BASE_SIZE);
   const pitch = (2 * Math.PI * ((r0 + r1) / 2)) / Math.max(slots, 1);        // px between neighbouring ticks
-  const sw = clamp(pitch * 0.52, 1.1, 5);
+  const sw = clamp(pitch * 0.52, 1.1, 5 * (size / BASE_SIZE));
 
   const ticks: ReactNode[] = [];
   let i = 0;
@@ -84,8 +85,8 @@ function TickRing({ counts, hover, onHover, centre }: { counts: number[]; hover:
   });
 
   return (
-    <div style={{ position: 'relative', width: SIZE, height: SIZE, flexShrink: 0 }} onMouseLeave={() => onHover(null)}>
-      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} role="img"
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }} onMouseLeave={() => onHover(null)}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img"
         aria-label={`Attendance today: ${GROUPS.map((g, gi) => `${counts[gi]} ${g.label.toLowerCase()}`).join(', ')}.`}>
         {ticks}
       </svg>
@@ -98,6 +99,10 @@ export function AttendanceAurora(props: AttendanceAuroraProps) {
   const { on_leave, first_check_in, late_checkins, late_after = '10:00 am' } = props;
   const clock = useClock();
   const [hover, setHover] = useState<GroupKey | null>(null);
+  // In a movable tile the ring takes the room the tile has (never smaller than the designed size).
+  const tile = useTileSize();
+  const ringSize = tile ? Math.round(clamp(Math.min(tile.width * 0.42, tile.height - 170), BASE_SIZE, 340)) : BASE_SIZE;
+  const k = ringSize / BASE_SIZE;
 
   const counts = GROUPS.map((g) => g.pick(props));
   const people = counts.reduce((a, b) => a + b, 0);
@@ -113,12 +118,12 @@ export function AttendanceAurora(props: AttendanceAuroraProps) {
 
   const centre = focus ? (
     <>
-      <span className="km-au-num" style={{ fontSize: 52 }}>{nf(counts[GROUPS.indexOf(focus)])}</span>
+      <span className="km-au-num" style={{ fontSize: Math.round(52 * k) }}>{nf(counts[GROUPS.indexOf(focus)])}</span>
       <small style={{ fontSize: 12, color: 'var(--a-ink-2, var(--dim))' }}>{focus.label.toLowerCase()}</small>
     </>
   ) : (
     <>
-      <span className="km-au-num" style={{ fontSize: 52 }}>{pct}%</span>
+      <span className="km-au-num" style={{ fontSize: Math.round(52 * k) }}>{pct}%</span>
       <small style={{ fontSize: 12, color: 'var(--a-ink-2, var(--dim))' }}>{nf(checkedIn)} of {nf(people)} checked in</small>
     </>
   );
@@ -129,7 +134,7 @@ export function AttendanceAurora(props: AttendanceAuroraProps) {
         right={<span className="km-livepill"><span className="km-livedot" />{clock}</span>} />
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 22, alignItems: 'center' }}>
-        <TickRing counts={counts} hover={hover} onHover={setHover} centre={centre} />
+        <TickRing counts={counts} hover={hover} onHover={setHover} centre={centre} size={ringSize} />
         <div style={{ flex: 1, minWidth: 200, display: 'grid', gap: 2 }} onMouseLeave={() => setHover(null)}>
           {GROUPS.map((g, gi) => {
             const Ico = g.icon;
@@ -208,9 +213,13 @@ function smoothPath(pts: { x: number; y: number }[]): string {
 export interface AreaPoint { label: string; short?: string; value: number }
 
 /** Smoothed area with a crosshair readout: hover it, or focus it and use ← →. */
-export function AuroraArea({ data, color = 'var(--au-good, #0AAC23)', height = 210, unit = '', ariaLabel }: {
+export function AuroraArea({ data, color = 'var(--au-good, #0AAC23)', height: heightProp = 210, unit = '', ariaLabel, fill = false, reserve = 200 }: {
   data: AreaPoint[]; color?: string; height?: number; unit?: string; ariaLabel?: string;
+  /** In a movable tile, use the room the tile has (its height minus `reserve` px for what sits around the chart). */
+  fill?: boolean; reserve?: number;
 }) {
+  const tile = useTileSize();
+  const height = fill && tile ? Math.round(clamp(tile.height - reserve, heightProp, 640)) : heightProp;
   const wrap = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(560);
   const [idx, setIdx] = useState<number | null>(null);
@@ -302,3 +311,21 @@ function niceStep(max: number, target: number): number {
 }
 const abbr = (v: number) => (v >= 10000 ? `${+(v / 1000).toFixed(1)}K` : nf(v));
 
+
+/** A small trend line under a number: smoothed, with a soft fill. Scales to its container's width. */
+export function AuroraSpark({ values, color = 'var(--au-good, #0AAC23)', height = 48, label }: { values: number[]; color?: string; height?: number; label?: string }) {
+  const gid = useId().replace(/:/g, '');
+  if (values.length < 2) return null;
+  const W = 100, pad = 3;
+  const lo = Math.min(...values), hi = Math.max(...values);
+  const span = hi - lo || 1;
+  const pts = values.map((v, i) => ({ x: (W * i) / (values.length - 1), y: pad + (height - pad * 2) * (1 - (v - lo) / span) }));
+  const line = smoothPath(pts);
+  return (
+    <svg viewBox={`0 0 ${W} ${height}`} preserveAspectRatio="none" role="img" aria-label={label ?? 'Trend'} style={{ display: 'block', width: '100%', height }}>
+      <defs><linearGradient id={`s${gid}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity={0.35} /><stop offset="100%" stopColor={color} stopOpacity={0} /></linearGradient></defs>
+      <path d={`${line} L${W},${height} L0,${height} Z`} fill={`url(#s${gid})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}

@@ -30,6 +30,7 @@ import {
 } from '../../../../components/expenses/kit';
 import { ChartCard, ChartTooltip, ChartEmpty, GradientDefs, grad, CHART } from '../../../../lib/chartTheme';
 import { formatINRCompact } from '../../../../lib/formatCurrency';
+import { AuroraDonut, NewDesignSwap } from '../../../../components/charts/AuroraDonut';
 import {
   CATEGORIES, CLAIM_STATUS_LABEL, ClaimFilters, ClaimStatus, ClaimsSummary, ExpenseClaim, ExpensePolicy, MyPolicy,
   OdometerHistoryRow, categoryLabel, expensesApi, mergeCategoryRules, singleCategory, vehicleFlowOn,
@@ -387,6 +388,7 @@ function Overview({ summary, currency, narrow }: { summary: ClaimsSummary; curre
         </ChartCard>
         <ChartCard title="Where the money sits" subtitle="Claimed amount by status" minHeight={260} right={cardIcon(PieChartIcon)}>
           {donut.length === 0 ? <ChartEmpty /> : (
+            <NewDesignSwap classic={
             <ResponsiveContainer width="100%" height={230}>
               <PieChart>
                 <Pie data={donut} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={80} paddingAngle={2} stroke="var(--s2)" strokeWidth={2} labelLine={false} {...CHART.animation}>
@@ -396,6 +398,10 @@ function Overview({ summary, currency, narrow }: { summary: ClaimsSummary; curre
                 <Legend verticalAlign="bottom" height={28} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
+            }>
+              <AuroraDonut ariaLabel="Claimed amount by status" minHeight={230} formatValue={formatINRCompact}
+                data={donut.map((d) => ({ label: d.name, value: d.value, color: STATUS_COLOR[d.status] }))} />
+            </NewDesignSwap>
           )}
         </ChartCard>
       </TileGrid>
@@ -490,6 +496,7 @@ function CategoryReport({ summary, rules, currency, narrow }: { summary: ClaimsS
         <ChartCard title="Spend by category" subtitle="Claimed amount per expense category" right={cardIcon(Tags)}><MagnitudeBars data={bars} currency={currency} /></ChartCard>
         <ChartCard title="Category mix" subtitle="Share of total claimed" minHeight={260} right={cardIcon(PieChartIcon)}>
           {mix.length === 0 ? <ChartEmpty /> : (
+            <NewDesignSwap classic={
             <ResponsiveContainer width="100%" height={230}>
               <PieChart>
                 <Pie data={mix} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={80} paddingAngle={2} stroke="var(--s2)" strokeWidth={2} labelLine={false} {...CHART.animation}>
@@ -499,6 +506,10 @@ function CategoryReport({ summary, rules, currency, narrow }: { summary: ClaimsS
                 <Legend verticalAlign="bottom" height={28} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
+            }>
+              <AuroraDonut ariaLabel="Category mix, share of total claimed" minHeight={230} formatValue={formatINRCompact}
+                data={mix.map((d) => ({ label: d.name, value: d.value, color: d.color }))} />
+            </NewDesignSwap>
           )}
         </ChartCard>
       </TileGrid>
@@ -598,6 +609,7 @@ function StatusReport({ summary, currency }: { summary: ClaimsSummary; currency:
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <ChartCard title="By status" subtitle="Claimed amount by claim status" minHeight={280} right={cardIcon(PieChartIcon)}>
         {donut.length === 0 ? <ChartEmpty /> : (
+          <NewDesignSwap classic={
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
               <Pie data={donut} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={92} paddingAngle={2} stroke="var(--s2)" strokeWidth={2} labelLine={false} {...CHART.animation}>
@@ -607,6 +619,10 @@ function StatusReport({ summary, currency }: { summary: ClaimsSummary; currency:
               <Legend verticalAlign="bottom" height={28} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
+          }>
+            <AuroraDonut ariaLabel="Claimed amount by claim status" minHeight={260} size={200} formatValue={formatINRCompact}
+              data={donut.map((d) => ({ label: d.name, value: d.value, color: STATUS_COLOR[d.status] }))} />
+          </NewDesignSwap>
         )}
       </ChartCard>
       <ReportTable cols={cols} rows={rows.map((s) => ({ id: s.status, status: s.status, claims: s.claims, amount: s.amount }))} empty="No claims." />
@@ -645,6 +661,7 @@ function ApprovalsReport({ summary, currency, narrow }: { summary: ClaimsSummary
       <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1fr 1fr', gap: 16 }}>
         <ChartCard title="Claims by status" subtitle="Count of claims in each state" minHeight={280} right={cardIcon(PieChartIcon)}>
           {donut.length === 0 ? <ChartEmpty /> : (
+            <NewDesignSwap classic={
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie data={donut} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={92} paddingAngle={2} stroke="var(--s2)" strokeWidth={2} labelLine={false} {...CHART.animation}>
@@ -654,6 +671,10 @@ function ApprovalsReport({ summary, currency, narrow }: { summary: ClaimsSummary
                 <Legend verticalAlign="bottom" height={28} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
+            }>
+              <AuroraDonut ariaLabel="Claims by status" minHeight={260} size={200} centre={{ label: 'claims' }}
+                data={donut.map((d) => ({ label: d.name, value: d.value, color: STATUS_COLOR[d.status] }))} />
+            </NewDesignSwap>
           )}
         </ChartCard>
         <ReportTable cols={cols} rows={rows.map((s) => ({ id: s.status, status: s.status, claims: s.claims, amount: s.amount }))} empty="No claims." />

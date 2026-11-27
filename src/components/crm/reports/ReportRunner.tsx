@@ -163,6 +163,7 @@ export default function ReportRunner({
         <button
           onClick={download}
           disabled={downloading}
+          className="km-rbtn"
           style={{
             padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700,
             border: '1px solid var(--border)', cursor: downloading ? 'default' : 'pointer',
@@ -193,20 +194,20 @@ export default function ReportRunner({
 
       {/* Data table. */}
       {running && !data ? (
-        <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>Running the report…</div>
+        <div className="km-empty" data-state="loading" style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>Running the report…</div>
       ) : data && data.rows.length === 0 ? (
-        <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        <div className="km-empty" style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
           <IconTile icon={FileSearch} size={40} iconSize={20} />
           No data for this period. Try a wider date range.
         </div>
       ) : data ? (
         <>
-          <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 10 }}>
-            <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+          <div className="km-rwrap" style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 10 }}>
+            <table className="km-rt" style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
               <thead>
                 <tr>
                   {data.columns.map((c) => (
-                    <th key={c} style={{
+                    <th key={c} className="km-sticky" style={{
                       position: 'sticky', top: 0, textAlign: 'left', whiteSpace: 'nowrap',
                       padding: '9px 12px', background: 'var(--s3)', color: 'var(--text)',
                       fontWeight: 700, borderBottom: '1px solid var(--border)',
@@ -218,7 +219,7 @@ export default function ReportRunner({
                 {shownRows.map((row, ri) => {
                   const isTotal = String(row[0] ?? '').toLowerCase() === 'grand total';
                   return (
-                    <tr key={ri} style={{ background: isTotal ? 'var(--s3)' : 'transparent', fontWeight: isTotal ? 700 : 400 }}>
+                    <tr key={ri} className={isTotal ? 'km-total' : undefined} style={{ background: isTotal ? 'var(--s3)' : 'transparent', fontWeight: isTotal ? 700 : 400 }}>
                       {row.map((cell, ci) => (
                         <td key={ci} style={{
                           padding: '8px 12px', whiteSpace: 'nowrap', color: 'var(--text)',
@@ -232,7 +233,7 @@ export default function ReportRunner({
             </table>
           </div>
           {data.rows.length > MAX_RENDER_ROWS && (
-            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8 }}>
+            <div className="km-note" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8 }}>
               Showing the first {MAX_RENDER_ROWS.toLocaleString('en-IN')} of {data.rows.length.toLocaleString('en-IN')} rows — download the CSV for the full report.
             </div>
           )}
@@ -245,10 +246,11 @@ export default function ReportRunner({
 function SummaryTile({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   const Icon = highlight ? Rows3 : metricIconFor(label);
   return (
-    <div style={{
+    <div className={highlight ? 'km-kpi km-kpi-hl' : 'km-kpi'} style={{
       background: highlight ? 'var(--primary)' : 'var(--s3)',
       border: '1px solid var(--border)', borderRadius: 10, padding: '8px 14px', minWidth: 96,
-    }}>
+      ...(highlight ? { ['--tint' as string]: 'var(--primary)' } : null),
+    } as React.CSSProperties}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: highlight ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>{Icon && <InlineIcon icon={Icon} size={12} />}{label}</div>
       <div style={{ fontSize: 16, fontWeight: 800, color: highlight ? '#fff' : 'var(--text)', marginTop: 2 }}>{value}</div>
     </div>
