@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { CalendarClock, Handshake, History, Star, type LucideIcon } from 'lucide-react';
 import { InlineIcon } from '../../ui/PageIcon';
+import TileBoard, { type TileDef } from '../../ui/TileBoard';
 import type { Deal } from '../../../types/crm';
 import type { LeadUpdate } from '../../../lib/crmApi';
 import type { ConversationRow } from '../../../lib/conversationsApi';
@@ -133,11 +134,25 @@ export default function KpiStrip({
   // Flex, not grid: the app's phone stylesheet collapses any inline `grid-template-columns` to one column,
   // and four stacked tiles is a lot of scrolling. Two across keeps the strip compact.
   const basis = narrow ? 'calc(50% - 1px)' : '0';
+
+  // New design: each tile is its own movable / resizable card (saved per user). They share the row evenly by default.
+  const w = Math.floor(20 / Math.max(tiles.length, 1));
+  const defs: TileDef[] = tiles.map((t, i) => {
+    const el = t as React.ReactElement<{ label?: string }>;
+    return { key: String(el.key ?? i), label: el.props?.label, w, h: 3, minW: 3, minH: 3, surface: true, node: t };
+  });
+
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 1, background: T.border }}>
-      {tiles.map((t, i) => (
-        <div key={i} style={{ background: T.card, display: 'flex', minWidth: 0, flex: `1 1 ${basis}` }}>{t}</div>
-      ))}
-    </div>
+    <TileBoard
+      id="lead-kpis"
+      tiles={defs}
+      classic={() => (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 1, background: T.border }}>
+          {tiles.map((t, i) => (
+            <div key={i} style={{ background: T.card, display: 'flex', minWidth: 0, flex: `1 1 ${basis}` }}>{t}</div>
+          ))}
+        </div>
+      )}
+    />
   );
 }

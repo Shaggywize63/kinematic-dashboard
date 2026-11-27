@@ -8,6 +8,7 @@ import { webChatsApi } from '../../lib/webChatsApi';
 import { crmLeads } from '../../lib/crmApi';
 import { WHATS_NEW, markSectionSeen } from '../../lib/whatsNew';
 import StagingBoot from './StagingBoot';
+import NewDesignBoot from '../../components/shared/NewDesignBoot';
 import StagingDeployModal from './StagingDeployModal';
 import { getStoredProjectKey } from '../../lib/projects';
 import { isMasterAdmin, BMW_CLIENT_ID } from '../../lib/clientFeatures';
@@ -939,6 +940,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
       <div style={{ display:'flex', minHeight:'100vh', background:'var(--canvas)', color:'var(--text)', paddingTop: impBannerH }}>
         <StagingBoot />
+        <NewDesignBoot />
         {showDeploy && actingAs?.staging && actingAs.org_id && (
           <StagingDeployModal project={stagingProject} stagingOrgId={actingAs.org_id} name={actingAs.name} onClose={() => setShowDeploy(false)} />
         )}

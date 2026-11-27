@@ -1048,3 +1048,23 @@ table.lead-table tbody tr.lead-row.is-open td:first-child { box-shadow: inset 3p
 .wa-preset:hover:not([aria-pressed="true"]) { background: var(--s3) !important; color: var(--text) !important; }
 .wa-preset:focus-visible, .wa-x:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
 .wa-x:hover { background: var(--s4) !important; color: var(--text) !important; }
+
+/* New design — movable / resizable tiles (components/ui/TileBoard.tsx). */
+.km-tileboard .react-grid-item { transition: transform .18s ease, width .18s ease, height .18s ease; }
+.km-tileboard .react-grid-item.react-draggable-dragging,
+.km-tileboard .react-grid-item.resizing { transition: none; z-index: 20; }
+.km-tileboard .react-grid-item.react-draggable-dragging > div { box-shadow: var(--shadow-pop); }
+.km-tileboard .react-grid-item.react-grid-placeholder { background: var(--red-w); border: 2px dashed var(--red); border-radius: 12px; opacity: 1; }
+.km-tileboard.is-editing .react-grid-item:not(.react-grid-placeholder) { outline: 2px dashed color-mix(in srgb, var(--red) 40%, transparent); outline-offset: -1px; border-radius: 12px; }
+.km-tileboard .react-grid-item > .react-resizable-handle { z-index: 6; }
+.km-tileboard .react-grid-item > .react-resizable-handle::after { border-right: 2px solid var(--red); border-bottom: 2px solid var(--red); width: 8px; height: 8px; right: 5px; bottom: 5px; }
+.km-tileboard.is-editing .react-grid-item > .react-resizable-handle::after { opacity: .9; }
+@media (prefers-reduced-motion: reduce) { .km-tileboard .react-grid-item { transition: none !important; } }
+
+/* New design — custom icon family (lib/kicons). On the active nav item the glyph picks up the brand red: its signature
+   node (where it has one) AND its offset duotone plate, so every glyph with a body — not just the ones with a node —
+   shows the active state. The plate is the only path carrying a fill-opacity. */
+html[data-design="new"] [aria-current="page"] .kicon,
+html[data-design="new"] [data-active="true"] .kicon { --k-node: var(--red); }
+html[data-design="new"] [aria-current="page"] .kicon path[fill-opacity],
+html[data-design="new"] [data-active="true"] .kicon path[fill-opacity] { fill: var(--red); fill-opacity: .3; }
