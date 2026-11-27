@@ -170,7 +170,7 @@ const STATE_BADGE: Record<string, { label: string; fg: string; bg: string }> = {
 };
 
 export function ActivityRow({
-  a, last, leadCampaign, busy, onStatus, onDelete, upcoming,
+  a, last, leadCampaign, busy, onStatus, onDelete, onEdit, upcoming,
 }: {
   a: DetailActivity;
   last: boolean;
@@ -178,6 +178,8 @@ export function ActivityRow({
   busy: boolean;
   onStatus: (status: 'open' | 'in_progress' | 'completed' | 'cancelled') => void;
   onDelete: () => void;
+  /** Open the full edit form (type, subject, notes, DUE DATE, assignees, …). When omitted the row has no Edit item. */
+  onEdit?: () => void;
   /** Rendered in the "Up next" group: the due date leads, not the history timestamp. */
   upcoming?: boolean;
 }) {
@@ -193,6 +195,9 @@ export function ActivityRow({
   const [confirmDel, setConfirmDel] = useState(false);
 
   const items: RowMenuItem[] = [];
+  // Edit opens the full activity form — the only place to change the DUE DATE (reschedule an
+  // overdue task), subject, notes, assignees, etc. First so it's the obvious action.
+  if (onEdit) items.push({ label: 'Edit', icon: <Pencil size={14} strokeWidth={1.8} aria-hidden />, onClick: onEdit });
   if (actionable && state !== 'in_progress') items.push({ label: 'Mark in progress', icon: <Play size={14} strokeWidth={1.8} aria-hidden />, onClick: () => onStatus('in_progress') });
   if (actionable) items.push({ label: 'Cancel', icon: <X size={14} strokeWidth={1.8} aria-hidden />, onClick: () => onStatus('cancelled') });
   if (!actionable) items.push({ label: 'Reopen', icon: <RotateCcw size={14} strokeWidth={1.8} aria-hidden />, onClick: () => onStatus('open') });

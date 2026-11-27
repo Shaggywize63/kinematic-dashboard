@@ -1,5 +1,5 @@
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { CalendarClock, MessageSquareText, Store } from 'lucide-react';
 import type { LeadUpdate } from '../../../lib/crmApi';
 import type { FieldHelpers } from '../../../lib/crmFieldOverrides';
@@ -12,6 +12,7 @@ import ContactCard from './ContactCard';
 import LeadContactsCard from './LeadContactsCard';
 import LeadRequirementCard from './LeadRequirementCard';
 import { ActivityRow } from './FeedItems';
+import EditActivityModal from '../EditActivityModal';
 import SectionCard from './SectionCard';
 import type { Contact } from '../../../types/crm';
 import { useActivityActions } from './useActivityActions';
@@ -47,6 +48,8 @@ export default function OverviewTab({
   onOpenTab: (t: LeadTab) => void;
 }) {
   const { busyId, setStatus, remove, completing, closeCompleting, completedWithOutcome } = useActivityActions(onActivitiesChanged);
+  // The activity being edited in the full form (reschedule a due date, change subject/notes/assignees…).
+  const [editing, setEditing] = useState<DetailActivity | null>(null);
   const upcoming = useMemo(() => {
     const t = (a: DetailActivity) => (a.due_at ? new Date(a.due_at).getTime() : Number.POSITIVE_INFINITY);
     return activities.filter(isActionable).sort((a, b) => t(a) - t(b));
@@ -93,6 +96,13 @@ export default function OverviewTab({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {completing && <CompleteActivityDialog activity={completing} onClose={closeCompleting} onDone={completedWithOutcome} />}
+      {editing && (
+        <EditActivityModal
+          activity={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); onActivitiesChanged(); }}
+        />
+      )}
       {walkIn && (
         <SectionCard title="Walk-in · Not purchased" icon={Store} accent={T.red}>
           {walkIn.reason && (
@@ -140,6 +150,7 @@ export default function OverviewTab({
                 leadCampaign={leadCampaign}
                 busy={busyId === a.id}
                 onStatus={(s) => setStatus(a, s)}
+                onEdit={() => setEditing(a)}
                 onDelete={() => remove(a)}
               />
             ))}
