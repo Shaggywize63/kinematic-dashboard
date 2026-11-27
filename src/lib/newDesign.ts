@@ -16,8 +16,14 @@
 /** Flip to `true` to roll the new design out to every client. */
 export const NEW_DESIGN_FOR_ALL = false;
 
-/** Accounts that get the new design while it is staged (lowercase). */
-export const NEW_DESIGN_EMAILS: ReadonlySet<string> = new Set(['demo@kinematicapp.com']);
+/**
+ * Accounts that get the new design while it is staged (lowercase).
+ *
+ * Two demo identities, on purpose: `demo@kinematic.com` is the built-in public demo login (the offline showcase
+ * that signs in without the backend — see login/page.tsx and demoMocks.ts), and `demo@kinematicapp.com` is the
+ * Kinematic-tenant demo address. Neither is a customer account.
+ */
+export const NEW_DESIGN_EMAILS: ReadonlySet<string> = new Set(['demo@kinematic.com', 'demo@kinematicapp.com']);
 
 const norm = (email?: string | null) => (email ?? '').trim().toLowerCase();
 

@@ -32,16 +32,24 @@ function memoryStorage() {
   };
 }
 
-const DEMO = new Set(['demo@kinematicapp.com']);
+const DEMO = new Set(['demo@kinematic.com', 'demo@kinematicapp.com']);
 
 test.describe('rollout gate', () => {
   test('the shipped configuration is demo-only, not yet everyone', () => {
     expect(NEW_DESIGN_FOR_ALL).toBe(false);
-    expect([...NEW_DESIGN_EMAILS]).toEqual(['demo@kinematicapp.com']);
+    expect([...NEW_DESIGN_EMAILS].sort()).toEqual(['demo@kinematic.com', 'demo@kinematicapp.com']);
   });
 
-  test('the demo account has access while staged', () => {
+  test('the demo accounts have access while staged', () => {
     expect(isNewDesignAvailable('demo@kinematicapp.com', false, DEMO)).toBe(true);
+    // the built-in public demo login (the one the "demo account" actually signs in with)
+    expect(isNewDesignAvailable('demo@kinematic.com', false, DEMO)).toBe(true);
+  });
+
+  test('the shipped allow-list includes the built-in demo login (not just the test fixture)', () => {
+    expect(isNewDesignAvailable('demo@kinematic.com')).toBe(true);
+    expect(isNewDesignAvailable('demo@kinematicapp.com')).toBe(true);
+    expect(isNewDesignAvailable('s@kinematic.com')).toBe(false);
   });
 
   test('matching ignores case and surrounding whitespace', () => {
