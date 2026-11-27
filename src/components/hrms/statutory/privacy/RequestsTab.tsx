@@ -62,7 +62,7 @@ export default function RequestsTab({ db, requests, setRequests }: { db: HrmsDb;
 
   return (
     <Stack>
-      <StatGrid min={150}>
+      <StatGrid id="hrms-privacy-requests-kpis" perRow={4} h={3} min={150}>
         <Stat label="Open" value={open.length} hint="Received or in review" />
         <Stat label="Overdue" value={overdue.length} tone={overdue.length ? 'red' : undefined} hint={`Past ${DSR_DAYS} days`} />
         <Stat label="Done" value={requests.filter((r) => r.status === 'done').length} tone="ok" />

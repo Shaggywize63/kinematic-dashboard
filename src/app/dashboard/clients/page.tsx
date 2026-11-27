@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import { Client } from '../../../types';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
@@ -431,14 +432,14 @@ export default function ClientManagement() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+      <TileGrid id="clients-kpis" perRow={3} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
         {[{ l: 'Total Clients', v: clients.length, c: C.blue }, { l: 'Active', v: active, c: C.green }, { l: 'Inactive', v: clients.length - active, c: C.gray }].map((s, i) => (
-          <div key={i} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: '18px 20px' }}>
+          <div key={s.l} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: '18px 20px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 10 }}>{s.l}</div>
             <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 32, fontWeight: 800, color: s.c }}>{s.v}</div>
           </div>
         ))}
-      </div>
+      </TileGrid>
 
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'center' }}>

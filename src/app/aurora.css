@@ -1,0 +1,129 @@
+/* ──────────────────────────────────────────────────────────────────────────────────────────────
+   AURORA — the New design's look: deep frosted panes over a slow red / indigo / teal aurora.
+   (Direction "A · Aurora" from the Glass Field Dashboard exploration.)
+
+   Everything here is scoped to `html[data-design="new"]`, so Classic is untouched. It works by re-pointing the
+   dashboard's own surface / ink / rule tokens (globals.css) at Aurora values, so every page that already uses the
+   tokens picks the look up without a per-page change; the few things a token can't express (the sky, the frosted
+   chrome, the glass edge on cards, tinted icon chips) are the rules below.
+
+   Light and dark both work: dark values on the html element, light values under [data-theme="light"].
+   ────────────────────────────────────────────────────────────────────────────────────────────── */
+
+/* ── Tokens: dark (the app's default theme) ─────────────────────────────────────────────────── */
+html[data-design="new"] {
+  --a-bg: #060A14;
+  --a-solid: #0C1322;                                   /* an opaque pane, for menus / dialogs / sticky bars */
+  --a-blob-1: rgba(208, 30, 44, .55); --a-blob-2: rgba(64, 90, 255, .46); --a-blob-3: rgba(0, 168, 136, .34);
+  --a-glass: rgba(18, 24, 42, .46); --a-glass-2: rgba(18, 24, 42, .30); --a-panel: rgba(12, 18, 34, .52);
+  --a-edge: rgba(255, 255, 255, .24); --a-edge-2: rgba(255, 255, 255, .07); --a-hi: rgba(255, 255, 255, .10);
+  --a-shadow: 0 1px 1px rgba(0, 0, 0, .3), 0 26px 60px -26px rgba(0, 0, 0, .7);
+  --a-ink: #EEF2FB; --a-ink-2: #A9B4C8; --a-ink-3: #7F8BA2;
+  --a-radius: 20px;
+
+  --bg: var(--a-bg);
+  --canvas: var(--a-bg);
+  --s1: #0A0F1D;
+  --panel: var(--a-panel);
+  --s2: var(--a-glass);
+  --card: var(--a-glass);
+  --s3: rgba(255, 255, 255, .06);
+  --s4: rgba(255, 255, 255, .10);
+  --field: rgba(255, 255, 255, .05);
+  --border: rgba(255, 255, 255, .11);
+  --border-l: rgba(255, 255, 255, .20);
+  --text: var(--a-ink);
+  --text-dim: var(--a-ink-2);
+  --text-mute: var(--a-ink-3);
+  --shadow-pop: 0 18px 48px rgba(0, 0, 0, .55);
+}
+
+/* ── Tokens: light ──────────────────────────────────────────────────────────────────────────── */
+html[data-design="new"][data-theme="light"] {
+  --a-bg: #E8ECF5;
+  --a-solid: #FFFFFF;
+  --a-blob-1: rgba(208, 30, 44, .26); --a-blob-2: rgba(64, 98, 255, .28); --a-blob-3: rgba(15, 163, 154, .24);
+  --a-glass: rgba(255, 255, 255, .58); --a-glass-2: rgba(255, 255, 255, .42); --a-panel: rgba(255, 255, 255, .50);
+  --a-edge: rgba(255, 255, 255, .95); --a-edge-2: rgba(255, 255, 255, .55); --a-hi: rgba(255, 255, 255, .90);
+  --a-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 22px 44px -22px rgba(30, 40, 90, .30);
+  --a-ink: #0B1020; --a-ink-2: #465066; --a-ink-3: #6C778D;
+
+  --s1: #F4F6FB;
+  --s3: rgba(11, 16, 32, .05);
+  --s4: rgba(11, 16, 32, .09);
+  --field: rgba(255, 255, 255, .72);
+  --border: rgba(11, 16, 32, .09);
+  --border-l: rgba(11, 16, 32, .17);
+  --shadow-pop: 0 18px 48px rgba(30, 40, 90, .22);
+}
+
+/* ── The sky: three blurred colour fields that drift slowly behind everything ───────────────── */
+.km-aurora { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.km-aurora i { position: absolute; border-radius: 50%; filter: blur(60px); will-change: transform; }
+.km-aurora .b1 { width: 46vw; height: 58vh; left: -8vw; top: -12vh; background: radial-gradient(circle at 50% 50%, var(--a-blob-1), transparent 68%); animation: km-drift1 26s ease-in-out infinite alternate; }
+.km-aurora .b2 { width: 52vw; height: 62vh; right: -10vw; top: 8vh; background: radial-gradient(circle at 50% 50%, var(--a-blob-2), transparent 68%); animation: km-drift2 32s ease-in-out infinite alternate; }
+.km-aurora .b3 { width: 50vw; height: 52vh; left: 22vw; bottom: -14vh; background: radial-gradient(circle at 50% 50%, var(--a-blob-3), transparent 68%); animation: km-drift1 38s ease-in-out infinite alternate-reverse; }
+@keyframes km-drift1 { to { transform: translate(8%, 6%) scale(1.08); } }
+@keyframes km-drift2 { to { transform: translate(-7%, 5%) scale(.94); } }
+@media (prefers-reduced-motion: reduce) { .km-aurora i { animation: none !important; } }
+
+/* The sky only shows if nothing opaque sits in front of it: the page ground comes from <html> (the body's own
+   background would paint OVER a z-index:-1 layer), and the full-height app wrappers go transparent. */
+html[data-design="new"] body { background: transparent; }
+html[data-design="new"] :is(div, main):is([style*="min-height: 100vh"], [style*="min-height:100vh"]):is([style*="var(--canvas)"], [style*="var(--bg)"]),
+html[data-design="new"] main:is([style*="var(--canvas)"], [style*="var(--bg)"]) { background: transparent !important; }
+
+/* ── Frosted chrome: the sidebar and the top bar ────────────────────────────────────────────── */
+html[data-design="new"] aside[aria-label="Main navigation"],
+html[data-design="new"] main > header {
+  -webkit-backdrop-filter: blur(26px) saturate(160%); backdrop-filter: blur(26px) saturate(160%);
+  border-color: var(--a-edge-2) !important;
+}
+html[data-design="new"] aside[aria-label="Main navigation"] { box-shadow: 1px 0 0 var(--a-edge-2), inset -1px 0 0 var(--a-hi); }
+html[data-design="new"] main > header { box-shadow: 0 1px 0 var(--a-edge-2); }
+
+/* ── Glass cards ────────────────────────────────────────────────────────────────────────────────
+   `.km-card` is the shared Card (components/ui). The attribute selectors catch the many hand-built panels that spread
+   `cardStyle` / use the card background with a card-sized radius — buttons, inputs and chips use smaller radii, so they
+   are not touched. A thin light edge replaces the flat border, with an inner top highlight and a soft long shadow. */
+html[data-design="new"] .km-card,
+html[data-design="new"] :is([style*="background: var(--card)"], [style*="background:var(--card)"], [style*="background: var(--s2)"], [style*="background:var(--s2)"]):is([style*="border-radius: 12px"], [style*="border-radius:12px"], [style*="border-radius: 14px"], [style*="border-radius:14px"], [style*="border-radius: 16px"], [style*="border-radius:16px"]) {
+  border-radius: var(--a-radius) !important;
+  border-color: var(--a-edge-2) !important;
+  box-shadow: inset 0 1px 0 var(--a-hi), var(--a-shadow);
+}
+/* A card that is itself a hovered link/button keeps a clear edge on hover. */
+html[data-design="new"] .km-card:hover { border-color: var(--border-l) !important; }
+
+/* ── Menus, dialogs, sticky bars: these sit OVER content, so they need a solid frosted pane, not a see-through one ── */
+html[data-design="new"] [role="dialog"],
+html[data-design="new"] [role="menu"],
+html[data-design="new"] [role="listbox"],
+html[data-design="new"] [aria-modal="true"],
+html[data-design="new"] :is([style*="position: fixed"], [style*="position:fixed"], [style*="position: absolute"], [style*="position:absolute"], [style*="position: sticky"], [style*="position:sticky"]):is([style*="background: var(--card)"], [style*="background:var(--card)"], [style*="background: var(--s2)"], [style*="background:var(--s2)"]) {
+  background: color-mix(in srgb, var(--a-solid) 90%, transparent) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
+}
+html[data-design="new"] [role="dialog"], html[data-design="new"] [aria-modal="true"] { box-shadow: var(--shadow-pop), inset 0 1px 0 var(--a-hi); }
+
+/* Without backdrop-filter support, glass would be too see-through to read: fall back to a mostly-opaque pane. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-design="new"] { --card: color-mix(in srgb, var(--a-glass) 40%, var(--a-bg)); --s2: var(--card); --panel: color-mix(in srgb, var(--a-panel) 40%, var(--a-bg)); }
+}
+
+/* ── Tinted glass icon chips (IconTile, PageIcon and the KPI tiles' icons): one colour per metric ──
+   Each chip sets --tint inline; the chip is a soft gradient of that tint, with a tint-coloured edge and glow. */
+html[data-design="new"] .km-lz {
+  background: linear-gradient(150deg, color-mix(in srgb, var(--tint, var(--primary)) 26%, transparent), color-mix(in srgb, var(--tint, var(--primary)) 10%, transparent)) !important;
+  border: 1px solid color-mix(in srgb, var(--tint, var(--primary)) 34%, transparent);
+  box-shadow: inset 0 1px 0 var(--a-hi), 0 8px 18px -10px var(--tint, var(--primary));
+  color: color-mix(in srgb, var(--tint, var(--primary)) 78%, var(--a-ink)) !important;
+  border-radius: 33% !important;
+}
+
+/* ── Type: the page title gets the Aurora weight ────────────────────────────────────────────── */
+html[data-design="new"] main h1 { font-size: 26px; font-weight: 800; letter-spacing: -.025em; }
+
+/* ── Controls on glass: inputs and the segmented switches read as quieter glass ─────────────── */
+html[data-design="new"] .km-input { background: var(--field); border-color: var(--a-edge-2); }
+html[data-design="new"] .km-input:focus { border-color: var(--border-l); }

@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Th, Td, Btn, StatCard, Note, inr } from '../../../../components/distribution/Atoms';
 import { downloadCsv } from '../../../../lib/exportCsv';
@@ -129,12 +130,12 @@ export default function CollectionTargetsPage() {
       />
 
       {/* Summary */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
+      <TileGrid id="distribution-collection-targets-kpis" perRow={4} h={3} style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
         <StatCard label="Users" value={summary.users || 0} />
         <StatCard label="With target" value={summary.with_target || 0} accent={summary.with_target ? 'var(--accent)' : undefined} />
         <StatCard label="Total target" value={inr(Number(summary.total_target || 0))} />
         <StatCard label="Total collected" icon={IndianRupee} value={inr(Number(summary.total_actual || 0))} accent="var(--green)" />
-      </div>
+      </TileGrid>
 
       {msg && <Note tone={msg.kind === 'ok' ? 'ok' : 'red'} style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={msg.kind === 'ok' ? CheckCircle2 : XCircle} size={14} />{msg.text}</Note>}
 

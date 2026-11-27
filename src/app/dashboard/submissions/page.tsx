@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import api from '../../../lib/api';
 import SignedImage from '@/components/shared/SignedImage';
 import { extractImageUrls } from '../../../lib/utils';
@@ -229,19 +230,19 @@ export default function SubmissionsPage() {
       )}
 
       {/* Stats */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
+      <TileGrid id="submissions-kpis" perRow={3} h={3} style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
         {([
           { l:'Total Submissions', v:total, c:C.blue, icon:FileText, tone:'info' },
           { l:'Effective (TFF)', v:tffCount, c:C.green, icon:CheckCircle2, tone:'ok' },
           { l:'Non-TFF', v:nonTff, c:C.gray, icon:MinusCircle, tone:'neutral' },
         ] as { l:string; v:number; c:string; icon:LucideIcon; tone:IconTone }[]).map((s, i) => (
-          <div key={i} style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20, position:'relative' }}>
+          <div key={s.l} style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20, position:'relative' }}>
             <IconTile icon={s.icon} tone={s.tone} style={{ position:'absolute', top:16, right:16 }} />
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color:s.c }}>{s.v}</div>
             <div style={{ fontSize:12, color:C.gray, marginTop:6 }}>{s.l}</div>
           </div>
         ))}
-      </div>
+      </TileGrid>
 
       {/* Table */}
       <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, overflow:'hidden' }}>

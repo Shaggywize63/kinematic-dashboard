@@ -69,7 +69,7 @@ export default function ContractLabour() {
         The legal notes on this page are plain-words summaries, marked <b>Sample, confirm</b>. They are not legal advice and carry no section numbers. Confirm them with your advisor before you rely on them.
       </Note>
 
-      <StatGrid>
+      <StatGrid id="hrms-contract-labour-kpis" perRow={4} h={3}>
         <Stat label="Contractors" value={stats.contractors} hint={`${fmtMonth(month)} invoices ${inr(stats.invoiceTotal)}`} />
         <Stat label="People on attendance" value={stats.workers} hint="Counted from attendance, not from invoices" />
         <Stat label="Proofs not held" value={stats.proofGaps} tone={stats.proofGaps ? 'warn' : 'ok'} hint={`Out of ${rows.length * 6} expected`} />

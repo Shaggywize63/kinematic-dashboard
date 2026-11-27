@@ -57,7 +57,7 @@ export default function TimeAndTravelReport() {
       <FilterCard idPrefix="ffm-tt" from={from} to={to} onRange={(f, e) => { setFrom(f); setTo(e); }} />
 
       <StatusBox loading={loading} error={error} onRetry={reload}>
-        <StatGrid>
+        <StatGrid id="ffm-time-travel-kpis" perRow={5}>
           <Stat label="Reps in view" value={rows.length} />
           <Stat label="Distance" value={fmtNum(t?.km_total ?? 0, ' km')} />
           <Stat label="Visited calls" icon={MapPin} value={fmtInt(t?.visited_stops ?? 0)} />

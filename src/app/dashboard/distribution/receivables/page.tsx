@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, StatCard, inr } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
@@ -44,14 +45,14 @@ export default function ReceivablesPage() {
       <PageHeader title="Distributor Receivables & Ageing" subtitle="Outstanding dues per distributor, aged by invoice date (cleared payments applied FIFO), with credit-limit utilisation." />
 
       {/* Summary */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
+      <TileGrid id="distribution-receivables-kpis" perRow={3} h={3} style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
         <StatCard label="Total outstanding" value={inr(Number(summary.outstanding || 0))} accent="var(--primary)" />
         <StatCard label="0–30 days" value={inr(Number(ag['0_30'] || 0))} accent="var(--green)" />
         <StatCard label="31–60 days" value={inr(Number(ag['31_60'] || 0))} />
         <StatCard label="61–90 days" value={inr(Number(ag['61_90'] || 0))} accent="var(--accent)" />
         <StatCard label="90+ days" value={inr(Number(ag['90_plus'] || 0))} accent="var(--primary)" />
         <StatCard label="Over credit limit" icon={AlertTriangle} value={summary.over_limit || 0} accent={summary.over_limit ? 'var(--primary)' : undefined} />
-      </div>
+      </TileGrid>
 
       <Card>
         <div style={{ overflowX: 'auto' }}>

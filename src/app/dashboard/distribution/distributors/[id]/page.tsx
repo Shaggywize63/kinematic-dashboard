@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
+import TileGrid from '../../../../../components/ui/TileGrid';
 import { useParams } from 'next/navigation';
 import api from '../../../../../lib/api';
-import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, Row, inr, fmtDate, statusColor } from '../../../../../components/distribution/Atoms';
+import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, inr, fmtDate, statusColor } from '../../../../../components/distribution/Atoms';
 import { stateName } from '../../../../../lib/india';
 import { CalendarClock, CalendarDays, CircleDot, CreditCard, FileText, Hash, IndianRupee, MapPin, ShoppingCart } from 'lucide-react';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
@@ -51,19 +52,19 @@ export default function DistributorDetail() {
         right={<a href="/dashboard/distribution/distributors" style={{ color: 'var(--text-dim)', fontSize: 13 }}>← All distributors</a>}
       />
 
-      <Row style={{ marginBottom: 22 }}>
+      <TileGrid id="distribution-distributor-kpis" perRow={3} h={3} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 22 }}>
         <StatCard label="GSTIN"          icon={Hash} value={<span style={{ fontSize: 14, fontFamily: 'JetBrains Mono, monospace' }}>{dist.gstin || '—'}</span>} />
         <StatCard label="State"          icon={MapPin} value={dist.state_code ? `${dist.state_code} · ${stateName(dist.state_code) || ''}` : '—'} />
         <StatCard label="Credit Limit"   icon={CreditCard} value={inr(limit)} hint={limit ? `${utilPct}% used` : undefined} />
         <StatCard label="Outstanding"    value={inr(used)} accent={limit && used > limit * 0.8 ? 'var(--primary)' : undefined} />
         <StatCard label="Payment Terms"  icon={CalendarClock} value={`${dist.payment_terms_days || 0}d`} />
         <StatCard label="Status"         icon={CircleDot} value={<Pill color={dist.is_active ? 'green' : 'gray'}>{dist.is_active ? 'active' : 'inactive'}</Pill>} />
-      </Row>
+      </TileGrid>
 
       {billing && (
         <Card style={{ marginBottom: 22 }}>
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={IndianRupee} size={16} />Billing summary</div>
-          <Row>
+          <TileGrid id="distribution-distributor-billing" perRow={4} h={3} style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <StatCard label="Open orders"   value={billing.open_orders || 0} />
             <StatCard label="Invoiced"      value={billing.invoiced || 0} />
             <StatCard label="Cancelled"     value={billing.cancelled || 0} />
@@ -71,12 +72,12 @@ export default function DistributorDetail() {
             <StatCard label="31–60d"        icon={CalendarDays} value={inr(billing.ageing?.['31_60'] || 0)} />
             <StatCard label="61–90d"        icon={CalendarDays} value={inr(billing.ageing?.['61_90'] || 0)} />
             <StatCard label="90+ days"      value={inr(billing.ageing?.['90_plus'] || 0)} accent={(billing.ageing?.['90_plus'] || 0) > 0 ? 'var(--primary)' : undefined} />
-          </Row>
+          </TileGrid>
         </Card>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-        <Card>
+      <TileGrid id="distribution-distributor-panels" perRow={2} h={9} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
+        <Card key="recent-orders">
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
             <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={ShoppingCart} size={16} style={{ color: 'var(--dim)' }} />Recent orders</div>
             <a href={`/dashboard/distribution/orders?distributor_id=${id}`} style={{ color: 'var(--primary)', fontSize: 12, fontWeight: 700 }}>All orders →</a>
@@ -95,7 +96,7 @@ export default function DistributorDetail() {
           </table>
         </Card>
 
-        <Card>
+        <Card key="recent-invoices">
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
             <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={FileText} size={16} style={{ color: 'var(--dim)' }} />Recent invoices</div>
             <a href={`/dashboard/distribution/invoices?distributor_id=${id}`} style={{ color: 'var(--primary)', fontSize: 12, fontWeight: 700 }}>All invoices →</a>
@@ -113,7 +114,7 @@ export default function DistributorDetail() {
             </tbody>
           </table>
         </Card>
-      </div>
+      </TileGrid>
 
       <div style={{ marginTop: 22, display: 'flex', gap: 8 }}>
         <a href={`/dashboard/distribution/ledger?distributor_id=${id}`}>

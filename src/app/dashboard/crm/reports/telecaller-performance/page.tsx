@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { TelecallerPerfRow, TelecallerPerfDaily } from '../../../../../types/crm';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
+import TileGrid from '../../../../../components/ui/TileGrid';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
@@ -173,7 +174,7 @@ function KpiStrip({ totals, connectRate, loading }: { totals: Totals | null; con
     { label: 'Scheme ₹',       value: totals ? fmtInr(totals.scheme_amount) : '—',  accent: '#EC4899' },
   ], [totals, connectRate]);
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+    <TileGrid id="crm-reports-telecaller-performance-kpis" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
       {items.map((k) => (
         <div key={k.label} style={{
           background: 'var(--s2)', border: '1px solid var(--border)', borderLeft: `3px solid ${k.accent}`,
@@ -183,7 +184,7 @@ function KpiStrip({ totals, connectRate, loading }: { totals: Totals | null; con
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{loading ? '—' : k.value}</div>
         </div>
       ))}
-    </div>
+    </TileGrid>
   );
 }
 

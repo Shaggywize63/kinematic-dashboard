@@ -116,14 +116,14 @@ export default function RunCompute({ db, run, go }: { db: HrmsDb; run: PayRun; g
       )}
       {run.status === 'computed' && !stale && <Note tone="ok">Payslips match the current inputs.</Note>}
 
-      <StatGrid min={170}>
+      <StatGrid id="hrms-payroll-run-totals" perRow={5} h={4} min={170}>
         <Stat label="Payslips" value={totals.headcount} hint={totals.warnings ? `${totals.warnings} warning${totals.warnings === 1 ? '' : 's'}` : 'No warnings'} tone={totals.warnings ? 'warn' : undefined} />
         <Stat label="Gross pay" value={inr(totals.gross)} />
         <Stat label="Deductions" value={inr(totals.deductions)} />
         <Stat label="Net pay" value={inr(totals.net)} tone="ok" />
         <Stat label="Employer cost" value={inr(totals.employerCost)} hint="Gross, reimbursements and employer contributions" />
       </StatGrid>
-      <StatGrid min={170}>
+      <StatGrid id="hrms-payroll-run-statutory" perRow={4} h={3} min={170}>
         <Stat label="PF payable" value={inr(pfPayable)} hint={`Employee ${inr(totals.pfEmployee)} + employer ${inr(totals.pfEmployer)}; EDLI and admin add ${inr(edliAdmin)}`} />
         <Stat label="ESI payable" value={inr(totals.esi)} hint="Employee and employer share" />
         <Stat label="Professional tax" value={inr(totals.pt)} />

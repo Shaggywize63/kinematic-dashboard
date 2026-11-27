@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import api from '../../../lib/api';
 import { getStoredIndustryScope } from '../../../context/IndustryScopeContext';
 import CitySelect from '../../../components/CitySelect';
@@ -321,15 +322,15 @@ export default function FieldExecutivesPage() {
         {error && <div style={{background:C.redD,border:`1px solid ${C.redB}`,borderRadius:12,padding:'12px 16px',fontSize:13,color:C.red,display:'flex',alignItems:'center',gap:8}}><InlineIcon icon={AlertTriangle} size={14} />{error}</div>}
 
         {/* Stats */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14}}>
+        <TileGrid id="field-executives-kpis" perRow={4} h={3} style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14}}>
           {([{l:'Total FEs',v:stats.total,c:C.blue,i:Users,t:'info'},{l:'Active',v:stats.active,c:C.green,i:CheckCircle2,t:'ok'},{l:'In Field',v:stats.checkedIn,c:C.purple,i:MapPin,t:'brand'},{l:'Inactive',v:stats.inactive,c:C.gray,i:UserX,t:'neutral'}] as {l:string;v:number;c:string;i:LucideIcon;t:IconTone}[]).map((s,i)=>(
-            <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
+            <div key={s.l} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
               <IconTile icon={s.i} tone={s.t} style={{position:'absolute',top:12,right:14}} />
               <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c,lineHeight:1}}>{s.v}</div>
               <div style={{fontSize:11,color:C.gray,marginTop:6,fontWeight:600}}>{s.l}</div>
             </div>
           ))}
-        </div>
+        </TileGrid>
 
         {/* Toolbar */}
         <div style={{display:'flex',flexDirection:'column',gap:10}}>

@@ -13,6 +13,7 @@ import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
+import TileGrid from '../../../../../components/ui/TileGrid';
 
 const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
@@ -83,7 +84,7 @@ export default function TeamDailyPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <Header date={date} onChange={setDate} canExport={!loading && cards.length > 0} onExport={() => downloadCsv(`team-daily-${date}`, cards.map((c) => dailyCsvRow(c, hideAddress)))} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+      <TileGrid id="crm-reports-team-daily-kpis" perRow={5} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
         <Kpi label="Active reps" value={loading ? '—' : String(active)}   accent="#26a69a" />
         <Kpi label="Idle"         value={loading ? '—' : String(idle)}     accent="#f59e0b" />
         <Kpi label="Inactive"     value={loading ? '—' : String(inactive)} accent="#ef5350" />
@@ -93,7 +94,7 @@ export default function TeamDailyPage() {
         <Kpi label="Pipeline value"   value={loading ? '—' : fmtNum(totalPipeline)}   accent="#F59E0B" />
         {hasFollowups && <Kpi label="Follow-ups open that day" value={loading ? '—' : String(totalDueToday)} accent="#06B6D4" />}
         {hasFollowups && <Kpi label="Follow-ups overdue" value={loading ? '—' : String(totalOverdue)} accent="#EF4444" />}
-      </div>
+      </TileGrid>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(380px, 100%), 1fr))', gap: 14 }}>
         {loading && cards.length === 0 && <Empty>Loading…</Empty>}

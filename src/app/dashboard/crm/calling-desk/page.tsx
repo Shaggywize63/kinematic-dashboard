@@ -10,6 +10,7 @@ import type { DeskCallTask, DeskCallStatus, DeskDaySummary } from '../../../../l
 import { istToday, istDate, istTime } from '../../../../lib/istTime';
 import { usePageTitle } from '../../../../lib/pageTitle';
 import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
+import TileGrid from '../../../../components/ui/TileGrid';
 
 /**
  * Calling Desk — the pharma daily tele-calling workflow (Maa Mansha Pharma).
@@ -192,7 +193,7 @@ function SummaryStrip({ summary, loading }: { summary: DeskDaySummary | null; lo
     { label: 'Orders Value', value: `₹${Number(summary?.orders_value ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, color: '#2563eb' },
   ];
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+    <TileGrid id="crm-calling-desk-summary" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
       {cells.map((c) => {
         const Icon = metricIconFor(c.label);
         return (
@@ -202,7 +203,7 @@ function SummaryStrip({ summary, loading }: { summary: DeskDaySummary | null; lo
         </div>
         );
       })}
-    </div>
+    </TileGrid>
   );
 }
 

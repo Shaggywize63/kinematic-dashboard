@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import { toast } from 'sonner';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, fmtDate, inr } from '../../../../components/distribution/Atoms';
@@ -339,13 +340,13 @@ export default function BatchExpiryPage() {
       ) : (
         <>
           {/* KPI strip (from the expiry-report) */}
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
+          <TileGrid id="distribution-batches-kpis" perRow={5} h={3} style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
             <StatCard label="Batches" value={rows.length} />
             <StatCard label="Near expiry" icon={CalendarClock} value={report.near_expiry.length} accent={report.near_expiry.length ? '#F59E0B' : undefined} hint={`within ${nearDays || '30'} days`} />
             <StatCard label="Expired" value={report.expired.length} accent={report.expired.length ? 'var(--primary)' : undefined} />
             <StatCard label="Qty remaining" icon={Hash} value={totalRemaining.toLocaleString('en-IN')} />
             <StatCard label="Stock value" value={inr(stockValue)} accent="var(--green)" />
-          </div>
+          </TileGrid>
 
           {/* Batch table */}
           <Card style={{ marginBottom: 22 }}>

@@ -219,7 +219,7 @@ export default function ClaimsTab({ db, st }: { db: HrmsDb; st: RewardsState }) 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <StatGrid min={170}>
+      <StatGrid id="hrms-benefits-claims-kpis" perRow={4} h={3} min={170}>
         <Stat label="Open claims" value={open.length} hint={`${inr(open.reduce((s, r) => s + r.c.claimed, 0))} claimed`} />
         <Stat label="Over the turnaround" value={late} tone={late ? 'red' : 'ok'} hint="Sample turnaround times" />
         <Stat label="Settled" value={all.filter((r) => r.c.status === 'settled').length} tone="ok" hint={inr(all.filter((r) => r.c.status === 'settled').reduce((s, r) => s + (r.c.approved ?? 0), 0))} />

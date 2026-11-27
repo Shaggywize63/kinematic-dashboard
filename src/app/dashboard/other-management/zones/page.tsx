@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import { CheckCircle2, Landmark, Map as MapIcon, type LucideIcon } from 'lucide-react';
 import { IconTile, type IconTone } from '../../../../components/ui/PageIcon';
@@ -143,15 +144,15 @@ export default function ZoneManagement() {
       <style>{`@keyframes kspin{to{transform:rotate(360deg)}}`}</style>
 
       {/* Stats */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:24}}>
+      <TileGrid id="other-management-zones-kpis" perRow={3} h={3} style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:24}}>
         {([{l:'Total Zones',v:zones.length,c:C.yellow,icon:MapIcon,tone:'brand'},{l:'Active',v:active,c:C.green,icon:CheckCircle2,tone:'ok'},{l:'Cities Covered',v:new Set(zones.map(z=>z.city).filter(Boolean)).size,c:C.blue,icon:Landmark,tone:'info'}] as {l:string;v:number;c:string;icon:LucideIcon;tone:IconTone}[]).map((s,i)=>(
-          <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative'}}>
+          <div key={s.l} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative'}}>
             <IconTile icon={s.icon} tone={s.tone} style={{position:'absolute',top:14,right:14}} />
             <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:10}}>{s.l}</div>
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c}}>{s.v}</div>
           </div>
         ))}
-      </div>
+      </TileGrid>
 
       {/* Toolbar */}
       <div style={{display:'flex',gap:12,marginBottom:20,alignItems:'center'}}>

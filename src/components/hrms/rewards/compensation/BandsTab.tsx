@@ -14,6 +14,7 @@ import { saveBand } from '../../../../lib/hrms/rewards/store';
 import type { Band, RewardsState } from '../../../../lib/hrms/rewards/types';
 import { AdvisorNote, Muted, report } from '../common';
 import RangeChart, { ChartLegend } from './RangeChart';
+import TileGrid from '../../../ui/TileGrid';
 
 const POS_TONE: Record<Position, Tone> = { below: 'warn', in: 'ok', above: 'red' };
 const POS_LABEL: Record<Position, string> = { below: 'Below band', in: 'In band', above: 'Above band' };
@@ -90,7 +91,8 @@ export default function BandsTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
   const above = people.filter((p) => p.position === 'above').length;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(190px, 100%), 1fr))', gap: 12 }} data-testid="comp-stats">
+      <div data-testid="comp-stats">
+      <TileGrid id="hrms-compensation-bands-kpis" perRow={4} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(190px, 100%), 1fr))', gap: 12 }}>
         {[
           ['People in bands', String(people.length), `${db.employees.filter((e) => (e.status === 'active' || e.status === 'on_notice') && !e.annualCtc).length} without a CTC are left out`],
           ['Median compa-ratio', median(people.map((p) => p.compa)).toFixed(2), '1.00 means paid at the band midpoint'],
@@ -103,6 +105,7 @@ export default function BandsTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
             <div style={{ fontSize: 12.5, color: T.dim, marginTop: 6 }}>{h}</div>
           </Card>
         ))}
+      </TileGrid>
       </div>
 
       <Note tone="info"><b>HR view.</b> Names appear on the chart dots and in the table below, for HR only. The employee view on the Pay transparency tab shows the published ranges and nothing about anyone else.</Note>

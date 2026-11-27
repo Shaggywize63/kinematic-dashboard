@@ -44,11 +44,11 @@ function Body({ db, state }: { db: HrmsDb; state: ControlState }) {
       description="A register of every kind of employee monitoring the company uses or is considering, so it can show people exactly what is collected and why."
       actions={<Row gap={8}><Conf level="indicative" /><Badge tone="warn">Advisor to confirm legal bases</Badge></Row>}
     >
-      <StatGrid min={150}>
-        <div data-testid="count-on"><Stat label="On" value={counts.on} tone="ok" hint="Collecting now" /></div>
-        <div data-testid="count-off"><Stat label="Off" value={counts.off} hint="Not in use" /></div>
-        <div data-testid="count-blocked"><Stat label="Blocked" value={counts.blocked} tone={counts.blocked ? 'red' : undefined} hint="Not offered" /></div>
-        <div data-testid="count-considering"><Stat label="Considering" value={counts.considering} tone={counts.considering ? 'warn' : undefined} hint="Not yet decided" /></div>
+      <StatGrid id="hrms-monitoring-counts" perRow={4} h={3} min={150}>
+        <div key="On" data-testid="count-on"><Stat label="On" value={counts.on} tone="ok" hint="Collecting now" /></div>
+        <div key="Off" data-testid="count-off"><Stat label="Off" value={counts.off} hint="Not in use" /></div>
+        <div key="Blocked" data-testid="count-blocked"><Stat label="Blocked" value={counts.blocked} tone={counts.blocked ? 'red' : undefined} hint="Not offered" /></div>
+        <div key="Considering" data-testid="count-considering"><Stat label="Considering" value={counts.considering} tone={counts.considering ? 'warn' : undefined} hint="Not yet decided" /></div>
       </StatGrid>
 
       <Card>

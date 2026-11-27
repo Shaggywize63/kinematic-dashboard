@@ -79,7 +79,7 @@ export default function CalendarTab({ db }: { db: HrmsDb }) {
         <Muted style={{ alignSelf: 'flex-end', paddingBottom: 9 }}>Today in the preview is {fmtDate(PREVIEW_TODAY)}. Status is worked out from the due date.</Muted>
       </Toolbar>
 
-      <StatGrid min={150}>
+      <StatGrid id="hrms-statutory-calendar-kpis" perRow={4} h={3} min={150}>
         <Stat label="Overdue" value={count('overdue')} tone={count('overdue') ? 'red' : undefined} hint="Past the due date, not filed" />
         <Stat label="Due soon" value={count('due_soon')} tone={count('due_soon') ? 'warn' : undefined} hint="Within 7 days" />
         <Stat label="Upcoming" value={count('upcoming')} hint="More than 7 days away" />

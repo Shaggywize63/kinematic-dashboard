@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import api from '../../../lib/api';
-import { Card, Row, StatCard, PageHeader, Pill, Th, Td, inr, fmtDate, statusColor } from '../../../components/distribution/Atoms';
+import { Card, StatCard, PageHeader, Pill, Th, Td, inr, fmtDate, statusColor } from '../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
 import { LayoutGrid, ShoppingCart } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../components/ui/PageIcon';
@@ -75,13 +76,13 @@ export default function DistributionOverview() {
     <div>
       <PageHeader title="Distribution" subtitle="Order to outlet, one trail." />
 
-      <Row style={{ marginBottom: 22 }}>
+      <TileGrid id="distribution-home-kpis" perRow={5} h={3} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 22 }}>
         <StatCard label="GMV Today"        value={inr(gmvToday)}             hint={`${todayOrders.length} orders`} />
         <StatCard label="Pending approval" value={placed}                    accent={placed ? 'var(--primary)' : undefined} />
         <StatCard label="Invoiced"         value={invoiced} />
         <StatCard label="Active distributors" value={activeDist} />
         <StatCard label="Outstanding"      value={inr(ageing?.total_outstanding || 0)} hint={ageing?.buckets?.['90_plus'] ? `₹${ageing.buckets['90_plus'].toLocaleString('en-IN')} 90+ days` : undefined} accent={(ageing?.buckets?.['90_plus'] || 0) > 0 ? 'var(--primary)' : undefined} />
-      </Row>
+      </TileGrid>
 
       {/* Module navigation tiles — every sub-module of distribution + planograms */}
       <Card style={{ marginBottom: 22 }}>

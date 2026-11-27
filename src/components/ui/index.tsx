@@ -253,7 +253,7 @@ export const cardStyle: CSSProperties = {
 };
 
 export function Card({ children, style, padding = 20, className }: { children: ReactNode; style?: CSSProperties; padding?: number | string; className?: string }) {
-  return <div className={className} style={{ ...cardStyle, padding, ...style }}>{children}</div>;
+  return <div className={className ? `km-card ${className}` : 'km-card'} style={{ ...cardStyle, padding, ...style }}>{children}</div>;
 }
 
 /** Section inside a form/card: mono eyebrow + one-line hint, then content. */

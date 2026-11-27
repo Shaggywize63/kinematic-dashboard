@@ -7,6 +7,7 @@ import { crmCustomerIntel } from '../../../../lib/crmApi';
 import type { CustomerIntelPayload, SalesTrendsPayload, CustomerLifecycle } from '../../../../lib/crmApi';
 import { istDate } from '../../../../lib/istTime';
 import { usePageTitle } from '../../../../lib/pageTitle';
+import TileGrid from '../../../../components/ui/TileGrid';
 
 /**
  * Customer Intelligence — pharma RFM + sales analytics (Maa Mansha Pharma).
@@ -50,7 +51,7 @@ export default function CustomerIntelligencePage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+      <TileGrid id="crm-customer-intelligence-lifecycle" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
         {[
           { key: '', label: 'All', value: s.total_customers ?? 0, color: '#111827', icon: Users },
           { key: 'new', label: 'New', value: s.new ?? 0, color: LIFECYCLE_META.new.color, icon: UserPlus },
@@ -65,7 +66,7 @@ export default function CustomerIntelligencePage() {
             <div style={{ fontSize: 22, fontWeight: 800, color: c.color, opacity: loading ? 0.4 : 1 }}>{c.value}</div>
           </button>
         ))}
-      </div>
+      </TileGrid>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <input placeholder="Search customer…" value={q} onChange={(e) => setQ(e.target.value)} style={{ ...input, minWidth: 240 }} />

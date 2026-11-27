@@ -117,7 +117,7 @@ export default function EmployeesPage() {
         </>
       }
     >
-      <StatGrid min={170}>
+      <StatGrid id="hrms-employees-kpis" perRow={4} h={3} min={170}>
         <Stat label="Active" value={count('active')} tone="ok" />
         <Stat label="On notice" value={count('on_notice')} tone="warn" />
         <Stat label="Onboarding" value={count('onboarding')} tone="info" />

@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import { toast } from 'sonner';
 import {
   leaveApi,
@@ -78,7 +79,7 @@ export default function MyLeavePage() {
       <LeaveTabs active="mine" canManage={canManage} canAdmin={canAdmin} />
 
       {/* Balance cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
+      <TileGrid id="leave-balances" perRow={4} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
         {loading && balances.length === 0 ? (
           <div style={{ ...card, color: 'var(--text-dim)', fontSize: 13 }}>Loading balances…</div>
         ) : balances.length === 0 ? (
@@ -103,7 +104,7 @@ export default function MyLeavePage() {
             </div>
           </div>
         ))}
-      </div>
+      </TileGrid>
 
       {/* My requests */}
       <div style={card}>

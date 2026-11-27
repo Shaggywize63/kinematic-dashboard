@@ -66,7 +66,7 @@ export default function FollowupCompliancePage() {
       )}
     >
       {trend.length > 0 && (
-        <ChartGrid>
+        <ChartGrid id="crm-reports-followup-compliance-charts">
           <ChartCard title="Follow-ups due each week (by due date)"><BarsChart data={trend} xKey="name" keys={['Done on time', 'Done late', 'Overdue now', 'Not yet due']} stacked /></ChartCard>
           <ChartCard title="On-time % each week"><LinesChart data={trend} xKey="name" keys={['On-time %']} format={(v) => `${v}%`} /></ChartCard>
         </ChartGrid>

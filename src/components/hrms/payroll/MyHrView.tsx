@@ -89,7 +89,7 @@ function Payslips({ db, e }: { db: HrmsDb; e: Employee }) {
   ];
   return (
     <>
-      <StatGrid>
+      <StatGrid id="hrms-my-ytd-kpis" perRow={4} h={3}>
         <Stat label={`Gross, ${ytd.label} to date`} value={inr(ytd.gross)} hint={ytd.months ? `${ytd.months} payslip${ytd.months === 1 ? '' : 's'} on file` : 'No payslip on file yet'} />
         <Stat label="Tax deducted (TDS)" value={inr(ytd.tds)} hint="Income tax withheld so far" />
         <Stat label="Provident fund (employee)" value={inr(ytd.pf)} hint="Employee share, 12% of PF wage" />

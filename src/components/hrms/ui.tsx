@@ -5,6 +5,7 @@
 import { CSSProperties, ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Avatar, Badge, Button, Card, EmptyState, Eyebrow, PageHeader, T, useIsCompact, type Tone } from '../ui';
+import TileGrid from '../ui/TileGrid';
 import type { Employee } from '../../lib/hrms/types';
 import { fullName } from '../../lib/hrms/format';
 import type { Confidence } from '../../lib/hrms/rules';
@@ -42,8 +43,11 @@ export function Stat({ label, value, hint, tone, href }: { label: string; value:
   return href ? <Link href={href} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>{body}</Link> : body;
 }
 
-export function StatGrid({ children, min = 190 }: { children: ReactNode; min?: number }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(min(${min}px, 100%), 1fr))`, gap: 12 }}>{children}</div>;
+/** A row of stat tiles. Pass `id` to make it movable / resizable in the New design (Classic renders the same `<div>`). */
+export function StatGrid({ children, min = 190, id, perRow = 4, h = 3 }: { children: ReactNode; min?: number; id?: string; perRow?: number; h?: number }) {
+  const style: CSSProperties = { display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(min(${min}px, 100%), 1fr))`, gap: 12 };
+  if (!id) return <div style={style}>{children}</div>;
+  return <TileGrid id={id} perRow={perRow} h={h} style={style}>{children}</TileGrid>;
 }
 
 export function CardTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {

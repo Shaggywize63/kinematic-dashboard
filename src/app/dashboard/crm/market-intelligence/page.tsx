@@ -27,6 +27,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Radar, Swords, TrendingDown } from 'lucide-react';
 import { IconTile } from '../../../../components/ui/PageIcon';
 import { usePageTitle } from '../../../../lib/pageTitle';
+import TileGrid from '../../../../components/ui/TileGrid';
 
 const BRAND = CHART_SEMANTIC.lost;
 const WIN = CHART_SEMANTIC.won;
@@ -130,13 +131,13 @@ export default function MarketIntelligencePage() {
         </div>
       ) : (
         <>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <TileGrid id="crm-market-intelligence-kpis" perRow={3} h={3} style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <Kpi label="Signals" value={totals.mentions} icon={Radar} />
             <Kpi label="Competitors seen" value={totals.competitors} icon={Swords} />
             <Kpi label="We're losing (mentions)" value={totals.losing} accent icon={TrendingDown} />
-          </div>
+          </TileGrid>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
+          <TileGrid id="crm-market-intelligence-charts" perRow={2} h={8} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
             <Card title="Competitor share of voice" subtitle="Mentions in the field, with where we're losing">
               {share.length ? (
               <ResponsiveContainer width="100%" height={280}>
@@ -202,7 +203,7 @@ export default function MarketIntelligencePage() {
               </ResponsiveContainer>
               ) : <ChartEmpty message="Not enough history to plot a trend yet" />}
             </Card>
-          </div>
+          </TileGrid>
 
           <Card title="By city" subtitle="Where we're winning and losing on the ground">
             <div style={{ overflowX: 'auto' }}>

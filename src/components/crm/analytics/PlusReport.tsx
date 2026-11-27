@@ -19,6 +19,7 @@ import { SortLabel, useTableSort } from '../../../lib/tableSort';
 import { downloadCsv } from '../../../lib/exportCsv';
 import { CHART, GLASS_TOOLTIP, seriesColor } from '../../../lib/chartTheme';
 import { DASH, cellText, columnsToCsvRows, type Column } from '../../../lib/crm/plusFormat';
+import TileGrid from '../../ui/TileGrid';
 
 export interface Kpi { label: string; value: string; hint?: string }
 
@@ -157,7 +158,7 @@ export default function PlusReport<Row extends object>(p: Props<Row>) {
       {!p.blockedMessage && (
         <>
           {p.kpis && p.kpis.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+            <TileGrid id={`crm-${p.testId.replace(/^report-/, 'reports-')}-kpis`} perRow={5} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
               {p.kpis.map((k) => (
                 <div key={k.label} data-testid="plus-kpi" style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.lg, padding: '12px 14px', minWidth: 0 }}>
                   <Eyebrow>{k.label}</Eyebrow>
@@ -165,7 +166,7 @@ export default function PlusReport<Row extends object>(p: Props<Row>) {
                   {k.hint && <div style={{ fontSize: 11.5, color: T.mute, marginTop: 2 }}>{k.hint}</div>}
                 </div>
               ))}
-            </div>
+            </TileGrid>
           )}
 
           {p.error && (
@@ -252,7 +253,12 @@ export function LinesChart({ data, xKey, keys, format }: { data: ChartRow[]; xKe
   );
 }
 
-/** Two charts side by side on a wide screen, stacked on a narrow one (never a horizontal page scroll). */
-export function ChartGrid({ children }: { children: ReactNode }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 12 }}>{children}</div>;
+/**
+ * Two charts side by side on a wide screen, stacked on a narrow one (never a horizontal page scroll).
+ * Pass `id` (unique on the page) when there are two or more charts, so they can be moved and resized in the new design.
+ */
+export function ChartGrid({ children, id }: { children: ReactNode; id?: string }) {
+  const style: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 12 };
+  if (!id) return <div style={style}>{children}</div>;
+  return <TileGrid id={id} perRow={2} h={7} style={style}>{children}</TileGrid>;
 }

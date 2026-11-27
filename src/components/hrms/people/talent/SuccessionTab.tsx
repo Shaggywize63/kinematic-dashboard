@@ -113,7 +113,7 @@ export default function SuccessionTab({ st, tv }: { st: TalentState; tv: TalentV
 
   return (
     <Stack gap={16}>
-      <StatGrid>
+      <StatGrid id="hrms-talent-succession-kpis" perRow={3} h={3}>
         <Stat label="No successor named" value={count('red')} tone={count('red') ? 'red' : 'ok'} hint="Critical roles with an empty bench" />
         <Stat label="Nobody ready now" value={count('amber')} tone={count('amber') ? 'warn' : 'ok'} hint="Successors named, none ready yet" />
         <Stat label="Someone ready now" value={count('green')} tone="ok" hint="At least one successor ready now" />

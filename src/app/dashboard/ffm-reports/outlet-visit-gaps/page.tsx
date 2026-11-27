@@ -68,7 +68,7 @@ export default function OutletVisitGapsReport() {
       </FilterCard>
 
       <StatusBox loading={loading} error={error} onRetry={reload}>
-        <StatGrid>
+        <StatGrid id="ffm-outlet-gaps-kpis">
           <Stat label="Outlets" value={fmtInt(s?.outlets ?? 0)} />
           <Stat label="Visited in window" icon={MapPin} value={fmtInt(s?.visited ?? 0)} />
           <Stat label="Not visited in window" icon={MapPinOff} value={fmtInt(s?.never_visited ?? 0)} />

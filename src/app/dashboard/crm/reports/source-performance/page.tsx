@@ -81,7 +81,7 @@ export default function SourcePerformancePage() {
       )}
     >
       {rows.length > 0 && (
-        <ChartGrid>
+        <ChartGrid id="crm-reports-source-performance-charts">
           <ChartCard title="Leads and conversions by source"><BarsChart data={chartRows} xKey="name" keys={['Leads', 'Converted']} /></ChartCard>
           <ChartCard title="Conversion % by source"><BarsChart data={chartRows} xKey="name" keys={['Conversion %']} format={(v) => `${v}%`} /></ChartCard>
         </ChartGrid>

@@ -41,7 +41,7 @@ export default function RecruitmentPage() {
         Scorecards rate competencies for the role, round by round. This page has no candidate photos and no age or gender columns, and rejections need a reason code about the role or the process.
         Nothing here ranks people or decides for you: a person reads the scorecards and decides.
       </Principle>
-      <StatGrid>
+      <StatGrid id="hrms-recruitment-kpis" perRow={4} h={3}>
         <Stat label="Open seats" value={live.reduce((s, o) => s + seatsLeft(o), 0)} hint={`On ${live.length} live openings`} />
         <Stat label="Candidates in process" value={active.length} hint="Applied, screen, interview or offer" />
         <Stat label="Offers out" value={offersOut} hint="Waiting for an answer" tone={offersOut ? 'warn' : undefined} />

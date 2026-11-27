@@ -23,6 +23,7 @@ import { conversationsApi, type ConversationAnalytics } from '../../../lib/conve
 import type { LucideIcon } from 'lucide-react';
 import { AlertTriangle, Percent, Phone, Target, UserPlus, Users } from 'lucide-react';
 import { InlineIcon } from '../../ui/PageIcon';
+import TileGrid from '../../ui/TileGrid';
 
 // Single-hue accents for magnitude (identity is on the axis, so no palette cycle).
 const ACCENT = '#6366F1';   // intent journey + timeline
@@ -134,17 +135,17 @@ export default function ConversationAnalyticsView({ championId, city, compact }:
       </div>
 
       {/* KPI row */}
-      <div style={{ display: 'grid', gridTemplateColumns: compact ? 'repeat(2, 1fr)' : 'repeat(6, 1fr)', gap: 10 }}>
+      <TileGrid id="crm-conversations-analytics-kpis" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: compact ? 'repeat(2, 1fr)' : 'repeat(6, 1fr)', gap: 10 }}>
         <StatTile label="Analyzed calls" icon={Phone} value={t ? String(t.analyzed) : '—'} />
         <StatTile label="Avg intent" icon={Target} value={t?.avg_intent_score != null ? `${t.avg_intent_score}` : '—'} sub="/ 100" accent={ACCENT} />
         <StatTile label="Rep talk-share" icon={Percent} value={t?.avg_talk_pct != null ? `${t.avg_talk_pct}%` : '—'} sub="of call time" />
         <StatTile label="Leads touched" icon={UserPlus} value={t ? String(t.leads) : '—'} />
         <StatTile label="Reps active" icon={Users} value={t ? String(t.reps) : '—'} />
         <StatTile label="Risk-flag calls" icon={AlertTriangle} value={t ? String(t.risk_calls) : '—'} accent={t && t.risk_calls > 0 ? BAD : undefined} />
-      </div>
+      </TileGrid>
 
       {/* Charts grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: 14 }}>
+      <TileGrid id="crm-conversations-analytics-charts" perRow={2} h={8} tile={{ 'Analyzed calls over time': { w: 20, h: 7 } }} style={{ display: 'grid', gridTemplateColumns: gridCols, gap: 14 }}>
         {/* Intent journey — magnitude by stage (single hue; ordered on the axis) */}
         <ChartCard title="Where leads sit in the journey" subtitle="Analyzed calls by detected intent stage" minHeight={260}>
           {intentData.length === 0 ? <ChartEmpty /> : (
@@ -219,7 +220,7 @@ export default function ConversationAnalyticsView({ championId, city, compact }:
         </ChartCard>
 
         {/* Calls over time — change over time (single hue area) */}
-        <div style={{ gridColumn: compact ? 'auto' : '1 / -1' }}>
+        <div key="Analyzed calls over time" style={{ gridColumn: compact ? 'auto' : '1 / -1' }}>
           <ChartCard title="Analyzed calls over time" subtitle="Daily volume of completed analyses" minHeight={220}>
             {timeData.length === 0 ? <ChartEmpty /> : (
               <ResponsiveContainer width="100%" height={200}>
@@ -236,7 +237,7 @@ export default function ConversationAnalyticsView({ championId, city, compact }:
             )}
           </ChartCard>
         </div>
-      </div>
+      </TileGrid>
 
       {/* Rep leaderboard — a table is the right form for a ranked, multi-metric list */}
       <ChartCard title="Rep leaderboard" subtitle="Calls, average intent, talk-share and sentiment split per Consumer Champion">

@@ -15,6 +15,7 @@ import { TEAMS } from '../../../../lib/hrms/people/teams';
 import type { TimesheetState } from '../../../../lib/hrms/people/types';
 import type { HrmsDb } from '../../../../lib/hrms/types';
 import { Muted, SERIES, Stack, ROW_TH } from '../shared';
+import TileGrid from '../../../ui/TileGrid';
 
 function SplitChart({ data }: { data: { weekStart: string; billable: number; nonBillable: number }[] }) {
   const W = 520; const H = 250; const m = { l: 40, r: 12, t: 22, b: 34 };
@@ -73,7 +74,7 @@ export default function ProjectsTab({ db, ts }: { db: HrmsDb; ts: TimesheetState
         <Button size="sm" variant="primary" style={{ marginLeft: 'auto' }} onClick={() => setEditing('new')}>Add project</Button>
       </Toolbar>
 
-      <StatGrid min={160}>
+      <StatGrid id="hrms-time-projects-kpis" perRow={3} h={3} min={160}>
         <Stat label="Hours in period" value={hours} hint={`${used.length} timesheets`} />
         <Stat label="Billable" value={`${hours ? Math.round((bill / hours) * 100) : 0}%`} tone="info" hint={`${bill} of ${hours} hours`} />
         <Stat label="Indicative value" value={inr(rows.reduce((t, r) => t + r.value, 0))} hint="Billable hours x sample rates" />
@@ -153,8 +154,8 @@ export default function ProjectsTab({ db, ts }: { db: HrmsDb; ts: TimesheetState
         </div>
       </Card>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 14 }}>
-        <Card>
+      <TileGrid id="hrms-time-projects-charts" perRow={2} h={8} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 14 }}>
+        <Card key="Billable and non-billable hours per week">
           <CardTitle>Billable and non-billable hours per week</CardTitle>
           <div className="px-viz" data-testid="split-chart" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', gap: 16, fontSize: 13, color: T.text, flexWrap: 'wrap' }}>
@@ -170,7 +171,7 @@ export default function ProjectsTab({ db, ts }: { db: HrmsDb; ts: TimesheetState
             </details>
           </div>
         </Card>
-        <Card>
+        <Card key="Utilisation by team">
           <CardTitle>Utilisation by team</CardTitle>
           <div data-testid="team-util" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {util.map((u) => (
@@ -186,7 +187,7 @@ export default function ProjectsTab({ db, ts }: { db: HrmsDb; ts: TimesheetState
           </div>
           <Muted style={{ marginTop: 10 }}>Billable hours divided by a {ts.policy.standardWeek}-hour week per person; leave is not deducted in this sample. These are team figures. A person's own utilisation is visible to them and their manager only, on the weekly timesheet, and is never ranked or compared.</Muted>
         </Card>
-      </div>
+      </TileGrid>
       {editing && <ProjectModal project={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
     </Stack>
   );

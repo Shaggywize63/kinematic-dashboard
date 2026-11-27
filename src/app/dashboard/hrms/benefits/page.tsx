@@ -116,7 +116,7 @@ export default function BenefitsPage() {
       {ready && !empty && figures && (
         <>
           <div data-testid="benefits-stats">
-            <StatGrid min={190}>
+            <StatGrid id="hrms-benefits-kpis" perRow={4} h={3} min={190}>
               <Stat label="Enrolment done" value={`${figures.progress.pct}%`} tone={figures.progress.pending ? 'warn' : 'ok'} hint={`${figures.progress.enrolled + figures.progress.waived} of ${figures.progress.eligible} eligible have answered`} />
               <Stat label="Window" value={figures.win.state === 'open' ? `${figures.win.daysLeft} days left` : figures.win.state === 'closed' ? 'Closed' : 'Not open'} tone={figures.win.state === 'open' ? 'ok' : 'warn'} />
               <Stat label="Company cost a month" value={inr(figures.employer)} hint="Sample premiums" />

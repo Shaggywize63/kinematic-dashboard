@@ -70,7 +70,7 @@ export default function ActivityMixPage() {
       )}
     >
       {rows.length > 0 && (
-        <ChartGrid>
+        <ChartGrid id="crm-reports-activity-mix-charts">
           <ChartCard title="Activities by type"><BarsChart data={byType} xKey="name" keys={['Activities']} /></ChartCard>
           <ChartCard title="Logged and completed each week"><BarsChart data={byWeek} xKey="name" keys={['Logged', 'Completed']} /></ChartCard>
         </ChartGrid>

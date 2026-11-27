@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, fmtDate, inr } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
@@ -131,12 +132,12 @@ export default function ClaimsPage() {
       <PageHeader title="Claims & Settlements" subtitle="Distributor claims — damage, scheme, price-protection and more — from submission through approval to settlement." />
 
       {/* Summary */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
+      <TileGrid id="distribution-claims-kpis" perRow={4} h={3} style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
         <StatCard label="Claims" value={summary?.total ?? rows.length} />
         <StatCard label="Claimed" icon={IndianRupee} value={inr(Number(summary?.claimed_amount || 0))} />
         <StatCard label="Approved" value={inr(Number(summary?.approved_amount || 0))} accent="var(--accent)" />
         <StatCard label="Settled" icon={Banknote} value={inr(Number(summary?.settled_amount || 0))} accent="var(--green)" />
-      </div>
+      </TileGrid>
 
       {/* Filters */}
       <Card style={{ marginBottom: 22 }}>

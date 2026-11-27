@@ -86,7 +86,7 @@ export function HolidaysTab({ db }: { db: HrmsDb }) {
         <Button variant="primary" style={primaryStyle} onClick={() => setHolidayModal({})}>Add holiday</Button>
       </Toolbar>
 
-      <StatGrid min={150}>
+      <StatGrid id="hrms-time-holidays-kpis" perRow={4} h={3} min={150}>
         <Stat label="Fixed holidays" value={counts.fixed} hint="Everyone gets these off" />
         <Stat label="Optional holidays" value={counts.optional} hint="Employees choose from these" />
         <Stat label="Total" value={counts.total} hint={`${list.state}, ${list.year}`} />

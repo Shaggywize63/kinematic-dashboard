@@ -6,6 +6,7 @@ import { useClient } from '../../../context/ClientContext';
 import FfmAnalyticsSection from '../../../components/ffm/analytics/FfmAnalyticsSection';
 import { AlertTriangle, BarChart3, CalendarDays, CalendarOff, CheckCircle2, ClipboardCheck, Clock, LayoutGrid, Map as MapIcon, RefreshCw, Sparkles, Target, Telescope, TrendingDown, TrendingUp, Trophy, UserCheck, type LucideIcon } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../components/ui/PageIcon';
+import TileGrid from '../../../components/ui/TileGrid';
 
 // Recharts is ~80 KB gz; load it only when this page actually renders.
 const TffAreaChart = dynamic(() => import('../../../components/charts/TffAreaChart'), {
@@ -323,7 +324,7 @@ export default function AnalyticsPage() {
       )}
 
       {/* KPIs */}
-      <div style={{ display:'grid', gridTemplateColumns:`repeat(${kpis.length},1fr)`, gap:14 }}>
+      <TileGrid id="analytics-kpis" perRow={5} h={3} style={{ display:'grid', gridTemplateColumns:`repeat(${kpis.length},1fr)`, gap:14 }}>
         {kpis.map(s => (
           <div key={s.l} style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
             <div style={{ fontSize:12, color:C.gray, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={s.icon} size={14} />{s.l}</div>
@@ -332,10 +333,11 @@ export default function AnalyticsPage() {
             </div>
           </div>
         ))}
-      </div>
+      </TileGrid>
 
       {/* TFF Trend Chart */}
-      <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
+      <TileGrid id="analytics-tff-trend" perRow={1} h={8}>
+      <div key="tff-trend" style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
           <div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700, display:'flex', alignItems:'center', gap:8 }}><InlineIcon icon={TrendingUp} size={16} style={{ color:C.gray }} />TFF Trend</div>
@@ -354,10 +356,11 @@ export default function AnalyticsPage() {
           <TffAreaChart trends={trends as unknown as { label: string; tff: number }[]} />
         )}
       </div>
+      </TileGrid>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+      <TileGrid id="analytics-leaderboards" perRow={2} h={9} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
         {/* Top performers */}
-        <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div key="top-performers" style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
           <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, marginBottom:16, display:'flex', alignItems:'center', gap:8 }}><InlineIcon icon={Trophy} size={16} style={{ color:C.gray }} />Top Performers</div>
           {loading ? (
             <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>Loading...</div>
@@ -385,7 +388,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Zone breakdown */}
-        <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div key="zone-breakdown" style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
           <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, marginBottom:16, display:'flex', alignItems:'center', gap:8 }}><InlineIcon icon={MapIcon} size={16} style={{ color:C.gray }} />Zone Breakdown</div>
           {loading ? (
             <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>Loading...</div>
@@ -412,10 +415,12 @@ export default function AnalyticsPage() {
             );
           })}
         </div>
-      </div>
+      </TileGrid>
 
       {/* ── TFF Activity Heatmap (live) ── */}
-      <ContactActivityHeatmap data={heatmap} loading={heatmapLoading} />
+      <TileGrid id="analytics-heatmap" perRow={1} h={9}>
+        <ContactActivityHeatmap key="tff-activity-heatmap" data={heatmap} loading={heatmapLoading} />
+      </TileGrid>
 
       {/* Predictive Insights */}
       {!loading && trends.length > 0 && (() => {
@@ -463,7 +468,7 @@ export default function AnalyticsPage() {
           badge?: { label: string; color: string },
           methodology?: string
         ) => (
-          <div style={{
+          <div key={title} style={{
             background:C.s1, border:`1px solid ${C.border}`, borderRadius:16,
             padding:20, display:'flex', flexDirection:'column', gap:10,
           }}>
@@ -517,7 +522,7 @@ export default function AnalyticsPage() {
                 KINI-computed signals from your {trends.length}-day activity window · hover the ⓘ on any card to see how it&apos;s calculated
               </div>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
+            <TileGrid id="analytics-insights" perRow={3} h={5} style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
               {insightCard(
                 momentumUp ? TrendingUp : TrendingDown,
                 'TFF Momentum',
@@ -595,7 +600,7 @@ export default function AnalyticsPage() {
                 { label: confPct >= 70 ? 'HIGH' : confPct >= 40 ? 'MODERATE' : 'LOW', color: confPct >= 70 ? C.green : confPct >= 40 ? C.yellow : C.red },
                 'R² of the linear trend fit — the share of day-to-day TFF variation explained by the trend line. Higher means a more reliable forecast.'
               )}
-            </div>
+            </TileGrid>
           </div>
         );
       })()}

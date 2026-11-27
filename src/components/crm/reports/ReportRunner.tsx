@@ -13,6 +13,7 @@ import ReportCharts from './ReportCharts';
 import { Download, FileSearch, Play, Rows3 } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../ui/PageIcon';
 import { metricIconFor } from '../../../lib/labelIcons';
+import TileGrid from '../../ui/TileGrid';
 
 type RunData = { columns: string[]; rows: Array<Array<string | number | null>>; count: number };
 
@@ -178,16 +179,16 @@ export default function ReportRunner({
       )}
 
       {/* Auto-derived charts (donut / bars / trend) — brand chart kit. */}
-      {data && data.rows.length > 0 && <ReportCharts data={data} />}
+      {data && data.rows.length > 0 && <ReportCharts data={data} id={`crm-reports-${filenameBase}-charts`} />}
 
       {/* Summary strip. */}
       {summary && (
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+        <TileGrid id={`crm-reports-${filenameBase}-summary`} perRow={6} h={2} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
           <SummaryTile label="Rows" value={summary.rows.toLocaleString('en-IN')} highlight />
           {summary.totals.map((t) => (
             <SummaryTile key={t.label} label={t.label} value={t.value} />
           ))}
-        </div>
+        </TileGrid>
       )}
 
       {/* Data table. */}

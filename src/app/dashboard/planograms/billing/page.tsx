@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 import planogramApi from '../../../../lib/planogramApi';
 import { Activity, Banknote, BarChart3, Building2, Camera, type LucideIcon } from 'lucide-react';
 import { PageIcon, InlineIcon } from '../../../../components/ui/PageIcon';
+import TileGrid from '../../../../components/ui/TileGrid';
 import {
   PC,
   SectionCard,
@@ -97,11 +98,11 @@ export default function PlanogramBillingPage() {
       ) : (
         <>
           {/* Totals */}
-          <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
+          <TileGrid id="planograms-billing-kpis" perRow={3} h={3} tile={{ 'total-cost': { w: 7 }, 'captures-analysed': { w: 7 }, 'api-calls': { w: 6 } }} style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
             <Stat label="Total cost" icon={Banknote} value={money(data.total_cost_usd)} accent />
             <Stat label="Captures analysed" icon={Camera} value={num(data.total_captures)} />
             <Stat label="API calls" icon={Activity} value={num(data.total_calls)} />
-          </div>
+          </TileGrid>
           {currency === 'OMR' && (
             <div style={{ fontSize: 11, color: PC.muted }}>Converted at 1 USD = {data.usd_to_omr} OMR.</div>
           )}

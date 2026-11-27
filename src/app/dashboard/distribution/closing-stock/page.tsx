@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, Note, fmtDate } from '../../../../components/distribution/Atoms';
 import { downloadCsv } from '../../../../lib/exportCsv';
@@ -215,13 +216,13 @@ export default function ClosingStockPage() {
       ) : (
         <>
           {/* Summary */}
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
+          <TileGrid id="distribution-closing-stock-kpis" perRow={5} h={3} style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
             <StatCard label="Counted" icon={ClipboardCheck} value={summary.counted || 0} />
             <StatCard label="Matches" icon={CheckCircle2} value={summary.matched || 0} accent="var(--green)" />
             <StatCard label="Over" icon={TrendingUp} value={summary.over || 0} accent={summary.over ? 'var(--green)' : undefined} />
             <StatCard label="Short" icon={TrendingDown} value={summary.short || 0} accent={summary.short ? 'var(--primary)' : undefined} />
             <StatCard label="Adjusted" icon={SlidersHorizontal} value={summary.adjusted || 0} />
-          </div>
+          </TileGrid>
 
           {msg && <Note tone={msg.kind === 'ok' ? 'ok' : 'red'} style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={msg.kind === 'ok' ? CheckCircle2 : XCircle} size={14} />{msg.text}</Note>}
 

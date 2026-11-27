@@ -71,7 +71,7 @@ export default function BeatComplianceReport() {
       </FilterCard>
 
       <StatusBox loading={loading} error={error} onRetry={reload}>
-        <StatGrid>
+        <StatGrid id="ffm-beat-compliance-kpis" perRow={5}>
           <Stat label="Adherence" icon={Percent} value={fmtPct(t?.adherence_pct ?? 0)} hint={data?.median_adherence_pct != null ? `median rep ${fmtPct(data.median_adherence_pct)}` : undefined} />
           <Stat label="Planned calls" icon={CalendarDays} value={fmtInt(t?.planned ?? 0)} />
           <Stat label="Visited" icon={MapPin} value={fmtInt(t?.visited ?? 0)} />

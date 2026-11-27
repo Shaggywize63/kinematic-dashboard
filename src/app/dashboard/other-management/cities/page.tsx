@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import { CheckCircle2, Landmark, PowerOff, type LucideIcon } from 'lucide-react';
 import { IconTile, type IconTone } from '../../../../components/ui/PageIcon';
@@ -144,15 +145,15 @@ export default function CityManagement() {
       <style>{`@keyframes kspin{to{transform:rotate(360deg)}}`}</style>
 
       {/* Stats */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:24}}>
+      <TileGrid id="other-management-cities-kpis" perRow={3} h={3} style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:24}}>
         {([{l:'Total Cities',v:cities.length,c:C.blue,bg:C.blueD,icon:Landmark,tone:'brand'},{l:'Active',v:active,c:C.green,bg:C.greenD,icon:CheckCircle2,tone:'ok'},{l:'Inactive',v:cities.length-active,c:C.gray,bg:`rgba(122,139,160,0.08)`,icon:PowerOff,tone:'neutral'}] as {l:string;v:number;c:string;bg:string;icon:LucideIcon;tone:IconTone}[]).map((s,i)=>(
-          <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative'}}>
+          <div key={s.l} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative'}}>
             <IconTile icon={s.icon} tone={s.tone} style={{position:'absolute',top:14,right:14}} />
             <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:10}}>{s.l}</div>
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c}}>{s.v}</div>
           </div>
         ))}
-      </div>
+      </TileGrid>
 
       {/* Toolbar */}
       <div style={{display:'flex',gap:12,marginBottom:20,alignItems:'center'}}>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import { api } from '../../../lib/api';
 import { useAuth } from '../../../hooks/useAuth';
 import { Activity, AlertTriangle, Check, Clock, Download, Eye, EyeOff, Lock, MessageCircle, MessageCircleQuestion, Plus, Radio, RotateCcw, Send, Trash2, Trophy, Users, Zap, type LucideIcon } from 'lucide-react';
@@ -290,7 +291,7 @@ export default function BroadcastPage() {
 
       {view === 'questions' && (<>
       {/* Stats */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <TileGrid id="broadcast-kpis" perRow={4} h={3} style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         {([
           { l: 'Total Questions', v: String(questions.length), c: C.blue, icon: MessageCircleQuestion, tone: 'info' },
           { l: 'Active', v: String(active.length), c: C.green, icon: Activity, tone: 'ok' },
@@ -303,7 +304,7 @@ export default function BroadcastPage() {
             <div style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>{s.l}</div>
           </div>
         ))}
-      </div>
+      </TileGrid>
 
       {/* Error */}
       {error && (

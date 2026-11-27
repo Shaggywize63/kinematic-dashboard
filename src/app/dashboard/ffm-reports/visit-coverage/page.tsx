@@ -7,6 +7,7 @@ import { csvLine, rangeProblem } from '../../../../components/ffm/reports/report
 import { Building2, CheckCircle2, Download, Inbox, Landmark, MapPinOff, Users, type LucideIcon } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../lib/labelIcons';
+import TileGrid from '../../../../components/ui/TileGrid';
 
 /**
  * Visit Coverage — universe (planned) vs covered (visited) outlets, by city and by rep, over a chosen
@@ -144,12 +145,12 @@ export default function VisitCoverageReport() {
         <div style={{ padding: 16, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 12 }}><IconTile icon={Inbox} size={40} iconSize={20} />No coverage data available yet.</div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+          <TileGrid id="ffm-visit-coverage-kpis" perRow={4} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
             <Stat label="Universe" icon={Building2} value={universe.toLocaleString('en-IN')} />
             <Stat label="Covered"  icon={CheckCircle2} value={covered.toLocaleString('en-IN')} accent="#10B981" />
             <Stat label="Gap"      icon={MapPinOff} value={gap.toLocaleString('en-IN')} accent={gap > 0 ? '#EF4444' : undefined} />
             <Stat label="Coverage" value={`${coveragePct}%`} accent={pctColor(coveragePct)} />
-          </div>
+          </TileGrid>
 
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>

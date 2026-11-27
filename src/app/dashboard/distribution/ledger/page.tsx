@@ -1,7 +1,8 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
-import { Card, PageHeader, StatCard, Row, Pill, Th, Td, inr, fmtDate } from '../../../../components/distribution/Atoms';
+import { Card, PageHeader, StatCard, Pill, Th, Td, inr, fmtDate } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
 import { Check } from 'lucide-react';
@@ -47,13 +48,13 @@ export default function LedgerPage() {
       <PageHeader title="Ledger" subtitle="Double-entry. Outlet running balance never crosses credit limit without admin override." />
 
       {ageing && (
-        <Row style={{ marginBottom: 22 }}>
+        <TileGrid id="distribution-ledger-kpis" perRow={5} h={3} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 22 }}>
           <StatCard label="Total outstanding" value={inr(ageing.total_outstanding)} accent="var(--primary)" />
           <StatCard label="0-30 days" value={inr(ageing.buckets?.['0_30'] || 0)} />
           <StatCard label="31-60 days" value={inr(ageing.buckets?.['31_60'] || 0)} />
           <StatCard label="61-90 days" value={inr(ageing.buckets?.['61_90'] || 0)} />
           <StatCard label="90+ days" value={inr(ageing.buckets?.['90_plus'] || 0)} accent={ageing.buckets?.['90_plus'] > 0 ? 'var(--primary)' : undefined} />
-        </Row>
+        </TileGrid>
       )}
 
       <Card style={{ marginBottom: 22 }}>

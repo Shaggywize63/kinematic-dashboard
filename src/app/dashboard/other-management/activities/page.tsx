@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import { Activity as ActivityIcon, CheckCircle2, Tags, type LucideIcon } from 'lucide-react';
 import { IconTile, type IconTone } from '../../../../components/ui/PageIcon';
@@ -184,15 +185,15 @@ export default function ActivityManagement() {
       <style>{`@keyframes kspin{to{transform:rotate(360deg)}}`}</style>
 
       {/* Stats */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:24}}>
+      <TileGrid id="other-management-activities-kpis" perRow={3} h={3} style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:24}}>
         {([{l:'Total Activities',v:acts.length,c:C.orange,icon:ActivityIcon,tone:'brand'},{l:'Active',v:active,c:C.green,icon:CheckCircle2,tone:'ok'},{l:'Types',v:new Set(acts.map(a=>a.type).filter(Boolean)).size,c:C.blue,icon:Tags,tone:'info'}] as {l:string;v:number;c:string;icon:LucideIcon;tone:IconTone}[]).map((s,i)=>(
-          <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative'}}>
+          <div key={s.l} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative'}}>
             <IconTile icon={s.icon} tone={s.tone} style={{position:'absolute',top:14,right:14}} />
             <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:10}}>{s.l}</div>
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c}}>{s.v}</div>
           </div>
         ))}
-      </div>
+      </TileGrid>
 
       {/* Toolbar */}
       <div style={{display:'flex',gap:12,marginBottom:20,alignItems:'center'}}>

@@ -12,6 +12,7 @@ import {
   Shuffle, Tag, Tags, Target, User, X, XCircle, type LucideIcon,
 } from 'lucide-react';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
+import TileGrid from '../../../../../components/ui/TileGrid';
 import type {
   Capture,
   Compliance,
@@ -590,7 +591,10 @@ export default function CaptureDetailPage() {
 
       {/* ── 2. KPI strip ───────────────────────────────────────────────────── */}
       {compliance && (
-        <div
+        <TileGrid
+          id="planograms-capture-kpis"
+          perRow={4}
+          h={3}
           style={{
             display: 'grid',
             gridTemplateColumns: isCompact ? 'repeat(2, 1fr)' : 'repeat(7, minmax(0, 1fr))',
@@ -638,7 +642,7 @@ export default function CaptureDetailPage() {
                 : 'none expected'
             }
           />
-        </div>
+        </TileGrid>
       )}
 
       {/* ── 3. Hero ────────────────────────────────────────────────────────── */}

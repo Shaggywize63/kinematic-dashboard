@@ -10,6 +10,7 @@ import type { HrmsDb } from '../../../lib/hrms/types';
 import { attritionSeries, exitRecords, fiscalMonths, type ExitRecord } from '../../../lib/hrms/hiring/engines';
 import { ColumnChart, Legend, LineChart } from './charts';
 import { deptName, empName, subtle } from './shared';
+import TileGrid from '../../ui/TileGrid';
 
 const short = (m: string) => fmtMonth(m).slice(0, 3);
 
@@ -32,9 +33,9 @@ export default function PlanningAttrition({ db }: { db: HrmsDb }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} data-testid="attrition">
-      <StatGrid>
-        <div data-testid="stat-rate"><Stat label="Rolling 12-month rate" value={now?.rate == null ? '—' : `${now.rate}%`} hint={`${left12} left in the 12 months to ${fmtDate(PREVIEW_TODAY)}`} /></div>
-        <div data-testid="stat-serving"><Stat label="Serving notice" value={serving.length} tone={serving.length ? 'warn' : undefined} hint={withNotice == null ? undefined : `Rate would be ${withNotice.toFixed(1)}% when they leave`} /></div>
+      <StatGrid id="hrms-workforce-planning-attrition-kpis" perRow={3} h={3}>
+        <div key="Rolling 12-month rate" data-testid="stat-rate"><Stat label="Rolling 12-month rate" value={now?.rate == null ? '—' : `${now.rate}%`} hint={`${left12} left in the 12 months to ${fmtDate(PREVIEW_TODAY)}`} /></div>
+        <div key="Serving notice" data-testid="stat-serving"><Stat label="Serving notice" value={serving.length} tone={serving.length ? 'warn' : undefined} hint={withNotice == null ? undefined : `Rate would be ${withNotice.toFixed(1)}% when they leave`} /></div>
         <Stat label="Average headcount" value={now ? now.averageHc.toFixed(1) : '—'} hint={now ? `${now.openingHc} a year ago, ${now.closingHc} now` : undefined} />
       </StatGrid>
 
@@ -47,19 +48,19 @@ export default function PlanningAttrition({ db }: { db: HrmsDb }) {
         <p style={{ ...subtle, margin: '8px 0 0' }}>A person counts as having left on their last working date. People serving notice are shown separately and are not in the rate until that date passes. This uses the same method as the HR overview.</p>
       </Card>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(380px, 100%), 1fr))', gap: 14 }}>
-        <Card padding={16}>
+      <TileGrid id="hrms-workforce-planning-attrition-charts" perRow={2} h={8} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(380px, 100%), 1fr))', gap: 14 }}>
+        <Card key="Exits by month" padding={16}>
           <CardTitle>Exits by month</CardTitle>
           <Legend items={[{ label: 'Left', color: 'var(--hv-1)', box: true }, { label: 'Serving notice (leaving on a set date)', color: 'var(--hv-2)', box: true }]} />
           <ColumnChart testId="exits-chart" ariaLabel="Exits by month in the financial year" labels={months.map(short)} showValues={false} height={190}
             stacks={[{ id: 'left', label: 'left', color: 'var(--hv-1)', values: series.map((p) => p.left) }, { id: 'serving', label: 'serving notice', color: 'var(--hv-2)', values: series.map((p) => p.serving) }]} />
         </Card>
-        <Card padding={16}>
+        <Card key="Rolling 12-month rate" padding={16}>
           <CardTitle>Rolling 12-month rate</CardTitle>
           <LineChart testId="rate-chart" ariaLabel="Rolling 12-month attrition rate by month" height={190} yMin={0} xLabels={months.map(short)} format={(n) => `${n}%`}
             series={[{ id: 'rate', label: 'Rolling 12-month rate', color: 'var(--hv-1)', values: series.map((p) => p.rate) }]} />
         </Card>
-      </div>
+      </TileGrid>
 
       <Card padding={16}>
         <CardTitle>Month by month</CardTitle>

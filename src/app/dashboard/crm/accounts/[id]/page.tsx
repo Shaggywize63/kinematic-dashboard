@@ -37,6 +37,7 @@ import CoOwnersCard from '../../../../../components/crm/CoOwnersCard';
 import InlineOwnerAssign from '../../../../../components/crm/shared/InlineOwnerAssign';
 import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import TileGrid from '../../../../../components/ui/TileGrid';
 
 // Built-in order of the main-column and sidebar cards. A card gated on a condition (spark-only, a
 // description, notes present, …) that isn't eligible to render for the current account just drops
@@ -571,13 +572,13 @@ export default function AccountDetailPage() {
         <ReorderablePanels order={sidebarPanelOrder} onReorder={setSidebarPanelOrder} panels={{
           stats: (
         <Card title="Account Stats" icon={BarChart3}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          <TileGrid id="crm-accounts-detail-stats" perRow={5} h={2} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
             <Stat label="Contacts" value={String(contacts.length)} />
             <Stat label="Open Deals" value={String(deals.filter((d) => d.status === 'open').length)} />
             <Stat label="Total" icon={IndianRupee} value={formatINR(totalValue)} />
             <Stat label="Open Pipeline" value={formatINR(openDealValue)} />
             <Stat label="Won" value={formatINR(wonValue)} />
-          </div>
+          </TileGrid>
         </Card>
           ),
           ai_summary: <AccountSummaryCard accountId={a.id} initial={a.ai_summary} />,

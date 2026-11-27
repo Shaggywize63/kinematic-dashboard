@@ -129,7 +129,7 @@ export default function PayChecksView({ db, store }: { db: HrmsDb; store: PayChe
             <LinkButton href={`/dashboard/hrms/payroll/runs/${run.id}`} label={`Open the ${fmtMonthLong(run.month)} run in Payroll`}>Open this run in Payroll</LinkButton>
           </div>
 
-          <StatGrid min={170}>
+          <StatGrid id="hrms-pay-checks-kpis" perRow={4} h={3} min={170}>
             <Stat label="Findings" value={<span data-testid="stat-total">{sum.total}</span>} hint={sum.total === 0 ? 'Nothing to look at' : `${result.coverage.length} checks ran`} tone={sum.total ? undefined : 'ok'} />
             <Stat label="Need a look" value={<span data-testid="stat-look">{sum.needLook}</span>} tone={sum.needLook ? 'warn' : 'ok'} hint="Warnings and high" />
             <Stat label="For information" value={<span data-testid="stat-info">{sum.info}</span>} tone="info" hint="Explained or minor" />

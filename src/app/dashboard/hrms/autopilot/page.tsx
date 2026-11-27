@@ -58,11 +58,11 @@ function Body({ db, state }: { db: HrmsDb; state: ControlState }) {
       title="Compliance autopilot"
       description="This month's filings, how ready each one is from live data, and one click to prepare the working file. Filing itself still happens on the portals."
     >
-      <StatGrid min={170}>
-        <div data-testid="sum-ontime"><Stat label="Filed on time" value={summary.onTimePct == null ? '—' : `${summary.onTimePct}%`} hint={`${summary.onTime} of ${summary.filed} filed`} tone={summary.onTimePct == null ? undefined : summary.onTimePct >= 90 ? 'ok' : 'warn'} /></div>
-        <div data-testid="sum-overdue"><Stat label="Overdue" value={summary.overdue} tone={summary.overdue ? 'red' : 'ok'} hint={summary.overdue ? 'Needs action now' : 'Nothing late'} /></div>
-        <div data-testid="sum-week"><Stat label="Due this week" value={summary.dueThisWeek} tone={summary.dueThisWeek ? 'warn' : undefined} hint="Today and the next 7 days" /></div>
-        <div data-testid="sum-ready"><Stat label="Average readiness" value={summary.avgReadiness == null ? '—' : `${summary.avgReadiness}%`} hint={`Across ${summary.open} open filings`} /></div>
+      <StatGrid id="hrms-autopilot-kpis" perRow={4} h={3} min={170}>
+        <div key="Filed on time" data-testid="sum-ontime"><Stat label="Filed on time" value={summary.onTimePct == null ? '—' : `${summary.onTimePct}%`} hint={`${summary.onTime} of ${summary.filed} filed`} tone={summary.onTimePct == null ? undefined : summary.onTimePct >= 90 ? 'ok' : 'warn'} /></div>
+        <div key="Overdue" data-testid="sum-overdue"><Stat label="Overdue" value={summary.overdue} tone={summary.overdue ? 'red' : 'ok'} hint={summary.overdue ? 'Needs action now' : 'Nothing late'} /></div>
+        <div key="Due this week" data-testid="sum-week"><Stat label="Due this week" value={summary.dueThisWeek} tone={summary.dueThisWeek ? 'warn' : undefined} hint="Today and the next 7 days" /></div>
+        <div key="Average readiness" data-testid="sum-ready"><Stat label="Average readiness" value={summary.avgReadiness == null ? '—' : `${summary.avgReadiness}%`} hint={`Across ${summary.open} open filings`} /></div>
       </StatGrid>
 
       <AutoCalendar db={db} />

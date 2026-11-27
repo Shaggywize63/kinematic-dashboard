@@ -23,6 +23,7 @@ import { isB2bClientActive } from '../../../../../lib/b2bClient';
 import ContactAccountModal from '../../../../../components/crm/spark/ContactAccountModal';
 import CoOwnersCard from '../../../../../components/crm/CoOwnersCard';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import TileGrid from '../../../../../components/ui/TileGrid';
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -217,22 +218,22 @@ export default function ContactDetailPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         {isB2C && (
           <Card title="Customer 360" icon={BarChart3}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+            <TileGrid id="crm-contacts-detail-customer-360" perRow={4} h={2} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
               <Stat label="Lifetime Value" value={formatINR(c.lifetime_value || 0)} />
               <Stat label="Total Orders" value={String(c.total_orders || 0)} />
               <Stat label="Open Deals" value={String(deals.filter((d) => d.status === 'open').length)} />
               <Stat label="Won Deals" value={String(wonDeals.length)} />
-            </div>
+            </TileGrid>
           </Card>
         )}
         {!isB2C && (
           <Card title="Engagement" icon={ActivityIcon}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+            <TileGrid id="crm-contacts-detail-engagement" perRow={4} h={2} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
               <Stat label="Open Deals" value={String(deals.filter((d) => d.status === 'open').length)} />
               <Stat label="Won Deals" value={String(wonDeals.length)} />
               <Stat label="Total Value" value={formatINR(totalDealValue)} />
               <Stat label="Activities" value={String(activities.length)} />
-            </div>
+            </TileGrid>
           </Card>
         )}
 

@@ -78,7 +78,7 @@ export default function RepActivityReport() {
       <FilterCard idPrefix="ffm-ra" from={from} to={to} onRange={(f, e) => { setFrom(f); setTo(e); }} />
 
       <StatusBox loading={loading} error={error} onRetry={reload}>
-        <StatGrid>
+        <StatGrid id="ffm-rep-activity-kpis">
           <Stat label="Reps in view" value={data?.reps_in_view ?? 0} />
           <Stat label="Visited calls" icon={MapPin} value={fmtInt(t?.visited_stops ?? 0)} hint={`of ${fmtInt(t?.planned_stops ?? 0)} planned`} />
           <Stat label="Adherence" icon={Percent} value={fmtPct(t?.adherence_pct ?? 0)} />

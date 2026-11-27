@@ -79,12 +79,12 @@ export default function IncentivesView({ db }: { db: HrmsDb }) {
         <span style={{ fontSize: 13, color: T.dim }}>Sorted by name. The order is not a ranking.</span>
       </div>
 
-      <StatGrid min={170}>
-        <div data-testid="inc-stat-booked"><Stat label="Total booked" value={inr(total((r) => r.achieved))} hint={`${rows.length} people`} /></div>
-        <div data-testid="inc-stat-payable"><Stat label="Payable now" value={inr(total((r) => r.gross))} tone="ok" hint="Collected enough to pay" /></div>
-        <div data-testid="inc-stat-held"><Stat label="Held for collection" value={inr(total((r) => r.heldTotal))} tone="warn" hint="Paid when invoices are collected" /></div>
-        <div data-testid="inc-stat-clawback"><Stat label="Clawbacks taken" value={inr(total((r) => r.clawbackTotal))} hint="Signed plan, inside the window" /></div>
-        <div data-testid="inc-stat-net"><Stat label="Net" value={inr(total((r) => r.net))} hint="Payable now less clawbacks" /></div>
+      <StatGrid id="hrms-incentives-kpis" perRow={5} h={4} min={170}>
+        <div key="Total booked" data-testid="inc-stat-booked"><Stat label="Total booked" value={inr(total((r) => r.achieved))} hint={`${rows.length} people`} /></div>
+        <div key="Payable now" data-testid="inc-stat-payable"><Stat label="Payable now" value={inr(total((r) => r.gross))} tone="ok" hint="Collected enough to pay" /></div>
+        <div key="Held for collection" data-testid="inc-stat-held"><Stat label="Held for collection" value={inr(total((r) => r.heldTotal))} tone="warn" hint="Paid when invoices are collected" /></div>
+        <div key="Clawbacks taken" data-testid="inc-stat-clawback"><Stat label="Clawbacks taken" value={inr(total((r) => r.clawbackTotal))} hint="Signed plan, inside the window" /></div>
+        <div key="Net" data-testid="inc-stat-net"><Stat label="Net" value={inr(total((r) => r.net))} hint="Payable now less clawbacks" /></div>
       </StatGrid>
 
       <DataTable<Row> columns={cols} rows={rows} minWidth={1000} onRowClick={(r) => setOpenId(r.employeeId)} empty="No field people are on payroll in the sample data." />

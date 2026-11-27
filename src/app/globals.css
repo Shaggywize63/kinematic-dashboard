@@ -1068,3 +1068,11 @@ html[data-design="new"] [aria-current="page"] .kicon,
 html[data-design="new"] [data-active="true"] .kicon { --k-node: var(--red); }
 html[data-design="new"] [aria-current="page"] .kicon path[fill-opacity],
 html[data-design="new"] [data-active="true"] .kicon path[fill-opacity] { fill: var(--red); fill-opacity: .3; }
+
+/* New design — the hover "Arrange" pill on a movable tile: straddles the tile's top edge so it never covers content. */
+.km-tile-grip { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 7; height: 22px; padding: 0 10px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 5px; font: 600 10.5px/1 var(--font-inter); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+  color: var(--text); background: var(--a-solid, var(--card)); border: 1px solid var(--border-l); box-shadow: var(--shadow-pop); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+.km-tileboard .react-grid-item:hover .km-tile-grip, .km-tile-grip:focus-visible { opacity: 1; pointer-events: auto; }
+.km-tile-grip:hover { background: var(--s3); border-color: var(--red); }
+@media (hover: none) { .km-tile-grip { display: none; } }

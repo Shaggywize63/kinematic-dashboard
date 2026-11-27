@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import TileGrid from '../../../../../components/ui/TileGrid';
 import { useParams } from 'next/navigation';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Btn, Th, Td, StatCard, fmtDate } from '../../../../../components/distribution/Atoms';
@@ -140,12 +141,12 @@ export default function VanLoadDetail() {
       {msg && <div style={{ marginBottom: 14, fontSize: 12, color: msg.kind === 'ok' ? 'var(--green)' : 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={msg.kind === 'ok' ? CheckCircle2 : XCircle} size={14} />{msg.text}</div>}
 
       {/* Totals */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
+      <TileGrid id="distribution-van-load-kpis" perRow={4} h={3} style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
         <StatCard label="Loaded" icon={Truck} value={Number(totals.loaded || 0).toLocaleString('en-IN')} />
         <StatCard label="Sold" icon={ShoppingCart} value={Number(totals.sold || 0).toLocaleString('en-IN')} accent="var(--green)" />
         <StatCard label="Returned" icon={Undo2} value={Number(totals.returned || 0).toLocaleString('en-IN')} accent="var(--accent)" />
         <StatCard label="Damaged" icon={PackageX} value={Number(totals.damaged || 0).toLocaleString('en-IN')} accent={Number(totals.damaged) > 0 ? 'var(--primary)' : undefined} />
-      </div>
+      </TileGrid>
 
       {/* Meta */}
       <Card style={{ marginBottom: 22 }}>

@@ -15,6 +15,7 @@ import type { Employee } from '../../../../lib/hrms/types';
 import OrgCanvas from '../../../../components/hrms/assist/OrgCanvas';
 import OrgList from '../../../../components/hrms/assist/OrgList';
 import { Tiles } from '../../../../components/hrms/assist/shared';
+import TileGrid from '../../../../components/ui/TileGrid';
 import { ChangeManagerModal, VacancyModal } from '../../../../components/hrms/assist/OrgModals';
 
 type Modal = { kind: 'manager'; id: string } | { kind: 'vacancy'; managerId?: string } | null;
@@ -69,7 +70,7 @@ export default function OrgChartPage() {
       description="Who reports to whom, from the employee records. Change a manager here and the Employees page shows it too."
       actions={<><Button onClick={() => setModal({ kind: 'vacancy' })} data-testid="vac-open">Add open role</Button><Button onClick={csv} data-testid="org-csv">Download CSV</Button></>}
     >
-      <Tiles min={150}>
+      <Tiles id="hrms-org-chart-kpis" perRow={6} h={3} min={150}>
         <Stat label="People shown" value={<span data-testid="stat-people">{stats.people}</span>} hint={prefs.showExited ? 'Including people who left' : `${exitedCount} who left are hidden`} />
         <Stat label="Managers" value={<span data-testid="stat-managers">{stats.managers}</span>} hint="People with at least one report" />
         <Stat label="Average span" value={<span data-testid="stat-span">{stats.avgSpan}</span>} hint="Direct reports per manager" />
@@ -107,13 +108,14 @@ export default function OrgChartPage() {
       )}
 
       {prefs.view === 'chart' ? (
-        <div style={{ display: 'grid', gap: 16, gridTemplateColumns: narrow ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 300px', alignItems: 'start' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+        <TileGrid id="hrms-org-chart-main" perRow={2} h={14} tile={{ 'org-chart': { w: 15 }, 'org-details': { w: 5, h: 11 } }}
+          style={{ display: 'grid', gap: 16, gridTemplateColumns: narrow ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 300px', alignItems: 'start' }}>
+          <div key="org-chart" style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
             <Legend />
             <OrgCanvas db={db} tree={tree} layout={layout} vacancies={org.vacancies} selectedId={selectedId} matches={matches} searching={!!query.trim() && matches.size > 0}
               collapsed={collapsed} onSelect={setSelected} onToggle={toggle} onRemoveVacancy={(id) => { removeVacancy(id); toast.success('Open role removed'); }} focus={focus} />
           </div>
-          <Card padding={16} style={{ minWidth: 0 }}>
+          <Card key="org-details" padding={16} style={{ minWidth: 0 }}>
             <div data-testid="org-detail">
               {selected ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -145,7 +147,7 @@ export default function OrgChartPage() {
               )}
             </div>
           </Card>
-        </div>
+        </TileGrid>
       ) : (
         <OrgList db={db} tree={tree} groupBy={prefs.groupBy} onChangeManager={(e) => setModal({ kind: 'manager', id: e.id })} onSelect={(id) => setSelected(id)} />
       )}

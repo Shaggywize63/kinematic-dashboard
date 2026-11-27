@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import { ClipboardList, Clock, Crosshair, Download, LogIn, LogOut, MapPin, Search, Store, Timer, User, Users, X, type LucideIcon } from 'lucide-react';
 import { InlineIcon } from '../../../components/ui/PageIcon';
 import api from '../../../lib/api';
@@ -538,14 +539,14 @@ export default function WorkActivitiesPage() {
       {tab === 'insights' ? <FormInsights /> : (
       <>
       {/* At a glance */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+      <TileGrid id="work-activities-summary" perRow={4} h={3} style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <SummaryTile testId="wa-sum-submissions" icon={<ClipboardList size={19} />} label="Submissions" value={loading && !data.length ? '—' : String(total)} hint={partial ? `showing the latest ${data.length}` : 'in this window'} />
         <SummaryTile testId="wa-sum-visits" icon={<Store size={19} />} label="Visits" value={loading && !data.length ? '—' : String(visits.length)} hint="store or form, per rep per day" />
         <SummaryTile testId="wa-sum-reps" icon={<Users size={19} />} label="Field reps" value={loading && !data.length ? '—' : String(stats.reps)} hint="active in this window" />
         {!hideVisitTracking && (
           <SummaryTile testId="wa-sum-time" icon={<Clock size={19} />} label="Time on visits" value={loading && !data.length ? '—' : fmtMinutes(stats.minutes)} hint={stats.timed ? `${stats.timed} timed ${stats.timed === 1 ? 'form' : 'forms'}` : 'no check-in / out recorded'} />
         )}
-      </div>
+      </TileGrid>
 
       {/* Filters */}
       <Card padding={compact ? 14 : 16} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

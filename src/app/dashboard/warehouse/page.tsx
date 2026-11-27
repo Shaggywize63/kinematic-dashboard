@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import { api } from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
 import { useAuth } from '../../../hooks/useAuth';
@@ -461,7 +462,7 @@ export default function WarehousePage() {
       </div>
 
       {/* ── KPI bar ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 28 }}>
+      <TileGrid id="warehouse-kpis" perRow={5} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 28 }}>
         {[
           { label: 'Total Warehouses',    val: summary?.total_warehouses    ?? 0, color: C.blue,   icon: WarehouseIcon },
           { label: 'Active',              val: summary?.active_warehouses   ?? 0, color: C.green,  icon: Activity },
@@ -469,7 +470,7 @@ export default function WarehousePage() {
           { label: 'Active Assets',       val: summary?.total_assets        ?? 0, color: C.teal,   icon: Boxes },
           { label: 'Movements (30d)',      val: summary?.total_movements_30d ?? 0, color: C.yellow, icon: ArrowLeftRight },
         ].map((k, i) => (
-          <div key={i} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 20px' }}>
+          <div key={k.label} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 28, fontWeight: 800, color: k.color }}>{k.val}</div>
               <IconTile icon={k.icon} tone="brand" size={26} iconSize={14} />
@@ -477,7 +478,7 @@ export default function WarehousePage() {
             <div style={{ fontSize: 11, color: C.gray, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>{k.label}</div>
           </div>
         ))}
-      </div>
+      </TileGrid>
 
       <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 20 }}>
 

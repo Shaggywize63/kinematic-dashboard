@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import TileGrid from '../../../../../components/ui/TileGrid';
 import { useParams } from 'next/navigation';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Btn, StatCard, fmtDate, inr } from '../../../../../components/distribution/Atoms';
@@ -178,7 +179,7 @@ export default function PromotionDetail() {
       <Card style={{ marginBottom: 22 }}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, ...cardHead }}><InlineIcon icon={TrendingUp} size={16} />ROI & Budget</div>
         {summary ? (
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <TileGrid id="distribution-promotion-roi" perRow={4} h={3} style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             <StatCard label="Budget" value={inr(summary.budget_amount || 0)} hint={summary.currency || 'INR'} />
             <StatCard label="Claimed" icon={IndianRupee} value={inr(summary.claimed_total || 0)} hint={`${summary.claim_count || 0} claim(s)`} />
             <StatCard label="Approved" value={inr(summary.approved_total || 0)} accent="var(--accent)" />
@@ -186,7 +187,7 @@ export default function PromotionDetail() {
             <StatCard label="Budget used" icon={Percent} value={pct(summary.budget_utilization_pct)} />
             <StatCard label="Generated sales" value={inr(summary.generated_sales || 0)} hint={`${summary.order_count || 0} order(s)`} />
             <StatCard label="ROI" icon={TrendingUp} value={roiFmt(summary.roi)} accent="var(--green)" />
-          </div>
+          </TileGrid>
         ) : <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>Summary unavailable.</div>}
       </Card>
 

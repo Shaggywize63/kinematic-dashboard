@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import api from '../../../lib/api';
 import { getStoredUser, canAccess } from '../../../lib/auth';
 import { CheckCircle2, Check, Clock, Eye, Inbox, Lock, RefreshCw, Settings2, type LucideIcon } from 'lucide-react';
@@ -129,20 +130,20 @@ export default function GrievancesPage() {
       )}
 
       {/* Stats */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
+      <TileGrid id="grievances-kpis" perRow={4} h={3} style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
         {([
           { l:'Total', v:grievances.length, c:C.blue, icon:Inbox, tone:'brand' },
           { l:'Pending', v:grievances.filter(g=>g.status==='pending').length, c:C.yellow, icon:Clock, tone:'warn' },
           { l:'Under Review', v:grievances.filter(g=>g.status==='under_review').length, c:C.blue, icon:Eye, tone:'info' },
           { l:'Resolved', v:grievances.filter(g=>g.status==='resolved').length, c:C.green, icon:CheckCircle2, tone:'ok' },
         ] as { l:string; v:number; c:string; icon:LucideIcon; tone:IconTone }[]).map((s, i) => (
-          <div key={i} style={{ background:'var(--s1)', border:`1px solid ${C.border}`, borderRadius:16, padding:20, position:'relative' }}>
+          <div key={s.l} style={{ background:'var(--s1)', border:`1px solid ${C.border}`, borderRadius:16, padding:20, position:'relative' }}>
             <IconTile icon={s.icon} tone={s.tone} style={{ position:'absolute', top:16, right:16 }} />
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color:s.c }}>{s.v}</div>
             <div style={{ fontSize:12, color:C.gray, marginTop:6 }}>{s.l}</div>
           </div>
         ))}
-      </div>
+      </TileGrid>
 
       {/* List */}
       <div style={{ background:'var(--s1)', border:`1px solid ${C.border}`, borderRadius:16, overflow:'hidden' }}>

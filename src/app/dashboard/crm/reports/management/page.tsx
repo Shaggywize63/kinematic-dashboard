@@ -24,6 +24,7 @@ import {
 import { fmtInr, fmtInt, fmtPct, DASH } from '../../../../../lib/crm/plusFormat';
 import { toCsv, downloadCsv, type CsvColumn } from '../../../../../components/ffm/reports/reportUtils';
 import { Button, EmptyState, T, useIsCompact } from '../../../../../components/ui';
+import TileGrid from '../../../../../components/ui/TileGrid';
 import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
@@ -212,14 +213,14 @@ export default function ManagementDashboardPage() {
           {kpi && !kpi.ok ? (
             <div style={card}><ErrorNote message={kpi.message} /></div>
           ) : (
-            <div data-testid="management-kpis" style={kpiGrid}>
+            <TileGrid id="crm-reports-management-kpis" data-testid="management-kpis" perRow={6} h={3} style={kpiGrid}>
               <Kpi testid="kpi-orders" label="Orders won" value={fmtInt(totals?.orders_won)} />
               <Kpi testid="kpi-order-value" label="Order value" value={fmtInr(totals?.order_value)} strong />
               <Kpi testid="kpi-quoted" label="Quoted value" value={fmtInr(totals?.quoted_value)} />
               <Kpi testid="kpi-leads" label="Leads" value={fmtInt(totals?.leads_count)} />
               {costOn && <Kpi testid="kpi-cost" label="Cost" value={fmtInr(totals?.cost)} />}
               {costOn && <Kpi testid="kpi-cost-pct" label="Cost % of order value" value={costPct === null ? DASH : fmtPct(costPct)} />}
-            </div>
+            </TileGrid>
           )}
 
           {/* Saved questions */}
@@ -279,7 +280,7 @@ export default function ManagementDashboardPage() {
           </div>
 
           {/* Top by brand + Top by account */}
-          <div style={twoCol(narrow)}>
+          <TileGrid id="crm-reports-management-top" perRow={2} h={8} style={twoCol(narrow)}>
             <TopCard
               testid="management-top-brands"
               rowTestid="management-brand-row"
@@ -298,7 +299,7 @@ export default function ManagementDashboardPage() {
               rows={topAccounts}
               href={businessHref({ group_by: 'account' })}
             />
-          </div>
+          </TileGrid>
         </>
       )}
     </div>

@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import TileGrid from '../../../../../components/ui/TileGrid';
 import api from '../../../../../lib/api';
-import { Card, PageHeader, StatCard, Row, Th, Td, Btn, Pill } from '../../../../../components/distribution/Atoms';
+import { Card, PageHeader, StatCard, Th, Td, Btn, Pill } from '../../../../../components/distribution/Atoms';
 import { CheckCircle2, TrendingUp } from 'lucide-react';
 
 const QUARTERS = ['Q1-2026', 'Q2-2026', 'Q3-2026', 'Q4-2026'];
@@ -51,12 +52,12 @@ export default function TargetsReport() {
         }
       />
 
-      <Row style={{ marginBottom: 20 }}>
+      <TileGrid id="distribution-reports-targets-kpis" perRow={4} h={3} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
         <StatCard label="Total Targets" value={summary.total || 0} />
         <StatCard label="Pending" value={summary.pending || 0} accent="#F59E0B" />
         <StatCard label="Achieved" icon={CheckCircle2} value={summary.achieved || 0} accent="var(--accent)" />
         <StatCard label="Exceeded" icon={TrendingUp} value={summary.exceeded || 0} accent="var(--green)" />
-      </Row>
+      </TileGrid>
 
       <Card>
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>

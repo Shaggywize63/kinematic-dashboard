@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import planogramApi from '../../../../lib/planogramApi';
 import { AlertTriangle, Camera, IndianRupee, Map as MapIcon, Percent, PieChart, Repeat, Store, Tag, TrendingUp, PackageCheck, type LucideIcon } from 'lucide-react';
 import { InlineIcon } from '../../../../components/ui/PageIcon';
+import TileGrid from '../../../../components/ui/TileGrid';
 import {
   PC,
   SectionCard,
@@ -141,7 +142,7 @@ export default function PlanogramInsightsPage() {
       ) : data ? (
         <div className="pg-fade" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Headline stat tiles */}
-          <div style={{ display: 'grid', gridTemplateColumns: isCompact ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 9 }}>
+          <TileGrid id="planograms-insights-kpis" perRow={4} h={3} style={{ display: 'grid', gridTemplateColumns: isCompact ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 9 }}>
             <Stat label="Captures analysed" icon={Camera} value={String(data.captures_count)} sub={`across ${data.stores_count} store${data.stores_count === 1 ? '' : 's'}`} />
             <Stat
               label="Avg compliance"
@@ -164,7 +165,7 @@ export default function PlanogramInsightsPage() {
               valueColor={PC.info}
               sub={`${promo?.captures_with_promo ?? 0} of ${promo?.captures_total ?? 0} shelves`}
             />
-          </div>
+          </TileGrid>
 
           {/* Compliance trend (full width) */}
           <SectionCard title="Compliance trend" icon={TrendingUp} caption="Org-wide average shelf-compliance score over time">
@@ -178,7 +179,7 @@ export default function PlanogramInsightsPage() {
           </SectionCard>
 
           {/* Category share + Price movement */}
-          <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 16 }}>
+          <TileGrid id="planograms-insights-share-price" perRow={2} h={8} style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 16 }}>
             <SectionCard title="Category shelf-share" icon={PieChart} caption="Own vs competitor facings share, per category">
               {hasCategory ? (
                 <CategoryShare rows={data.category_share} />
@@ -206,7 +207,7 @@ export default function PlanogramInsightsPage() {
                 <StateBlock>No shelf prices read yet in this window.</StateBlock>
               )}
             </SectionCard>
-          </div>
+          </TileGrid>
 
           {/* Store compliance (ranked) */}
           <SectionCard title="Compliance by store" icon={Store} caption="Average score, own shelf-share & competitor share per store — best first">
@@ -227,7 +228,7 @@ export default function PlanogramInsightsPage() {
           </SectionCard>
 
           {/* Region compliance + Promo presence */}
-          <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 16 }}>
+          <TileGrid id="planograms-insights-region-promo" perRow={2} h={8} style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 16 }}>
             <SectionCard title="Compliance by region" icon={MapIcon} caption={regionsConfigured ? 'Average score per region (store city)' : 'Set store cities to break compliance down by region'}>
               {data.region_compliance.length === 0 ? (
                 <StateBlock>No regional data in this window.</StateBlock>
@@ -239,11 +240,11 @@ export default function PlanogramInsightsPage() {
             <SectionCard title="Promotions on shelf" icon={Tag} caption="How often shelves carry a live offer, and the offers seen">
               <PromoCard promo={promo} />
             </SectionCard>
-          </div>
+          </TileGrid>
 
           {/* Predictive watch-list (reuses the existing org-wide signals) */}
           {(risk.length > 0 || chronic.length > 0) && (
-            <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 16 }}>
+            <TileGrid id="planograms-insights-watch" perRow={2} h={7} style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 16 }}>
               <SectionCard title="Stores at risk" icon={AlertTriangle} caption="Compliance trending down — likely to slip next visit">
                 {risk.length === 0 ? (
                   <StateBlock>No at-risk stores.</StateBlock>
@@ -272,7 +273,7 @@ export default function PlanogramInsightsPage() {
                   ))
                 )}
               </SectionCard>
-            </div>
+            </TileGrid>
           )}
         </div>
       ) : null}

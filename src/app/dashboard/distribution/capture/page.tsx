@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { QRCodeCanvas } from 'qrcode.react';
 import api from '../../../../lib/api';
-import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, Row, fmtDate } from '../../../../components/distribution/Atoms';
+import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, fmtDate } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { waLink } from '../../../../lib/whatsapp';
 import { Ban, CheckCircle2, ClipboardList, Copy, Download, Link2, MessageCircle, QrCode, RefreshCw, Route, Store, Trash2, Unlink, Users } from 'lucide-react';
@@ -205,12 +206,12 @@ export default function ConsumerCapturePage() {
         }
       />
 
-      <Row style={{ marginBottom: 18 }}>
+      <TileGrid id="distribution-capture-kpis" perRow={4} h={3} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
         <StatCard label="Outlets" value={stats.total} />
         <StatCard label="Active links" value={stats.active} accent="var(--green)" icon={Link2} />
         <StatCard label="No link yet" value={stats.noLink} hint="Generate to activate" icon={Unlink} />
         <StatCard label="QR registrations" value={regs.length} hint="most recent shown below" icon={QrCode} />
-      </Row>
+      </TileGrid>
 
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>

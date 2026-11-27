@@ -30,7 +30,7 @@ export default function PayrollPage() {
   return (
     <HrmsPage title="Payroll" description="Pay runs, salary structures, adjustments, loans and full-and-final settlements"
       eyebrow="HRMS">
-      <StatGrid>
+      <StatGrid id="hrms-payroll-kpis" perRow={4} h={3}>
         <Stat label="Runs in progress" value={open.length} hint={open.length ? open.map((r) => fmtMonth(r.month)).join(', ') : 'Every run is paid'} />
         <Stat label={lastPaid ? `Net pay, ${fmtMonth(lastPaid.month)}` : 'Net pay'} value={lastPaid ? inr(lastPaidNet) : '—'} hint="Latest paid month, all legal entities" tone="ok" />
         <Stat label="Loans outstanding" value={inr(outstanding)} hint={`${db.loans.filter((l) => loanOutstanding(l) > 0).length} being recovered`} />

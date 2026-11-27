@@ -10,6 +10,7 @@ import { useReportCityKey } from '../../../../../../components/crm/reports/Repor
 import { BarChart3, Building2, CalendarDays, CalendarRange, Target, Trophy, UserPlus } from 'lucide-react';
 import { PageIcon, InlineIcon } from '../../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../../lib/labelIcons';
+import TileGrid from '../../../../../../components/ui/TileGrid';
 
 // Per-salesperson drill-down. Management clicks a rep on the Rep Leaderboard /
 // Team Performance and lands here:
@@ -146,13 +147,13 @@ export default function SalespersonPage() {
       <section style={card}>
         <h3 style={h3}><InlineIcon icon={Trophy} size={16} style={{ color: 'var(--text-dim)' }} />Sales (won deals)</h3>
         {loading && !summary ? <Muted>Loading…</Muted> : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+          <TileGrid id="crm-reports-salesperson-sales" perRow={5} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
             <Kpi label="Revenue" value={inr(summary?.revenue || 0)} strong />
             <Kpi label="Deals Won" value={summary?.won ?? 0} />
             <Kpi label="Open Pipeline" value={summary?.open ?? 0} />
             <Kpi label="Avg Deal" value={summary?.avg_deal ? inr(summary.avg_deal) : '—'} />
             <Kpi label="Win Rate" value={`${(summary?.win_rate ?? 0).toFixed(1)}%`} />
-          </div>
+          </TileGrid>
         )}
       </section>
 
@@ -175,20 +176,20 @@ export default function SalespersonPage() {
           </label>
         </div>
         {d ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+          <TileGrid id="crm-reports-salesperson-target" perRow={4} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
             <Kpi label="Target" value={d.target != null ? inr(d.target) : '—'} />
             <Kpi label="Achieved" value={inr(d.achieved)} strong />
             <Kpi label="Pending" value={d.pending != null ? inr(d.pending) : '—'} />
             <Kpi label="Progress" value={d.pct != null ? `${d.pct}%` : '—'} />
-          </div>
+          </TileGrid>
         ) : detail === null && target === null ? <Muted>Loading…</Muted>
           : target && target !== 'none' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+            <TileGrid id="crm-reports-salesperson-target-fallback" perRow={4} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
               <Kpi label="Target" value={target.target != null ? inr(target.target) : '—'} />
               <Kpi label="Achieved" value={inr(target.achieved)} strong />
               <Kpi label="Pending" value={fbPending != null ? inr(fbPending) : '—'} />
               <Kpi label="Progress" value={target.pct != null ? `${target.pct.toFixed(0)}%` : '—'} />
-            </div>
+            </TileGrid>
           ) : <Muted>No sales target set for this salesperson.</Muted>}
       </section>
 
@@ -225,8 +226,8 @@ export default function SalespersonPage() {
           </section>
 
           {/* Daily & weekly progress */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
-            <section style={card}>
+          <TileGrid id="crm-reports-salesperson-progress" perRow={2} h={10} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+            <section key="Daily progress" style={card}>
               <h3 style={h3}><InlineIcon icon={CalendarDays} size={16} style={{ color: 'var(--text-dim)' }} />Daily progress</h3>
               <ProgressList
                 rows={d.daily.map((x) => ({ key: x.date, label: fmtDay(x.date), value: x.value, count: x.count }))}
@@ -234,7 +235,7 @@ export default function SalespersonPage() {
                 empty="No daily sales this month."
               />
             </section>
-            <section style={card}>
+            <section key="Weekly progress" style={card}>
               <h3 style={h3}><InlineIcon icon={CalendarRange} size={16} style={{ color: 'var(--text-dim)' }} />Weekly progress</h3>
               <ProgressList
                 rows={d.weekly.map((x) => ({ key: x.week_start, label: `Week of ${fmtDay(x.week_start)}`, value: x.value, count: x.count }))}
@@ -242,7 +243,7 @@ export default function SalespersonPage() {
                 empty="No weekly sales this month."
               />
             </section>
-          </div>
+          </TileGrid>
 
           {/* Historical target vs achieved — last 6 months */}
           <section style={card}>

@@ -96,7 +96,7 @@ export default function AssetsPage() {
       {ready && (
         <>
           <div data-testid="assets-stats">
-            <StatGrid min={165}>
+            <StatGrid id="hrms-assets-kpis" perRow={6} h={3} min={165}>
               <Stat label="Usable assets" value={figures.total} hint={`${figures.repair} in repair`} />
               <Stat label="Issued" value={figures.issued} tone="ok" />
               <Stat label="In stock" value={figures.stock} tone="info" />

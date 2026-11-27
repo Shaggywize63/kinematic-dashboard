@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
 import { Toaster } from 'sonner';
 import './globals.css';
+import './aurora.css';
 
 export const metadata: Metadata = {
   title: 'Kinematic — Field Force Management',

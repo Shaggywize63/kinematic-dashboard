@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import CitySelect from '../../../../components/CitySelect';
 import ClientSelect from '../../../../components/ClientSelect';
@@ -678,14 +679,14 @@ export default function OutletManagementPage() {
         )}
 
         {/* ── KPI row ── */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+        <TileGrid id="other-management-stores-kpis" perRow={4} h={3} style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
           {([
             { label:'Total Outlets',  value:safeOutlets.length, color:C.blue,   sub:'All registered', icon:Store, tone:'brand' },
             { label:'Active',         value:activeCount,         color:C.green,  sub:'Currently active', icon:CheckCircle2, tone:'ok' },
             { label:'Inactive',       value:inactiveCount,       color:C.red,    sub:'Deactivated', icon:PowerOff, tone:'red' },
             { label:'Zones Covered',  value:new Set(safeOutlets.map(o=>o.zone_id).filter(Boolean)).size, color:C.yellow, sub:'Unique zones', icon:MapIcon, tone:'warn' },
           ] as { label:string; value:number; color:string; sub:string; icon:LucideIcon; tone:IconTone }[]).map((k,i) => (
-            <div key={i} style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, padding:'18px 20px', position:'relative' }}>
+            <div key={k.label} style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, padding:'18px 20px', position:'relative' }}>
               <IconTile icon={k.icon} tone={k.tone} style={{ position:'absolute', top:14, right:14 }} />
               {loading ? <Shimmer h={28} br={5}/> : (
                 <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color:k.color, lineHeight:1 }}>{k.value}</div>
@@ -694,7 +695,7 @@ export default function OutletManagementPage() {
               <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>{k.sub}</div>
             </div>
           ))}
-        </div>
+        </TileGrid>
 
         {/* ── Filters ── */}
         <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>

@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, fmtDate, inr } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
@@ -131,12 +132,12 @@ export default function DamageRegisterPage() {
       <PageHeader title="Damaged / Expiry Register" subtitle="Distributor damaged, expired & near-expiry stock. Confirm to write it off on-hand, then roll into a claim." />
 
       {/* Totals */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
+      <TileGrid id="distribution-damage-kpis" perRow={4} h={3} style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
         <StatCard label="Entries" icon={ClipboardList} value={rows.length} />
         <StatCard label="Total qty" icon={Hash} value={totalQty.toLocaleString('en-IN')} />
         <StatCard label="Est. value" value={inr(totalValue)} accent="var(--primary)" />
         <StatCard label="Awaiting confirm" value={openCount} accent={openCount ? 'var(--accent)' : undefined} />
-      </div>
+      </TileGrid>
 
       {/* Filters */}
       <Card style={{ marginBottom: 22 }}>

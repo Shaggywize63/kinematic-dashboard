@@ -87,7 +87,7 @@ export function RosterTab({ db }: { db: HrmsDb }) {
         )}
       </Toolbar>
 
-      <StatGrid min={170}>
+      <StatGrid id="hrms-time-roster-kpis" perRow={4} h={4} min={170}>
         <Stat label="On this week's roster" value={entries.length} hint={`${rosterable.length} active or on notice`} />
         <Stat label="Weekly offs set" value={offsSet} hint="across all rostered people" />
         <Stat label="People with a rule warning" value={withWarnings} tone={withWarnings ? 'warn' : 'ok'} hint={withWarnings ? 'Shown under each name' : 'Every row passes'} />

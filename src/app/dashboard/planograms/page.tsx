@@ -4,6 +4,7 @@ import Link from 'next/link';
 import planogramApi from '../../../lib/planogramApi';
 import { AlertTriangle, Camera, Flag, Percent, PieChart, TrendingUp, type LucideIcon } from 'lucide-react';
 import { InlineIcon } from '../../../components/ui/PageIcon';
+import TileGrid from '../../../components/ui/TileGrid';
 import { useCityScope } from '../../../context/CityScopeContext';
 import type {
   PlanogramOverview,
@@ -106,7 +107,10 @@ export default function PlanogramOverviewPage() {
       {error && <StateBlock tone="error">{error}</StateBlock>}
 
       {/* KPI row */}
-      <div
+      <TileGrid
+        id="planograms-home-kpis"
+        perRow={4}
+        h={3}
         style={{
           display: 'grid',
           gridTemplateColumns: isCompact ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
@@ -145,10 +149,14 @@ export default function PlanogramOverviewPage() {
           sub="needs review"
           loading={loading}
         />
-      </div>
+      </TileGrid>
 
       {/* Needs attention + trend */}
-      <div
+      <TileGrid
+        id="planograms-home-panels"
+        perRow={2}
+        h={9}
+        tile={{ 'needs-attention': { w: 12 }, 'compliance-trend': { w: 8 } }}
         style={{
           display: 'grid',
           gridTemplateColumns: isCompact ? '1fr' : '1.5fr 1fr',
@@ -178,7 +186,7 @@ export default function PlanogramOverviewPage() {
             <TrendChart points={trend} />
           )}
         </SectionCard>
-      </div>
+      </TileGrid>
 
       {/* Recent captures */}
       <SectionCard title="Recent captures" icon={Camera} caption="Latest shelf audits across stores" bodyPad={false}>

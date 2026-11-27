@@ -19,6 +19,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Ban, BarChart3, Check, CheckCheck, Download, Eye, Inbox, MailX, MousePointerClick, Pause, Play, RotateCcw, Send, SkipForward, Users, XCircle } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon } from '../../../../../components/ui/PageIcon';
 import { useConfirm } from '../../../../../components/ConfirmProvider';
+import TileGrid from '../../../../../components/ui/TileGrid';
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -211,7 +212,7 @@ export default function EmailCampaignDetailPage() {
       {/* Analytics */}
       <div style={card}>
         <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={BarChart3} size={16} style={{ color: C.gray }} />Performance</div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <TileGrid id="crm-email-campaigns-detail-stats" perRow={5} h={3} style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Stat label="Recipients" icon={Users} value={(t?.recipients ?? c.total).toLocaleString()} onClick={() => applyFilter({ kind: 'none' })} active={filter.kind === 'none'} />
           <Stat label="Sent" icon={Send} value={(t?.sent ?? c.sent).toLocaleString()} color={C.green} onClick={() => applyFilter({ kind: 'status', value: 'sent' })} active={isStatus('sent')} />
           {/* Delivered = sent − bounced; no single row status maps to it, so it stays a read-only figure. */}
@@ -222,7 +223,7 @@ export default function EmailCampaignDetailPage() {
           <Stat label="Unsub" icon={Ban} value={t?.unsubscribed ?? 0} color={C.amber} onClick={() => applyFilter({ kind: 'engagement', value: 'unsubscribed' })} active={isEng('unsubscribed')} />
           <Stat label="Failed" icon={XCircle} value={(t?.failed ?? c.failed).toLocaleString()} color={C.red} onClick={() => applyFilter({ kind: 'status', value: 'failed' })} active={isStatus('failed')} />
           <Stat label="Skipped" icon={SkipForward} value={(t?.skipped ?? c.skipped).toLocaleString()} color={C.gray} onClick={() => applyFilter({ kind: 'status', value: 'skipped' })} active={isStatus('skipped')} />
-        </div>
+        </TileGrid>
         {analytics && (
           <div style={{ fontSize: 12, color: C.gray, marginTop: 14 }}>
             Open rate <b style={{ color: C.white }}>{analytics.open_rate}%</b> · Click rate <b style={{ color: C.white }}>{analytics.click_rate}%</b> · paced {c.throttle_per_min}/min

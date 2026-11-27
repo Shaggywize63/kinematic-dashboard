@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import { usePagination } from '../../../../components/shared/Pagination';
 import ClientSelect from '../../../../components/ClientSelect';
@@ -127,9 +128,9 @@ export default function SKUManagement() {
       <style>{`@keyframes kspin{to{transform:rotate(360deg)}}`}</style>
 
       {/* Stats */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}}>
+      <TileGrid id="other-management-skus-kpis" perRow={4} h={3} style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}}>
         {[{l:"Total SKU's",v:skus.length,c:C.purple,icon:Package},{l:'Active',v:active,c:C.green,icon:Activity},{l:'Categories',v:categories.length,c:C.blue,icon:Tags},{l:'Inactive',v:skus.length-active,c:C.gray,icon:Ban}].map((s,i)=>(
-          <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px'}}>
+          <div key={s.l} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase'}}>{s.l}</div>
               <IconTile icon={s.icon} tone={s.l==='Active'?'ok':s.l==='Inactive'?'neutral':'brand'} size={26} iconSize={14} />
@@ -137,7 +138,7 @@ export default function SKUManagement() {
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c}}>{s.v}</div>
           </div>
         ))}
-      </div>
+      </TileGrid>
 
       {/* Toolbar */}
       <div style={{display:'flex',gap:12,marginBottom:20,alignItems:'center'}}>
