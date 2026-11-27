@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, type CSSProperties } from 'react';
+import { useState, useEffect, useCallback, Fragment, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw, ClipboardCheck, Clock, CalendarDays, CalendarOff, UserCheck, BarChart3, Building2, Landmark, MapPin, Users, type LucideIcon } from 'lucide-react';
 import api from '../../lib/api';
@@ -11,6 +11,7 @@ import { usePageTitle } from '../../lib/pageTitle';
 import { Button, Card, Eyebrow, Input, PageHeader, Segmented, T, useIsCompact } from '../../components/ui';
 import KiniMascot from '../../components/crm/KiniMascot';
 import { IconTile, InlineIcon } from '../../components/ui/PageIcon';
+import TileBoard from '../../components/ui/TileBoard';
 import { metricIconFor } from '../../lib/labelIcons';
 
 /* ── types ─────────────────────────────────────────────────── */
@@ -541,13 +542,21 @@ export default function DashboardPage() {
         />
 
         {/* KPI Row - Phase 2 */}
-        <div style={{ display:'grid', gridTemplateColumns:narrow ? 'repeat(2, minmax(0, 1fr))' : 'repeat(5, minmax(0, 1fr))', gap:12 }}>
-          <StatTile label="Total forms filled" tone="ok" icon={<ClipboardCheck size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_tff ?? '—'} loading={loadingSumm} />
-          <StatTile label="Total hours" tone="info" icon={<Clock size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_hours_worked != null ? `${Math.floor(summData.kpis.total_hours_worked)}h ${Math.round((summData.kpis.total_hours_worked % 1) * 60)}m` : '—'} loading={loadingSumm} />
-          <StatTile label="Days worked" tone="neutral" icon={<CalendarDays size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_days_worked ?? '—'} loading={loadingSumm} />
-          <StatTile label="Total leaves" tone="warn" icon={<CalendarOff size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_leaves ?? '—'} loading={loadingSumm} />
-          <StatTile label="Avg attendance" tone="red" icon={<UserCheck size={15} strokeWidth={1.8}/>} value={summData?.kpis?.avg_attendance != null ? `${Math.round(summData.kpis.avg_attendance)}%` : '—'} loading={loadingSumm} />
-        </div>
+        <TileBoard
+          id="home-kpis"
+          tiles={[
+            { key:'forms', label:'Total forms filled', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Total forms filled" tone="ok" icon={<ClipboardCheck size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_tff ?? '—'} loading={loadingSumm} />) },
+            { key:'hours', label:'Total hours', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Total hours" tone="info" icon={<Clock size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_hours_worked != null ? `${Math.floor(summData.kpis.total_hours_worked)}h ${Math.round((summData.kpis.total_hours_worked % 1) * 60)}m` : '—'} loading={loadingSumm} />) },
+            { key:'days', label:'Days worked', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Days worked" tone="neutral" icon={<CalendarDays size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_days_worked ?? '—'} loading={loadingSumm} />) },
+            { key:'leaves', label:'Total leaves', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Total leaves" tone="warn" icon={<CalendarOff size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_leaves ?? '—'} loading={loadingSumm} />) },
+            { key:'avgAttendance', label:'Avg attendance', w:4, h:3, minW:3, minH:3, node: (<StatTile label="Avg attendance" tone="red" icon={<UserCheck size={15} strokeWidth={1.8}/>} value={summData?.kpis?.avg_attendance != null ? `${Math.round(summData.kpis.avg_attendance)}%` : '—'} loading={loadingSumm} />) },
+          ]}
+          classic={(t) => (
+            <div style={{ display:'grid', gridTemplateColumns:narrow ? 'repeat(2, minmax(0, 1fr))' : 'repeat(5, minmax(0, 1fr))', gap:12 }}>
+              {t.map((x) => <Fragment key={x.key}>{x.node}</Fragment>)}
+            </div>
+          )}
+        />
 
         {/* Field Visits (Rajkamal) — shown prominently near the top since ad-hoc
             Marketing Visits are this tenant's primary field activity. Replaces the
@@ -633,62 +642,73 @@ export default function DashboardPage() {
         )}
 
         {/* Row 2: Attendance + Weekly Activity */}
-        <div style={{ display:'grid', gridTemplateColumns:narrow ? '1fr' : 'minmax(0, 1fr) minmax(0, 1.5fr)', gap:16 }}>
-          <Card>
-            <CardTitle title="Attendance today" icon={UserCheck} sub="Active · On break · Checked out · Absent" />
-            {loadingAtt ? (
-              <div style={{ display:'flex', gap:16, alignItems:'center' }}>
-                <Shimmer w={140} h={140} br={70}/>
-                <div style={{ flex:1, display:'flex', flexDirection:'column', gap:8 }}>
-                  {[...Array(4)].map((_,i) => (
-                    <Shimmer key={i} h={14} br={4}/>
+        <TileBoard
+          id="home-panels"
+          tiles={[
+            { key:'attendance', label:'Attendance today', w:8, h:9, minW:6, minH:6, node: (
+            <Card>
+              <CardTitle title="Attendance today" icon={UserCheck} sub="Active · On break · Checked out · Absent" />
+              {loadingAtt ? (
+                <div style={{ display:'flex', gap:16, alignItems:'center' }}>
+                  <Shimmer w={140} h={140} br={70}/>
+                  <div style={{ flex:1, display:'flex', flexDirection:'column', gap:8 }}>
+                    {[...Array(4)].map((_,i) => (
+                      <Shimmer key={i} h={14} br={4}/>
+                    ))}
+                  </div>
+                </div>
+              ) : att ? (
+                <PieChart
+                  present={att.present}
+                  on_break={att.on_break}
+                  checked_out={att.checked_out}
+                  absent={att.absent}
+                  total={att.total}
+                />
+              ) : (
+                <Empty icon={UserCheck}>No attendance data</Empty>
+              )}
+            </Card>
+            ) },
+            { key:'weekly', label:'Weekly activity', w:12, h:9, minW:6, minH:6, node: (
+            <Card>
+              <CardTitle
+                title="Weekly activity"
+                icon={BarChart3}
+                sub="Total forms filled (TFF) per day"
+              />
+              <WeeklyBar days={weekData?.days || []} loading={loadingWeek}/>
+              {!loadingWeek && weekData && (
+                <div
+                  style={{
+                    display:'flex',
+                    gap:16,
+                    marginTop:14,
+                    paddingTop:14,
+                    borderTop:`1px solid ${T.border}`,
+                  }}
+                >
+                  {[
+                    { l:'Total forms filled (TFF)', v:weekData.total_tff },
+                  ].map(s => (
+                    <div key={s.l}>
+                      <div style={{ fontFamily:T.heading, fontSize:22, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>
+                        {s.v}
+                      </div>
+                      <div style={{ fontSize:12, color:T.dim, marginTop:4, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={ClipboardCheck} size={14} />{s.l}</div>
+                    </div>
                   ))}
                 </div>
-              </div>
-            ) : att ? (
-              <PieChart
-                present={att.present}
-                on_break={att.on_break}
-                checked_out={att.checked_out}
-                absent={att.absent}
-                total={att.total}
-              />
-            ) : (
-              <Empty icon={UserCheck}>No attendance data</Empty>
-            )}
-          </Card>
-
-          <Card>
-            <CardTitle
-              title="Weekly activity"
-              icon={BarChart3}
-              sub="Total forms filled (TFF) per day"
-            />
-            <WeeklyBar days={weekData?.days || []} loading={loadingWeek}/>
-            {!loadingWeek && weekData && (
-              <div
-                style={{
-                  display:'flex',
-                  gap:16,
-                  marginTop:14,
-                  paddingTop:14,
-                  borderTop:`1px solid ${T.border}`,
-                }}
-              >
-                {[
-                  { l:'Total forms filled (TFF)', v:weekData.total_tff },
-                ].map(s => (
-                  <div key={s.l}>
-                    <div style={{ fontFamily:T.heading, fontSize:22, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>
-                      {s.v}
-                    </div>
-                    <div style={{ fontSize:12, color:T.dim, marginTop:4, display:'flex', alignItems:'center', gap:6 }}><InlineIcon icon={ClipboardCheck} size={14} />{s.l}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
+              )}
+            </Card>
+            ) },
+          ]}
+          classic={(t) => (
+            <div style={{ display:'grid', gridTemplateColumns:narrow ? '1fr' : 'minmax(0, 1fr) minmax(0, 1.5fr)', gap:16 }}>
+              {t.map((x) => <Fragment key={x.key}>{x.node}</Fragment>)}
+            </div>
+          )}
+        />
 
         {isByteBack && (
         <Card padding={0}>

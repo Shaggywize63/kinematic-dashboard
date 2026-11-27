@@ -1,7 +1,8 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarClock, History } from 'lucide-react';
 import type { LeadUpdate } from '../../../lib/crmApi';
+import { useNewDesign } from '../../../lib/useNewDesign';
 import type { ConversationRow } from '../../../lib/conversationsApi';
 import { Button, Card, T } from '../../ui';
 import Composer from './Composer';
@@ -62,6 +63,30 @@ export default function TimelineTab({
   const [editing, setEditing] = useState<DetailActivity | null>(null);
   const { busyId, setStatus, remove, completing, closeCompleting, completedWithOutcome } = useActivityActions(onActivitiesChanged);
 
+  // Redesigned Recent updates — part of the staged new design (lib/newDesign.ts): on only for the accounts
+  // allowed today (or everyone once the switch flips) and only while they haven't switched to Classic.
+  const design = useNewDesign();
+
+  // The note that was just posted gets a brief highlight. `useLeadUpdates.add` only reports success, so mark
+  // that we're waiting for a new note and pick it up (it's prepended, so updates[0]) when the list changes.
+  const [justAddedId, setJustAddedId] = useState<string | null>(null);
+  const awaitingNew = useRef(false);
+  const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addNote = async (body: string) => {
+    awaitingNew.current = design.enabled;
+    const ok = await onAddNote(body);
+    if (!ok) awaitingNew.current = false;
+    return ok;
+  };
+  useEffect(() => {
+    if (!awaitingNew.current || !updates[0]) return;
+    awaitingNew.current = false;
+    setJustAddedId(updates[0].id);
+    if (clearTimer.current) clearTimeout(clearTimer.current);
+    clearTimer.current = setTimeout(() => setJustAddedId(null), 3500);
+  }, [updates]);
+  useEffect(() => () => { if (clearTimer.current) clearTimeout(clearTimer.current); }, []);
+
   const upcomingAll = useMemo(() => {
     const t = (a: DetailActivity) => (a.due_at ? new Date(a.due_at).getTime() : Number.POSITIVE_INFINITY);
     return activities.filter(isActionable).sort((a, b) => t(a) - t(b));
@@ -115,7 +140,7 @@ export default function TimelineTab({
         />
       )}
       <Card padding={16}>
-        <Composer leadId={leadId} latestUpdate={updates[0] ?? null} onSubmit={onAddNote} />
+        <Composer leadId={leadId} latestUpdate={updates[0] ?? null} onSubmit={addNote} redesign={design.enabled} />
       </Card>
 
       {upcoming.length > 0 && (
@@ -204,6 +229,8 @@ export default function TimelineTab({
                           canDelete={(!!myId && u.author_id === myId) || me.isAdmin}
                           onEdit={(body) => onEditNote(u.id, body)}
                           onDelete={() => onDeleteNote(u.id)}
+                          redesign={design.enabled}
+                          highlight={design.enabled && justAddedId === u.id}
                         />
                       );
                     }

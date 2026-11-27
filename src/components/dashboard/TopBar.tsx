@@ -11,6 +11,8 @@ import ClientSelect from '../ClientSelect';
 import IndustryScopePicker from '../IndustryScopePicker';
 import NotificationBell from '../crm/NotificationBell';
 import ThemeToggle from '../shared/ThemeToggle';
+import DesignToggle from '../shared/DesignToggle';
+import TileEditControls from '../shared/TileEditControls';
 import FontSizeToggle from '../shared/FontSizeToggle';
 import SignedImage from '../shared/SignedImage';
 import { Avatar, IconButton, T } from '../ui';
@@ -154,6 +156,10 @@ export default function TopBar(p: Props) {
         {/* Text-size + theme controls — desktop only; the phone header has no room. */}
         {!p.isMobile && <FontSizeToggle />}
         {!p.isMobile && <ThemeToggle compact />}
+        {/* Classic ⇄ New design — renders only for accounts with access to the staged new design. */}
+        {!p.isMobile && <DesignToggle />}
+        {/* Customize layout — only in the new design, and only on a page with movable tiles. */}
+        {!p.isMobile && <TileEditControls />}
         <NotificationBell />
         <Link href="/dashboard/profile" title="My account" aria-label="My account" style={{ display: 'flex', marginLeft: 4, borderRadius: 999 }}>
           {p.user?.avatar_url
