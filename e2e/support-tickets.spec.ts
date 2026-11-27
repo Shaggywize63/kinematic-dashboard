@@ -8,15 +8,18 @@ import { mockApi, seedSession, SEED_USER } from './utils';
  * The server's rules (who may set what, notifications) are the backend's tests; this checks what the page sends and shows.
  */
 
-type Status = 'open' | 'in_progress' | 'waiting_on_customer' | 'resolved' | 'closed';
+type Status = 'open' | 'triaged' | 'in_progress' | 'waiting_on_customer' | 'release_pending' | 'resolved' | 'closed' | 'rejected';
+const ACTIVE: Status[] = ['open', 'triaged', 'in_progress', 'waiting_on_customer', 'release_pending'];
 type Ticket = Record<string, unknown> & { id: string; ref: string; status: Status; subject: string };
 type Ev = Record<string, unknown> & { id: string };
 
 const NOW = new Date().toISOString();
 const mk = (over: Partial<Ticket> & { id: string; ref: string }): Ticket => ({
   status: 'open', priority: 'normal', category: 'bug', subject: 'Attendance not syncing', description: 'Pune team attendance has not synced since Monday.',
+  platforms: [], area: null,
   channel: 'dashboard', org_id: 'org-a', org_name: 'Acme Foods', project_key: 'default', contact_name: 'Ravi K', contact_phone: '+919800000001',
-  contact_email: null, raised_by_user_id: 'u1', resolution_note: null, created_at: NOW, updated_at: NOW, resolved_at: null, ...over,
+  contact_email: null, raised_by_user_id: 'u1', resolution_note: null, created_at: NOW, updated_at: NOW, resolved_at: null,
+  first_response_at: null, ...over,
 });
 const created = (t: Ticket): Ev => ({ id: `${t.id}-e0`, ticket_id: t.id, kind: 'created', author_type: 'customer', author_name: 'Ravi K', from_status: null, to_status: 'open', body: null, created_at: NOW });
 
@@ -38,9 +41,17 @@ async function open(page: Page, opts: { operator: boolean; tickets: Ticket[]; cr
       if (method === 'GET' && u.pathname === '/api/v1/support/tickets') {
         const status = u.searchParams.get('status') || 'active';
         const q = (u.searchParams.get('q') || '').toLowerCase();
-        const counts: Record<string, number> = { open: 0, in_progress: 0, waiting_on_customer: 0, resolved: 0, closed: 0 };
-        tickets.forEach((t) => { counts[t.status] += 1; });
-        const rows = tickets.filter((t) => (status === 'all' ? true : status === 'active' ? ['open', 'in_progress', 'waiting_on_customer'].includes(t.status) : t.status === status))
+        const category = u.searchParams.get('category') || '';
+        const platform = u.searchParams.get('platform') || '';
+        const area = u.searchParams.get('area') || '';
+        // Narrowed exactly as the server does: these three apply to the counts too, so the
+        // tabs can never disagree with the rows.
+        const narrowed = tickets.filter((t) => (!category || t.category === category)
+          && (!platform || ((t.platforms as string[] | undefined) ?? []).includes(platform))
+          && (!area || t.area === area));
+        const counts: Record<string, number> = { open: 0, triaged: 0, in_progress: 0, waiting_on_customer: 0, release_pending: 0, resolved: 0, closed: 0, rejected: 0 };
+        narrowed.forEach((t) => { counts[t.status] += 1; });
+        const rows = narrowed.filter((t) => (status === 'all' ? true : status === 'active' ? ACTIVE.includes(t.status) : t.status === status))
           .filter((t) => !q || `${t.ref} ${t.subject} ${t.org_name}`.toLowerCase().includes(q));
         await route.fulfill({ json: { success: true, data: { tickets: rows, is_operator: opts.operator, counts } } });
         return true;
@@ -50,7 +61,11 @@ async function open(page: Page, opts: { operator: boolean; tickets: Ticket[]; cr
           await route.fulfill({ status: opts.createStatus, json: { success: false, error: 'Too many tickets raised in the last hour.' } });
           return true;
         }
-        const t = mk({ id: 't-new', ref: 'KM-5009', subject: body!.subject as string, description: body!.description as string, category: body!.category as string, priority: body!.priority as string });
+        const t = mk({
+          id: 't-new', ref: 'KM-5009', subject: body!.subject as string, description: body!.description as string,
+          category: body!.category as string, priority: body!.priority as string,
+          platforms: (body!.platforms as string[]) ?? [], area: (body!.area as string | null) ?? null,
+        });
         tickets = [t, ...tickets];
         events.set(t.id, [created(t)]);
         await route.fulfill({ status: 201, json: { success: true, data: t } });
@@ -68,7 +83,15 @@ async function open(page: Page, opts: { operator: boolean; tickets: Ticket[]; cr
         return true;
       }
       const before = tickets.find((t) => t.id === id)!;
-      tickets = tickets.map((t) => (t.id !== id ? t : { ...t, ...(body!.status ? { status: body!.status as Status } : {}), ...(body!.priority ? { priority: body!.priority } : {}), resolution_note: body!.status === 'resolved' ? (body!.note as string) ?? null : t.resolution_note }));
+      tickets = tickets.map((t) => (t.id !== id ? t : {
+        ...t,
+        ...(body!.status ? { status: body!.status as Status } : {}),
+        ...(body!.priority ? { priority: body!.priority } : {}),
+        ...(body!.category ? { category: body!.category } : {}),
+        ...(body!.platforms ? { platforms: body!.platforms } : {}),
+        ...('area' in body! ? { area: body!.area } : {}),
+        resolution_note: body!.status === 'resolved' ? (body!.note as string) ?? null : t.resolution_note,
+      }));
       if (body!.status) list.push({ id: `${id}-s${list.length}`, ticket_id: id, kind: 'status', author_type: opts.operator ? 'team' : 'customer', author_name: opts.operator ? 'Sagar' : 'Ravi K', from_status: before.status, to_status: body!.status, body: (body!.note as string) ?? null, created_at: NOW });
       events.set(id, list);
       await route.fulfill({ json: thread(id, opts.operator ? { customer_notified: opts.notified ?? { whatsapp: 'sent' } } : {}) });
@@ -110,14 +133,43 @@ test.describe('Help & Support (customer)', () => {
     await page.getByRole('button', { name: 'Raise a ticket' }).first().click({ timeout: 45_000 });
     const dialog = page.getByRole('dialog', { name: 'Raise a ticket' });
     await dialog.getByLabel('Subject').fill('Sync broken');
-    await dialog.getByLabel('Category').selectOption('data');
+    await dialog.getByLabel('What is this about?').selectOption('data_correction');
     await dialog.getByLabel('Priority').selectOption('high');
     await dialog.getByLabel('Description').fill('Nothing has synced since this morning.');
     await dialog.getByRole('button', { name: 'Raise ticket' }).click();
     await expect(page.getByText("Ticket KM-5009 raised. We'll update you here and on WhatsApp.")).toBeVisible();
-    expect(calls.find((c) => c.method === 'POST')!.body).toEqual({ subject: 'Sync broken', description: 'Nothing has synced since this morning.', category: 'data', priority: 'high' });
+    // Platforms default to Web for a product category when the customer leaves them alone; area stays unset.
+    expect(calls.find((c) => c.method === 'POST')!.body).toEqual({
+      subject: 'Sync broken', description: 'Nothing has synced since this morning.',
+      category: 'data_correction', priority: 'high', platforms: ['web'], area: null,
+    });
     await expect(page.getByRole('dialog', { name: 'Ticket KM-5009' })).toBeVisible();
     await expect(page).toHaveURL(/ticket=t-new/);
+  });
+
+  test('the platform pills and area ride along; a non-product type is not asked where they saw it', async ({ page }) => {
+    const { calls } = await open(page, { operator: false, tickets: [] });
+    await page.getByRole('button', { name: 'Raise a ticket' }).first().click({ timeout: 45_000 });
+    const dialog = page.getByRole('dialog', { name: 'Raise a ticket' });
+
+    // Billing is not about the product, so there is nothing to pick a platform for.
+    await dialog.getByLabel('What is this about?').selectOption('billing');
+    await expect(dialog.getByRole('button', { name: 'Android', exact: true })).toHaveCount(0);
+
+    await dialog.getByLabel('What is this about?').selectOption('bug');
+    await dialog.getByLabel('Subject').fill('App crashes on open');
+    await dialog.getByLabel('Description').fill('The Android app closes as soon as I open attendance.');
+    await dialog.getByLabel('Which part of Kinematic?').selectOption('attendance');
+    // Web is on by default: add Android, then drop Web.
+    await dialog.getByRole('button', { name: 'Android', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Web', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Raise ticket' }).click();
+
+    await expect(page.getByRole('dialog', { name: 'Ticket KM-5009' })).toBeVisible();
+    expect(calls.find((c) => c.method === 'POST')!.body).toEqual({
+      subject: 'App crashes on open', description: 'The Android app closes as soon as I open attendance.',
+      category: 'bug', priority: 'normal', platforms: ['android'], area: 'attendance',
+    });
   });
 
   test('"This is fixed" and "Still not working"', async ({ page }) => {
@@ -159,6 +211,33 @@ test.describe('Support inbox (operator)', () => {
     expect(calls.filter((c) => c.method === 'PATCH').at(-1)!.body).toEqual({ status: 'resolved', note: 'Fixed: the invoice was re-issued' });
     await expect(drawer.getByText(/Sagar changed status Open → Resolved/)).toBeVisible();
     await expect(drawer.getByRole('button', { name: 'Not resolved (reopen)' })).toBeVisible();
+  });
+
+  test('the Type / Platform / Area filters are sent and refetch the list', async ({ page }) => {
+    const BUG = mk({ id: 'f1', ref: 'KM-5101', subject: 'App crashes', category: 'bug', platforms: ['android'], area: 'attendance', org_name: 'Acme Foods' });
+    const BILL = mk({ id: 'f2', ref: 'KM-5102', subject: 'Invoice is wrong', category: 'billing', platforms: ['web'], area: 'billing', org_name: 'Zen Retail' });
+    const { calls } = await open(page, { operator: true, tickets: [BUG, BILL] });
+    await expect(page.getByRole('heading', { name: 'Support inbox' })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByText('Zen Retail')).toBeVisible();
+
+    await page.getByLabel('Type').selectOption('bug');
+    await expect(page.getByText('Zen Retail')).toHaveCount(0);
+    await expect(page.getByText('Acme Foods')).toBeVisible();
+    expect(calls.some((c) => c.query.includes('category=bug'))).toBe(true);
+
+    await page.getByLabel('Platform').selectOption('android');
+    await expect(page.getByText('Acme Foods')).toBeVisible();
+    expect(calls.some((c) => c.query.includes('platform=android'))).toBe(true);
+
+    // No bug ticket lives in the billing area, so the combination empties the list.
+    await page.getByLabel('Area').selectOption('billing');
+    await expect(page.getByText('No open tickets')).toBeVisible();
+    expect(calls.some((c) => c.query.includes('area=billing'))).toBe(true);
+
+    await page.getByRole('button', { name: 'Clear' }).click();
+    await expect(page.getByText('Zen Retail')).toBeVisible();
+    const last = calls.filter((c) => c.method === 'GET' && c.path.endsWith('/tickets')).at(-1)!;
+    expect(last.query).not.toMatch(/category=|platform=|area=/);
   });
 
   test('a reply shows what happened to the WhatsApp message', async ({ page }) => {
