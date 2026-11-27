@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../../../lib/api';
 import { useAuth } from '../../../hooks/useAuth';
-import { Activity, AlertTriangle, Check, Download, Eye, EyeOff, Lock, MessageCircle, MessageCircleQuestion, Plus, Radio, RotateCcw, Send, Trash2, Users, type LucideIcon } from 'lucide-react';
+import { Activity, AlertTriangle, Check, Clock, Download, Eye, EyeOff, Lock, MessageCircle, MessageCircleQuestion, Plus, Radio, RotateCcw, Send, Trash2, Trophy, Users, Zap, type LucideIcon } from 'lucide-react';
 import { PageIcon, IconTile, InlineIcon, type IconTone } from '../../../components/ui/PageIcon';
 
 const C = {
@@ -50,6 +50,26 @@ interface BroadcastQuestion {
   response_count: number;
   tally: { label: string; index: number; count: number }[];
   responses: BroadcastResponse[];
+}
+
+interface LeaderRow {
+  rank: number;
+  user_id: string;
+  name: string;
+  employee_id: string | null;
+  role: string | null;
+  answered: number;
+  correct: number;
+  accuracy: number;
+  avg_response_sec: number | null;
+  fastest_response_sec: number | null;
+}
+
+interface LeaderboardData {
+  leaderboard: LeaderRow[];
+  fastest: LeaderRow[];
+  question_count: number;
+  as_of: string;
 }
 
 interface FormState {
@@ -133,6 +153,7 @@ export default function BroadcastPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [allCities, setAllCities] = useState<City[]>([]);
   const [allZones, setAllZones] = useState<Zone[]>([]);
+  const [view, setView] = useState<'questions' | 'leaderboard'>('questions');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -259,6 +280,15 @@ export default function BroadcastPage() {
         )}
       </div>
 
+      {/* View tabs */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <TogglePill label="Questions" active={view === 'questions'} onClick={() => setView('questions')} color={C.purple} />
+        <TogglePill label="Leaderboard" active={view === 'leaderboard'} onClick={() => setView('leaderboard')} color={C.yellow} />
+      </div>
+
+      {view === 'leaderboard' && <LeaderboardView />}
+
+      {view === 'questions' && (<>
       {/* Stats */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         {([
@@ -323,6 +353,7 @@ export default function BroadcastPage() {
           {closed.map((q, qi) => <QuestionCard key={q.id} q={q} qi={active.length + qi} expanded={expandedId === q.id} onExpand={() => setExpandedId(expandedId === q.id ? null : q.id)} onDelete={() => setDeleteId(q.id)} onToggleStatus={() => handleToggleStatus(q)} closingId={closingId} isPlatformAdmin={isPlatformAdmin} />)}
         </div>
       )}
+      </>)}
 
       {/* Delete confirm modal */}
       {deleteId && (
@@ -618,7 +649,7 @@ function QuestionCard({
         </div>
       )}
 
-      {/* Actions footer */}
+      {/* Actions footer (QuestionCard) */}
       <div style={{ borderTop: `1px solid ${C.border}`, padding: '11px 16px', display: 'flex', gap: 8, background: C.s3 }}>
         <button
           onClick={onExpand}
@@ -655,6 +686,145 @@ function QuestionCard({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Leaderboard ────────────────────────────────────────────
+function fmtSec(s: number | null): string {
+  if (s == null) return '—';
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${m}m ${String(ss).padStart(2, '0')}s`;
+}
+function roleLabel(r: string | null): string {
+  return r === 'executive' ? 'FE' : r === 'supervisor' ? 'Supervisor' : (r || '—');
+}
+function rankBadge(rank: number): string {
+  return rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : String(rank);
+}
+
+function LeaderboardView() {
+  const [scope, setScope] = useState<'all' | 'executive' | 'supervisor'>('all');
+  const [data, setData] = useState<LeaderboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const EMPTY: LeaderboardData = { leaderboard: [], fastest: [], question_count: 0, as_of: '' };
+    (async () => {
+      setLoading(true);
+      setErr('');
+      try {
+        const qs = scope === 'all' ? '' : `?role=${scope}`;
+        const res = await api.get(`/api/v1/broadcast/leaderboard${qs}`);
+        const d = ((res as { data?: unknown })?.data ?? res) as LeaderboardData;
+        if (!cancelled) setData(d && Array.isArray(d.leaderboard) ? d : EMPTY);
+      } catch (e: unknown) {
+        // Degrade gracefully (e.g. older backend without the endpoint) — never crash.
+        if (!cancelled) { setData(EMPTY); setErr(e instanceof Error ? e.message : 'unavailable'); }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [scope]);
+
+  const lb = data?.leaderboard ?? [];
+  const fastest = data?.fastest ?? [];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Scope toggle */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <TogglePill label="All" active={scope === 'all'} onClick={() => setScope('all')} color={C.yellow} />
+        <TogglePill label="Field Executives" active={scope === 'executive'} onClick={() => setScope('executive')} color={C.purple} />
+        <TogglePill label="Supervisors" active={scope === 'supervisor'} onClick={() => setScope('supervisor')} color={C.blue} />
+      </div>
+
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+          <div style={{ width: 28, height: 28, border: `3px solid ${C.border}`, borderTopColor: C.yellow, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+        </div>
+      ) : lb.length === 0 ? (
+        <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 24px', textAlign: 'center' }}>
+          <IconTile icon={Trophy} size={40} iconSize={20} tone="warn" style={{ display: 'flex', margin: '0 auto 12px' }} />
+          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>No responses yet</div>
+          <div style={{ fontSize: 13, color: C.gray }}>
+            {data && data.question_count === 0
+              ? 'No published questions for this audience yet.'
+              : 'The leaderboard fills up as your team answers the quiz.'}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Fastest responders */}
+          {fastest.length > 0 && (
+            <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1px', color: C.grayd, textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <InlineIcon icon={Zap} size={14} />Fastest Responders
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {fastest.slice(0, 5).map((f) => (
+                  <div key={f.user_id} style={{ flex: '1 1 150px', minWidth: 150, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <span style={{ fontSize: 16 }}>{rankBadge(f.rank)}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 18, fontWeight: 800, fontFamily: "'Syne',sans-serif", color: C.yellow }}>
+                      <InlineIcon icon={Clock} size={14} />{fmtSec(f.fastest_response_sec)}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.gray, marginTop: 3 }}>{f.correct}/{f.answered} correct · {f.accuracy}%</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Ranked table */}
+          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, letterSpacing: '1px', color: C.grayd, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <InlineIcon icon={Trophy} size={14} />Leaderboard · {lb.length} {lb.length === 1 ? 'player' : 'players'}
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620, fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: C.s3 }}>
+                    {['#', 'Name', 'Role', 'Answered', 'Correct', 'Accuracy', 'Avg time', 'Fastest'].map((h, i) => (
+                      <th key={h} style={{ textAlign: i <= 2 ? 'left' : 'right', padding: '10px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: C.grayd, whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lb.map((r) => {
+                    const top = r.rank <= 3;
+                    return (
+                      <tr key={r.user_id} style={{ borderTop: `1px solid ${C.border}`, background: top ? 'rgba(255,184,0,0.05)' : 'transparent' }}>
+                        <td style={{ padding: '10px 14px', fontWeight: 800, fontFamily: "'Syne',sans-serif", color: top ? C.yellow : C.gray, whiteSpace: 'nowrap' }}>{rankBadge(r.rank)}</td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <div style={{ fontWeight: 600, color: C.white, whiteSpace: 'nowrap' }}>{r.name}</div>
+                          {r.employee_id && <div style={{ fontSize: 10, color: C.grayd }}>{r.employee_id}</div>}
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: r.role === 'supervisor' ? C.blueD : C.purpleD, color: r.role === 'supervisor' ? C.blue : C.purple, whiteSpace: 'nowrap' }}>{roleLabel(r.role)}</span>
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', color: C.gray }}>{r.answered}</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: C.green }}>{r.correct}</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', color: C.white }}>{r.accuracy}%</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', color: C.gray, whiteSpace: 'nowrap' }}>{fmtSec(r.avg_response_sec)}</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: C.yellow, whiteSpace: 'nowrap' }}>{fmtSec(r.fastest_response_sec)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {err && <div style={{ fontSize: 11, color: C.grayd, textAlign: 'center' }}>Live leaderboard temporarily unavailable.</div>}
+        </>
+      )}
     </div>
   );
 }
