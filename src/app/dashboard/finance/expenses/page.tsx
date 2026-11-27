@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Ban, BarChart3, Calculator, CheckCircle2, FileText, IndianRupee, Landmark, Paperclip, Percent, Receipt } from 'lucide-react';
 import { Badge, Button, Card, Field, FormGrid, Input, Select, Textarea, T, useIsCompact } from '../../../../components/ui';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import TileGrid from '../../../../components/ui/TileGrid';
 import { Col, DataTable, FinancePage, Modal, Pager, SearchBox, Toolbar, fail, inr, useConfirm, useDebounced } from '../../../../components/finance/ui';
 import { ReceiptField, type ReceiptValue } from '../../../../components/finance/ReceiptField';
 import { IconStat, ReceiptViewer, RECEIPT_MAX_BYTES, prepareReceipt } from '../../../../components/expenses/kit';
@@ -142,8 +143,9 @@ export default function ExpensesPage() {
         </div>
       </Card>
 
-      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '3fr 2fr', gap: 12, alignItems: 'start' }}>
-        <Card padding={0} style={{ overflow: 'hidden' }}>
+      <TileGrid id="finance-expenses-gst" perRow={2} h={9} tile={{ 'gst-summary': { w: 12 }, 'net-gst-payable': { w: 8 } }}
+        style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '3fr 2fr', gap: 12, alignItems: 'start' }}>
+        <Card key="gst-summary" padding={0} style={{ overflow: 'hidden' }}>
           <div style={{ padding: '14px 16px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <div style={{ fontFamily: T.heading, fontWeight: 700, fontSize: 14.5, color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Percent} size={16} style={{ color: T.dim }} />GST summary of expenses</div>
             <span style={{ display: 'inline-flex', gap: 6 }}>
@@ -175,7 +177,7 @@ export default function ExpensesPage() {
           </div>
         </Card>
 
-        <Card padding={16}>
+        <Card key="net-gst-payable" padding={16}>
           <div style={{ fontFamily: T.heading, fontWeight: 700, fontSize: 14.5, color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={Calculator} size={16} style={{ color: T.dim }} />Net GST payable</div>
           <div style={{ fontSize: 12.5, color: T.mute, marginTop: 2 }}>GST on sales − input credit on expenses</div>
           {net.error ? <div style={{ marginTop: 10 }}><ErrorNote message={net.error} onRetry={net.reload} /></div> : (
@@ -190,7 +192,7 @@ export default function ExpensesPage() {
             </div>
           )}
         </Card>
-      </div>
+      </TileGrid>
 
       <Toolbar>
         <SearchBox value={search} onChange={setSearch} placeholder="Search vendor, GSTIN, bill #" />

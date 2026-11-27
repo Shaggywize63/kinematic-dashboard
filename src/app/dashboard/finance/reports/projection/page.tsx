@@ -11,6 +11,7 @@ import { financeApi, type GrowthRole, type ProjectionData, type Scenario } from 
 import { fmtDate, num } from '../../../../../lib/financeFormat';
 import { getStoredUser } from '../../../../../lib/auth';
 import { isMasterAdmin } from '../../../../../lib/clientFeatures';
+import TileGrid from '../../../../../components/ui/TileGrid';
 
 const loading = <div style={{ height: 260, display: 'grid', placeItems: 'center', color: T.dim, fontSize: 13 }}>Loading chart…</div>;
 const chart = <K extends string>(name: K) => dynamic(() => import('../../../../../components/finance/ProjectionCharts').then((m) => (m as unknown as Record<K, React.ComponentType<never>>)[name]), { ssr: false, loading: () => loading });
@@ -149,16 +150,16 @@ export default function ProjectionPage() {
                 <BillingsChart data={data} compact={narrow} />
               </Card>
 
-              <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1fr 1fr', gap: 18 }}>
-                <Card>
+              <TileGrid id="finance-projection-charts" perRow={2} h={9} style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1fr 1fr', gap: 18 }}>
+                <Card key="cumulative-billings">
                   <CardTitle hint="Running total of billings from this month, by scenario.">Cumulative billings, next 12 months</CardTitle>
                   <CumulativeChart data={data} compact={narrow} />
                 </Card>
-                <Card>
+                <Card key="revenue-by-customer">
                   <CardTitle hint="Each customer's billing per cycle × cycles a year.">Recurring revenue by customer, per year</CardTitle>
                   <CustomerBars data={data} compact={narrow} />
                 </Card>
-              </div>
+              </TileGrid>
 
               <Card>
                 <CardTitle hint="Change these to see how the projection moves. Scheduled renewals are always counted as they are.">Scenario assumptions</CardTitle>
@@ -188,20 +189,20 @@ export default function ProjectionPage() {
               </Card>
 
               {(data.one_off.length > 0 || data.pipeline.quotes.length > 0) && (
-                <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1fr 1fr', gap: 18 }}>
+                <TileGrid id="finance-projection-lists" perRow={2} h={7} style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1fr 1fr', gap: 18 }}>
                   {data.one_off.length > 0 && (
-                    <Card>
+                    <Card key="one-off-billings">
                       <CardTitle hint="Billed once with no repeat pattern, so they are not in the run-rate.">One-off billings</CardTitle>
                       {data.one_off.map((o) => <div key={`${o.customer}${o.date}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13.5, padding: '5px 0', color: T.text }}><span>{o.customer} <span style={{ color: T.mute }}>· {fmtDate(o.date)}</span></span><strong style={{ fontVariantNumeric: 'tabular-nums' }}>{rs(o.amount)}</strong></div>)}
                     </Card>
                   )}
                   {data.pipeline.quotes.length > 0 && (
-                    <Card>
+                    <Card key="open-quotes">
                       <CardTitle hint="Sent quotes, counted once per customer and amount. Included only in the high case.">Open quotes</CardTitle>
                       {data.pipeline.quotes.map((q) => <div key={q.number} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13.5, padding: '5px 0', color: T.text }}><span>{q.number} <span style={{ color: T.mute }}>· {q.customer}</span></span><strong style={{ fontVariantNumeric: 'tabular-nums' }}>{rs(q.amount)}</strong></div>)}
                     </Card>
                   )}
-                </div>
+                </TileGrid>
               )}
             </>
           ) : plan && (

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, Suspense, type CSSPr
 import { parseISO, isValid } from 'date-fns';
 import { AlarmClockCheck, AlertTriangle, BarChart3, CalendarDays, CalendarOff, CalendarRange, CalendarX, Car, Check, ChevronLeft, ChevronRight, Clock, Coffee, Contrast, Download, ExternalLink, Eye, Loader2, LogIn, LogOut, MapPin, Pencil, Percent, Plus, RefreshCw, Search, ShieldAlert, Timer, Upload, Users, UserX, X, XCircle, type LucideIcon } from 'lucide-react';
 import { InlineIcon } from '../../../components/ui/PageIcon';
+import TileGrid from '../../../components/ui/TileGrid';
 import api, { type AttendanceLate } from '../../../lib/api';
 import MonthlySummary from './MonthlySummary';
 import { RangePresetPicker, presetRange } from '../../../components/attendance/RangePresets';
@@ -1075,13 +1076,14 @@ function AttendanceContent() {
         {view === 'daily' && (<>
         {/* ── stat tiles — each one is also a filter: press it to narrow the list, press again to clear ── */}
         {/* Flex rather than grid: the app's phone stylesheet collapses any inline `grid-template-columns` to one column. */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+        <TileGrid id="attendance-overview-stats" perRow={6} h={3} style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           {statTiles.map(s => {
             const on = s.f !== 'all' && effectiveStatus === s.f;
             const accent = s.c ?? T.text;
             return (
               <div
                 key={s.l}
+                data-tile={s.l}
                 role="button"
                 tabIndex={0}
                 aria-pressed={on}
@@ -1100,7 +1102,7 @@ function AttendanceContent() {
               </div>
             );
           })}
-        </div>
+        </TileGrid>
 
         {/* ── Attendance Analysis ── the same people the tiles count (the active role tab) ── */}
         {(() => {
