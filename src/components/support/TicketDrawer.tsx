@@ -10,9 +10,9 @@ import { istDateTime } from '../../lib/istTime';
 import {
   ALL_STATUSES, AREA_LABEL, AREAS, CATEGORIES, CATEGORY_LABEL, CSAT_COMMENT_MAX, CSAT_LABEL,
   PLATFORM_LABEL, PLATFORMS, PRIORITIES, PRIORITY_LABEL,
-  isDone, statusLabel, supportApi, supportError,
-  type CustomerNotified, type Ticket, type TicketArea, type TicketCategory, type TicketEvent, type TicketPatch,
-  type TicketPlatform, type TicketPriority, type TicketStatus, type TicketThread,
+  fileSize, isDone, statusLabel, supportApi, supportError,
+  type CustomerNotified, type SignedAttachment, type Ticket, type TicketArea, type TicketCategory,
+  type TicketEvent, type TicketPatch, type TicketPlatform, type TicketPriority, type TicketStatus, type TicketThread,
 } from '../../lib/supportApi';
 import { ChannelTag, CsatStars, NotifiedBanner, PlatformTags, PriorityTag, RelTime, StatusPill } from './ui';
 
@@ -211,6 +211,8 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
                 <Eyebrow style={{ marginBottom: 8 }}>Description</Eyebrow>
                 <div style={{ fontSize: 14, color: T.text, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{ticket.description}</div>
               </div>
+
+              {!!thread?.attachments?.length && <Screenshots list={thread.attachments} />}
 
               {ticket.resolution_note && (
                 <div style={{ padding: '10px 12px', borderRadius: T.radius.md, background: T.okWash, fontSize: 13.5, lineHeight: 1.5 }}>
@@ -423,6 +425,41 @@ export default function TicketDrawer({ ticketId, initial, isOperator, onClose, o
         )}
       </aside>
     </>
+  );
+}
+
+/**
+ * The screenshots on a ticket. URLs are signed by the server and short-lived, so these are rendered from the
+ * thread response rather than kept anywhere; an object that has gone shows as a name with no link instead of a
+ * broken image.
+ */
+function Screenshots({ list }: { list: SignedAttachment[] }) {
+  return (
+    <div>
+      <Eyebrow style={{ marginBottom: 8 }}>{list.length === 1 ? 'Screenshot' : `Screenshots (${list.length})`}</Eyebrow>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {list.map((a) => {
+          const caption = [a.name, fileSize(a.size)].filter(Boolean).join(' · ');
+          if (!a.url) {
+            return (
+              <span key={a.path} title="This image is no longer available"
+                style={{ fontSize: 12.5, color: T.mute, padding: '6px 10px', border: `1px dashed ${T.border}`, borderRadius: 6 }}>
+                {a.name} (unavailable)
+              </span>
+            );
+          }
+          return (
+            <a key={a.path} href={a.url} target="_blank" rel="noreferrer" title={`Open ${caption}`}
+              style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 108, textDecoration: 'none' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={a.url} alt={a.name}
+                style={{ width: 108, height: 74, objectFit: 'cover', borderRadius: 6, border: `1px solid ${T.border}`, display: 'block' }} />
+              <span style={{ fontSize: 11, color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{caption}</span>
+            </a>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

@@ -20,7 +20,7 @@ const mk = (over: Partial<Ticket> & { id: string; ref: string }): Ticket => ({
   platforms: [], area: null,
   channel: 'dashboard', org_id: 'org-a', org_name: 'Acme Foods', project_key: 'default', contact_name: 'Ravi K', contact_phone: '+919800000001',
   contact_email: null, raised_by_user_id: 'u1', resolution_note: null, created_at: NOW, updated_at: NOW, resolved_at: null,
-  first_response_at: null, csat_rating: null, csat_comment: null, csat_at: null, ...over,
+  first_response_at: null, csat_rating: null, csat_comment: null, csat_at: null, attachments: [], ...over,
 });
 const created = (t: Ticket): Ev => ({ id: `${t.id}-e0`, ticket_id: t.id, kind: 'created', author_type: 'customer', author_name: 'Ravi K', from_status: null, to_status: 'open', body: null, created_at: NOW });
 
@@ -30,14 +30,23 @@ async function open(page: Page, opts: { operator: boolean; tickets: Ticket[]; cr
   let tickets = [...opts.tickets];
   const events = new Map<string, Ev[]>(tickets.map((t) => [t.id, [created(t)]]));
   const calls: Array<{ method: string; path: string; query: string; body?: Record<string, unknown> }> = [];
-  const thread = (id: string, extra: Record<string, unknown> = {}) => ({ success: true, data: { ticket: tickets.find((t) => t.id === id), events: events.get(id) ?? [], ...extra } });
+  const signed = (t: Ticket | undefined) => ((t?.attachments as Array<Record<string, unknown>> | undefined) ?? [])
+    .map((a) => ({ ...a, url: `https://signed.example/${String(a.path)}` }));
+  const thread = (id: string, extra: Record<string, unknown> = {}) => {
+    const t = tickets.find((x) => x.id === id);
+    return { success: true, data: { ticket: t, events: events.get(id) ?? [], attachments: signed(t), ...extra } };
+  };
   await seedSession(page, opts.operator ? SEED_USER : CUSTOMER);
   await mockApi(page, {
     me: { success: true, data: opts.operator ? SEED_USER : CUSTOMER },
     onRequest: async (route: Route, url, method) => {
       const u = new URL(url);
       if (!u.pathname.startsWith('/api/v1/support/')) return false;
-      const body = method === 'GET' ? undefined : route.request().postDataJSON();
+      let body: Record<string, unknown> | undefined;
+      if (method !== 'GET') {
+        // The attachment upload is multipart, so postDataJSON() would throw on it.
+        try { body = route.request().postDataJSON(); } catch { body = undefined; }
+      }
       calls.push({ method, path: u.pathname, query: u.search, body });
       if (method === 'GET' && u.pathname === '/api/v1/support/tickets') {
         const status = u.searchParams.get('status') || 'active';
@@ -57,6 +66,19 @@ async function open(page: Page, opts: { operator: boolean; tickets: Ticket[]; cr
         await route.fulfill({ json: { success: true, data: { tickets: rows, is_operator: opts.operator, counts } } });
         return true;
       }
+      if (method === 'POST' && u.pathname === '/api/v1/support/tickets/attachments') {
+        // Stand in for the server: one descriptor per uploaded file, under this org's own prefix.
+        const names = (route.request().postData() || '').match(/filename="([^"]+)"/g) || [];
+        const attachments = names.map((m, i) => {
+          const name = m.replace(/^filename="/, '').replace(/"$/, '');
+          return {
+            path: `support/org-a/${i}-${name}`, bucket: 'support-attachments', name,
+            size: 2048, content_type: 'image/png', uploaded_at: NOW,
+          };
+        });
+        await route.fulfill({ status: 201, json: { success: true, data: { attachments, max: 5 } } });
+        return true;
+      }
       if (method === 'POST' && u.pathname === '/api/v1/support/tickets') {
         if (opts.createStatus) {
           await route.fulfill({ status: opts.createStatus, json: { success: false, error: 'Too many tickets raised in the last hour.' } });
@@ -66,6 +88,7 @@ async function open(page: Page, opts: { operator: boolean; tickets: Ticket[]; cr
           id: 't-new', ref: 'KM-5009', subject: body!.subject as string, description: body!.description as string,
           category: body!.category as string, priority: body!.priority as string,
           platforms: (body!.platforms as string[]) ?? [], area: (body!.area as string | null) ?? null,
+          attachments: (body!.attachments as unknown[]) ?? [],
         });
         tickets = [t, ...tickets];
         events.set(t.id, [created(t)]);
@@ -179,6 +202,8 @@ test.describe('Help & Support (customer)', () => {
     expect(calls.find((c) => c.method === 'POST')!.body).toEqual({
       subject: 'Sync broken', description: 'Nothing has synced since this morning.',
       category: 'data_correction', priority: 'high', platforms: ['web'], area: null,
+      // Always sent, so the contract is explicit even when nothing was attached.
+      attachments: [],
     });
     await expect(page.getByRole('dialog', { name: 'Ticket KM-5009' })).toBeVisible();
     await expect(page).toHaveURL(/ticket=t-new/);
@@ -205,7 +230,7 @@ test.describe('Help & Support (customer)', () => {
     await expect(page.getByRole('dialog', { name: 'Ticket KM-5009' })).toBeVisible();
     expect(calls.find((c) => c.method === 'POST')!.body).toEqual({
       subject: 'App crashes on open', description: 'The Android app closes as soon as I open attendance.',
-      category: 'bug', priority: 'normal', platforms: ['android'], area: 'attendance',
+      category: 'bug', priority: 'normal', platforms: ['android'], area: 'attendance', attachments: [],
     });
   });
 
@@ -223,6 +248,67 @@ test.describe('Help & Support (customer)', () => {
     await expect(drawer.getByRole('button', { name: 'This is fixed' })).toBeVisible();
     expect(calls.filter((c) => c.method === 'PATCH').at(-1)!.body).toEqual({ status: 'open', note: 'Still missing two visits.' });
     await expect(drawer.getByText(/changed status Resolved → Open/)).toBeVisible();
+  });
+});
+
+test.describe('Help & Support — screenshots', () => {
+  // A real 1x1 PNG, so the browser treats it as an image the way it would a pasted screenshot.
+  const PNG = (name: string) => ({
+    name, mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8AAAwAB/wFJ9kQ6AAAAAElFTkSuQmCC', 'base64'),
+  });
+
+  test('screenshots are previewed, removable, uploaded, and named on the create call', async ({ page }) => {
+    const { calls } = await open(page, { operator: false, tickets: [] });
+    await page.getByRole('button', { name: 'Raise a ticket' }).first().click({ timeout: 45_000 });
+    const dialog = page.getByRole('dialog', { name: 'Raise a ticket' });
+    await dialog.getByLabel('Subject').fill('Export is blank');
+    await dialog.getByLabel('Description').fill('The export downloads an empty file every time.');
+
+    await dialog.locator('#support-shots').setInputFiles([PNG('one.png'), PNG('two.png')]);
+    await expect(dialog.getByAltText('one.png')).toBeVisible();
+    await expect(dialog.getByAltText('two.png')).toBeVisible();
+
+    // Second thoughts about one of them.
+    await dialog.getByRole('button', { name: 'Remove two.png' }).click();
+    await expect(dialog.getByAltText('two.png')).toHaveCount(0);
+    await expect(dialog.getByAltText('one.png')).toBeVisible();
+
+    await dialog.getByRole('button', { name: 'Raise ticket' }).click();
+    await expect(page.getByRole('dialog', { name: 'Ticket KM-5009' })).toBeVisible();
+
+    // Uploaded first, then named on the ticket — and only the one that survived.
+    expect(calls.some((c) => c.path === '/api/v1/support/tickets/attachments')).toBe(true);
+    const create = calls.find((c) => c.method === 'POST' && c.path === '/api/v1/support/tickets')!;
+    expect(create.body!.attachments).toEqual([expect.objectContaining({ name: 'one.png', bucket: 'support-attachments' })]);
+  });
+
+  test('a file that is not an allowed image is refused in the form, before any upload', async ({ page }) => {
+    const { calls } = await open(page, { operator: false, tickets: [] });
+    await page.getByRole('button', { name: 'Raise a ticket' }).first().click({ timeout: 45_000 });
+    const dialog = page.getByRole('dialog', { name: 'Raise a ticket' });
+    await dialog.locator('#support-shots').setInputFiles([{ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') }]);
+    await expect(dialog.getByText(/not a PNG, JPEG, WEBP or HEIC image/i)).toBeVisible();
+    expect(calls.some((c) => c.path.endsWith('/attachments'))).toBe(false);
+  });
+
+  test('a ticket shows its screenshots, and says so when one has gone', async ({ page }) => {
+    const withShots = mk({
+      id: 't1', ref: 'KM-5001',
+      attachments: [
+        { path: 'support/org-a/a.png', bucket: 'support-attachments', name: 'console.png', size: 2048, content_type: 'image/png', uploaded_at: NOW },
+      ],
+    });
+    await open(page, { operator: false, tickets: [withShots] });
+    await page.getByRole('button', { name: /KM-5001/ }).click({ timeout: 45_000 });
+    const drawer = page.getByRole('dialog', { name: 'Ticket KM-5001' });
+    await expect(drawer.getByText('Screenshot', { exact: true })).toBeVisible();
+    const shot = drawer.getByAltText('console.png');
+    await expect(shot).toBeVisible();
+    // It opens the signed URL the server handed back, in a new tab.
+    const link = drawer.getByRole('link', { name: /console\.png/ });
+    await expect(link).toHaveAttribute('href', 'https://signed.example/support/org-a/a.png');
+    await expect(link).toHaveAttribute('target', '_blank');
   });
 });
 

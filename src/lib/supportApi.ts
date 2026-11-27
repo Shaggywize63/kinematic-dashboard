@@ -19,6 +19,36 @@ export type TicketArea =
   | 'dashboard' | 'mobile_app' | 'whatsapp_kini' | 'admin_settings' | 'integrations' | 'billing' | 'other';
 export type TicketChannel = 'whatsapp' | 'dashboard' | 'app';
 
+/** A screenshot on a ticket, as stored. Never a fetchable URL — the bucket is private. */
+export interface SupportAttachment {
+  path: string;
+  bucket: string;
+  name: string;
+  size: number;
+  content_type: string;
+  uploaded_at: string;
+}
+
+/** The same, as the ticket-detail response returns it: with a short-lived URL for display. */
+export interface SignedAttachment extends SupportAttachment {
+  /** Null when the object has gone — show the name without a link. */
+  url: string | null;
+}
+
+/** Limits mirrored from the server (services/support/supportAttachments.ts) so the form can say what is wrong. */
+export const ATTACH_MAX = 5;
+export const ATTACH_MAX_BYTES = 8 * 1024 * 1024;
+export const ATTACH_TYPES: readonly string[] = ['image/png', 'image/jpeg', 'image/webp', 'image/heic'];
+export const ATTACH_ACCEPT = 'image/png,image/jpeg,image/webp,image/heic';
+
+/** "248 KB" / "1.4 MB" — for a file list, where exact bytes help nobody. */
+export function fileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export interface Ticket {
   id: string;
   /** Human reference, e.g. "KM-5001". */
@@ -48,6 +78,7 @@ export interface Ticket {
   csat_rating: number | null;
   csat_comment: string | null;
   csat_at: string | null;
+  attachments: SupportAttachment[];
 }
 
 export interface TicketEvent {
@@ -83,6 +114,8 @@ export interface TicketThread {
   ticket: Ticket;
   /** Oldest first. */
   events: TicketEvent[];
+  /** Signed for display, and only returned by the detail call. */
+  attachments?: SignedAttachment[];
   customer_notified?: CustomerNotified;
 }
 
@@ -93,6 +126,8 @@ export interface NewTicket {
   priority?: TicketPriority;
   platforms?: TicketPlatform[];
   area?: TicketArea | null;
+  /** Descriptors returned by `uploadAttachments`, not the files themselves. */
+  attachments?: SupportAttachment[];
 }
 
 export interface TicketPatch {
@@ -231,6 +266,18 @@ export const supportApi = {
       counts: d.counts && typeof d.counts === 'object' ? d.counts : {},
     };
   },
+  /**
+   * Upload screenshots before the ticket exists, so the form can preview them while the person is still
+   * typing. Returns descriptors to send with `create`. The server re-validates them against the caller's
+   * own organisation, so these are not trusted on the way back in.
+   */
+  async uploadAttachments(files: File[]): Promise<SupportAttachment[]> {
+    const fd = new FormData();
+    // The server's uploadMultiple middleware reads the files from the field named `photos`.
+    for (const f of files) fd.append('photos', f);
+    const d = unwrap<{ attachments?: SupportAttachment[] }>(await api.postForm(`${BASE}/attachments`, fd)) || {};
+    return Array.isArray(d.attachments) ? d.attachments : [];
+  },
   async create(body: NewTicket): Promise<Ticket> {
     return unwrap<Ticket>(await api.post(BASE, body));
   },
@@ -250,5 +297,9 @@ export const supportApi = {
 };
 
 function normaliseThread(t: TicketThread): TicketThread {
-  return { ...t, events: Array.isArray(t?.events) ? t.events : [] };
+  return {
+    ...t,
+    events: Array.isArray(t?.events) ? t.events : [],
+    attachments: Array.isArray(t?.attachments) ? t.attachments : [],
+  };
 }
