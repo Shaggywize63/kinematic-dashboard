@@ -40,7 +40,7 @@ export default function ConsentTab({ db }: { db: HrmsDb }) {
 
   return (
     <Stack>
-      <StatGrid min={200}>
+      <StatGrid id="hrms-privacy-consent-kpis" perRow={4} h={3} min={200}>
         {purposes.map((p) => {
           const all = db.consents.filter((c) => c.purpose === p);
           const live = all.filter((c) => !c.withdrawnAt).length;

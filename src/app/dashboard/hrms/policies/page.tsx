@@ -45,7 +45,7 @@ export default function PoliciesPage() {
       title="Policies & POSH"
       description="Keep policies in one place, publish new versions, see who has acknowledged them, and keep the POSH committee and register in order."
     >
-      <Tiles min={160}>
+      <Tiles id="hrms-policies-kpis" perRow={4} h={3} min={160}>
         <Stat label="Policies" value={<span data-testid="stat-policies">{state.policies.length}</span>} hint="Each with a version history" />
         <Stat label="Acknowledgements pending" value={<span data-testid="stat-pending">{stats.pending}</span>} tone={stats.pending ? 'warn' : 'ok'} hint="Across all policies that need one" />
         <Stat label="Acknowledged overall" value={`${Math.round(stats.rate)}%`} tone={stats.rate >= 90 ? 'ok' : stats.rate >= 60 ? 'warn' : 'red'} hint="Current versions only" />

@@ -6,6 +6,7 @@ import {
 import {
   CHART, CHART_PALETTE, seriesColor, ChartCard, ChartTooltip,
 } from '../../../lib/chartTheme';
+import TileGrid from '../../ui/TileGrid';
 
 // Gradient id unique to THIS component's area chart. The shared chartTheme
 // grad() ids are reused by every chart, and when several charts render on one
@@ -48,7 +49,7 @@ function num(v: Cellv): number {
 }
 const isTotalRow = (r: Cellv[]) => String(r[0] ?? '').toLowerCase() === 'grand total';
 
-export default function ReportCharts({ data }: { data: Data }) {
+export default function ReportCharts({ data, id }: { data: Data; id: string }) {
   const cols = data.columns;
   const rows = data.rows.filter((r) => !isTotalRow(r));
   if (rows.length === 0 || cols.length === 0) return null;
@@ -104,7 +105,7 @@ export default function ReportCharts({ data }: { data: Data }) {
   const areaColor = CHART_PALETTE[0];
 
   return (
-    <div style={{
+    <TileGrid id={id} perRow={3} h={7} style={{
       display: 'grid', gap: 12, marginBottom: 16,
       gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
     }}>
@@ -166,6 +167,6 @@ export default function ReportCharts({ data }: { data: Data }) {
           </ResponsiveContainer>
         </ChartCard>
       )}
-    </div>
+    </TileGrid>
   );
 }

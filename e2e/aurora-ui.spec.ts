@@ -45,9 +45,9 @@ test.describe('Aurora — demo account', () => {
     await page.goto('/dashboard/crm/leads');                                    // a full page load: SSR markup, hydrated
     await expect(page.getByTestId('aurora-sky')).toBeAttached({ timeout: 30_000 });
     // nothing opaque between the page ground and the sky: the app wrapper beside the sidebar is transparent
-    const wrapperBg = await page.evaluate(() => getComputedStyle((document.querySelector('aside[aria-label="Main navigation"]') as HTMLElement).parentElement as HTMLElement).backgroundColor);
-    expect(wrapperBg).toBe('rgba(0, 0, 0, 0)');
-    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+    // (polled: the page's colour transitions run for a moment right after load)
+    await expect.poll(() => page.evaluate(() => getComputedStyle((document.querySelector('aside[aria-label="Main navigation"]') as HTMLElement).parentElement as HTMLElement).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
   });
 
   test('light theme gets the light Aurora palette', async ({ page }) => {
@@ -99,7 +99,18 @@ test.describe('Movable tiles everywhere — CRM dashboard (a grid wrapped in Til
 
   test('a size button resizes a tile, the layout sticks across a reload, and Reset restores it', async ({ page }) => {
     await open(page);
-    const widthOf = async () => (await page.getByTestId('tile-open-pipeline').boundingBox())!.width;
+    // react-grid-layout renders at a default width and re-measures its container right after mount, so wait until the box settles.
+    const widthOf = async () => {
+      const el = page.getByTestId('tile-open-pipeline');
+      let prev = (await el.boundingBox())!.width;
+      for (let i = 0; i < 25; i++) {
+        await page.waitForTimeout(80);
+        const cur = (await el.boundingBox())!.width;
+        if (Math.abs(cur - prev) < 0.5) return cur;
+        prev = cur;
+      }
+      return prev;
+    };
     const before = await widthOf();
     await page.getByTestId('tiles-customize').click();
     await page.getByTestId('tile-open-pipeline-w-Full').click();

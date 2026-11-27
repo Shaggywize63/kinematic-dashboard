@@ -6,6 +6,7 @@ import { isManagerOrAdmin } from '../../../../../lib/clientFeatures';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { EmptyState, T, useIsCompact } from '../../../../../components/ui';
+import TileGrid from '../../../../../components/ui/TileGrid';
 
 const EMPTY: LeadStructureReportData = { total_leads: 0, by_group: [], by_company: [], by_plant: [], by_make: [], by_product: [] };
 
@@ -102,7 +103,7 @@ export default function LeadStructureReportPage() {
       {loading && data.total_leads === 0 ? (
         <div style={{ color: T.dim, fontSize: 13 }}>Loading…</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
+        <TileGrid id="crm-reports-lead-structure-dims" perRow={2} h={10} style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
           {dims.map((d) => {
             const max = d.rows.reduce((m, r) => Math.max(m, r.lead_count), 0);
             return (
@@ -125,7 +126,7 @@ export default function LeadStructureReportPage() {
               </div>
             );
           })}
-        </div>
+        </TileGrid>
       )}
     </div>
   );

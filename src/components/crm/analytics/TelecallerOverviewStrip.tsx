@@ -7,6 +7,7 @@ import { crmAnalytics } from '../../../lib/crmApi';
 import type { TelecallerPerfRow } from '../../../types/crm';
 import { getStoredUser } from '../../../lib/auth';
 import { canViewTelecallerReport } from '../../../lib/clientFeatures';
+import TileGrid from '../../ui/TileGrid';
 
 type Totals = Omit<TelecallerPerfRow, 'user_id' | 'user_name'>;
 
@@ -77,7 +78,7 @@ export default function TelecallerOverviewStrip() {
         <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}><PhoneCall aria-hidden size={15} strokeWidth={2} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />Telecaller — this month</div>
         <Link href="/dashboard/crm/reports/telecaller-performance" style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}><BarChart3 aria-hidden size={13} strokeWidth={2} />Full report →</Link>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+      <TileGrid id="crm-telecaller-overview-kpis" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
         {items.map((k) => {
           const Icon = metricIconFor(k.label);
           return (
@@ -87,7 +88,7 @@ export default function TelecallerOverviewStrip() {
           </div>
           );
         })}
-      </div>
+      </TileGrid>
     </div>
   );
 }

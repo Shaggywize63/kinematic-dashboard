@@ -179,7 +179,7 @@ export default function KioskDashboard() {
         <b>Preview.</b> The tablet is a simulation on sample data. <b>Face match is simulated</b>: no photo is taken and no biometric data is captured or stored. The clock below is a preview clock, so you can try late and out-of-shift punches.
       </Note>
 
-      <StatGrid>
+      <StatGrid id="hrms-kiosk-kpis" perRow={5} h={4}>
         <Stat label="On site now" value={`${onSite} of ${expected}`} hint="Of the people due today" />
         <Stat label="Late today" value={lateIns.length + lateNotIn.length} tone={lateIns.length + lateNotIn.length ? 'warn' : 'ok'} hint={`${lateNotIn.length} not in yet`} />
         <Stat label="Missing OUT" value={openEx.filter((x) => x.kind === 'missing_out').length} tone={openEx.some((x) => x.kind === 'missing_out') ? 'red' : 'ok'} hint="Shift ended, no OUT" />

@@ -47,7 +47,7 @@ export default function TaxTab({ db }: { db: HrmsDb }) {
 
   return (
     <Stack>
-      <StatGrid min={150}>
+      <StatGrid id="hrms-statutory-tax-kpis" perRow={4} h={3} min={150}>
         <Stat label="Declarations verified" value={count((e) => e.declaration.status === 'verified')} tone="ok" hint="Checked against proofs" />
         <Stat label="Submitted" value={count((e) => e.declaration.status === 'submitted')} tone="info" hint="Awaiting verification" />
         <Stat label="Not submitted" value={count((e) => e.declaration.status === 'not_submitted')} tone="warn" hint="Old-regime tax counts no deductions" />

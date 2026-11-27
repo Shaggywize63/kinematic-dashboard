@@ -117,12 +117,12 @@ export default function TerritoryView({ db }: { db: HrmsDb }) {
         <PersonSelect value={person} onChange={(v) => { setPersonId(v); setSelectedId(null); }} ids={repsInScope} namer={namer} allLabel="Everyone in view" width={230} />
       </div>
 
-      <StatGrid min={170}>
-        <div data-testid="ter-stat-outlets"><Stat label="Outlets in view" value={inView.length} hint={scopeLabel} /></div>
-        <div data-testid="ter-stat-coverage"><Stat label="Visited this month" value={`${inView.length ? Math.round((visitedInView / inView.length) * 100) : 0}%`} hint={`${visitedInView} of ${inView.length} outlets, ${FIELD_MONTH_LABEL[month]}`} /></div>
-        <div data-testid="ter-stat-dormant"><Stat label="Dormant outlets" value={dormant.length} tone={dormant.length ? 'warn' : undefined} hint="No verified visit this month" /></div>
-        <div data-testid="ter-stat-overlaps"><Stat label="Overlapping pairs" value={overlaps.length} tone={overlaps.length ? 'warn' : undefined} hint="Two people, 500 m or less" /></div>
-        <div data-testid="ter-stat-moves"><Stat label="Outlets reassigned" value={moveCount} hint={moveCount ? 'Shown on the map and in coverage' : 'None yet'} /></div>
+      <StatGrid id="hrms-territory-kpis" perRow={5} h={4} min={170}>
+        <div key="Outlets in view" data-testid="ter-stat-outlets"><Stat label="Outlets in view" value={inView.length} hint={scopeLabel} /></div>
+        <div key="Visited this month" data-testid="ter-stat-coverage"><Stat label="Visited this month" value={`${inView.length ? Math.round((visitedInView / inView.length) * 100) : 0}%`} hint={`${visitedInView} of ${inView.length} outlets, ${FIELD_MONTH_LABEL[month]}`} /></div>
+        <div key="Dormant outlets" data-testid="ter-stat-dormant"><Stat label="Dormant outlets" value={dormant.length} tone={dormant.length ? 'warn' : undefined} hint="No verified visit this month" /></div>
+        <div key="Overlapping pairs" data-testid="ter-stat-overlaps"><Stat label="Overlapping pairs" value={overlaps.length} tone={overlaps.length ? 'warn' : undefined} hint="Two people, 500 m or less" /></div>
+        <div key="Outlets reassigned" data-testid="ter-stat-moves"><Stat label="Outlets reassigned" value={moveCount} hint={moveCount ? 'Shown on the map and in coverage' : 'None yet'} /></div>
       </StatGrid>
 
       <div data-testid="territory-table">

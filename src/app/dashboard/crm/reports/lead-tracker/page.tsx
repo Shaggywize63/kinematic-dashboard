@@ -13,6 +13,7 @@ import { InlineIcon } from '../../../../../components/ui/PageIcon';
 import { metricIconFor } from '../../../../../lib/labelIcons';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
+import TileGrid from '../../../../../components/ui/TileGrid';
 
 const kpiIcon = (label: string) => { const I = metricIconFor(label); return I ? <InlineIcon icon={I} size={13} /> : null; };
 
@@ -86,11 +87,11 @@ export default function LeadTrackerPage() {
       <Header months={months} onChange={setMonths} canExport={!loading && !!data} onExport={() => data && downloadCsv('lead-tracker', trackerCsv(data, cityHidden || !gate.didLoad, sourceHidden || !gate.didLoad))} />
 
       {/* Period summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
-        <PeriodCard data={data?.period_today} prev={data?.previous_today} accent="#1e88e5" loading={loading} />
-        <PeriodCard data={data?.period_week}  prev={data?.previous_week}  accent="#7cb342" loading={loading} />
-        <PeriodCard data={data?.period_month} prev={data?.previous_month} accent="#26a69a" loading={loading} />
-      </div>
+      <TileGrid id="crm-reports-lead-tracker-periods" perRow={3} h={4} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+        <PeriodCard key="Today" data={data?.period_today} prev={data?.previous_today} accent="#1e88e5" loading={loading} />
+        <PeriodCard key="This week" data={data?.period_week}  prev={data?.previous_week}  accent="#7cb342" loading={loading} />
+        <PeriodCard key="This month" data={data?.period_month} prev={data?.previous_month} accent="#26a69a" loading={loading} />
+      </TileGrid>
 
       {/* Monthly bar chart */}
       <Card>
@@ -102,51 +103,51 @@ export default function LeadTrackerPage() {
       </Card>
 
       {/* Weekly + Daily */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
-        <Card>
+      <TileGrid id="crm-reports-lead-tracker-trends" perRow={2} h={4} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
+        <Card key="Last 12 weeks">
           <SectionLabel accent="#7cb342">Last 12 weeks</SectionLabel>
           {!data || data.weekly.length === 0 ? <Empty>—</Empty>
             : <Sparkline data={data.weekly} accent="#7cb342" />}
         </Card>
-        <Card>
+        <Card key="Last 30 days">
           <SectionLabel accent="#26a69a">Last 30 days</SectionLabel>
           {!data || data.daily.length === 0 ? <Empty>—</Empty>
             : <Sparkline data={data.daily} accent="#26a69a" />}
         </Card>
-      </div>
+      </TileGrid>
 
       {/* Status mix + ageing distribution */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
-        <Card>
+      <TileGrid id="crm-reports-lead-tracker-mix" perRow={2} h={7} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+        <Card key="Lead status mix">
           <SectionLabel accent="#A855F7">Lead status mix</SectionLabel>
           {!data ? <Empty>—</Empty>
             : <StatusBars status={data.status_breakdown} stages={stages} />}
         </Card>
-        <Card>
+        <Card key="Open lead ageing">
           <SectionLabel accent="#EF4444">Open lead ageing</SectionLabel>
           {!data ? <Empty>—</Empty>
             : <BucketBars buckets={data.ageing_distribution} />}
         </Card>
-      </div>
+      </TileGrid>
 
       {/* Source + City breakdowns */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+      <TileGrid id="crm-reports-lead-tracker-breakdowns" perRow={2} h={9} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
         {/* Source and City are built-in lead fields: wait for the admin's settings, and drop the card when hidden. */}
         {gate.didLoad && !sourceHidden && (
-          <Card>
+          <Card key="Top sources">
             <SectionLabel accent="#3E9EFF">Top sources</SectionLabel>
             {!data || data.source_breakdown.length === 0 ? <Empty>—</Empty>
               : <RankedList items={data.source_breakdown} detail={data.source_detail} />}
           </Card>
         )}
         {gate.didLoad && !cityHidden && (
-          <Card>
+          <Card key="Top cities">
             <SectionLabel accent="#F59E0B">Top cities</SectionLabel>
             {!data || data.city_breakdown.length === 0 ? <Empty>—</Empty>
               : <RankedList items={data.city_breakdown} />}
           </Card>
         )}
-      </div>
+      </TileGrid>
     </div>
   );
 }

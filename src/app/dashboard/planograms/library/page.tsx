@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import planogramApi from '../../../../lib/planogramApi';
 import { CheckCircle2, Layers, Package, Target, TrendingUp, Trophy, type LucideIcon } from 'lucide-react';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import TileGrid from '../../../../components/ui/TileGrid';
 import type { Planogram, TrendPoint, StoreRanking } from '../../../../types/planogram';
 import {
   PC,
@@ -130,7 +131,10 @@ export default function PlanogramLibraryPage() {
       {error && <StateBlock tone="error">{error}</StateBlock>}
 
       {/* Library summary stats — directory-relevant, derived from loaded data */}
-      <div
+      <TileGrid
+        id="planograms-library-kpis"
+        perRow={4}
+        h={3}
         style={{
           display: 'grid',
           gridTemplateColumns: isCompact ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
@@ -153,7 +157,7 @@ export default function PlanogramLibraryPage() {
           value={loading ? '·' : String(stats.competitors)}
           soft={enriching}
         />
-      </div>
+      </TileGrid>
 
       {/* Planograms directory — the primary content */}
       <SectionCard
@@ -253,7 +257,11 @@ export default function PlanogramLibraryPage() {
       </SectionCard>
 
       {/* Supporting analytics — compliance trend + top stores */}
-      <div
+      <TileGrid
+        id="planograms-library-panels"
+        perRow={2}
+        h={8}
+        tile={{ 'compliance-trend': { w: 12 }, 'top-stores': { w: 8 } }}
         style={{
           display: 'grid',
           gridTemplateColumns: isCompact ? '1fr' : '1.5fr 1fr',
@@ -345,7 +353,7 @@ export default function PlanogramLibraryPage() {
             </div>
           )}
         </SectionCard>
-      </div>
+      </TileGrid>
     </div>
   );
 }

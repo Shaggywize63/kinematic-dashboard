@@ -6,6 +6,7 @@
  * your live distribution data). Backed by /api/v1/distribution/ai/*.
  */
 import { useCallback, useEffect, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import { palette as C, Card, PageHeader, Pill, Btn } from '../../../../components/distribution/Atoms';
 import { Bot, Camera, CircleSlash, Compass, Moon, PackagePlus, RefreshCw, ScanSearch, Send, ShoppingCart } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -143,7 +144,7 @@ export default function DistributionAiPage() {
 
       {/* Agents */}
       <div style={{ ...sectionLabel, margin: '4px 2px 10px' }}><InlineIcon icon={Bot} size={14} />Agents</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, marginBottom: 20 }}>
+      <TileGrid id="distribution-ai-agents" perRow={3} h={5} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, marginBottom: 20 }}>
         {(loading && !agents.length ? [] : agents).map((a) => (
           <Card key={a.key} style={{ padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -165,7 +166,7 @@ export default function DistributionAiPage() {
             {a.key === 'replenishment' && a.autonomy === 'auto' && <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 8 }}>Auto — drafts the next order per distributor each morning. Review them under Draft orders.</div>}
           </Card>
         ))}
-      </div>
+      </TileGrid>
 
       {/* Replenishment suggestions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 2px 10px' }}>
@@ -266,8 +267,8 @@ export default function DistributionAiPage() {
           <InlineIcon icon={Compass} size={16} style={{ color: 'var(--primary)', marginTop: 1 }} /><div style={{ fontSize: 13.5, color: C.text }}>{coverage.rationale}</div>
         </div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
-        <Card style={{ padding: 16 }}>
+      <TileGrid id="distribution-ai-coverage" perRow={2} h={8} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+        <Card key="dormant-outlets" style={{ padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <InlineIcon icon={Moon} size={16} style={{ color: C.dim }} />
             <div style={{ fontSize: 14, fontWeight: 800 }}>Dormant outlets</div>
@@ -283,7 +284,7 @@ export default function DistributionAiPage() {
             </div>
           ))}
         </Card>
-        <Card style={{ padding: 16 }}>
+        <Card key="never-ordered" style={{ padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <InlineIcon icon={CircleSlash} size={16} style={{ color: C.dim }} />
             <div style={{ fontSize: 14, fontWeight: 800 }}>Never ordered</div>
@@ -295,7 +296,7 @@ export default function DistributionAiPage() {
             <div key={d.outlet_id} style={{ padding: '8px 0', borderTop: `1px solid ${C.border}`, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</div>
           ))}
         </Card>
-      </div>
+      </TileGrid>
 
       {/* Anomaly agent */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '22px 2px 10px' }}>

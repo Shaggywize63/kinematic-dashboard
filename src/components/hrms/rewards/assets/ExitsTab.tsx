@@ -46,7 +46,7 @@ export default function ExitsTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <StatGrid min={190}>
+      <StatGrid id="hrms-assets-exits-kpis" perRow={3} h={3} min={190}>
         <Stat label="People with assets to return" value={people.filter((p) => p.outstanding.length).length} tone={people.some((p) => p.outstanding.length) ? 'warn' : 'ok'} hint="On notice, with an exit case, or already left" />
         <Stat label="Assets still held" value={heldCount} />
         <Stat label="Advisory recovery if none come back" value={inr(total)} hint={<ConfidenceBadge level="indicative" />} />

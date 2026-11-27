@@ -23,6 +23,7 @@ import {
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { Badge, Button, Card, EmptyState, Input, Select, T, useIsCompact } from '../../../../components/ui';
 import { IconTile, InlineIcon } from '../../../../components/ui/PageIcon';
+import TileGrid from '../../../../components/ui/TileGrid';
 import { Col, DataTable, Pager, Toolbar } from '../../../../components/finance/ui';
 import {
   ClaimStatusBadge, ExpensesShell, IconStat, STATUS_ICON, categoryIcon, errText, fmtDate, money, payable, saveBlob, vehicleName,
@@ -368,7 +369,8 @@ function Overview({ summary, currency, narrow }: { summary: ClaimsSummary; curre
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <KpiGrid t={summary.totals} currency={currency} />
-      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.6fr 1fr', gap: 16 }}>
+      <TileGrid id="expenses-reports-overview-charts" perRow={2} h={8} tile={{ 'spend-over-time': { w: 12 }, 'where-the-money-sits': { w: 8 } }}
+        style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.6fr 1fr', gap: 16 }}>
         <ChartCard title="Spend over time" subtitle="Claimed amount by month" minHeight={260} right={cardIcon(TrendingUp)}>
           {trend.length === 0 ? <ChartEmpty /> : (
             <ResponsiveContainer width="100%" height={230}>
@@ -396,7 +398,7 @@ function Overview({ summary, currency, narrow }: { summary: ClaimsSummary; curre
             </ResponsiveContainer>
           )}
         </ChartCard>
-      </div>
+      </TileGrid>
       <ReimbursementPipeline t={summary.totals} currency={currency} />
     </div>
   );
@@ -483,7 +485,8 @@ function CategoryReport({ summary, rules, currency, narrow }: { summary: ClaimsS
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.5fr 1fr', gap: 16 }}>
+      <TileGrid id="expenses-reports-category-charts" perRow={2} h={8} tile={{ 'spend-by-category': { w: 12 }, 'category-mix': { w: 8 } }}
+        style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.5fr 1fr', gap: 16 }}>
         <ChartCard title="Spend by category" subtitle="Claimed amount per expense category" right={cardIcon(Tags)}><MagnitudeBars data={bars} currency={currency} /></ChartCard>
         <ChartCard title="Category mix" subtitle="Share of total claimed" minHeight={260} right={cardIcon(PieChartIcon)}>
           {mix.length === 0 ? <ChartEmpty /> : (
@@ -498,7 +501,7 @@ function CategoryReport({ summary, rules, currency, narrow }: { summary: ClaimsS
             </ResponsiveContainer>
           )}
         </ChartCard>
-      </div>
+      </TileGrid>
       <ReportTable cols={cols} rows={bars.map((b, i) => ({ id: String(i), label: b.name, amount: b.value, category: rows[i].category }))} empty="No categories." />
     </div>
   );
@@ -531,7 +534,8 @@ function TrendReport({ summary, currency, narrow }: { summary: ClaimsSummary; cu
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.5fr 1fr', gap: 16 }}>
+      <TileGrid id="expenses-reports-trend-charts" perRow={2} h={8} tile={{ 'spend-over-time': { w: 12 }, 'claims-filed': { w: 8 } }}
+        style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1.5fr 1fr', gap: 16 }}>
         <ChartCard title="Spend over time" subtitle="Claimed amount by month" minHeight={260} right={cardIcon(TrendingUp)}>
           {data.length === 0 ? <ChartEmpty /> : (
             <ResponsiveContainer width="100%" height={240}>
@@ -560,7 +564,7 @@ function TrendReport({ summary, currency, narrow }: { summary: ClaimsSummary; cu
             </ResponsiveContainer>
           )}
         </ChartCard>
-      </div>
+      </TileGrid>
       <ReportTable cols={cols} rows={rows.map((m, i) => ({ id: String(i), month: prettyMonth(m.month), claims: m.claims, amount: m.amount }))} empty="No months." />
     </div>
   );

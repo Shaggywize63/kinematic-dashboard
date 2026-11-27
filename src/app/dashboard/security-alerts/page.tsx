@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import api from '../../../lib/api';
 import { useAuth } from '../../../hooks/useAuth';
 import { format } from 'date-fns';
@@ -217,7 +218,7 @@ export default function SecurityAlertsPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+      <TileGrid id="security-alerts-notes" perRow={3} h={4} className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
         {[
           { c: C.accent, t: 'Defense Protocol', b: 'All Field Executive actions (Attendance, Forms, Visits) are now protected by real-time mock location and VPN checks.' },
           { c: RED, t: 'Strict Enforcement', b: 'Violations result in an immediate block of the action. The FE cannot proceed until the spoofing app or VPN is disabled.' },
@@ -230,7 +231,7 @@ export default function SecurityAlertsPage() {
             </div>
           </div>
         ))}
-      </div>
+      </TileGrid>
     </div>
   );
 }

@@ -1,8 +1,9 @@
 'use client';
 // Small blocks shared by the assistant, policies and org chart screens.
 
-import { CSSProperties, ReactNode, useEffect, useState } from 'react';
+import { CSSProperties, ReactNode, isValidElement, useEffect, useState } from 'react';
 import { Badge, Button, T } from '../ui';
+import TileGrid from '../../ui/TileGrid';
 
 /** Banner that says, in plain words, that what follows is a simulation. */
 export function SimNote({ testid, title = 'SIMULATION', children }: { testid?: string; title?: string; children: ReactNode }) {
@@ -87,11 +88,27 @@ export const textAreaStyle: CSSProperties = {
  * A row of stat tiles that sits two or more to a line on a phone. The global mobile rule turns every inline `repeat(...)`
  * or `fr` grid into one column below 1024px, so a wrapping flex row is used here instead.
  */
-export function Tiles({ children, min = 150 }: { children: ReactNode; min?: number }) {
+export function Tiles({ children, min = 150, id, perRow = 4, h = 3 }: { children: ReactNode; min?: number; id?: string; perRow?: number; h?: number }) {
   const items = Array.isArray(children) ? children : [children];
+  const style: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 12 };
+  if (!id) {
+    return (
+      <div style={style}>
+        {items.map((c, i) => <div key={i} style={{ flex: `1 1 ${min}px`, minWidth: 0 }}>{c}</div>)}
+      </div>
+    );
+  }
+  // Movable in the New design: each tile is keyed by its stat's label so a saved layout stays on the right tile.
+  const used = new Set<string>();
+  const keyOf = (c: ReactNode, i: number) => {
+    const label = isValidElement(c) ? (c.props as { label?: unknown }).label : undefined;
+    const k = typeof label === 'string' && label.trim() && !used.has(label) ? label : String(i);
+    used.add(k);
+    return k;
+  };
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-      {items.map((c, i) => <div key={i} style={{ flex: `1 1 ${min}px`, minWidth: 0 }}>{c}</div>)}
-    </div>
+    <TileGrid id={id} perRow={perRow} h={h} style={style}>
+      {items.map((c, i) => <div key={keyOf(c, i)} style={{ flex: `1 1 ${min}px`, minWidth: 0 }}>{c}</div>)}
+    </TileGrid>
   );
 }

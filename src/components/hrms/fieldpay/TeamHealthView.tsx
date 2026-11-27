@@ -14,6 +14,7 @@ import type { HrmsDb } from '../../../lib/hrms/types';
 import { makeNamer, num1, pctText } from './common';
 import { WeekBars } from './WeekBars';
 import WeeklyOffCard from './WeeklyOffCard';
+import TileGrid from '../../ui/TileGrid';
 
 export default function TeamHealthView({ db }: { db: HrmsDb }) {
   const ev = getFieldEvidence();
@@ -48,6 +49,7 @@ function TeamCard({ team }: { team: Team }) {
   const weeks = useMemo(() => (team.shown ? teamWeekly(ev, team.empIds) : []), [ev, team]);
   const sum = useMemo(() => (team.shown ? teamSummary(ev, team.empIds) : null), [ev, team]);
   const slug = team.name.toLowerCase();
+  const tid = slug.replace(/[^a-z0-9]+/g, '-');
 
   if (!team.shown || !sum) {
     return (
@@ -73,16 +75,17 @@ function TeamCard({ team }: { team: Team }) {
       <Card>
         <CardTitle right={<Badge tone="neutral">{team.size} people, team totals only</Badge>}>{team.name} team</CardTitle>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <StatGrid min={190}>
-            <div data-testid="th-long"><Stat label="Long days" value={pctText(sum.longDayShare, 1)} hint={`${sum.longDays} of ${sum.spanDays} worked days ran over ${LONG_DAY_MIN / 60} hours`} /></div>
-            <div data-testid="th-span"><Stat label="Average day" value={sum.avgSpanH != null ? `${num1(sum.avgSpanH)} h` : '—'} hint="First punch-in to last punch-out" /></div>
-            <div data-testid="th-evening"><Stat label={`Visits after ${EVENING_FROM}`} value={sum.eveningVisits} hint={`In ${days(sum.workedDays)} worked by the team`} /></div>
-            <div data-testid="th-absence"><Stat label="No-punch days" value={oct ? `${num1(oct.perPerson)} per person` : '—'}
+          <StatGrid id={`hrms-team-health-${tid}-kpis`} perRow={3} h={4} min={190}>
+            <div key="Long days" data-testid="th-long"><Stat label="Long days" value={pctText(sum.longDayShare, 1)} hint={`${sum.longDays} of ${sum.spanDays} worked days ran over ${LONG_DAY_MIN / 60} hours`} /></div>
+            <div key="Average day" data-testid="th-span"><Stat label="Average day" value={sum.avgSpanH != null ? `${num1(sum.avgSpanH)} h` : '—'} hint="First punch-in to last punch-out" /></div>
+            <div key="Late visits" data-testid="th-evening"><Stat label={`Visits after ${EVENING_FROM}`} value={sum.eveningVisits} hint={`In ${days(sum.workedDays)} worked by the team`} /></div>
+            <div key="No-punch days" data-testid="th-absence"><Stat label="No-punch days" value={oct ? `${num1(oct.perPerson)} per person` : '—'}
               hint={`${oct ? fmtMonth(oct.month) : ''}${nov ? `. ${fmtMonth(nov.month)} so far: ${num1(nov.perPerson)}` : ''}. May include approved leave`} /></div>
-            <div data-testid="th-rest"><Stat label="Rest-day coverage" value={pctText(sum.restCoverage)} hint={`Person-weeks with a day off, ${sum.fullWeeks} full weeks`} /></div>
+            <div key="Rest-day coverage" data-testid="th-rest"><Stat label="Rest-day coverage" value={pctText(sum.restCoverage)} hint={`Person-weeks with a day off, ${sum.fullWeeks} full weeks`} /></div>
           </StatGrid>
 
-          <div data-testid="th-charts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 16 }}>
+          <div data-testid="th-charts">
+          <TileGrid id={`hrms-team-health-${tid}-charts`} perRow={3} h={6} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 16 }}>
             <ChartCard title="Share of worked days over 10 hours" note="By week. A rising bar means long days are becoming usual.">
               <WeekBars title="Share of worked days over 10 hours" values={weeks.map((w) => w.longDayShare)} labels={labels} partial={partial} fmt={(n) => `${(n * 100).toFixed(0)}%`} floor={0.1} testId="chart-long" />
             </ChartCard>
@@ -98,6 +101,7 @@ function TeamCard({ team }: { team: Team }) {
             <ChartCard title="People with at least one day off in the week" note="Full weeks only. A part week cannot show a missing rest day.">
               <WeekBars title="Share of people with a rest day" values={weeks.map((w) => w.restCoverage)} labels={labels} partial={partial} fmt={(n) => `${(n * 100).toFixed(0)}%`} floor={1} fixedMax={1.15} testId="chart-rest" />
             </ChartCard>
+          </TileGrid>
           </div>
 
           <details data-testid="th-table">

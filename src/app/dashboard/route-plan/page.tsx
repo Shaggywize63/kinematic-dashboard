@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { api } from '../../../lib/api';
@@ -751,7 +752,7 @@ function RoutePlanContent() {
       {/* ── SUMMARY CARDS ──────────────────────────────────── */}
       {summary && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 14 }}>
+          <TileGrid id="route-plan-summary-kpis" perRow={4} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 14 }}>
             {[
               { label: 'FEs Deployed',    value: summary.total_fes,        color: C.blue,   bg: C.blueD,   icon: IC.users  },
               { label: 'Total Outlets',   value: summary.total_outlets,    color: C.purple, bg: C.purpleD, icon: IC.store  },
@@ -768,10 +769,10 @@ function RoutePlanContent() {
                 </div>
               </div>
             ))}
-          </div>
+          </TileGrid>
 
           {/* Status breakdown */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 24 }}>
+          <TileGrid id="route-plan-status-kpis" perRow={4} h={2} style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 24 }}>
             {([
               { label: 'Completed',   value: summary.completed_plans,   color: C.green, icon: CheckCircle2 },
               { label: 'In Progress', value: summary.in_progress_plans, color: C.blue, icon: Clock },
@@ -783,7 +784,7 @@ function RoutePlanContent() {
                 <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
               </div>
             ))}
-          </div>
+          </TileGrid>
         </>
       )}
 

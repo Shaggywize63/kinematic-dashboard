@@ -40,11 +40,11 @@ export default function WorkforcePlanningPage() {
         These numbers inform decisions about teams. They are not a ranking of people, and no one is named as the reason for a gap.
         See the <Link href="/dashboard/hrms/recruitment?tab=openings" style={{ color: 'var(--info)' }}>openings</Link> that depend on it.
       </Principle>
-      <StatGrid>
-        <div data-testid="top-actual"><Stat label="Headcount today" value={actual} hint="On the payroll, including people serving notice" /></div>
-        <div data-testid="top-plan"><Stat label={`Planned, ${fmtMonth(THIS_MONTH).slice(0, 3)}`} value={planned} hint={`Gap ${gap > 0 ? '+' : ''}${gap} against plan`} tone={gap < 0 ? 'warn' : undefined} /></div>
-        <div data-testid="top-seats"><Stat label="Open seats" value={openSeats(st.openings, {})} hint="Approved on live openings, not yet filled" /></div>
-        <div data-testid="top-attrition"><Stat label="Attrition, 12 months" value={rate?.rate == null ? '—' : `${rate.rate}%`} hint="Rolling, by the formula on the Attrition tab" /></div>
+      <StatGrid id="hrms-workforce-planning-kpis" perRow={4} h={3}>
+        <div key="Headcount today" data-testid="top-actual"><Stat label="Headcount today" value={actual} hint="On the payroll, including people serving notice" /></div>
+        <div key="Planned headcount" data-testid="top-plan"><Stat label={`Planned, ${fmtMonth(THIS_MONTH).slice(0, 3)}`} value={planned} hint={`Gap ${gap > 0 ? '+' : ''}${gap} against plan`} tone={gap < 0 ? 'warn' : undefined} /></div>
+        <div key="Open seats" data-testid="top-seats"><Stat label="Open seats" value={openSeats(st.openings, {})} hint="Approved on live openings, not yet filled" /></div>
+        <div key="Attrition, 12 months" data-testid="top-attrition"><Stat label="Attrition, 12 months" value={rate?.rate == null ? '—' : `${rate.rate}%`} hint="Rolling, by the formula on the Attrition tab" /></div>
       </StatGrid>
       <TabBar<Tab> value={tab} onChange={setTab} tabs={[{ key: 'headcount', label: 'Headcount' }, { key: 'budget', label: 'Budget' }, { key: 'attrition', label: 'Attrition' }, { key: 'scenarios', label: 'Scenarios', count: st.scenarios.length }]} />
       <div role="tabpanel" aria-label={tab}>

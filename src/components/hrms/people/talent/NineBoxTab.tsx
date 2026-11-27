@@ -83,7 +83,7 @@ export default function NineBoxTab({ db, st, tv }: { db: HrmsDb; st: TalentState
         <Muted>Cycle: {st.cycle}</Muted>
       </Toolbar>
 
-      <StatGrid min={150}>
+      <StatGrid id="hrms-talent-ninebox-kpis" perRow={3} h={3} min={150}>
         <Stat label="People in group" value={summary.groupSize} />
         <Stat label="Placed" value={summary.placed} tone="info" />
         <Stat label="Not placed yet" value={summary.groupSize - summary.placed} tone={summary.groupSize - summary.placed ? 'warn' : 'ok'} />

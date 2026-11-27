@@ -79,7 +79,7 @@ export default function RulesTab({ db }: { db: HrmsDb }) {
         Confirm each “Reported” and “Sample” row against the notification before a live payroll run.
       </Note>
 
-      <StatGrid min={170}>
+      <StatGrid id="hrms-statutory-rules-kpis" perRow={4} h={3} min={170}>
         <Stat label="Law version" value={<span style={{ fontSize: 17 }}>{LAW_VERSION}</span>} hint="Stamped on every pay run" />
         <Stat label="PF wage ceiling today" value={inr(pfNow.value)} hint={`Since ${fmtDate(pfNow.from)}`} />
         <Stat label="ESI wage ceiling today" value={inr(esiNow.value)} hint={`Since ${fmtDate(esiNow.from)}`} />

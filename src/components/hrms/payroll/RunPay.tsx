@@ -105,9 +105,9 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
             </Note>
           </div>
         )}
-        <StatGrid min={160}>
+        <StatGrid id="hrms-payroll-run-bank-kpis" perRow={4} h={3} min={160}>
           <Stat label="Payments in the file" value={bank.rows.length} />
-          <div data-testid="bank-total"><Stat label="File total" value={inr(fileTotal)} tone="ok" /></div>
+          <div key="File total" data-testid="bank-total"><Stat label="File total" value={inr(fileTotal)} tone="ok" /></div>
           <Stat label="Skipped" value={bank.skipped.length} tone={bank.skipped.length ? 'warn' : undefined} hint={bank.skipped.length ? `${inr(skippedNet)} to pay another way` : 'Everyone is in the file'} />
           <Stat label="Run net pay" value={inr(totals.net)} hint={<Badge tone={reconciles ? 'ok' : 'red'} dot>{reconciles ? 'Reconciles' : 'Does not reconcile'}</Badge>} />
         </StatGrid>
@@ -138,7 +138,7 @@ export default function RunPay({ db, run, go }: { db: HrmsDb; run: PayRun; go: (
         <CardTitle right={<Button variant="primary" style={{ height: 40 }} onClick={() => downloadText(`ecr-${base}.txt`, ecr.text)} disabled={!ecr.rows}>Download ECR (text)</Button>}>EPFO ECR file</CardTitle>
         {isLive && ecrLoading && <div role="status" style={{ fontSize: 13, color: T.dim, marginBottom: 10 }}>Loading the ECR from the server…</div>}
         {isLive && ecrError && <div style={{ marginBottom: 10 }} data-testid="ecr-error"><Note tone="red">The ECR could not be loaded from the server: {ecrError}</Note></div>}
-        <StatGrid min={160}>
+        <StatGrid id="hrms-payroll-run-ecr-kpis" perRow={3} h={3} min={160}>
           <Stat label="Rows in the ECR" value={ecr.rows} />
           <Stat label="Blocked rows" value={ecr.blocked.length} tone={ecr.blocked.length ? 'red' : 'ok'} hint={ecr.blocked.length ? 'Left out of the file' : 'None'} />
           <Stat label="PF establishment" value={<span style={{ fontSize: 17 }}>{pfReg?.number ?? 'Not registered'}</span>} />

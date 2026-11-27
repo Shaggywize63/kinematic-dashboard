@@ -75,7 +75,7 @@ function Body({ db, state }: { db: HrmsDb; state: ControlState }) {
         <Muted style={{ marginTop: 10 }}>The dates, sources and labels on rule items come from the rules tables in this module. Items marked sample advisory were written for this preview, carry placeholder dates and are always indicative. Confirm every item with your advisor.</Muted>
       </Card>
 
-      <StatGrid min={170}>
+      <StatGrid id="hrms-rule-radar-kpis" perRow={4} h={3} min={170}>
         <Stat label="Items on the radar" value={items.length} hint={`${items.filter((i) => i.kind === 'sample').length} are sample advisories`} />
         <Stat label="New, not yet looked at" value={counts.new} tone={counts.new ? 'info' : undefined} />
         <Stat label="Effective in 90 days" value={soon.length} hint="From the preview date" tone={soon.length ? 'warn' : undefined} />

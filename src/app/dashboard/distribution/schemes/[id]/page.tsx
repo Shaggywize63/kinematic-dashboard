@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import TileGrid from '../../../../../components/ui/TileGrid';
 import { useParams, useRouter } from 'next/navigation';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Btn, fmtDate } from '../../../../../components/distribution/Atoms';
@@ -109,18 +110,18 @@ export default function SchemeDetail() {
       />
 
       {/* Plain-language summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22, marginBottom: 22 }}>
-        <Card>
+      <TileGrid id="distribution-scheme-summary" perRow={2} h={5} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22, marginBottom: 22 }}>
+        <Card key="scheme-rule">
           <div style={{ fontSize: 11, marginBottom: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Gift} size={14} />What the offer gives</div>
           <div style={{ marginBottom: 8 }}><Pill color="blue">{SCHEME_TYPE_LABEL[sch.type as SchemeType] || sch.type}</Pill></div>
           <div style={{ fontSize: 15, lineHeight: 1.6, color: 'var(--text)' }}>{schemeToText(sch, skuName)}</div>
         </Card>
-        <Card>
+        <Card key="scheme-targeting">
           <div style={{ fontSize: 11, marginBottom: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={Users} size={14} />Who gets it</div>
           <div style={{ fontSize: 15, lineHeight: 1.6, color: 'var(--text)' }}>{targetingToText(sch, outletName)}</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 10 }}>{sch.stackable ? 'Can combine with other schemes.' : 'Does not combine with other schemes.'}</div>
         </Card>
-      </div>
+      </TileGrid>
 
       <Card style={{ marginBottom: 22 }}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><InlineIcon icon={CalendarRange} size={16} style={{ color: 'var(--dim)' }} />Validity</div>

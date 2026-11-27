@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import TileGrid from '../../../../../components/ui/TileGrid';
 import api from '../../../../../lib/api';
-import { Card, PageHeader, StatCard, Row, Th, Td, Btn } from '../../../../../components/distribution/Atoms';
+import { Card, PageHeader, StatCard, Th, Td, Btn } from '../../../../../components/distribution/Atoms';
 import { ArrowDownToLine, ArrowUpFromLine, PackageCheck } from 'lucide-react';
 
 const dateOnly = (s?: string | null) => {
@@ -56,12 +57,12 @@ export default function GodownReport() {
         }
       />
 
-      <Row style={{ marginBottom: 20 }}>
+      <TileGrid id="distribution-reports-godown-kpis" perRow={4} h={3} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
         <StatCard label="Total Stock Received" icon={ArrowDownToLine} value={(summary.total_received || 0).toLocaleString('en-IN')} />
         <StatCard label="Total Stock Issued" icon={ArrowUpFromLine} value={(summary.total_issued || 0).toLocaleString('en-IN')} />
         <StatCard label="Current Available" icon={PackageCheck} value={(summary.current_available || 0).toLocaleString('en-IN')} accent="var(--green)" />
         <StatCard label="Products Tracked" value={summary.sku_count || 0} />
-      </Row>
+      </TileGrid>
 
       <Card>
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>

@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard, fmtDate } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
@@ -145,12 +146,12 @@ export default function DistributorStockPage() {
       ) : (
         <>
           {/* Totals */}
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
+          <TileGrid id="distribution-stock-kpis" perRow={4} h={3} style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
             <StatCard label="SKUs on hand" value={rows.length} />
             <StatCard label="Total qty" icon={Hash} value={totalQty.toLocaleString('en-IN')} />
             <StatCard label="Available" icon={PackageCheck} value={totalAvail.toLocaleString('en-IN')} accent="var(--green)" />
             <StatCard label="Out of stock" icon={AlertTriangle} value={outCount} accent={outCount ? 'var(--primary)' : undefined} />
-          </div>
+          </TileGrid>
 
           {/* On-hand table */}
           <Card style={{ marginBottom: 22 }}>

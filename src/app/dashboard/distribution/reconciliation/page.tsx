@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, StatCard } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
@@ -69,12 +70,12 @@ export default function ReconciliationPage() {
       <PageHeader title="Primary ↔ Secondary Reconciliation" subtitle="Sell-in (company → distributor) vs sell-out (distributor → retailer) with on-hand, per distributor and SKU. Flags overstock and drawdown." />
 
       {/* Summary */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
+      <TileGrid id="distribution-reconciliation-kpis" perRow={4} h={3} style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 22 }}>
         <StatCard label="Primary (sell-in)" icon={ArrowDownToLine} value={Number(summary.primary || 0).toLocaleString('en-IN')} />
         <StatCard label="Secondary (sell-out)" icon={ArrowUpFromLine} value={Number(summary.secondary || 0).toLocaleString('en-IN')} accent="var(--green)" />
         <StatCard label="Variance" icon={ArrowLeftRight} value={Number(summary.variance || 0).toLocaleString('en-IN')} accent={Number(summary.variance) > 0 ? 'var(--primary)' : 'var(--accent)'} hint={Number(summary.variance) > 0 ? 'building at distributor' : 'drawing down'} />
         <StatCard label="Sell-through" icon={Gauge} value={summary.sell_through != null ? `${summary.sell_through}×` : '—'} />
-      </div>
+      </TileGrid>
 
       {/* Filters + view toggle */}
       <Card style={{ marginBottom: 22 }}>

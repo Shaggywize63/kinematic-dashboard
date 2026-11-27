@@ -71,7 +71,7 @@ export default function CostTab({ db, st }: { db: HrmsDb; st: RewardsState }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <StatGrid min={190}>
+      <StatGrid id="hrms-benefits-cost-kpis" perRow={3} h={3} min={190}>
         <Stat label="Company cost a month" value={inr(total.employer)} hint={`${inr(total.employer * 12)} a year`} />
         <Stat label="Off employees' pay a month" value={inr(total.employee)} hint="Their share and salary reductions" />
         <Stat label="Deduction rows for payroll" value={preview.length} hint="People with a deduction" />

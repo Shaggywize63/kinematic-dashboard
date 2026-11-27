@@ -9,6 +9,7 @@ import { InlineIcon } from '../../../../components/ui/PageIcon';
 import { NavIcon } from '../../../../components/ui/icons';
 import { iconNameForPath } from '../../../../lib/routeIcons';
 import { metricIconFor } from '../../../../lib/labelIcons';
+import TileGrid from '../../../../components/ui/TileGrid';
 
 /**
  * Last-Mile overview — the brand owner's single page for "where did my
@@ -116,18 +117,18 @@ export default function LastMileOverviewPage() {
       />
 
       {/* KPI strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 18 }}>
+      <TileGrid id="distribution-last-mile-kpis" perRow={3} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 18 }}>
         <Kpi label="Units sold (tertiary)" value={loading ? '—' : String(stats.totalUnits)} />
         <Kpi label="Value reported" value={loading ? '—' : formatINR(stats.totalValue)} />
         <Kpi label="Consumers reached" value={loading ? '—' : String(stats.consumersReached)} accent="#10b981" />
         <Kpi label="Active retailers" value={loading ? '—' : String(stats.retailersActive)} accent="#3b82f6" />
         <Kpi label="Consumer registrations" value={loading ? '—' : String(stats.registrations)} accent="#a855f7" />
         <Kpi label="Leads auto-created" value={loading ? '—' : String(stats.leadsCreated)} accent="#ec4899" />
-      </div>
+      </TileGrid>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14, marginBottom: 18 }}>
+      <TileGrid id="distribution-last-mile-mixes" perRow={3} h={6} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14, marginBottom: 18 }}>
         {/* Capture-channel mix — the unorganized sector breakdown */}
-        <Card>
+        <Card key="capture-channel-mix">
           <SectionLabel icon={Camera}>Capture channel mix</SectionLabel>
           {loading ? (
             <Empty>Loading…</Empty>
@@ -139,7 +140,7 @@ export default function LastMileOverviewPage() {
         </Card>
 
         {/* Registration channel mix */}
-        <Card>
+        <Card key="registration-channel-mix">
           <SectionLabel icon={UserPlus}>Registration channel mix</SectionLabel>
           {loading ? (
             <Empty>Loading…</Empty>
@@ -151,7 +152,7 @@ export default function LastMileOverviewPage() {
         </Card>
 
         {/* Top retailers by volume */}
-        <Card>
+        <Card key="top-retailers">
           <SectionLabel icon={Store}>Top retailers (by units)</SectionLabel>
           {loading ? (
             <Empty>Loading…</Empty>
@@ -172,7 +173,7 @@ export default function LastMileOverviewPage() {
             </table>
           )}
         </Card>
-      </div>
+      </TileGrid>
 
       <Card>
         <SectionLabel icon={ZoomIn}>Drill-downs</SectionLabel>

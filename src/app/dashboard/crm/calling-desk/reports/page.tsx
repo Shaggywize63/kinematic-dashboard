@@ -11,6 +11,7 @@ import { istToday, istDate } from '../../../../../lib/istTime';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { CrmToolbarRight } from '../../../../../components/crm/layout/CrmPageToolbar';
 import { TOOLBAR_BTN_MIN_WIDTH } from '../../../../../components/ui';
+import TileGrid from '../../../../../components/ui/TileGrid';
 
 /**
  * Calling Desk — Reports. Daily / weekly / monthly calling performance
@@ -65,7 +66,7 @@ export default function CallingDeskReportsPage() {
         </select>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+      <TileGrid id="crm-calling-desk-reports-kpis" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
         {[
           { label: 'Assigned', value: t?.assigned ?? 0 },
           { label: 'Connected', value: t?.connected ?? 0, color: '#2563eb' },
@@ -82,7 +83,7 @@ export default function CallingDeskReportsPage() {
           </div>
           );
         })}
-      </div>
+      </TileGrid>
 
       <Section title={`${granularity === 'day' ? 'Daily' : granularity === 'week' ? 'Weekly' : 'Monthly'} trend`} icon={TrendingUp}>
         <Table head={['Period', 'Assigned', 'Connected', 'Order Taken', 'Pending', 'No Order', 'Order Value']}>

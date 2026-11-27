@@ -36,10 +36,12 @@ const classicGrid: CSSProperties = { display: 'grid', gridTemplateColumns: 'repe
  * (¼ ⅓ ½ Full, shorter / taller) so it also works from a keyboard or a phone. Layouts are saved per user, per
  * board id, in this browser; tiles added to the page later are appended, and a bad save falls back to the default.
  */
-export default function TileBoard({ id, tiles, classic }: {
+export default function TileBoard({ id, tiles, classic, outerStyle }: {
   /** Stable id of this board (per page), e.g. "home-kpis". Layouts are saved under it. */
   id: string;
   tiles: TileDef[];
+  /** Layout styles for the board's own box (margins, flex / grid placement) — what the grid it replaces carried as a child of the page. */
+  outerStyle?: CSSProperties;
   /** The page's original markup for these tiles. Keeps the classic design byte-for-byte what it was. */
   classic?: (tiles: TileDef[]) => ReactNode;
 }) {
@@ -47,10 +49,10 @@ export default function TileBoard({ id, tiles, classic }: {
   if (!enabled) {
     return <>{classic ? classic(tiles) : <div style={classicGrid}>{tiles.map((t) => <Fragment key={t.key}>{t.node}</Fragment>)}</div>}</>;
   }
-  return <LiveBoard id={id} tiles={tiles} />;
+  return <LiveBoard id={id} tiles={tiles} outerStyle={outerStyle} />;
 }
 
-function LiveBoard({ id, tiles }: { id: string; tiles: TileDef[] }) {
+function LiveBoard({ id, tiles, outerStyle }: { id: string; tiles: TileDef[]; outerStyle?: CSSProperties }) {
   // The page builds `tiles` inline, so its identity changes every render; only the tile set + sizes matter here.
   const sig = tiles.map((t) => `${t.key}:${t.w}x${t.h}:${t.minW ?? ''}:${t.minH ?? ''}`).join('|');
   const specs = useMemo<TileSpec[]>(() => tiles.map(({ key, w, h, minW, minH }) => ({ key, w, h, minW, minH })), [sig]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -95,7 +97,7 @@ function LiveBoard({ id, tiles }: { id: string; tiles: TileDef[] }) {
   if (tiles.length === 0) return null;
 
   return (
-    <div className={`km-tileboard${editing ? ' is-editing' : ''}`} data-testid={`tileboard-${id}`} data-editing={editing ? 'true' : undefined}>
+    <div className={`km-tileboard${editing ? ' is-editing' : ''}`} data-testid={`tileboard-${id}`} data-editing={editing ? 'true' : undefined} style={outerStyle}>
       <ResponsiveGrid
         layouts={layouts}
         breakpoints={BREAKPOINTS}

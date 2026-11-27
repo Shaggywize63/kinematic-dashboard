@@ -72,7 +72,7 @@ export default function ReviewTab({ db, ev, state, candidates, onOpen }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <StatGrid min={160}>
+      <StatGrid id="hrms-field-review-kpis" perRow={4} h={3} min={160}>
         <Stat label="Waiting" value={<span data-testid="stat-waiting">{stats.waiting}</span>} tone={stats.waiting ? 'warn' : 'ok'} hint="Missed punch, no decision yet" />
         <Stat label="Can be auto-approved" value={<span data-testid="stat-auto">{stats.autoApprovable}</span>} tone="info" hint="Meet the visit-proof rule" />
         <Stat label="Approved" value={<span data-testid="stat-approved">{stats.approved}</span>} tone="ok" hint={`Days from ${fmtDate(ev.from).replace(/ \d{4}$/, '')} to ${fmtDate(ev.to).replace(/ \d{4}$/, '')}`} />

@@ -7,21 +7,22 @@ import { SOURCE_LABEL, STAGE_LABEL, type HiringState } from '../../../lib/hrms/h
 import { hiringInsights } from '../../../lib/hrms/hiring/engines';
 import { ColumnChart, HBars } from './charts';
 import { Lead, subtle } from './shared';
+import TileGrid from '../../ui/TileGrid';
 
 export default function InsightsTab({ st }: { st: HiringState }) {
   const x = hiringInsights(st.candidates, st.openings, PREVIEW_TODAY);
   const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))', gap: 14 } as const;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} data-testid="insights">
-      <StatGrid>
-        <div data-testid="stat-tth"><Stat label="Time to hire" value={x.timeToHire.average == null ? '—' : `${x.timeToHire.average} days`} hint={x.timeToHire.count ? `Average of ${x.timeToHire.count} hire${x.timeToHire.count === 1 ? '' : 's'}, application to accepted offer. Median ${x.timeToHire.median}.` : 'No hires yet.'} /></div>
-        <div data-testid="stat-accept"><Stat label="Offer accept rate" value={x.offers.acceptRate == null ? '—' : `${x.offers.acceptRate}%`} hint={`${x.offers.accepted} accepted, ${x.offers.declined} declined, ${x.offers.waiting} waiting`} /></div>
-        <div data-testid="stat-funnel"><Stat label="Applied to hired" value={`${x.funnel[4]!.pctOfApplied}%`} hint={`${x.funnel[4]!.reached} of ${x.funnel[0]!.reached} candidates`} /></div>
-        <div data-testid="stat-open"><Stat label="Seats still open" value={x.age.reduce((s, a) => s + a.seats, 0)} hint={`On ${x.age.reduce((s, a) => s + a.openings, 0)} live openings`} /></div>
+      <StatGrid id="hrms-recruitment-insights-kpis" perRow={4} h={3}>
+        <div key="Time to hire" data-testid="stat-tth"><Stat label="Time to hire" value={x.timeToHire.average == null ? '—' : `${x.timeToHire.average} days`} hint={x.timeToHire.count ? `Average of ${x.timeToHire.count} hire${x.timeToHire.count === 1 ? '' : 's'}, application to accepted offer. Median ${x.timeToHire.median}.` : 'No hires yet.'} /></div>
+        <div key="Offer accept rate" data-testid="stat-accept"><Stat label="Offer accept rate" value={x.offers.acceptRate == null ? '—' : `${x.offers.acceptRate}%`} hint={`${x.offers.accepted} accepted, ${x.offers.declined} declined, ${x.offers.waiting} waiting`} /></div>
+        <div key="Applied to hired" data-testid="stat-funnel"><Stat label="Applied to hired" value={`${x.funnel[4]!.pctOfApplied}%`} hint={`${x.funnel[4]!.reached} of ${x.funnel[0]!.reached} candidates`} /></div>
+        <div key="Seats still open" data-testid="stat-open"><Stat label="Seats still open" value={x.age.reduce((s, a) => s + a.seats, 0)} hint={`On ${x.age.reduce((s, a) => s + a.openings, 0)} live openings`} /></div>
       </StatGrid>
 
-      <div style={grid}>
-        <Card>
+      <TileGrid id="hrms-recruitment-insights-charts" perRow={2} h={8} style={grid}>
+        <Card key="Funnel by stage">
           <CardTitle>Funnel by stage</CardTitle>
           <Lead>How many candidates reached each stage, and what share of the stage before moved on. Rejected people count at the furthest stage they reached.</Lead>
           <HBars testId="funnel" rows={x.funnel.map((f) => ({
@@ -29,24 +30,24 @@ export default function InsightsTab({ st }: { st: HiringState }) {
             sub: f.stepConversion == null ? 'Everyone who applied' : `${f.stepConversion}% of ${STAGE_LABEL[x.funnel[x.funnel.findIndex((y) => y.stage === f.stage) - 1]!.stage]}`,
           }))} />
         </Card>
-        <Card>
+        <Card key="Source effectiveness">
           <CardTitle>Source effectiveness</CardTitle>
           <Lead>Share of applicants from each source who were hired. Small numbers: read the counts, not just the percentage.</Lead>
           <HBars testId="sources" rows={x.sources.map((s) => ({ label: SOURCE_LABEL[s.source], value: s.hireRate ?? 0, text: `${s.hireRate ?? 0}%`, sub: `${s.hired} hired of ${s.applicants} · ${s.interviewed} interviewed` }))} max={Math.max(20, ...x.sources.map((s) => s.hireRate ?? 0))} />
         </Card>
-        <Card>
+        <Card key="Open positions by age">
           <CardTitle>Open positions by age</CardTitle>
           <Lead>Unfilled seats on live openings, grouped by days since they went live.</Lead>
           <ColumnChart testId="age-chart" ariaLabel="Open seats by age of the opening" labels={x.age.map((a) => a.label.replace(' days', ''))} stacks={[{ id: 'seats', label: 'seats open', color: 'var(--hv-1)', values: x.age.map((a) => a.seats) }]} />
           <div style={{ ...subtle, marginTop: 6 }}>{x.age.map((a) => `${a.label}: ${a.seats} seat${a.seats === 1 ? '' : 's'}`).join(' · ')}</div>
         </Card>
-        <Card>
+        <Card key="Why candidates were rejected">
           <CardTitle>Why candidates were rejected</CardTitle>
           <Lead>Reason codes chosen when someone is rejected. Codes cover the role and the process only.</Lead>
           {x.rejections.length === 0 ? <div style={subtle}>No rejections yet.</div>
             : <HBars testId="rejections" rows={x.rejections.map((r) => ({ label: r.label, value: r.count, text: r.count }))} color="var(--hv-2)" />}
         </Card>
-      </div>
+      </TileGrid>
       <Card>
         <CardTitle>How these are worked out</CardTitle>
         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: T.dim, lineHeight: 1.7 }}>

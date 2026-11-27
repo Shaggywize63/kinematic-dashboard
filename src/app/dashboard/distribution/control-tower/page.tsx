@@ -6,6 +6,7 @@
  * short demand forecast. All from GET /api/v1/distribution/control-tower.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import Link from 'next/link';
 import api from '../../../../lib/api';
 import { palette as C, Card, Row, StatCard, PageHeader, Pill, Btn, inr } from '../../../../components/distribution/Atoms';
@@ -130,13 +131,13 @@ export default function ControlTowerPage() {
       </div>
 
       {/* KPIs */}
-      <Row style={{ marginBottom: 18 }}>
+      <TileGrid id="distribution-control-tower-kpis" perRow={5} h={3} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
         <StatCard label="GMV · last 30 days" value={inr(tower?.kpis.gmv_30d ?? 0)} hint={`${inr(tower?.kpis.gmv_today ?? 0)} today`} />
         <StatCard label="Outlet coverage" value={`${tower?.kpis.coverage_pct ?? 0}%`} hint={`${tower?.spine.retailer.covered ?? 0} of ${tower?.spine.retailer.count ?? 0} ordered (30d)`} accent={(tower?.kpis.coverage_pct ?? 0) < 70 ? '#F59E0B' : undefined} />
         <StatCard label="Orders · 30 days" value={String(tower?.kpis.orders_30d ?? 0)} />
         <StatCard label="Outstanding" value={inr(tower?.kpis.outstanding ?? 0)} accent={(tower?.kpis.outstanding ?? 0) > 0 ? '#F59E0B' : undefined} />
         <StatCard label="Consumers reached" value={String(tower?.spine.consumer.count ?? 0)} hint={`+${tower?.spine.consumer.new_this_week ?? 0} this week`} accent={C.green} />
-      </Row>
+      </TileGrid>
 
       {/* Route-to-market spine */}
       <Card style={{ marginBottom: 18 }}>
@@ -163,8 +164,8 @@ export default function ControlTowerPage() {
       </Card>
 
       {/* Signals + Forecast */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,360px)', gap: 16 }}>
-        <Card>
+      <TileGrid id="distribution-control-tower-panels" perRow={2} h={10} tile={{ 'ai-signals': { w: 14 }, 'demand-forecast': { w: 6 } }} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,360px)', gap: 16 }}>
+        <Card key="ai-signals">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <InlineIcon icon={Radar} size={16} style={{ color: C.dim }} />
             <div style={{ fontSize: 15, fontWeight: 800 }}>AI signals</div>
@@ -187,7 +188,7 @@ export default function ControlTowerPage() {
           ))}
         </Card>
 
-        <Card>
+        <Card key="demand-forecast">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <InlineIcon icon={LineChart} size={16} style={{ color: C.dim }} />
             <div style={{ fontSize: 15, fontWeight: 800 }}>Demand forecast</div>
@@ -205,7 +206,7 @@ export default function ControlTowerPage() {
             </div>
           ))}
         </Card>
-      </div>
+      </TileGrid>
 
       {tower?.generated_at && <div style={{ fontSize: 11, color: C.dim, marginTop: 14 }}>Updated {new Date(tower.generated_at).toLocaleString('en-IN')}</div>}
     </div>

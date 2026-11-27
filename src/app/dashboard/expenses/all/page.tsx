@@ -6,6 +6,7 @@ import { AlertTriangle, CalendarDays, Download, MapPin, Receipt, ScrollText, Tag
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { Badge, Button, Card, EmptyState, Input, Select, T, useIsCompact } from '../../../../components/ui';
 import { InlineIcon } from '../../../../components/ui/PageIcon';
+import TileGrid from '../../../../components/ui/TileGrid';
 import { Col, DataTable, Pager, SearchBox, Toolbar, useDebounced } from '../../../../components/finance/ui';
 import { ClaimStatusBadge, ExpensesShell, IconStat, STATUS_ICON, errText, fmtDate, isPartial, money, payable, saveBlob } from '../../../../components/expenses/kit';
 import { RiskBadge } from '../../../../components/expenses/ForensicHighlights';
@@ -189,28 +190,28 @@ export default function AllClaimsPage() {
           )}
 
           {summary && summary.totals.claims > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            <TileGrid id="expenses-all-breakdowns" perRow={4} h={7} style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {policiesReady && !oneCategory && (
-                <Card padding={20}>
+                <Card key="By category" padding={20}>
                   <SectionTitle icon={Tags}>By category</SectionTitle>
                   <BarList rows={summary.by_category.map((c) => ({ label: categoryLabel(rules, c.category, summary.by_category.map((x) => x.category)), value: c.amount }))} format={(n) => money(n)} />
                 </Card>
               )}
-              <Card padding={20}>
+              <Card key="By month" padding={20}>
                 <SectionTitle icon={CalendarDays}>By month</SectionTitle>
                 <BarList rows={summary.by_month.slice(-6).map((m) => ({ label: m.month, value: m.amount, sub: `${m.claims} claims` }))} format={(n) => money(n)} />
               </Card>
-              <Card padding={20}>
+              <Card key="Top claimants" padding={20}>
                 <SectionTitle icon={Users}>Top claimants</SectionTitle>
                 <BarList rows={summary.top_people.slice(0, 6).map((p) => ({ label: p.name || 'Unknown', value: p.amount, sub: `${p.claims} claims` }))} format={(n) => money(n)} />
               </Card>
               {summary.by_policy.length > 1 && (
-                <Card padding={20}>
+                <Card key="By policy" padding={20}>
                   <SectionTitle icon={ScrollText}>By policy</SectionTitle>
                   <BarList rows={summary.by_policy.map((p) => ({ label: p.policy, value: p.amount, sub: `${p.claims} claims` }))} format={(n) => money(n)} />
                 </Card>
               )}
-            </div>
+            </TileGrid>
           )}
 
           <Card padding={0} style={{ overflow: 'hidden' }}>

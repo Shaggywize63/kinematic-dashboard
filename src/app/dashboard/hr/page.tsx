@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
 import { safeHref } from '../../../lib/safeUrl';
@@ -1688,14 +1689,14 @@ export default function HRPage() {
         </div>
 
         {/* KPI row */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+        <TileGrid id="hr-kpis" perRow={4} h={3} style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
           {[
             { label:'Total Users',      value:users.length,       color:C.blue,  sub:'All roles' },
             { label:'Field Executives', value:executives.length,  color:C.blue,  sub:'In field ops' },
             { label:'Active',           value:activeUsers.length, color:C.green, sub:'is_active = true' },
             { label:'Admins',           value:admins.length,      color:C.red,   sub:'System access' },
-          ].map((k,i)=><StatCard key={i} {...k} loading={loading}/>)}
-        </div>
+          ].map((k,i)=><StatCard key={k.label} {...k} loading={loading}/>)}
+        </TileGrid>
 
         {/* Tabs */}
         <div style={{ display:'flex', borderBottom:`1px solid ${C.border}` }}>

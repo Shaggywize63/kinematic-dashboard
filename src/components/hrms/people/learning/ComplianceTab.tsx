@@ -11,6 +11,7 @@ import { EXPIRY_WINDOW_DAYS, type ExpiringItem, type OverdueItem } from '../../.
 import type { LearningState } from '../../../../lib/hrms/people/types';
 import { ActivityList, CoverageBars, Muted, SimulationBadge, Stack } from '../shared';
 import { reminderLoggedText, type LearningView } from './view';
+import TileGrid from '../../../ui/TileGrid';
 
 export default function ComplianceTab({ db, st, view }: { db: HrmsDb; st: LearningState; view: LearningView }) {
   const lastReminder = new Map<string, string>();
@@ -54,23 +55,23 @@ export default function ComplianceTab({ db, st, view }: { db: HrmsDb; st: Learni
 
   return (
     <Stack gap={18}>
-      <StatGrid>
+      <StatGrid id="hrms-learning-compliance-kpis" perRow={4} h={3}>
         <Stat label="Mandatory coverage" value={`${view.overall.pct}%`} tone={view.overall.pct >= 90 ? 'ok' : view.overall.pct >= 70 ? 'warn' : 'red'} hint={`${view.overall.covered} of ${view.overall.required} person-and-course pairs are done and valid`} />
         <Stat label="Overdue" value={view.overdue.length} tone={view.overdue.length ? 'red' : 'ok'} hint="Mandatory courses past their due date" />
         <Stat label={`Certificates lapsing in ${EXPIRY_WINDOW_DAYS} days`} value={view.expiring.length} tone={view.expiring.length ? 'warn' : 'ok'} hint="Includes any that have already lapsed" />
         <Stat label="Missing assignments" value={view.missing.length} tone={view.missing.length ? 'warn' : 'ok'} hint="Covered by a rule, not yet assigned" />
       </StatGrid>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 14 }}>
-        <Card>
+      <TileGrid id="hrms-learning-compliance-charts" perRow={2} h={8} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 14 }}>
+        <Card key="Coverage by department">
           <CardTitle>Coverage by department</CardTitle>
           {wide ? <CoverageBars rows={view.byDept} label="Mandatory training coverage by department" /> : <Muted>No mandatory courses apply yet.</Muted>}
         </Card>
-        <Card>
+        <Card key="Coverage by location">
           <CardTitle>Coverage by location</CardTitle>
           {view.byLoc.length ? <CoverageBars rows={view.byLoc} label="Mandatory training coverage by location" /> : <Muted>No mandatory courses apply yet.</Muted>}
         </Card>
-      </div>
+      </TileGrid>
       <Muted>Covered means the latest assignment is completed and, for courses with a refresher, the certificate has not lapsed. Green is 90% or more, amber 70% to 89%, red below 70%.</Muted>
 
       <Card>

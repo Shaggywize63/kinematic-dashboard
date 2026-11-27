@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import TileGrid from '../../../../components/ui/TileGrid';
 import api from '../../../../lib/api';
 import { Card, CardTitle, PageHeader, Pill, Th, Td, Btn, inr, fmtDate } from '../../../../components/distribution/Atoms';
 import { useClient } from '../../../../context/ClientContext';
@@ -100,7 +101,7 @@ export default function IncentivesPage() {
   };
 
   const stat = (label: string, value: React.ReactNode, hint?: string) => (
-    <Card style={{ flex: '1 1 170px', minWidth: 170 }} padding={16}>
+    <Card key={label} style={{ flex: '1 1 170px', minWidth: 170 }} padding={16}>
       <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', marginTop: 6 }}>{value}</div>
       {hint && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{hint}</div>}
@@ -189,13 +190,13 @@ export default function IncentivesPage() {
       </Card>
 
       {/* ── Totals ───────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+      <TileGrid id="distribution-incentives-totals" perRow={5} h={3} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         {stat('Payable now', inr(dash?.payable_amount ?? 0), `${dash?.order_count ?? 0} orders`)}
         {stat('Already paid', inr(dash?.paid_amount ?? 0))}
         {stat('Reversed', inr(dash?.reversed_amount ?? 0), `${dash?.reversed_count ?? 0} cancelled`)}
         {stat('Sales value', inr(dash?.sales_value ?? 0), 'the base it is calculated on')}
         {stat('Reps earning', String(dash?.participating_reps ?? 0))}
-      </div>
+      </TileGrid>
 
       {/* ── Leaderboard ──────────────────────────────────────────────────── */}
       <Card style={{ marginBottom: 16 }} padding={0}>

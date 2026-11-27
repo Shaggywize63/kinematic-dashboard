@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import Link from 'next/link';
 import { api } from '../../../lib/api';
 import { AlertTriangle, Building2, Check, CheckCircle2, Eye, Gauge, History, MapPin, Plus, SlidersHorizontal, Sparkles, Users, type LucideIcon } from 'lucide-react';
@@ -395,7 +396,7 @@ export default function RouteAutomationPage() {
           {/* PREVIEW */}
           {preview && (
             <div style={{ marginTop: 16 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+              <TileGrid id="route-automation-preview-kpis" perRow={5} h={2} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
                 {([
                   { l: 'Field executives', v: s!.fe_count, icon: Users },
                   { l: 'Outlets due', v: s!.due_pool, icon: Building2 },
@@ -408,7 +409,7 @@ export default function RouteAutomationPage() {
                     <div style={{ fontSize: 11.5, color: C.tert, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}><InlineIcon icon={t.icon} size={14} />{t.l}</div>
                   </div>
                 ))}
-              </div>
+              </TileGrid>
 
               {s!.skipped_no_geo + s!.skipped_already_planned > 0 && (
                 <div style={{ fontSize: 12, color: C.tert, marginTop: 8 }}>

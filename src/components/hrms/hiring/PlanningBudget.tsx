@@ -43,11 +43,11 @@ export default function PlanningBudget({ db, st }: { db: HrmsDb; st: HiringState
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} data-testid="budget">
-      <StatGrid>
-        <div data-testid="stat-planned"><Stat label="Planned for the year" value={inrShort(all.plannedFy)} hint="Planned headcount x planned average CTC, each month" /></div>
-        <div data-testid="stat-actual"><Stat label={`Actual, Apr to ${short(lastCur)}`} value={inrShort(all.actualToDate)} hint={`${all.monthsElapsed} months. Run rate today ${inrShort(all.runRate)} a year`} /></div>
-        <div data-testid="stat-open"><Stat label="Open positions" value={inrShort(all.openCostAnnual)} hint={`${all.openSeats} seats at the middle of the band, a year`} tone="info" /></div>
-        <div data-testid="stat-projected"><Stat label="Projected year end" value={inrShort(all.projectedWithHire)} tone={variance > 0 ? 'warn' : 'ok'} hint={`${variance > 0 ? 'Above' : 'Below'} plan by ${inrShort(Math.abs(variance))}`} /></div>
+      <StatGrid id="hrms-workforce-planning-budget-kpis" perRow={4} h={4}>
+        <div key="Planned for the year" data-testid="stat-planned"><Stat label="Planned for the year" value={inrShort(all.plannedFy)} hint="Planned headcount x planned average CTC, each month" /></div>
+        <div key="Actual to date" data-testid="stat-actual"><Stat label={`Actual, Apr to ${short(lastCur)}`} value={inrShort(all.actualToDate)} hint={`${all.monthsElapsed} months. Run rate today ${inrShort(all.runRate)} a year`} /></div>
+        <div key="Open positions" data-testid="stat-open"><Stat label="Open positions" value={inrShort(all.openCostAnnual)} hint={`${all.openSeats} seats at the middle of the band, a year`} tone="info" /></div>
+        <div key="Projected year end" data-testid="stat-projected"><Stat label="Projected year end" value={inrShort(all.projectedWithHire)} tone={variance > 0 ? 'warn' : 'ok'} hint={`${variance > 0 ? 'Above' : 'Below'} plan by ${inrShort(Math.abs(variance))}`} /></div>
       </StatGrid>
       {all.missingCtc > 0 && <Note tone="warn">{all.missingCtc} {all.missingCtc === 1 ? 'person has' : 'people have'} no CTC on file and {all.missingCtc === 1 ? 'is' : 'are'} counted as zero in the actual figures.</Note>}
 

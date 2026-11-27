@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { TeamPerformanceRow } from '../../../../../types/crm';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
+import TileGrid from '../../../../../components/ui/TileGrid';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { fmtChange, changeTone } from '../../../../../lib/crm/plusFormat';
@@ -247,7 +248,7 @@ function KpiStrip({ total, loading }: { total: PerfRow | null; loading: boolean 
     { label: 'Won Value vs Prev',  value: total ? fmtChange(total.won_value, total.won_value_prev_period) : '—', accent: '#22C55E' },
   ], [total]);
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+    <TileGrid id="crm-reports-team-performance-kpis" perRow={6} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
       {items.map((k) => (
         <div key={k.label} data-testid="tp-kpi" style={{
           background: 'var(--s2)', border: '1px solid var(--border)', borderLeft: `3px solid ${k.accent}`,
@@ -259,7 +260,7 @@ function KpiStrip({ total, loading }: { total: PerfRow | null; loading: boolean 
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginTop: 4 }}>{loading ? '—' : k.value}</div>
         </div>
       ))}
-    </div>
+    </TileGrid>
   );
 }
 

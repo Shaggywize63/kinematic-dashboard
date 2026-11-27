@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import { ffmAnalytics, TlsdPoint, UniqueOutletsRow } from '../../../lib/ffmAnalyticsConfig';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
 import { BarChart3, Building2, CalendarDays, ListOrdered, Package, ShoppingCart, type LucideIcon } from 'lucide-react';
@@ -97,12 +98,12 @@ export default function BeatProductivityPage() {
         </div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+          <TileGrid id="beat-productivity-kpis" perRow={4} h={3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
             <Stat label="Lines (30d)" icon={ListOrdered} value={totalLines.toLocaleString('en-IN')} />
             <Stat label="Orders (30d)" icon={ShoppingCart} value={totalOrders.toLocaleString('en-IN')} accent="#3E9EFF" />
             <Stat label="Avg drop size" icon={Package} value={`${avgDrop}`} accent="#10B981" />
             <Stat label="Avg lines / day" icon={CalendarDays} value={`${avgLinesDay}`} />
-          </div>
+          </TileGrid>
 
           {/* TLSD daily bars — inline, theme-aware, no chart lib. */}
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 }}>

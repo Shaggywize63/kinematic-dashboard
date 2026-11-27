@@ -99,12 +99,12 @@ export default function TravelView({ db }: { db: HrmsDb }) {
         <PersonSelect value={empId} onChange={setEmpId} ids={repIds} namer={namer} width={230} />
       </div>
 
-      <StatGrid min={170}>
-        <div data-testid="trv-stat-days"><Stat label="Days with a trail" value={eff.days.length} hint={`${namer.name(empId)}, ${FIELD_MONTH_LABEL[month]}`} /></div>
-        <div data-testid="trv-stat-gps"><Stat label="GPS distance" value={`${num1(eff.gpsKm)} km`} hint={`${inr(eff.gpsAmount)} on GPS alone`} /></div>
-        <div data-testid="trv-stat-pay"><Stat label="Payable distance" value={`${num1(eff.effectiveKm)} km`} tone={eff.extraKm > 0 ? 'ok' : undefined} hint={eff.extraKm > 0 ? `Includes ${num1(eff.extraKm)} km HR decided` : 'No decided disputes'} /></div>
-        <div data-testid="trv-stat-amount"><Stat label="Travel allowance" value={inr(eff.amount)} hint={eff.extraAmount ? `Includes ${inr(eff.extraAmount)} from disputes` : 'From the GPS trail'} /></div>
-        <div data-testid="trv-stat-rate"><Stat label="Vehicle and rate" value={eff.vehicle === 'public' ? 'No rate' : `₹${eff.rate} per km`} hint={`${vehicleLabel}. ${ev.travel.source}`} /></div>
+      <StatGrid id="hrms-travel-trail-kpis" perRow={5} h={4} min={170}>
+        <div key="Days with a trail" data-testid="trv-stat-days"><Stat label="Days with a trail" value={eff.days.length} hint={`${namer.name(empId)}, ${FIELD_MONTH_LABEL[month]}`} /></div>
+        <div key="GPS distance" data-testid="trv-stat-gps"><Stat label="GPS distance" value={`${num1(eff.gpsKm)} km`} hint={`${inr(eff.gpsAmount)} on GPS alone`} /></div>
+        <div key="Payable distance" data-testid="trv-stat-pay"><Stat label="Payable distance" value={`${num1(eff.effectiveKm)} km`} tone={eff.extraKm > 0 ? 'ok' : undefined} hint={eff.extraKm > 0 ? `Includes ${num1(eff.extraKm)} km HR decided` : 'No decided disputes'} /></div>
+        <div key="Travel allowance" data-testid="trv-stat-amount"><Stat label="Travel allowance" value={inr(eff.amount)} hint={eff.extraAmount ? `Includes ${inr(eff.extraAmount)} from disputes` : 'From the GPS trail'} /></div>
+        <div key="Vehicle and rate" data-testid="trv-stat-rate"><Stat label="Vehicle and rate" value={eff.vehicle === 'public' ? 'No rate' : `₹${eff.rate} per km`} hint={`${vehicleLabel}. ${ev.travel.source}`} /></div>
       </StatGrid>
 
       <div data-testid="statement">
@@ -158,7 +158,7 @@ export default function TravelView({ db }: { db: HrmsDb }) {
             What will go to payroll for {FIELD_MONTH_LABEL[month]}
           </CardTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <StatGrid min={170}>
+            <StatGrid id="hrms-travel-payroll-kpis" perRow={4} h={4} min={170}>
               <Stat label="Travel allowance" value={<span data-testid="sum-travel">{inr(preview.travel)}</span>} hint={decidedExtra ? `Includes ${inr(decidedExtra)} from decided disputes` : 'From the GPS trail'} />
               <Stat label="Incentives" value={<span data-testid="sum-incentives">{inr(preview.incentives)}</span>} hint={preview.heldPeople ? `${preview.heldPeople} held by HR` : 'Net of clawbacks'} />
               <Stat label="People" value={preview.people} hint={`${preview.rows.length} in the field team`} />

@@ -76,7 +76,7 @@ export default function RunInputs({ db, run }: { db: HrmsDb; run: PayRun }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       {locked && <Note tone="warn">This run is {run.status}, so its inputs are locked. {run.status === 'frozen' ? 'Unfreeze it from the Freeze step if something has to change.' : 'A paid run is closed.'}</Note>}
-      <StatGrid>
+      <StatGrid id="hrms-payroll-run-inputs-kpis" perRow={4} h={3}>
         <Stat label="Employees in this run" value={emps.length} hint={`${fmtMonth(run.month)}, ${db.entities.find((e) => e.id === run.entityId)?.name ?? ''}`} />
         <Stat label="Loss of pay days" value={totalLop} tone={totalLop ? 'warn' : undefined} hint="Across the employees listed" />
         <Stat label="Overtime hours" value={totalOt} hint="Paid at the overtime rule's multiple" />

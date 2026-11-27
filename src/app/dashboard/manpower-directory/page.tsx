@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import TileGrid from '../../../components/ui/TileGrid';
 import { Activity, Download, FileUp, KeyRound, Landmark, Mail, Map as MapIcon, Pencil, Phone, Plus, Power, RefreshCw, Search, Settings2, Trash2, Upload, User, UserCog, Users, X, type LucideIcon } from 'lucide-react';
 import { IconTile, InlineIcon, type IconTone } from '../../../components/ui/PageIcon';
 import api from '../../../lib/api';
@@ -435,7 +436,7 @@ export default function ManpowerDirectoryPage() {
         {error && <ErrorNote>{error}</ErrorNote>}
 
         {/* Stats */}
-        <div style={{display:'grid',gridTemplateColumns:narrow?'repeat(2, minmax(0,1fr))':'repeat(4, minmax(0,1fr))',gap:14}}>
+        <TileGrid id="manpower-directory-kpis" perRow={4} h={3} style={{display:'grid',gridTemplateColumns:narrow?'repeat(2, minmax(0,1fr))':'repeat(4, minmax(0,1fr))',gap:14}}>
           {([
             { l:'Total manpower', v:stats.total, icon:Users, tone:'brand' },
             { l:'Executives', v:stats.executives, icon:User, tone:'brand' },
@@ -450,7 +451,7 @@ export default function ManpowerDirectoryPage() {
               <div style={{fontFamily:T.heading,fontSize:26,fontWeight:700,letterSpacing:'-0.01em',color:s.c||T.text,lineHeight:1.1,marginTop:8,fontVariantNumeric:'tabular-nums'}}>{s.v}</div>
             </Card>
           ))}
-        </div>
+        </TileGrid>
 
         {/* Toolbar */}
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>

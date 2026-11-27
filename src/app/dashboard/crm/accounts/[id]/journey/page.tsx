@@ -15,6 +15,7 @@ import { formatINR } from '../../../../../../lib/formatCurrency';
 import { rows, eventKindMeta, journeyKpis, normalizeSteps, personName, sortedEvents, STEP_SECTION } from '../../../../../../lib/sparkAccounts';
 import Breadcrumbs from '../../../../../../components/crm/shared/Breadcrumbs';
 import { Badge, Button, Card, EmptyState, T, eyebrowStyle, useIsCompact, type Tone } from '../../../../../../components/ui';
+import TileGrid from '../../../../../../components/ui/TileGrid';
 import { fmtDate, fmtIST, relTime } from '../../../../../../components/crm/lead-detail/format';
 
 const STEP_ICON: Record<JourneyStepKey, LucideIcon> = {
@@ -111,13 +112,13 @@ export default function AccountJourneyPage() {
         </div>
       </div>
 
-      <div data-testid="journey-kpis" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+      <TileGrid id="crm-accounts-journey-kpis" data-testid="journey-kpis" perRow={5} h={3} style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         <Kpi label="Visits" value={String(kpis.visits)} />
         <Kpi label="Forms" value={String(kpis.forms)} />
         <Kpi label="Open deals value" value={formatINR(kpis.openDealValue)} />
         <Kpi label="Quotations" value={String(kpis.quotations)} />
         <Kpi label="Expenses" value={String(kpis.expenses)} />
-      </div>
+      </TileGrid>
 
       {/* ── The flow ─────────────────────────────────────────────────────────── */}
       <Card padding={narrow ? 16 : 24}>

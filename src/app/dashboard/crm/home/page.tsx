@@ -23,6 +23,7 @@ import { Badge, Button, Card, EmptyState, Eyebrow, PageHeader, T, useIsCompact, 
 import { usePageTitle } from '../../../../lib/pageTitle';
 import MyTargetsCard from '../../../../components/crm/MyTargetsCard';
 import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
+import TileGrid from '../../../../components/ui/TileGrid';
 
 // Belt-and-braces gate: the sidebar already hides this entry for Tata
 // Tiscon users via the `hiddenForTata` flag in layout.tsx, but a direct
@@ -196,13 +197,13 @@ export default function CrmHomePage() {
           )}
         </Card>
 
-        <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'repeat(2, minmax(0, 1fr))' : 'repeat(5, minmax(0, 1fr))', gap: 12 }}>
+        <TileGrid id="crm-home-activity" perRow={3} h={3} style={{ display: 'grid', gridTemplateColumns: narrow ? 'repeat(2, minmax(0, 1fr))' : 'repeat(5, minmax(0, 1fr))', gap: 12 }}>
           <ActivityStat label="Logged today" value={activity?.total ?? 0} icon={<CheckCircle2 size={16} strokeWidth={1.6} />} tone="ok" />
           <ActivityStat label="Calls"    value={activity?.by_type?.call ?? 0}     icon={<Phone size={16} strokeWidth={1.6} />}         tone="info" />
           <ActivityStat label="WhatsApp" value={activity?.by_type?.whatsapp ?? 0} icon={<MessageCircle size={16} strokeWidth={1.6} />} tone="ok" />
           <ActivityStat label="Meetings" value={activity?.by_type?.meeting ?? 0}  icon={<CalendarDays size={16} strokeWidth={1.6} />}  tone="warn" />
           <ActivityStat label="Notes"    value={activity?.by_type?.note ?? 0}     icon={<StickyNote size={16} strokeWidth={1.6} />}    tone="neutral" />
-        </div>
+        </TileGrid>
       </div>
 
       {/* ── Sales / Collection rupee targets — only for clients that have them (renders nothing otherwise) ── */}

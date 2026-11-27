@@ -7,6 +7,7 @@ import { useAuth } from '../../../../hooks/useAuth';
 import { canViewFieldVisits } from '../../../../lib/clientFeatures';
 import { usePageTitle } from '../../../../lib/pageTitle';
 import { CrmToolbarRight } from '../../../../components/crm/layout/CrmPageToolbar';
+import TileGrid from '../../../../components/ui/TileGrid';
 
 type StatusFilter = 'all' | 'planned' | 'completed';
 
@@ -102,11 +103,11 @@ export default function FieldVisitsPage() {
       </div>
 
       {/* Summary tiles */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+      <TileGrid id="crm-field-visits-summary" perRow={3} h={2} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
         <Tile label="Total" value={counts.total} highlight icon={Footprints} />
         <Tile label="In Progress" value={counts.inProgress} icon={Clock} />
         <Tile label="Completed" value={counts.completed} icon={CheckCircle2} />
-      </div>
+      </TileGrid>
 
       {/* Controls */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>

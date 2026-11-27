@@ -81,7 +81,7 @@ export default function ApprovalsTab({ db, ts }: { db: HrmsDb; ts: TimesheetStat
 
   return (
     <Stack gap={16}>
-      <StatGrid min={160}>
+      <StatGrid id="hrms-time-approvals-kpis" perRow={4} h={3} min={160}>
         <Stat label="Waiting for approval" value={waiting.length} tone={waiting.length ? 'info' : 'ok'} />
         <Stat label="Flagged over the cap" value={flagged} tone={flagged ? 'warn' : 'ok'} hint={`More than ${ts.policy.weeklyCap} hours in the week`} />
         <Stat label="Approved and locked" value={approved} tone="ok" />

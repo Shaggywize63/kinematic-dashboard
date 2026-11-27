@@ -168,7 +168,7 @@ export default function WageHr({ db, wf, standings, narrow }: { db: HrmsDb; wf: 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <StatGrid>
+      <StatGrid id="hrms-wage-access-kpis" perRow={4} h={3}>
         <Stat label="Waiting for a decision" value={sum.pending} tone={sum.pending ? 'warn' : undefined} hint={sum.pending ? 'In the inbox below' : 'Nothing waiting'} />
         <Stat label="Approved this month" value={inr(sum.approvedThisMonth)} hint={`${sum.requestsThisMonth} of the month's requests so far`} />
         <Stat label="Outstanding to recover" value={inr(sum.outstanding)} hint="Recovered by the next payroll run" />
