@@ -172,7 +172,7 @@ export default function ManagementDashboardPage() {
   const headerActions = (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
       <ReportRangePicker range={range} onChange={setRange} />
-      <Button variant="secondary" icon={<Download size={15} />} onClick={exportCsv} disabled={csvRows.length === 0}>
+      <Button variant="secondary" className="km-btn km-rbtn" icon={<Download size={15} />} onClick={exportCsv} disabled={csvRows.length === 0}>
         Export CSV
       </Button>
     </div>

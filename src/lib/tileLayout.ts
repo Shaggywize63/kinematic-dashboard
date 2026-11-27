@@ -204,3 +204,28 @@ export function writeLayouts(userId: string | null | undefined, boardId: string,
 export function clearLayouts(userId: string | null | undefined, boardId: string, storage: KV | null = browserStorage()): void {
   try { storage?.removeItem(tilesKey(userId, boardId)); } catch { /* ignore */ }
 }
+
+/** Has this user rearranged / resized this board (is there a saved layout that differs from the default)? Never throws. */
+export function hasSavedLayout(userId: string | null | undefined, boardId: string, storage: KV | null = browserStorage()): boolean {
+  try { return !!storage?.getItem(tilesKey(userId, boardId)); } catch { return false; }
+}
+
+/** The key prefix shared by every board layout of one user. */
+export function tilesPrefix(userId: string | null | undefined): string {
+  return tilesKey(userId, '');
+}
+
+/**
+ * Forget EVERY saved tile layout of this user — all boards on all pages go back to their default. Returns how many were
+ * removed. Only this user's keys (km_tiles:<user>:…) are touched, never another person's on a shared browser.
+ */
+export function clearAllLayouts(userId: string | null | undefined, storage: (KV & { length: number; key(i: number): string | null }) | null = browserStorage() as never): number {
+  try {
+    if (!storage) return 0;
+    const prefix = tilesPrefix(userId);
+    const keys: string[] = [];
+    for (let i = 0; i < storage.length; i++) { const k = storage.key(i); if (k && k.startsWith(prefix)) keys.push(k); }
+    keys.forEach((k) => storage.removeItem(k));
+    return keys.length;
+  } catch { return 0; }
+}

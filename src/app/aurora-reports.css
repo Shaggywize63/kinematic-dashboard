@@ -3,6 +3,7 @@
 
    Class hooks (all inert in Classic — there is no rule for them outside html[data-design="new"]):
      .km-rt        a report <table>           → glass header row, hairline rows, hover wash, tabular numerals, legible sort arrows
+     .km-num       a column of figures        → right-aligned (ReportRunner marks them)
      .km-sticky    a sticky <th>/<td>         → SOLID frosted background so scrolled cells never show through
      .km-total     a totals <tr>              → heavier weight + tinted top border
      .km-band      a title band / group <th>  → glass tint from --tint (set inline), accent dot, text is ALWAYS var(--text)
@@ -15,6 +16,7 @@
      .km-note      a footnote under a table   → readable secondary ink
      .km-eyebrow   an uppercase section title → ink-2 (never the mono --text-mute)
      .km-grouphead a group row in a results list → quiet info tint, data keeps its case
+     .km-cardacc   a card with a coloured top stripe → the stripe redrawn from --tint
      .km-warn      an amber notice banner     → legible amber text on an amber glass wash
      .km-link      a brand-red link           → lifted toward the ink so it reads on glass (.km-link-btn = the outlined "Open →" button)
      .km-rcard     a report-index card        → glass with a tinted icon chip (.km-lz)
@@ -56,6 +58,7 @@ html[data-design="new"] main .km-rt thead th.km-sticky {
 }
 
 /* body: hairline separators, no vertical rules, hover wash */
+html[data-design="new"] main .km-rt tr { border-top-width: 0 !important; }   /* the old inline row rules → the hairline on the cells */
 html[data-design="new"] main .km-rt tbody td,
 html[data-design="new"] main .km-rt tfoot td {
   border-bottom: 1px solid var(--a-grid) !important;
@@ -72,7 +75,11 @@ html[data-design="new"] main .km-rt tbody tr:hover > td.km-sticky { background-i
 html[data-design="new"] main .km-rt td[style*="monospace"],
 html[data-design="new"] main .km-rt td[style*="jetbrains"] { font-family: inherit !important; }
 
+/* a column of figures (ReportRunner marks them): right-aligned, header and cells alike */
+html[data-design="new"] main .km-rt .km-num { text-align: right !important; }
+
 /* totals: heavier, tinted, with a tinted top rule */
+html[data-design="new"] main .km-rt tr.km-total { background: transparent !important; }   /* the row's own inline fill (opaque --s1 …) must not sit under the tint */
 html[data-design="new"] main .km-rt .km-total > td,
 html[data-design="new"] main .km-rt .km-total > th {
   font-weight: 800 !important;
@@ -88,7 +95,7 @@ html[data-design="new"] main .km-rt tbody .km-total:hover > td.km-sticky { backg
 /* sort arrows: legible at rest, bright when active (SortLabel: <span role=button aria-sort>label<span aria-hidden>▲</span></span>) */
 html[data-design="new"] .km-rt [role="button"][aria-sort] { transition: color .12s ease; }
 html[data-design="new"] .km-rt [role="button"][aria-sort] > span[aria-hidden] { font-size: 10px !important; opacity: .7 !important; }
-html[data-design="new"] .km-rt [role="button"][aria-sort]:hover { color: var(--text) !important; }
+html[data-design="new"] .km-rt [role="button"][aria-sort="none"]:hover { color: var(--text) !important; }
 html[data-design="new"] .km-rt [role="button"][aria-sort]:hover > span[aria-hidden] { opacity: 1 !important; }
 html[data-design="new"] .km-rt [role="button"][aria-sort="ascending"],
 html[data-design="new"] .km-rt [role="button"][aria-sort="descending"] { color: color-mix(in srgb, var(--accent, #6366F1) 62%, var(--a-ink)) !important; }
@@ -126,6 +133,7 @@ html[data-design="new"] main .km-kpi.km-kpi {
   border-radius: 16px !important;
   box-shadow: inset 0 1px 0 var(--a-hi), var(--a-shadow);
   min-width: 0;
+  display: flex; flex-direction: column; justify-content: center;   /* a tile on the movable board stretches: centre its label + number */
 }
 html[data-design="new"] main .km-kpi-hl.km-kpi {
   background-image: linear-gradient(135deg, color-mix(in srgb, var(--tint, var(--primary)) 30%, transparent), color-mix(in srgb, var(--tint, var(--primary)) 9%, transparent)) !important;
@@ -145,6 +153,7 @@ html[data-design="new"] main :is(.km-kpi, .km-stat) > :nth-child(2) {
   font-variant-numeric: tabular-nums; line-height: 1.1 !important; margin-top: 8px !important; overflow-wrap: anywhere;
 }
 html[data-design="new"] main .km-kpi-hl > :nth-child(2) { color: var(--text) !important; }
+html[data-design="new"] main .km-stat > :nth-child(2) { font-size: 20px !important; margin-top: 6px !important; }   /* a figure inside a narrow card cell */
 html[data-design="new"] main :is(.km-kpi, .km-stat) > :nth-child(n+3) { color: var(--a-ink-3) !important; font-size: 11.5px !important; margin-top: 4px !important; }
 
 /* ── Buttons: a CSV / export toolbar button reads as glass ───────────────────────────────────── */
@@ -194,6 +203,19 @@ html[data-design="new"] main .km-grouphead.km-grouphead {
   border-top: 1px solid var(--a-axis) !important; border-bottom: 1px solid color-mix(in srgb, var(--info) 28%, transparent);
   color: var(--text) !important;
 }
+
+/* ── A card with a coloured top stripe (Campaign Insights): the glass edge rule flattens `border-top: 4px solid <colour>`,
+   so the stripe is redrawn as an inset shadow of --tint ─────────────────────────────────────────── */
+html[data-design="new"] main .km-cardacc.km-cardacc {
+  border-top-width: 1px !important;
+  box-shadow: inset 0 3px 0 var(--tint, var(--primary)), inset 0 1px 0 var(--a-hi), var(--a-shadow) !important;
+}
+/* small chips with a label and a number (their own dark `--s1` fill → a quiet glass chip) */
+html[data-design="new"] main .km-chip-stat {
+  background: color-mix(in srgb, var(--a-ink) 5%, transparent) !important; border-color: var(--a-grid) !important; border-radius: 12px !important;
+  font-variant-numeric: tabular-nums;
+}
+html[data-design="new"] main .km-chip-stat > :first-child { color: var(--a-ink-2) !important; font-size: 10px !important; letter-spacing: .06em !important; }
 
 /* ── Notices: the amber "partial data" banner (dark brown text on glass was unreadable in dark) ──── */
 html[data-design="new"] main .km-warn.km-warn {

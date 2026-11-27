@@ -142,6 +142,16 @@ export default function ReportRunner({
   })();
 
   const shownRows = data ? data.rows.slice(0, MAX_RENDER_ROWS) : [];
+  // Columns whose cells are all numbers: the New design right-aligns them (`km-num`); Classic ignores the class.
+  const numericCol = data ? data.columns.map((_, ci) => {
+    let any = false;
+    for (const r of shownRows) {
+      const v = r[ci];
+      if (typeof v === 'number') any = true;
+      else if (v !== null && v !== undefined && v !== '') return false;
+    }
+    return any;
+  }) : [];
 
   return (
     <div>
@@ -206,8 +216,8 @@ export default function ReportRunner({
             <table className="km-rt" style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
               <thead>
                 <tr>
-                  {data.columns.map((c) => (
-                    <th key={c} className="km-sticky" style={{
+                  {data.columns.map((c, ci) => (
+                    <th key={c} className={numericCol[ci] ? 'km-sticky km-num' : 'km-sticky'} style={{
                       position: 'sticky', top: 0, textAlign: 'left', whiteSpace: 'nowrap',
                       padding: '9px 12px', background: 'var(--s3)', color: 'var(--text)',
                       fontWeight: 700, borderBottom: '1px solid var(--border)',
@@ -221,7 +231,7 @@ export default function ReportRunner({
                   return (
                     <tr key={ri} className={isTotal ? 'km-total' : undefined} style={{ background: isTotal ? 'var(--s3)' : 'transparent', fontWeight: isTotal ? 700 : 400 }}>
                       {row.map((cell, ci) => (
-                        <td key={ci} style={{
+                        <td key={ci} className={numericCol[ci] ? 'km-num' : undefined} style={{
                           padding: '8px 12px', whiteSpace: 'nowrap', color: 'var(--text)',
                           borderBottom: '1px solid var(--border)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis',
                         }}>{cell === null || cell === undefined || cell === '' ? '—' : String(cell)}</td>

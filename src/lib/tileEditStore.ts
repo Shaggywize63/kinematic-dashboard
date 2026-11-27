@@ -13,15 +13,18 @@ export interface TileEditSnapshot {
   editing: boolean;
   /** Bumped by `resetAllTiles`; each board resets its own layout when it changes. */
   resetToken: number;
+  /** How many boards on the page are rearranged (have a saved layout) — the header offers "Reset to default" when this is > 0. */
+  customized: number;
 }
 
-const INITIAL: TileEditSnapshot = { boards: 0, editing: false, resetToken: 0 };
+const INITIAL: TileEditSnapshot = { boards: 0, editing: false, resetToken: 0, customized: 0 };
 
 let snapshot: TileEditSnapshot = INITIAL;
+const customizedIds = new Set<string>();
 const listeners = new Set<() => void>();
 
 function set(next: TileEditSnapshot) {
-  if (next.boards === snapshot.boards && next.editing === snapshot.editing && next.resetToken === snapshot.resetToken) return;
+  if (next.boards === snapshot.boards && next.editing === snapshot.editing && next.resetToken === snapshot.resetToken && next.customized === snapshot.customized) return;
   snapshot = next;
   listeners.forEach((l) => l());
 }
@@ -42,6 +45,12 @@ export function registerTileBoard(): () => void {
   };
 }
 
+/** A board says whether it currently has a saved (non-default) layout. Call with `false` when it leaves the page. */
+export function setBoardCustomized(boardId: string, on: boolean) {
+  if (on) customizedIds.add(boardId); else customizedIds.delete(boardId);
+  set({ ...snapshot, customized: customizedIds.size });
+}
+
 export function setTileEditing(editing: boolean) {
   set({ ...snapshot, editing: editing && snapshot.boards > 0 });
 }
@@ -54,5 +63,6 @@ export function resetAllTiles() {
 /** Test seam: back to the initial state. */
 export function resetTileEditForTests() {
   snapshot = INITIAL;
+  customizedIds.clear();
   listeners.clear();
 }

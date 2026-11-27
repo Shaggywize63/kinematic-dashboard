@@ -234,9 +234,9 @@ export default function ReportSchedulesPage() {
       )}
 
       {loading ? (
-        <p style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</p>
+        <p className="km-empty" data-state="loading" style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</p>
       ) : items.length === 0 ? (
-        <div style={{ ...card, textAlign: 'center', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        <div className="km-empty" style={{ ...card, textAlign: 'center', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
           <IconTile icon={Mail} size={40} iconSize={20} />
           No scheduled digests yet. Create one to email a report on a recurring cadence.
         </div>

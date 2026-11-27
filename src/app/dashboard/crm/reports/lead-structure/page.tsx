@@ -101,14 +101,14 @@ export default function LeadStructureReportPage() {
       </div>
 
       {loading && data.total_leads === 0 ? (
-        <div style={{ color: T.dim, fontSize: 13 }}>Loading…</div>
+        <div className="km-empty" data-state="loading" style={{ color: T.dim, fontSize: 13 }}>Loading…</div>
       ) : (
         <TileGrid id="crm-reports-lead-structure-dims" perRow={2} h={10} style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
           {dims.map((d) => {
             const max = d.rows.reduce((m, r) => Math.max(m, r.lead_count), 0);
             return (
               <div key={d.title} style={{ border: `1px solid ${T.border}`, borderRadius: 12, padding: '14px 16px', background: T.card }}>
-                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: T.dim, marginBottom: 8 }}>{d.title}</div>
+                <div className="km-eyebrow" style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: T.dim, marginBottom: 8 }}>{d.title}</div>
                 {d.rows.length === 0 ? (
                   <div style={{ color: T.dim, fontSize: 12.5 }}>No data.</div>
                 ) : (

@@ -6,12 +6,12 @@ import 'react-resizable/css/styles.css';
 import { getStoredUser } from '../../lib/auth';
 import { useNewDesign } from '../../lib/useNewDesign';
 import { useTileEditing } from '../../lib/useTileEditing';
-import { registerTileBoard } from '../../lib/tileEditStore';
+import { registerTileBoard, setBoardCustomized } from '../../lib/tileEditStore';
 import { sizeOf, type TileSize } from '../../lib/tileSize';
 import { TileSizeContext } from '../../lib/useTileSize';
 import {
   BREAKPOINTS, COLS, GAP, ROW_HEIGHT, WIDTH_PRESETS,
-  clearLayouts, defaultLayouts, readLayouts, sameLayouts, sanitizeLayouts, withHeightDelta, withWidth, writeLayouts,
+  clearLayouts, defaultLayouts, hasSavedLayout, readLayouts, sameLayouts, sanitizeLayouts, withHeightDelta, withWidth, writeLayouts,
   type Breakpoint, type Layouts, type TileSpec,
 } from '../../lib/tileLayout';
 import { T } from './index';
@@ -72,7 +72,9 @@ function LiveBoard({ id, tiles, outerStyle }: { id: string; tiles: TileDef[]; ou
     const uid = getStoredUser()?.id ?? null;
     setUserId(uid);
     setLayouts(readLayouts(uid, id, specs));
+    setBoardCustomized(id, hasSavedLayout(uid, id));          // the header offers "Reset to default" while this is true
   }, [id, specs]);
+  useEffect(() => () => setBoardCustomized(id, false), [id]);  // leaving the page: this board no longer counts
 
   // "Reset layout" in the header → forget this board's saved layout.
   const lastReset = useRef(resetToken);
@@ -81,12 +83,14 @@ function LiveBoard({ id, tiles, outerStyle }: { id: string; tiles: TileDef[]; ou
     lastReset.current = resetToken;
     clearLayouts(userId, id);
     setLayouts(defaultLayouts(specs));
+    setBoardCustomized(id, false);
   }, [resetToken, userId, id, specs]);
 
   const commit = (next: Layouts) => {
     if (sameLayouts(next, layouts)) return;
     setLayouts(next);
     writeLayouts(userId, id, next);
+    setBoardCustomized(id, true);
   };
 
   // Persist only what the USER changed. react-grid-layout also reports on mount (after it compacts), which must not
