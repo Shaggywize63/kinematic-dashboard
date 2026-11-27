@@ -19,7 +19,10 @@ html[data-design="new"] {
   --a-edge: rgba(255, 255, 255, .24); --a-edge-2: rgba(255, 255, 255, .07); --a-hi: rgba(255, 255, 255, .10);
   --a-shadow: 0 1px 1px rgba(0, 0, 0, .3), 0 26px 60px -26px rgba(0, 0, 0, .7);
   --a-ink: #EEF2FB; --a-ink-2: #A9B4C8; --a-ink-3: #7F8BA2;
+  --a-grid: rgba(255, 255, 255, .07); --a-axis: rgba(255, 255, 255, .16); --a-ring: #151C30;
   --a-radius: 20px;
+  /* status colours for the Aurora charts (attendance ring etc.) */
+  --au-good: #0AAC23; --au-warn: #FBB315; --au-neutral: #97A1B2; --au-crit: #DC3C3D;
 
   --bg: var(--a-bg);
   --canvas: var(--a-bg);
@@ -47,6 +50,8 @@ html[data-design="new"][data-theme="light"] {
   --a-edge: rgba(255, 255, 255, .95); --a-edge-2: rgba(255, 255, 255, .55); --a-hi: rgba(255, 255, 255, .90);
   --a-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 22px 44px -22px rgba(30, 40, 90, .30);
   --a-ink: #0B1020; --a-ink-2: #465066; --a-ink-3: #6C778D;
+  --a-grid: rgba(11, 16, 32, .08); --a-axis: rgba(11, 16, 32, .20); --a-ring: #F2F4FA;
+  --au-good: #0A9A20; --au-warn: #E8A210; --au-neutral: #8590A6; --au-crit: #D23035;
 
   --s1: #F4F6FB;
   --s3: rgba(11, 16, 32, .05);
@@ -127,3 +132,32 @@ html[data-design="new"] main h1 { font-size: 26px; font-weight: 800; letter-spac
 /* ── Controls on glass: inputs and the segmented switches read as quieter glass ─────────────── */
 html[data-design="new"] .km-input { background: var(--field); border-color: var(--a-edge-2); }
 html[data-design="new"] .km-input:focus { border-color: var(--border-l); }
+
+/* ── Aurora charts ─────────────────────────────────────────────────────────────────────────────── */
+/* numerals in the charts: Manrope, heavy, tabular */
+.km-au-num { font-family: var(--font-manrope); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1; color: var(--text); }
+.km-au-tick { fill: var(--a-ink-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+/* status rows: icon chip + hover wash */
+.km-au-ic { color: var(--a-ink-2); background: color-mix(in srgb, var(--a-ink) 6%, transparent); }
+.km-au-row[data-on="1"], .km-au-row:hover { background: color-mix(in srgb, var(--a-ink) 5%, transparent); }
+/* the live clock pill with a pulsing dot */
+.km-livepill { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-jetbrains); font-size: 11px; color: var(--a-ink-2); padding: 4px 9px; border-radius: 999px; border: 1px solid var(--a-grid); }
+.km-livedot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 60%, transparent); animation: km-ping 1.8s ease-out infinite; }
+@keyframes km-ping { to { box-shadow: 0 0 0 8px transparent; } }
+@media (prefers-reduced-motion: reduce) { .km-livedot { animation: none; } }
+
+/* recharts (every chart built on lib/chartTheme): quiet grid and axes, glass tooltips, softer cursors, ringed pie slices */
+html[data-design="new"] .recharts-cartesian-grid line { stroke: var(--a-grid); stroke-dasharray: none; }
+html[data-design="new"] .recharts-cartesian-axis-tick-value { fill: var(--a-ink-3); }
+html[data-design="new"] .recharts-cartesian-axis-line, html[data-design="new"] .recharts-cartesian-axis-tick-line { stroke: var(--a-axis); }
+html[data-design="new"] .recharts-legend-item-text { color: var(--a-ink-2) !important; }
+html[data-design="new"] .recharts-tooltip-cursor { fill: color-mix(in srgb, var(--a-ink) 6%, transparent); stroke: var(--a-axis); }
+html[data-design="new"] .recharts-reference-line line { stroke: var(--a-axis); }
+html[data-design="new"] .recharts-pie-sector path { stroke: var(--a-bg); stroke-width: 2px; }
+html[data-design="new"] .recharts-area-curve, html[data-design="new"] .recharts-line-curve { stroke-width: 2.5px; stroke-linecap: round; filter: drop-shadow(0 4px 10px rgba(80, 110, 255, .28)); }
+html[data-design="new"] .recharts-bar-rectangle path { transition: filter .15s ease; }
+html[data-design="new"] .recharts-bar-rectangle:hover path { filter: brightness(1.14) saturate(1.1); }
+html[data-design="new"] :is(.recharts-default-tooltip, .km-chart-tip) {
+  background: color-mix(in srgb, var(--a-solid) 88%, transparent) !important; border: 1px solid var(--a-edge-2) !important; border-radius: 12px !important;
+  -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%); box-shadow: inset 0 1px 0 var(--a-hi), var(--shadow-pop) !important;
+}

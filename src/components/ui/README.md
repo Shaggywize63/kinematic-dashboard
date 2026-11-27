@@ -97,3 +97,9 @@ tinted-glass icon chips (`.km-lz`, set `--tint` inline).
 identified by its `key`, `data-tile`, `label` or `title`. The header's **Arrange tiles** button (and the hover "Arrange" pill
 on any tile) switches every board on the page into edit mode: drag a tile's bar, drag its corner, or use the ¼ ⅓ ½ Full
 and − + buttons. Use `TileBoard` directly only when tiles need bespoke sizing.
+
+**Aurora charts** (`components/charts/AuroraCharts.tsx`): `AttendanceAurora` (a ring with one tick per person, gaps between status
+groups, the rate in the middle, a status list and a footer of facts — each fact only when the API sends it), `AuroraArea` (a smoothed area
+with a crosshair readout, hover or ← →) and `CardHead` (the tinted-glass heading). Every recharts chart is themed from one place:
+`lib/chartTheme.tsx` plus the `recharts` rules at the bottom of `app/aurora.css` (quiet grid, muted axes, glass tooltips, ringed pie slices).
+Status colours are `--au-good / --au-warn / --au-neutral / --au-crit`.

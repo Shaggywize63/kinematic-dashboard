@@ -80,7 +80,11 @@ export const mockHeatmap = () => ({
 export const mockDashboardInit = () => ({
   success: true,
   data: {
-    attendance: { total: 145, present: 132, on_break: 5, checked_out: 4, absent: 4, regularised: 0 },
+    // 60 field executives: 55 checked in (92%, matching kpis.avg_attendance). The extra fields feed the Attendance card's footer.
+    attendance: {
+      total: 60, present: 38, on_break: 6, checked_out: 11, absent: 5, regularised: 0,
+      on_leave: 3, late_checkins: 14, first_check_in: new Date(`${new Date().toISOString().slice(0, 10)}T08:02:00+05:30`).toISOString(),
+    },
     kpis: { total_tff: 1248, avg_attendance: 92, open_grievances: 2 },
     weekly: { days: mockTrends().data, total_tff: 1248 }
   }

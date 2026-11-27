@@ -13,6 +13,7 @@ import KiniMascot from '../../components/crm/KiniMascot';
 import { IconTile, InlineIcon } from '../../components/ui/PageIcon';
 import TileBoard from '../../components/ui/TileBoard';
 import { useNewDesign } from '../../lib/useNewDesign';
+import { AttendanceAurora, AuroraArea, CardHead } from '../../components/charts/AuroraCharts';
 import { metricIconFor } from '../../lib/labelIcons';
 
 /* ── types ─────────────────────────────────────────────────── */
@@ -25,6 +26,12 @@ interface AttSummary {
   regularised:number;
   total_days_worked?:number;
   total_leaves?:number;
+  /** Approved leave today. */
+  on_leave?:number;
+  /** ISO timestamp of today's first check-in. */
+  first_check_in?:string|null;
+  /** Check-ins after the shift-start cut-off. */
+  late_checkins?:number;
 }
 
 interface WeekDay {
@@ -157,7 +164,6 @@ const PieChart = ({ present, on_break, checked_out, absent, total }:{
   total:number;
 }) => {
   const [hover, setHover] = useState<string|null>(null);
-  const { enabled: aurora } = useNewDesign();
   const SIZE = 150, cx = SIZE/2, cy = SIZE/2, R = 57, W = 15, GAP_DEG = 3;
   const legend = [
     { key:'active',  label:'Active',      value:present,     color:T.ok   },
@@ -179,21 +185,6 @@ const PieChart = ({ present, on_break, checked_out, absent, total }:{
     angle += sweep + gapRad;
   });
 
-  // Aurora: the ring is one tick per field executive, coloured by their status — so 145 people read as 145 marks.
-  const tickCount = legend.reduce((n, s) => n + s.value, 0);
-  const useTicks = aurora && tickCount > 0 && tickCount <= 400;
-  const ticks: { i:number; x1:number; y1:number; x2:number; y2:number; key:string; color:string }[] = [];
-  if (useTicks) {
-    let i = 0;
-    legend.forEach(s => {
-      for (let n = 0; n < s.value; n++, i++) {
-        const a = -Math.PI / 2 + ((i + 0.5) / tickCount) * 2 * Math.PI;
-        const r1 = R - W / 2 - 1, r2 = R + W / 2 + 1;
-        ticks.push({ i, x1:cx + r1 * Math.cos(a), y1:cy + r1 * Math.sin(a), x2:cx + r2 * Math.cos(a), y2:cy + r2 * Math.sin(a), key:s.key, color:s.color });
-      }
-    });
-  }
-
   const focused = hover ? legend.find(s => s.key === hover) : null;
   const centreValue = focused ? focused.value : total;
   const centreLabel = focused ? focused.label.toUpperCase() : 'TOTAL';
@@ -202,11 +193,8 @@ const PieChart = ({ present, on_break, checked_out, absent, total }:{
     <div style={{ display:'flex', alignItems:'center', gap:22, flexWrap:'wrap' }}>
       <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ flexShrink:0 }} onMouseLeave={() => setHover(null)}>
         {/* quiet track so the ring reads as a whole even with tiny slices */}
-        {!useTicks && <circle cx={cx} cy={cy} r={R} fill="none" stroke={T.raised} strokeWidth={W}/>}
-        {useTicks ? ticks.map(t => (
-          <line key={t.i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke={t.color} strokeWidth={Math.min(2.2, Math.max(0.9, 330 / tickCount))} strokeLinecap="round"
-            opacity={hover === null || hover === t.key ? 1 : 0.22} onMouseEnter={() => setHover(t.key)} style={{ transition:'opacity .12s ease' }}/>
-        )) : segments.length === 1 ? (
+        <circle cx={cx} cy={cy} r={R} fill="none" stroke={T.raised} strokeWidth={W}/>
+        {segments.length === 1 ? (
           <circle cx={cx} cy={cy} r={R} fill="none" className="km-arc" data-on={hover === segments[0].key || hover === null ? '1' : '0'}
             stroke={segments[0].color} strokeWidth={hover === segments[0].key ? W + 4 : W}
             onMouseEnter={() => setHover(segments[0].key)}/>
@@ -362,6 +350,7 @@ const DateRangePicker = ({ from, to, onChange }:{
    MAIN ANALYTICS DASHBOARD (NO HR TOGGLE)
 ══════════════════════════════════════════════════════════ */
 export default function DashboardPage() {
+  const { enabled: aurora } = useNewDesign();
   const router = useRouter();
   usePageTitle('Dashboard');
   const narrow = useIsCompact(900);
@@ -665,9 +654,9 @@ export default function DashboardPage() {
         <TileBoard
           id="home-panels"
           tiles={[
-            { key:'attendance', label:'Attendance today', w:8, h:9, minW:6, minH:6, node: (
+            { key:'attendance', label:'Attendance today', w:10, h:8, minW:6, minH:6, node: (
             <Card>
-              <CardTitle title="Attendance today" icon={UserCheck} sub="Active · On break · Checked out · Absent" />
+              {!aurora && <CardTitle title="Attendance today" icon={UserCheck} sub="Active · On break · Checked out · Absent" />}
               {loadingAtt ? (
                 <div style={{ display:'flex', gap:16, alignItems:'center' }}>
                   <Shimmer w={140} h={140} br={70}/>
@@ -677,6 +666,9 @@ export default function DashboardPage() {
                     ))}
                   </div>
                 </div>
+              ) : att && aurora ? (
+                <AttendanceAurora present={att.present} on_break={att.on_break} checked_out={att.checked_out} absent={att.absent}
+                  on_leave={att.on_leave} first_check_in={att.first_check_in} late_checkins={att.late_checkins} />
               ) : att ? (
                 <PieChart
                   present={att.present}
@@ -690,14 +682,25 @@ export default function DashboardPage() {
               )}
             </Card>
             ) },
-            { key:'weekly', label:'Weekly activity', w:12, h:9, minW:6, minH:6, node: (
+            { key:'weekly', label:'Weekly activity', w:10, h:8, minW:6, minH:6, node: (
             <Card>
-              <CardTitle
-                title="Weekly activity"
-                icon={BarChart3}
-                sub="Total forms filled (TFF) per day"
-              />
-              <WeeklyBar days={weekData?.days || []} loading={loadingWeek}/>
+              {aurora ? (
+                <div style={{ marginBottom:14 }}>
+                  <CardHead tint="var(--t-blue, #2F6BFF)" icon={BarChart3} title="Forms filled" sub="Per day · hover or use arrow keys" />
+                </div>
+              ) : (
+                <CardTitle
+                  title="Weekly activity"
+                  icon={BarChart3}
+                  sub="Total forms filled (TFF) per day"
+                />
+              )}
+              {aurora && !loadingWeek && (weekData?.days?.length ?? 0) > 0 ? (
+                <AuroraArea ariaLabel="Forms filled per day" color="var(--au-good, #0AAC23)"
+                  data={(weekData?.days || []).map(d => ({ label:d.label, short:d.short_label, value:d.tff }))} />
+              ) : (
+                <WeeklyBar days={weekData?.days || []} loading={loadingWeek}/>
+              )}
               {!loadingWeek && weekData && (
                 <div
                   style={{
