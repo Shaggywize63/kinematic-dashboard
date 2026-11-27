@@ -29,7 +29,11 @@ export const WHATS_NEW: Record<string, { since: string; note?: string }> = {
   '/dashboard/planograms/competitors':       { since: '2026-08-11', note: 'Competitors library' },
   '/dashboard/planograms/insights':          { since: '2026-08-10', note: 'Cross-store trend insights' },
   // Support
-  '/dashboard/support':                      { since: '2026-11-27', note: 'Raise and track support tickets (beta)' },
+  // Dated the 28th, not the 27th the module actually shipped on: the team opened Support repeatedly while
+  // it was being built, and the layout marks a section seen the moment you land on it — so a 27th-dated
+  // badge was already cleared for everyone who touched it, us included, and could never come back. A later
+  // date re-announces it to every browser, which is the documented way to re-raise a badge.
+  '/dashboard/support':                      { since: '2026-11-28', note: 'Raise and track support tickets (beta)' },
   // Distribution
   '/dashboard/distribution/control-tower':   { since: '2026-08-19', note: 'Distribution Control Tower' },
   '/dashboard/distribution/ai':              { since: '2026-08-19', note: 'Distribution AI Copilot' },
